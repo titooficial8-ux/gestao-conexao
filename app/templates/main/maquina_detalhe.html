@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ t('maquina') }} {{ '%02d'|format(machine.number) }}{% endblock %}
+{% block content %}
+
+<div class="page-banner page-banner-maquina">
+  <img src="{{ url_for('static', filename='img/banner_maquina_soft.jpg') }}" alt="">
+</div>
+
+<div class="prod-toolbar">
+  <div class="prod-toolbar-title">
+    <span class="prod-toolbar-icon">&#9881;</span>
+    <div>
+      <h1 class="page-heading prod-toolbar-heading">{{ t('producao_por_maquina') }}</h1>
+      <div class="prod-toolbar-meta">
+        <span>{{ sequencias|length }} {{ t('artigos_meta') }}</span>
+        <span>&bull;</span>
+        <span>{{ t('maquina') }} {{ '%02d'|format(machine.number) }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="prod-toolbar-actions">
+    <button type="button" class="prod-btn" disabled>{{ t('acao_lista') }}</button>
+    <button type="button" class="prod-btn" disabled>{{ t('acao_atualizar') }}</button>
+    <button type="button" class="prod-btn" disabled>{{ t('acao_historico') }}</button>
+    <button type="button" class="prod-btn" disabled>{{ t('acao_download') }}</button>
+    <button type="button" class="prod-btn prod-btn-warn" disabled>{{ t('acao_dias_sem_producao') }}</button>
+    <button type="button" class="prod-btn prod-btn-accent" id="btnEstruturas">{{ t('estruturas_habilitadas') }}</button>
+    <button type="button" class="prod-btn prod-btn-primary" disabled>+ {{ t('novo_registro') }}</button>
+  </div>
+</div>
+
+<div class="prod-filters">
+  <input type="text" class="prod-search" placeholder="{{ t('pesquisar_placeholder') }}" disabled>
+  <select class="status-select" disabled><option>{{ t('todos_clientes') }}</option></select>
+  <select class="status-select" disabled><option>{{ t('todos_meses') }}</option></select>
+</div>
+
+<a href="{{ url_for('main.view_tab', slug='programacao') }}" class="machine-backlink">&#8592; {{ t('voltar_todas_maquinas') }}</a>
+
+<div class="machine-summary-card">
+  <div class="machine-summary-head">
+    <span class="machine-summary-icon">&#128736;</span>
+    <strong>{{ t('maquina') }} {{ '%02d'|format(machine.number) }}</strong>
+    {% if machine.status == 'manutencao' %}
+    <span class="badge-danger">{{ t('status_manutencao') }}</span>
+    {% elif machine.status == 'sem_programacao' %}
+    <span class="badge-warn">{{ t('status_sem_programacao') }}</span>
+    {% elif machine.status == 'inoperante' %}
+    <span class="badge-danger">{{ t('status_inoperante') }}</span>
+    {% elif rodando %}
+    <span class="badge-ok">{{ t('rodando') }}</span>
+    {% else %}
+    <span class="badge-off">{{ t('parada') }}</span>
+    {% endif %}
+    <span class="machine-summary-count">{{ sequencias|length }} {{ t('artigos_meta') }}</span>
+    <button type="button" class="prod-btn prod-btn-warn machine-summary-verificar" disabled>&#9888; {{ t('verificar_status_sequencias') }}</button>
+  </div>
+  <div class="machine-summary-stats">
+    <span class="machine-stat"><strong>{{ t('media_pcs_24h') }}:</strong> —</span>
+    <span class="machine-stat"><strong>{{ t('mt_24h') }}:</strong> —</span>
+    <span class="machine-stat"><strong>{{ t('total_pcs') }}:</strong> {{ total_pcs_maquina }}</span>
+    <span class="machine-stat">{{ produzindo_count }} {{ t('prod_abrev') }}</span>
+    <span class="machine-stat">0 {{ t('fin_abrev') }}</span>
+  </div>
+</div>
+
+<div class="table-card">
+  <h3 class="section-subtitle">{{ t('sequencias_producao') }}</h3>
+  <div class="table-scroll">
+    <table class="data-table prod-table">
+      <thead>
+        <tr>
+          <th>{{ t('sequencia') }}</th>
+          <th>{{ t('pecas_produzidas') }}</th>
+          <th>{{ t('total_pcs') }}</th>
+          <th>{{ t('pc_produzir') }}</th>
+          <th>{{ t('qt_avulsa') }}</th>
+          <th>{{ t('qt_solicitada') }}</th>
+          <th>{{ t('termino_malharia') }}</th>
+          <th>{{ t('dt_cliente') }}</th>
+          <th>{{ t('artigo') }}</th>
+          <th>{{ t('cliente') }}</th>
+          <th>{{ t('estrutura') }}</th>
+          <th>OP</th>
+          <th>{{ t('cod_segmento') }}</th>
+          <th>{{ t('status') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sequencias %}
+        <tr>
+          <td>{{ loop.index }}º</td>
+          <td>{{ s.pecas_produzidas }}</td>
+          <td>{{ s.total_pcs }}</td>
+          <td>{{ s.pc_produzir }}</td>
+          <td>{{ s.qt_avulsa or '–' }}</td>
+          <td>{{ s.qt_solicitada }}</td>
+          <td>{{ s.termino_malharia.strftime('%d/%m/%Y') if s.termino_malharia else '–' }}</td>
+          <td>{{ s.dt_cliente.strftime('%d/%m/%Y') if s.dt_cliente else (s.production_month.title() if s.production_month else '–') }}</td>
+          <td>{{ s.artigo }}</td>
+          <td>{{ s.cliente }}</td>
+          <td>{{ s.estrutura or '–' }}</td>
+          <td>{{ s.op }}</td>
+          <td>{{ s.cod_segmento or '–' }}</td>
+          <td>
+            {% if s.status == 'PRODUZINDO' %}
+            <span class="badge-ok">{{ t('seq_status_produzindo') }}</span>
+            {% elif s.status == 'EM_SEQUENCIA' %}
+            <span class="badge-info">{{ t('seq_status_em_sequencia') }}</span>
+            {% else %}
+            <span class="badge-neutral">{{ t('seq_status_pcp') }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="14" class="prod-table-empty">{{ t('sequencias_em_breve') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="table-card prod-comments">
+  <h3 class="section-subtitle">&#128172; {{ t('comentarios_maquina') }}</h3>
+  <p class="machines-empty">{{ t('comentarios_em_breve') }}</p>
+</div>
+
+<div class="modal-backdrop" id="modalEstruturas" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 class="section-subtitle">{{ t('estruturas_habilitadas') }}</h3>
+      <button type="button" class="modal-close" id="fecharModalEstruturas">&times;</button>
+    </div>
+    {% if machine.capacities %}
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>{{ t('estrutura') }}</th>
+            <th>{{ t('larguras') }}</th>
+            <th>{{ t('gramatura') }}</th>
+            <th>{{ t('status') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in machine.capacities %}
+          <tr>
+            <td><strong>{{ c.estrutura }}</strong></td>
+            <td>{{ [c.largura1, c.largura2, c.largura3] | select('gt', 0) | join(' / ') }}</td>
+            <td>{{ c.gramatura_min | round(0, 'floor') | int }}–{{ c.gramatura_max | round(0, 'floor') | int }}</td>
+            <td>
+              {% if c.ativa %}
+              <span class="badge-ok">{{ t('roda') }}</span>
+              {% else %}
+              <span class="badge-off">{{ t('nao_roda') }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="machines-empty">{{ t('sem_capacidade_cadastrada') }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('modalEstruturas');
+  var abrir = document.getElementById('btnEstruturas');
+  var fechar = document.getElementById('fecharModalEstruturas');
+  if (abrir && modal) abrir.addEventListener('click', function () { modal.hidden = false; });
+  if (fechar && modal) fechar.addEventListener('click', function () { modal.hidden = true; });
+  if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<div class="placeholder-page">
+  <div class="placeholder-icon" style="background:{{ tab.icon_color }};width:64px;height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px auto;font-size:26px;color:#fff;">{{ tab.icon }}</div>
+  <h2>{{ tab.name_pt if lang == 'pt' else tab.name_es }}</h2>
+  <p>{{ t('tab_placeholder_text') }}</p>
+</div>
+{% endblock %}

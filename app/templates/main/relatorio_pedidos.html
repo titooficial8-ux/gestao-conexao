@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<div class="machines-header">
+  <h1 class="page-heading">{{ tab.name_pt if lang == 'pt' else tab.name_es }}</h1>
+  <span class="machines-count">{{ total_geral }} {{ t('pedidos_meta') }}</span>
+</div>
+
+<form method="GET" class="prod-filters">
+  <input type="text" name="q" class="prod-search" placeholder="{{ t('pesquisar_pedidos_placeholder') }}" value="{{ busca }}">
+  <button type="submit" class="btn-small btn-primary">{{ t('pesquisar') }}</button>
+  {% if busca %}
+  <a href="{{ url_for('main.view_tab', slug='relatorio-pedidos') }}" class="btn-small">{{ t('limpar') }}</a>
+  {% endif %}
+</form>
+
+<div class="table-card">
+  <div class="table-scroll">
+    <table class="data-table prod-table">
+      <thead>
+        <tr>
+          <th>{{ t('pedido') }}</th>
+          <th>{{ t('cliente') }}</th>
+          <th>{{ t('dt_pedido') }}</th>
+          <th>{{ t('prev_faturamento') }}</th>
+          <th>{{ t('chegada_30') }}</th>
+          <th>{{ t('situacao') }}</th>
+          <th>{{ t('produto') }}</th>
+          <th>{{ t('cod_segmento') }}</th>
+          <th>{{ t('estrutura') }}</th>
+          <th>{{ t('qt_solicitada') }}</th>
+          <th>{{ t('qt_faturada') }}</th>
+          <th>{{ t('qt_pendente') }}</th>
+          <th>{{ t('ciclo_op') }}</th>
+          <th>OP</th>
+          <th>{{ t('qt_finalizada') }}</th>
+          <th>{{ t('qt_pendente_op') }}</th>
+          <th>{{ t('qt_a_faturar') }}</th>
+          <th>{{ t('saldo_expedicao') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pedidos %}
+        <tr>
+          <td>{{ p.cod_pedido }}</td>
+          <td>{{ p.nome_cliente }}</td>
+          <td>{{ p.dt_pedido.strftime('%d/%m/%Y') if p.dt_pedido else '–' }}</td>
+          <td>{{ p.dt_prevfaturamento.strftime('%d/%m/%Y') if p.dt_prevfaturamento else '–' }}</td>
+          <td>{{ p.dt_chegada30.strftime('%d/%m/%Y') if p.dt_chegada30 else '–' }}</td>
+          <td>
+            {% if p.tp_situacao == 'ATENDIDO' %}
+            <span class="badge-ok">{{ p.tp_situacao }}</span>
+            {% elif p.tp_situacao == 'CANCELADO' %}
+            <span class="badge-danger">{{ p.tp_situacao }}</span>
+            {% elif p.tp_situacao == 'PARCIALMENTE ATENDIDO' %}
+            <span class="badge-warn">{{ p.tp_situacao }}</span>
+            {% elif p.tp_situacao %}
+            <span class="badge-info">{{ p.tp_situacao }}</span>
+            {% else %}
+            –
+            {% endif %}
+          </td>
+          <td class="prod-table-produto">{{ p.ds_produto }}</td>
+          <td>{{ p.cod_segmento or '–' }}</td>
+          <td>{{ p.estrutura or '–' }}</td>
+          <td>{{ p.qt_solicitada | int }}</td>
+          <td>{{ p.qt_faturada | int }}</td>
+          <td>{{ p.qt_pendente | int }}</td>
+          <td>{{ p.nr_cicloop or '–' }}</td>
+          <td>{{ p.nr_op or '–' }}</td>
+          <td>{{ p.qt_finalizada | int }}</td>
+          <td>{{ p.qt_pendenteop | int }}</td>
+          <td>{{ p.qt_afaturar | int }}</td>
+          <td>{{ p.qt_saldo | int }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="18" class="prod-table-empty">{{ t('nenhum_pedido_encontrado') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_paginas > 1 %}
+  <div class="pedidos-paginacao">
+    <span>{{ t('pagina') }} {{ pagina }} {{ t('de') }} {{ total_paginas }} &middot; {{ total }} {{ t('resultados') }}</span>
+    <div class="pedidos-paginacao-botoes">
+      {% if pagina > 1 %}
+      <a class="btn-small" href="{{ url_for('main.view_tab', slug='relatorio-pedidos', q=busca, pagina=pagina-1) }}">&larr;</a>
+      {% endif %}
+      {% if pagina < total_paginas %}
+      <a class="btn-small" href="{{ url_for('main.view_tab', slug='relatorio-pedidos', q=busca, pagina=pagina+1) }}">&rarr;</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

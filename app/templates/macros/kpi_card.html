@@ -1,0 +1,48 @@
+{% macro kpi_card(k) %}
+<div class="kpi-card kpi-card-{{ k.status }}">
+  <div class="kpi-card-head">
+    <span class="kpi-icon-chip kpi-icon-chip-{{ k.status }}">{{ k.icone }}</span>
+    <span class="kpi-label">{{ k.label }}</span>
+    <span class="kpi-status-pill kpi-status-pill-{{ k.status }}">
+      <span class="kpi-status-dot kpi-status-dot-{{ k.status }}"></span>{{ k.status_label }}
+    </span>
+  </div>
+
+  <div class="kpi-value-row">
+    <span class="kpi-value">{{ k.valor }}</span>
+    <span class="kpi-trend-chip {{ 'kpi-trend-up' if k.positivo else 'kpi-trend-down' }}">
+      {{ '▲' if k.variacao.startswith('+') else '▼' }} {{ k.variacao }}
+    </span>
+  </div>
+
+  <div class="kpi-stat-grid">
+    <div class="kpi-stat">
+      <span class="kpi-stat-label">Mês Anterior</span>
+      <span class="kpi-stat-value">{{ k.anterior_fmt }}</span>
+    </div>
+    <div class="kpi-stat">
+      <span class="kpi-stat-label">Média 6M</span>
+      <span class="kpi-stat-value">{{ k.media_fmt }}</span>
+    </div>
+    <div class="kpi-stat">
+      <span class="kpi-stat-label">Melhor Marca</span>
+      <span class="kpi-stat-value">{{ k.melhor_fmt }}</span>
+    </div>
+  </div>
+
+  <div class="kpi-spark-full">{{ k.sparkline | safe }}</div>
+
+  <div class="kpi-progress-block">
+    <div class="kpi-progress-head">
+      <span class="kpi-meta-tag">{{ k.meta_label }}</span>
+      <span class="kpi-progress-pct">{{ k.atingimento }}%</span>
+    </div>
+    <div class="kpi-progress-track">
+      <div class="kpi-progress-fill kpi-progress-fill-{{ k.status }}" style="width:{{ k.atingimento }}%;"></div>
+    </div>
+    <span class="kpi-meta-insight {{ 'kpi-meta-insight-ok' if k.meta_batida else 'kpi-meta-insight-' + k.status }}">{{ k.meta_insight }}</span>
+  </div>
+
+  <p class="kpi-desc">{{ k.desc }}</p>
+</div>
+{% endmacro %}

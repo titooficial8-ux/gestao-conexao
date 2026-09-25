@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block sidebar_nav %}{% include 'partials/chamados_sidebar.html' %}{% endblock %}
+{% block page_title %}{{ t('chamados_inicio') }}{% endblock %}
+{% block content %}
+<div class="chamados-hero">
+  <h1>{{ t('chamados_titulo') }}</h1>
+</div>
+<div class="chamados-grid">
+  <div class="chamados-card">
+    <div class="chamados-card-icon">&#127911;</div>
+    <h3>{{ t('chamados_suporte_interno_titulo') }}</h3>
+    <p>{{ t('chamados_suporte_interno_desc') }}</p>
+    <a href="{{ url_for('chamados.novo_chamado') }}" class="tab-pill">{{ t('acessar') }} &rarr;</a>
+  </div>
+  <div class="chamados-card teal">
+    <div class="chamados-card-icon">&#128202;</div>
+    <h3>{{ t('chamados_painel_titulo') }}</h3>
+    <p>{{ t('chamados_painel_desc') }}</p>
+    <a href="{{ url_for('chamados.dashboard') }}" class="tab-pill">{{ t('acessar') }} &rarr;</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<div class="presel-header">
+  <div>
+    <h1 class="presel-title">{{ t('pre_selecao_titulo') }}</h1>
+    <p class="presel-subtitle">{{ t('pre_selecao_subtitulo') }}</p>
+  </div>
+  <a href="{{ url_for('main.view_tab', slug='pre-programacao', aba=aba) }}" class="btn-small presel-sync-btn">&#8635; {{ t('acao_atualizar') }}</a>
+</div>
+
+<div class="presel-tabs">
+  <a href="{{ url_for('main.view_tab', slug='pre-programacao', aba='pedidos') }}" class="presel-tab {{ 'presel-tab-active' if aba != 'analisar' else '' }}">{{ t('pedidos_do_relatorio') }}</a>
+  <a href="{{ url_for('main.view_tab', slug='pre-programacao', aba='analisar') }}" class="presel-tab {{ 'presel-tab-active' if aba == 'analisar' else '' }}">
+    {{ t('analisar_sequencia') }}
+    {% if total_analisar %}<span class="presel-tab-badge">{{ total_analisar }}</span>{% endif %}
+  </a>
+</div>
+
+{% if aba == 'analisar' %}
+<div class="presel-panel">
+  <div class="presel-panel-head">
+    <h2 class="presel-panel-title">{{ t('analisar_sequencia') }}</h2>
+    <p class="presel-panel-sub">{{ t('analisar_sequencia_subtitulo') }}</p>
+  </div>
+
+  <p class="presel-grid-label">{{ t('estrutura_atual_maquinas') }}</p>
+  <div class="presel-machine-grid">
+    {% for m in estrutura_por_maquina %}
+    <span class="presel-machine-chip {{ 'presel-est-' + (m.estrutura|upper|replace('ESTRUTURA ', '')|replace(' ', '')) if m.estrutura else 'presel-est-none' }}">
+      M{{ '%02d' % m.maquina }} &middot; {{ m.estrutura or t('sem_estrutura_ativa') }}
+    </span>
+    {% endfor %}
+  </div>
+
+  <div class="table-scroll" style="margin-top:18px;">
+    <table class="data-table prod-table">
+      <thead>
+        <tr>
+          <th>OP</th>
+          <th>{{ t('artigo') }}</th>
+          <th>{{ t('estrutura') }}</th>
+          <th>{{ t('cliente') }}</th>
+          <th>{{ t('prev_faturamento') }}</th>
+          <th>{{ t('qt_solicitada') }}</th>
+          <th>{{ t('total_pcs') }}</th>
+          <th>{{ t('cadastrado_em') }}</th>
+          <th>{{ t('mover') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in analisar_itens %}
+        <tr>
+          <td>{{ row.item.op or '–' }}</td>
+          <td>{{ row.item.artigo or '–' }}</td>
+          <td>
+            {% if row.estrutura %}
+            <span class="presel-est-badge {{ 'presel-est-' + (row.estrutura|upper|replace('ESTRUTURA ', '')|replace(' ', '')) }}">{{ row.estrutura }}</span>
+            {% else %}
+            <span class="presel-est-badge presel-est-none">{{ t('estrutura_nao_cadastrada') }}</span>
+            {% endif %}
+          </td>
+          <td>{{ row.item.cliente or '–' }}</td>
+          <td>{{ row.dt_prevfaturamento.strftime('%d/%m/%Y') if row.dt_prevfaturamento else '–' }}</td>
+          <td>{{ row.item.requested_quantity | int }}</td>
+          <td>{{ row.item.total_pcs }}</td>
+          <td>{{ row.item.created_at.strftime('%d/%m/%Y, %H:%M:%S') if row.item.created_at else '–' }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('main.mover_pre_programacao') }}" class="presel-mover-form">
+              <input type="hidden" name="item_id" value="{{ row.item.id }}">
+              <input type="number" name="machine_number" class="presel-mover-input js-input-maquina" placeholder="{{ t('maq_abrev') }}" required>
+              <button type="submit" class="btn-small btn-primary">&#8594; {{ t('mover') }}</button>
+            </form>
+            {% if row.sugeridas %}
+            <div class="presel-sugeridas">
+              <span class="presel-sugeridas-label">{{ t('sugeridas') }}:</span>
+              {% for s in row.sugeridas %}
+              <button type="button" class="presel-sugerida-chip" data-maquina="{{ s.maquina }}">{{ s.maquina }} ({{ s.ops }} OP)</button>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            <form method="POST" action="{{ url_for('main.excluir_pre_programacao', item_id=row.item.id) }}" onsubmit="return confirm('{{ t('confirmar_exclusao_fila') }}');">
+              <button type="submit" class="presel-delete-btn" title="{{ t('delete') }}">&#128465;</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="prod-table-empty">{{ t('nenhuma_op_aguardando') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="table-card">
+  <div class="table-scroll">
+    <table class="data-table prod-table">
+      <thead>
+        <tr>
+          <th>{{ t('pedido') }}</th>
+          <th>{{ t('cliente') }}</th>
+          <th>{{ t('produto') }}</th>
+          <th>{{ t('estrutura') }}</th>
+          <th>{{ t('cod_segmento') }}</th>
+          <th>OP</th>
+          <th>{{ t('prev_faturamento') }}</th>
+          <th>{{ t('qt_solicitada') }}</th>
+          <th>{{ t('saldo_expedicao') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pedidos_relatorio_itens %}
+        <tr>
+          <td>{{ p.cod_pedido }}</td>
+          <td>{{ p.nome_cliente }}</td>
+          <td class="prod-table-produto">{{ p.ds_produto }}</td>
+          <td>{{ p.estrutura or '–' }}</td>
+          <td>{{ p.cod_segmento or '–' }}</td>
+          <td>{{ p.nr_op or '–' }}</td>
+          <td>{{ p.dt_prevfaturamento.strftime('%d/%m/%Y') if p.dt_prevfaturamento else '–' }}</td>
+          <td>{{ p.qt_solicitada | int }}</td>
+          <td>{{ p.qt_saldo | int }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="prod-table-empty">{{ t('nenhum_pedido_disponivel') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+  document.querySelectorAll('.presel-sugerida-chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var input = chip.closest('td').querySelector('.js-input-maquina');
+      if (input) {
+        input.value = chip.getAttribute('data-maquina');
+        input.focus();
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

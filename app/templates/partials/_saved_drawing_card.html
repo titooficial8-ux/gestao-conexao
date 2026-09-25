@@ -1,0 +1,70 @@
+<div class="sd-card {{ 'is-saved' if i.obj.is_saved else 'is-pending' }}"
+     data-machine="{{ i.obj.machine }}" data-article="{{ i.obj.article }}"
+     data-search="{{ (i.obj.article or '')|lower }} {{ (i.obj.op or '')|lower }} {{ (i.obj.client or '')|lower }} {{ (i.obj.machine or '')|lower }}">
+  <div class="sd-card-head">
+    <span class="sd-card-article">&#127991;&#65039; {{ i.obj.article }}</span>
+    {% if i.obj.is_saved %}
+    <span class="sd-badge sd-badge-saved">&#10003; {{ t('saved_drawing_salvos') }}</span>
+    {% else %}
+    <span class="sd-badge sd-badge-pending">&#9200; {{ t('saved_drawing_pendentes') }}</span>
+    {% endif %}
+  </div>
+  <div class="sd-card-meta">
+    <span>&#127981; MÁQ {{ i.obj.machine }}</span>
+    <span>#{{ i.obj.op }}</span>
+  </div>
+  {% if i.obj.client %}<div class="sd-card-client">Cliente: {{ i.obj.client }}</div>{% endif %}
+
+  {% if i.seq_info %}
+  <div class="sd-card-position">
+    <span class="sd-badge sd-badge-position">{{ i.seq_info.position }}º {{ t('saved_drawing_na_maquina') }} {{ i.obj.machine }}</span>
+    <span class="sd-muted">
+      {% if i.seq_info.position == 1 %}{{ t('saved_drawing_ja_em_maquina') }}
+      {% elif i.seq_info.entry %}{{ t('saved_drawing_prev_entrada') }}: {{ i.seq_info.entry.split('-')[2] }}/{{ i.seq_info.entry.split('-')[1] }}/{{ i.seq_info.entry.split('-')[0] }}
+      {% else %}{{ t('saved_drawing_prev_entrada') }}: —{% endif %}
+    </span>
+  </div>
+  {% endif %}
+
+  {% if i.in_history %}
+  <div class="sd-note sd-note-info">&#8505;&#65039; {{ t('maquina') }} <strong>{{ i.obj.machine }}</strong> {{ t('saved_drawing_ja_no_historico') }}</div>
+  {% else %}
+  <div class="sd-note sd-note-warn">&#9888;&#65039; {{ t('saved_drawing_nunca_salvo') }}</div>
+  {% endif %}
+
+  {% if i.obj.is_saved and i.obj.saved_at %}
+  <div class="sd-saved-by">{{ t('saved_drawing_salvo_por') }} {{ i.obj.saved_by_name or i.obj.saved_by_email }} • {{ i.obj.saved_at.strftime('%d/%m/%Y às %H:%M') }}</div>
+  {% endif %}
+
+  {% if i.obj.observation %}
+  <div class="sd-observation">&ldquo;{{ i.obj.observation }}&rdquo;</div>
+  {% endif %}
+
+  {% if can_mark or can_delete %}
+  <div class="sd-card-actions">
+    {% if can_mark %}
+      {% if i.obj.is_saved %}
+      <details class="sd-obs-toggle">
+        <summary class="sd-btn sd-btn-outline">&#9998;&#65039; {{ t('saved_drawing_observacao') }}</summary>
+        <form method="post" action="{{ url_for('main.saved_drawing_observacao', drawing_id=i.obj.id) }}" class="sd-obs-form">
+          <textarea name="observation" rows="2" placeholder="Ex.: desenho atualizado, revisão 2...">{{ i.obj.observation or '' }}</textarea>
+          <button type="submit" class="sd-btn sd-btn-primary">Salvar</button>
+        </form>
+      </details>
+      <form method="post" action="{{ url_for('main.saved_drawing_desmarcar', drawing_id=i.obj.id) }}">
+        <button type="submit" class="sd-btn sd-btn-ghost">{{ t('saved_drawing_desmarcar') }}</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('main.saved_drawing_marcar', drawing_id=i.obj.id) }}">
+        <button type="submit" class="sd-btn sd-btn-success">&#10003; {{ t('saved_drawing_marcar_salvo') }}</button>
+      </form>
+      {% endif %}
+    {% endif %}
+    {% if can_delete %}
+    <form method="post" action="{{ url_for('main.saved_drawing_excluir', drawing_id=i.obj.id) }}" onsubmit="return confirm('Excluir o desenho do artigo {{ i.obj.article }} (OP {{ i.obj.op }} — MÁQ {{ i.obj.machine }})?');">
+      <button type="submit" class="sd-btn sd-btn-danger">&#128465;&#65039; {{ t('saved_drawing_excluir') }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

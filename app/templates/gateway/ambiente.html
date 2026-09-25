@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block content_guest %}
+<div class="photo-login-page photo-login-page-slideshow" style="background-image: url('{{ url_for('static', filename='img/bg_ambiente_soft.jpg') }}'); background-size: cover; background-position: center; background-repeat: no-repeat;">
+  <div class="photo-login-card">
+    <div class="gateway-logo">
+      <div class="wordmark-wrap"><img src="{{ url_for('static', filename='img/logo_conexao_wordmark_dark.png') }}" alt="Conexão" class="wordmark-logo"></div>
+      <p class="gateway-subtitle">PLANEJAMENTO &bull; CONTROLE &bull; RESULTADO</p>
+    </div>
+    <div class="gateway-section-label">SELECIONE O AMBIENTE / SELECCIONE EL AMBIENTE</div>
+    <div class="gateway-countries">
+      <a href="{{ url_for('gateway.escolher_ambiente', tipo=tipo, pais='BR') }}" class="gateway-country">
+        <span class="flag-icon">
+          <img src="{{ url_for('static', filename='img/flag_br.webp') }}" alt="Brasil" width="42" height="28">
+        </span>
+        <strong>BRASIL</strong>
+      </a>
+      <a href="{{ url_for('gateway.escolher_ambiente', tipo=tipo, pais='GT') }}" class="gateway-country">
+        <span class="flag-icon">
+          <img src="{{ url_for('static', filename='img/flag_gt.webp') }}" alt="Guatemala" width="42" height="28">
+        </span>
+        <strong>GUATEMALA</strong>
+      </a>
+    </div>
+    <a href="{{ url_for('gateway.tipo') }}" class="gateway-back">&#8592; VOLTAR / VOLVER</a>
+  </div>
+  {% include 'partials/photo_footer.html' %}
+</div>
+{% endblock %}

@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<div class="machines-header">
+  <div>
+    <h1 class="page-heading" style="margin-bottom:2px;">{{ tab.name_pt if lang == 'pt' else tab.name_es }}</h1>
+    <p class="presel-subtitle" style="margin:0;">
+      {{ t('pedidos_mi_desc') if regiao == 'MI' else t('pedidos_me_desc') }}
+    </p>
+  </div>
+  <button type="button" class="btn-small comercial-btn-integracao" disabled>&#8987; {{ t('aguardando_integracao') }}</button>
+</div>
+
+<div class="comercial-modelo-tag">{{ t('modelo_exemplo_tag') }}</div>
+
+{% if regiao == 'ME' %}
+<div class="comercial-cambio-row" id="comercialCambioRow" style="margin-top:14px;">
+  <div class="comercial-cambio-card" data-moeda="USD">
+    <span class="comercial-cambio-flag">🇺🇸</span>
+    <div>
+      <span class="comercial-cambio-label">{{ t('dolar') }} <small>USD/BRL</small></span>
+      <span class="comercial-cambio-valor">—</span>
+      <span class="comercial-cambio-var"></span>
+    </div>
+  </div>
+  <div class="comercial-cambio-card" data-moeda="EUR">
+    <span class="comercial-cambio-flag">🇪🇺</span>
+    <div>
+      <span class="comercial-cambio-label">{{ t('euro') }} <small>EUR/BRL</small></span>
+      <span class="comercial-cambio-valor">—</span>
+      <span class="comercial-cambio-var"></span>
+    </div>
+  </div>
+  <div class="comercial-cambio-card comercial-cambio-real">
+    <span class="comercial-cambio-flag">🇧🇷</span>
+    <div>
+      <span class="comercial-cambio-label">{{ t('real') }} <small>BRL</small></span>
+      <span class="comercial-cambio-valor">R$ 1,00</span>
+      <span class="comercial-cambio-var comercial-cambio-base">{{ t('moeda_base') }}</span>
+    </div>
+  </div>
+  <span class="comercial-cambio-hora" id="comercialCambioHora"></span>
+</div>
+{% endif %}
+
+{% if indicadores_clientes %}
+<h2 class="vg-section-title" style="margin-top:20px;">{{ t('indicadores_clientes') }}</h2>
+<div class="comercial-cliente-grid">
+  {% for ind in indicadores_clientes %}
+  <div class="comercial-cliente-card">
+    <span class="comercial-cliente-icon">{{ ind.icone }}</span>
+    <div>
+      <span class="comercial-cliente-label">{{ ind.label }}</span>
+      <span class="comercial-cliente-valor">{{ ind.valor }}</span>
+      <span class="comercial-cliente-sub">{{ ind.sub }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if pedidos_por_pais %}
+<h2 class="vg-section-title" style="margin-top:20px;">{{ t('pedidos_por_pais') }}</h2>
+<div class="table-card">
+  <div class="vg-bars">
+    {% set maior_pais = pedidos_por_pais | map(attribute='valor') | max %}
+    {% for p in pedidos_por_pais %}
+    <div class="vg-bar-row vg-bar-row-wide">
+      <span class="vg-bar-label">{{ p.bandeira }} {{ p.pais }}</span>
+      <div class="vg-bar-track"><div class="vg-bar-fill vg-bar-fill-alt" style="width:{{ (p.valor / maior_pais * 100) | round(1) }}%;"></div></div>
+      <span class="vg-bar-value">{{ p.pedidos }} {{ t('pedido').lower() }}{{ 's' if p.pedidos != 1 else '' }} · US$ {{ '{:,}'.format(p.valor).replace(',', '.') }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="prod-filters" style="margin-top:20px;">
+  <input type="text" id="buscaPedidosComercial" class="prod-search" placeholder="{{ t('pesquisar_pedidos_comercial_placeholder') }}" autocomplete="off">
+</div>
+
+<div class="table-card" style="margin-top:10px;">
+  <div class="table-scroll">
+    <table class="data-table prod-table" id="tabelaPedidosComercial">
+      <thead>
+        <tr>
+          {% for c in colunas %}
+          <th>{{ c }}</th>
+          {% if regiao == 'ME' and c == 'Valor' %}<th>{{ t('valor_reais_estimado') }}</th>{% endif %}
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in pedidos %}
+        <tr>
+          {% for valor in linha %}
+          <td>
+            {% if loop.last %}
+            {% if valor in ('Aprovado', 'Faturado') %}<span class="badge-ok">{{ valor }}</span>
+            {% elif valor == 'Cancelado' %}<span class="badge-danger">{{ valor }}</span>
+            {% else %}<span class="badge-info">{{ valor }}</span>{% endif %}
+            {% else %}
+            {{ valor }}
+            {% endif %}
+          </td>
+          {% if regiao == 'ME' and colunas[loop.index0] == 'Valor' %}
+          <td class="valor-brl-cell" data-valor-usd="{{ valor }}">—</td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p id="pedidosComercialVazio" class="prod-table-empty" hidden>{{ t('nenhum_pedido_encontrado') }}</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var input = document.getElementById('buscaPedidosComercial');
+  var tabela = document.getElementById('tabelaPedidosComercial');
+  var vazio = document.getElementById('pedidosComercialVazio');
+  if (!input || !tabela) return;
+  var linhas = Array.prototype.slice.call(tabela.querySelectorAll('tbody tr'));
+
+  input.addEventListener('input', function () {
+    var termo = input.value.trim().toLowerCase();
+    var visiveis = 0;
+    linhas.forEach(function (linha) {
+      var bate = linha.textContent.toLowerCase().indexOf(termo) !== -1;
+      linha.hidden = !bate;
+      if (bate) visiveis += 1;
+    });
+    vazio.hidden = visiveis !== 0;
+  });
+})();
+</script>
+
+{% if regiao == 'ME' %}
+<script>
+(function () {
+  var hora = document.getElementById('comercialCambioHora');
+  fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var mapa = { USD: data.USDBRL, EUR: data.EURBRL };
+      document.querySelectorAll('.comercial-cambio-card[data-moeda]').forEach(function (card) {
+        var info = mapa[card.getAttribute('data-moeda')];
+        if (!info) return;
+        var valor = parseFloat(info.bid);
+        var variacao = parseFloat(info.pctChange);
+        card.querySelector('.comercial-cambio-valor').textContent = 'R$ ' + valor.toFixed(4).replace('.', ',');
+        var varEl = card.querySelector('.comercial-cambio-var');
+        varEl.textContent = (variacao >= 0 ? '▲ ' : '▼ ') + Math.abs(variacao).toFixed(2).replace('.', ',') + '%';
+        varEl.style.color = variacao >= 0 ? '#16a34a' : '#dc2626';
+      });
+      if (hora) {
+        var d = new Date();
+        hora.textContent = '{{ t("atualizado_as") }} ' + d.toLocaleTimeString('pt-BR');
+      }
+
+      var cotacaoUsd = mapa.USD ? parseFloat(mapa.USD.bid) : null;
+      if (cotacaoUsd) {
+        document.querySelectorAll('.valor-brl-cell').forEach(function (celula) {
+          var bruto = celula.getAttribute('data-valor-usd') || '';
+          var numero = parseFloat(bruto.replace(/\./g, '').replace(',', '.'));
+          if (isNaN(numero)) return;
+          var convertido = numero * cotacaoUsd;
+          celula.textContent = 'R$ ' + convertido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        });
+      }
+    })
+    .catch(function () {
+      document.querySelectorAll('.comercial-cambio-valor').forEach(function (el) {
+        if (el.textContent === '—') el.textContent = '{{ t("indisponivel") }}';
+      });
+      document.querySelectorAll('.valor-brl-cell').forEach(function (el) {
+        el.textContent = '{{ t("indisponivel") }}';
+      });
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

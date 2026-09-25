@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% from 'macros/kpi_card.html' import kpi_card %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<div class="machines-header">
+  <div>
+    <h1 class="page-heading" style="margin-bottom:2px;">{{ tab.name_pt if lang == 'pt' else tab.name_es }}</h1>
+    <p class="presel-subtitle" style="margin:0;">{{ t('modelo_estoque_aviso') }}</p>
+  </div>
+  <button type="button" class="btn-small comercial-btn-integracao" disabled>&#8987; {{ t('aguardando_integracao') }}</button>
+</div>
+
+<div class="comercial-modelo-tag">{{ t('modelo_exemplo_tag') }}</div>
+
+<h3 class="comercial-adv-group-title">{{ t('indicadores_supply_chain') }}</h3>
+<div class="kpi-carousel">
+  <div class="kpi-carousel-track">
+    {% for k in indicadores %}
+    <div class="kpi-carousel-item">{{ kpi_card(k) }}</div>
+    {% endfor %}
+    {% for k in indicadores %}
+    <div class="kpi-carousel-item" aria-hidden="true">{{ kpi_card(k) }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

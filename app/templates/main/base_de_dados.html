@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<h1 class="sd-title">&#128452;&#65039; {{ t('base_dados_titulo') }}</h1>
+<p class="sd-subtitle">{{ t('base_dados_subtitulo') }}</p>
+
+<div class="bd-grid">
+  <div class="bd-card" style="border-top-color:#e0972f">
+    <div class="bd-card-head">
+      <span class="bd-card-icon" style="background:rgba(224,151,47,0.15);color:#b8760f">&#127970;</span>
+      <h3>{{ t('base_dados_ortobom_titulo') }}</h3>
+    </div>
+    <p class="bd-card-desc">{{ t('base_dados_ortobom_desc') }}</p>
+    {% if is_admin %}
+    <form method="post" action="{{ url_for('main.base_dados_ortobom_adicionar') }}" class="bd-form">
+      <input type="text" name="cod_produto" placeholder="Cód. produto" required>
+      <select name="cliente">
+        <option value="ORTOBOM">ORTOBOM</option>
+        <option value="ECOFLEX">ECOFLEX</option>
+      </select>
+      <button type="submit" class="sd-btn sd-btn-primary">{{ t('base_dados_adicionar') }}</button>
+    </form>
+    {% endif %}
+    <div class="bd-list">
+      {% for i in ortobom_itens %}
+      <div class="bd-row">
+        <span><strong>{{ i.cod_produto }}</strong> <span class="sd-muted">— {{ i.cliente }}</span></span>
+        {% if is_admin %}
+        <form method="post" action="{{ url_for('main.base_dados_ortobom_excluir', item_id=i.id) }}" onsubmit="return confirm('Excluir {{ i.cod_produto }}?');">
+          <button type="submit" class="bd-del">&#10005;</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="sd-empty">—</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="bd-card" style="border-top-color:#22b8c9">
+    <div class="bd-card-head">
+      <span class="bd-card-icon" style="background:rgba(34,184,201,0.15);color:#128094">&#128207;</span>
+      <h3>{{ t('base_dados_estrutura_titulo') }}</h3>
+    </div>
+    <p class="bd-card-desc">{{ t('base_dados_estrutura_desc') }}</p>
+    <p class="bd-count">{{ estrutura_total }} {{ t('base_dados_registros') }}</p>
+    <form method="get" class="bd-search">
+      <input type="hidden" name="tab_reload" value="1">
+      <input type="text" name="estrutura_q" value="{{ estrutura_q }}" placeholder="{{ t('base_dados_buscar_placeholder') }}">
+      <button type="submit" class="sd-btn sd-btn-outline">Buscar</button>
+    </form>
+    {% if is_admin %}
+    <form method="post" action="{{ url_for('main.base_dados_estrutura_adicionar') }}" class="bd-form">
+      <input type="text" name="ds_produto" placeholder="DS.Produto" required>
+      <input type="text" name="ds_metros" placeholder="DS.Metros" required style="width:90px">
+      <button type="submit" class="sd-btn sd-btn-primary">{{ t('base_dados_adicionar') }}</button>
+    </form>
+    {% endif %}
+    <div class="bd-list bd-list-scroll">
+      {% for i in estrutura_itens %}
+      <div class="bd-row">
+        <span class="bd-row-text">{{ i.ds_produto }} <span class="sd-muted">— {{ i.ds_metros }} m</span></span>
+        {% if is_admin %}
+        <form method="post" action="{{ url_for('main.base_dados_estrutura_excluir', item_id=i.id) }}" onsubmit="return confirm('Excluir?');">
+          <button type="submit" class="bd-del">&#10005;</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="sd-empty">—</p>
+      {% endfor %}
+    </div>
+    {% if estrutura_paginas > 1 %}
+    <div class="bd-pager">
+      {% for p in range(1, estrutura_paginas + 1) %}
+      <a href="{{ url_for('main.view_tab', slug='base-de-dados', estrutura_q=estrutura_q, estrutura_pagina=p) }}#estrutura" class="{{ 'active' if p == estrutura_pagina else '' }}">{{ p }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="bd-card" style="border-top-color:#1f9d55">
+    <div class="bd-card-head">
+      <span class="bd-card-icon" style="background:rgba(31,157,85,0.15);color:#188046">&#9878;&#65039;</span>
+      <h3>{{ t('base_dados_gramatura_titulo') }}</h3>
+    </div>
+    <p class="bd-card-desc">{{ t('base_dados_gramatura_desc') }}</p>
+    {% if is_admin %}
+    <form method="post" action="{{ url_for('main.base_dados_gramatura_adicionar') }}" class="bd-form">
+      <input type="number" step="1" name="gramatura_min" placeholder="Min (g)" required style="width:80px">
+      <input type="number" step="1" name="gramatura_max" placeholder="Max (g)" required style="width:80px">
+      <input type="number" step="1" name="metros" placeholder="Metros" required style="width:80px">
+      <button type="submit" class="sd-btn sd-btn-primary">{{ t('base_dados_adicionar') }}</button>
+    </form>
+    {% endif %}
+    <div class="bd-list">
+      {% for i in gramatura_itens %}
+      <div class="bd-row">
+        <span>{{ i.gramatura_min|int }}g – {{ i.gramatura_max|int }}g <span class="sd-muted">→ {{ i.metros|int }} m</span></span>
+        {% if is_admin %}
+        <form method="post" action="{{ url_for('main.base_dados_gramatura_excluir', item_id=i.id) }}" onsubmit="return confirm('Excluir?');">
+          <button type="submit" class="bd-del">&#10005;</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="sd-empty">—</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="bd-card" id="historico" style="border-top-color:var(--blue-500)">
+    <div class="bd-card-head">
+      <span class="bd-card-icon" style="background:var(--blue-100);color:var(--blue-700)">&#128337;</span>
+      <h3>{{ t('base_dados_historico_titulo') }}</h3>
+    </div>
+    <p class="bd-card-desc">{{ t('base_dados_historico_desc') }}</p>
+    <p class="bd-count">{{ historico_total }} {{ t('base_dados_registros') }}</p>
+    <form method="get" class="bd-search">
+      <input type="text" name="historico_q" value="{{ historico_q }}" placeholder="{{ t('base_dados_buscar_placeholder') }}">
+      <button type="submit" class="sd-btn sd-btn-outline">Buscar</button>
+    </form>
+    {% if is_admin %}
+    <form method="post" action="{{ url_for('main.base_dados_historico_desenho_adicionar') }}" class="bd-form">
+      <input type="text" name="machine" placeholder="Máquina" required style="width:80px">
+      <input type="text" name="article" placeholder="Artigo" required>
+      <button type="submit" class="sd-btn sd-btn-primary">{{ t('base_dados_adicionar') }}</button>
+    </form>
+    {% endif %}
+    <div class="bd-list bd-list-scroll">
+      {% for i in historico_itens %}
+      <div class="bd-row">
+        <span>MÁQ {{ i.machine }} <span class="sd-muted">— {{ i.article }}</span></span>
+        {% if is_admin %}
+        <form method="post" action="{{ url_for('main.base_dados_historico_desenho_excluir', item_id=i.id) }}" onsubmit="return confirm('Excluir?');">
+          <button type="submit" class="bd-del">&#10005;</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="sd-empty">—</p>
+      {% endfor %}
+    </div>
+    {% if historico_paginas > 1 %}
+    <div class="bd-pager">
+      {% for p in range(1, historico_paginas + 1) %}
+      <a href="{{ url_for('main.view_tab', slug='base-de-dados', historico_q=historico_q, historico_pagina=p) }}#historico" class="{{ 'active' if p == historico_pagina else '' }}">{{ p }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% for stub in [
+    ('Ordens de Produção', '#5b6b7c'),
+    ('KPIs de Produção', '#5b6b7c'),
+    ('Cronograma', '#5b6b7c'),
+  ] %}
+  <div class="bd-card bd-card-stub" style="border-top-color:{{ stub[1] }}">
+    <div class="bd-card-head">
+      <span class="bd-card-icon" style="background:var(--gray-200);color:var(--gray-700)">&#128203;</span>
+      <h3>{{ stub[0] }}</h3>
+    </div>
+    <p class="bd-card-desc">{{ t('base_dados_em_breve_desc') }}</p>
+    <span class="sd-badge sd-badge-pending">{{ t('base_dados_em_breve_titulo') }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+<div class="hist-toolbar">
+  <input type="text" id="histBusca" class="prod-search" placeholder="{{ t('pesquisar_placeholder') }}" value="{{ busca }}">
+  <select id="histMes" class="status-select">
+    <option value="">{{ t('prod_historico_todos_meses') }}</option>
+    {% for m in meses_disponiveis %}<option value="{{ m }}" {{ 'selected' if m == mes else '' }}>{{ m }}</option>{% endfor %}
+  </select>
+  <a href="{{ url_for('main.programacao_historico_download') }}" class="btn-small btn-primary">&#11015; {{ t('prod_historico_baixar_excel') }}</a>
+</div>
+<p class="hist-meta">Finalizadas este mês: <strong>{{ finalizados_mes_count }}</strong> &bull; Canceladas (total): <strong>{{ cancelados_count }}</strong></p>
+<div class="hist-table-wrap">
+  <table class="hist-table">
+    <thead>
+      <tr>
+        <th>Máquina</th><th>Artigo</th><th>DS.Metros</th><th>OP</th><th>Cliente</th>
+        <th>Qt Pçs</th><th>Finalizada em</th><th>Comentário</th>
+      </tr>
+    </thead>
+    <tbody id="histTbody">
+      {% for h in itens %}
+      <tr data-op="{{ (h.op or '')|lower }}" data-artigo="{{ (h.artigo or '')|lower }}" data-mes="{{ h.changed_at.strftime('%m/%Y') if h.changed_at else '' }}">
+        <td>MÁQ {{ h.machine }}</td>
+        <td>{{ h.artigo }}</td>
+        <td>{{ h.ds_metros or '—' }}</td>
+        <td>{{ h.op }}</td>
+        <td>{{ h.cliente or '—' }}</td>
+        <td>{{ h.quantity_pieces }}</td>
+        <td>{{ h.changed_at.strftime('%d/%m/%Y %H:%M') if h.changed_at else '—' }}</td>
+        <td class="sd-muted">{{ h.reason or '' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="sd-empty">{{ t('prod_historico_sem_registros') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<script>
+(function () {
+  var busca = document.getElementById('histBusca');
+  var mes = document.getElementById('histMes');
+  var rows = document.querySelectorAll('#histTbody tr[data-op]');
+  function apply() {
+    var q = (busca.value || '').toLowerCase();
+    var m = mes.value;
+    rows.forEach(function (tr) {
+      var ok = true;
+      if (m && tr.getAttribute('data-mes') !== m) ok = false;
+      if (q && tr.getAttribute('data-op').indexOf(q) === -1 && tr.getAttribute('data-artigo').indexOf(q) === -1) ok = false;
+      tr.style.display = ok ? '' : 'none';
+    });
+  }
+  busca.addEventListener('input', apply);
+  mes.addEventListener('change', apply);
+})();
+</script>

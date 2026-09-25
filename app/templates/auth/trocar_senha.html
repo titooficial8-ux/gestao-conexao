@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% from 'macros/password_field.html' import password_field %}
+{% block page_title %}{{ t('trocar_senha') }}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="POST" action="{{ url_for('auth.trocar_senha') }}">
+    <label>{{ t('senha_atual') }}</label>
+    {{ password_field('senha_atual', 'senhaAtual') }}
+    <label>{{ t('nova_senha') }}</label>
+    {{ password_field('nova_senha', 'novaSenha', minlength=6) }}
+    <label>{{ t('confirmar_senha') }}</label>
+    {{ password_field('confirmar_senha', 'confirmarSenha', minlength=6) }}
+    <button type="submit" class="btn-primary btn-block">{{ t('save') }}</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block sidebar_nav %}{% include 'partials/chamados_sidebar.html' %}{% endblock %}
+{% block page_title %}{{ t(titulo_key) }}{% endblock %}
+{% block content %}
+<div class="placeholder-page">
+  <div class="placeholder-icon">&#128679;</div>
+  <h2>{{ t(titulo_key) }}</h2>
+  <p>{{ t('tab_placeholder_text') }}</p>
+</div>
+{% endblock %}

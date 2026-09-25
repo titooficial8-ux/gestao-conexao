@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="{{ 'pt-BR' if lang == 'pt' else 'es-GT' }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ t('app_name') }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+{% if current_user.is_authenticated %}
+<div class="gc-shell">
+  <header class="gc-header">
+    <div class="gc-header-inner">
+      <a href="{{ url_for('main.dashboard') }}" class="gc-header-logo">
+        <img src="{{ url_for('static', filename='img/logo_conexao_wordmark_dark.png') }}" alt="Conexão" class="gc-header-logo-img">
+      </a>
+      <button type="button" class="gc-nav-toggle" id="gcNavToggle" aria-label="menu">&#9776;</button>
+      <div class="gc-header-user">
+        <button type="button" class="gc-header-user-btn" data-toggle="gcUserDropdown">
+          <span class="gc-header-avatar">{{ (current_user.name or '?')[0]|upper }}</span>
+          <span class="gc-header-username">{{ t('ola') }}, {{ (current_user.name or '').split(' ')[0] }}</span>
+          <span class="gc-caret-down">&#9662;</span>
+        </button>
+        <div class="gc-dropdown gc-dropdown-right" id="gcUserDropdown">
+          <div class="gc-dropdown-header">
+            <div class="gc-dropdown-header-name">{{ current_user.name }}</div>
+            <div class="gc-dropdown-header-sector">{{ t('administracao') if current_user.is_admin else (current_user.sectors[0].name if current_user.sectors else '') }}</div>
+          </div>
+          {% if current_user.is_admin %}
+          <a href="{{ url_for('admin.users') }}" class="gc-dropdown-link">
+            <span class="footer-icon">&#128273;</span> {{ t('administracao') }}
+          </a>
+          {% endif %}
+          <a href="{{ url_for('auth.trocar_senha') }}" class="gc-dropdown-link">
+            <span class="footer-icon">&#128272;</span> {{ t('trocar_senha') }}
+          </a>
+          <div class="gc-dropdown-divider"></div>
+          <div class="ambiente-toggle-label">{{ t('ambiente')|upper }}</div>
+          <div class="ambiente-toggle">
+            {% if current_user.is_admin or current_user.country == 'BR' %}
+            <a href="{{ url_for('auth.set_ambiente_sessao', pais='BR') }}" class="ambiente-btn {{ 'active' if pais_atual == 'BR' else '' }}">BR</a>
+            {% endif %}
+            {% if current_user.is_admin or current_user.country == 'GT' %}
+            <a href="{{ url_for('auth.set_ambiente_sessao', pais='GT') }}" class="ambiente-btn {{ 'active' if pais_atual == 'GT' else '' }}">{{ t('guatemala')|upper }}</a>
+            {% endif %}
+          </div>
+          <div class="gc-dropdown-divider"></div>
+          <a href="{{ url_for('auth.logout') }}" class="gc-dropdown-link gc-dropdown-exit">
+            <span class="footer-icon">&#8618;</span> {{ t('logout') }}
+          </a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  {% set gc_nav_short_names_pt = {
+    'planejamento': 'Planejamento', 'producao': 'Produção', 'comercial': 'Comercial',
+    'financeira': 'Financeiro', 'qualidade': 'Qualidade', 'estoque': 'Estoque',
+    'desenvolvimento': 'Desenvolvimento', 'sistema': 'Sistema',
+  } %}
+  {% set gc_nav_short_names_es = {
+    'planejamento': 'Planificación', 'producao': 'Producción', 'comercial': 'Comercial',
+    'financeira': 'Financiero', 'qualidade': 'Calidad', 'estoque': 'Almacén',
+    'desenvolvimento': 'Desarrollo', 'sistema': 'Sistema',
+  } %}
+  <nav class="gc-nav" id="gcNav">
+    <div class="gc-nav-inner">
+      <div class="gc-nav-categories">
+        {% block sidebar_nav %}
+        {% for cat in nav_categories %}
+        <div class="gc-nav-cat">
+          <button type="button" class="gc-nav-cat-btn" data-toggle="gc-cat-{{ cat.id }}">
+            <span>{{ gc_nav_short_names_pt.get(cat.slug, cat.name_pt) if lang == 'pt' else gc_nav_short_names_es.get(cat.slug, cat.name_es) }}</span>
+            <span class="gc-caret-down">&#9662;</span>
+          </button>
+          <div class="gc-dropdown" id="gc-cat-{{ cat.id }}">
+            {% for tab in cat.visible_tabs %}
+            <a href="{{ tab_url(tab) }}" class="gc-dropdown-link {{ 'active' if request.path == tab_url(tab) else '' }}">
+              <span class="nav-tab-icon" style="background:{{ tab.icon_color }}">{{ tab.icon }}</span>
+              <span>{{ tab.name_pt if lang == 'pt' else tab.name_es }}</span>
+              {% if tab.is_new %}<span class="badge-new">{{ t('novo_badge') }}</span>{% endif %}
+            </a>
+            {% else %}
+            <span class="gc-dropdown-empty">{{ t('no_tabs_access') }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+        {% endblock %}
+      </div>
+      <div class="gc-nav-region">
+        <a href="{{ url_for('chamados.novo_chamado') }}" class="gc-nav-region-btn">
+          <span>{{ t('abrir_chamado') }}</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="gc-page-title">{% block page_title %}{{ t('app_name') }}{% endblock %}</div>
+
+  <main class="content">
+    {% include 'partials/flash.html' %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+<div class="standalone-page">
+  {% include 'partials/flash.html' %}
+  {% block content_guest %}{% endblock %}
+</div>
+{% endif %}
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

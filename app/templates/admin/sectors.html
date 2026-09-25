@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ t('admin_sectors_title') }}{% endblock %}
+{% block content %}
+<div class="table-card">
+<form method="POST" action="{{ url_for('admin.sectors') }}" class="inline-add-form">
+<input type="text" name="name" placeholder="{{ t('new_sector') }}" required>
+<button type="submit" class="btn-primary btn-small">{{ t('add') }}</button>
+</form>
+<div class="table-scroll">
+<table class="data-table">
+<thead><tr><th>{{ t('sectors') }}</th><th>{{ t('actions') }}</th></tr></thead>
+<tbody>
+{% for s in sectors %}
+<tr>
+<td>{{ s.name }}</td>
+<td>
+<form method="POST" action="{{ url_for('admin.delete_sector', sector_id=s.id) }}" onsubmit="return confirm('{{ t('delete') }}?');">
+<button type="submit" class="btn-small btn-danger">{{ t('delete') }}</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</div>
+{% endblock %}

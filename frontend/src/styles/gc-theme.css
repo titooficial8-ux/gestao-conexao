@@ -1,0 +1,132 @@
+/* Tema Gestão Conexão — tokens usados pelas páginas portadas do PCP Hub
+   (Gestão da Malharia, Controle de Produção). Cores tiradas de
+   app/static/css/style.css (paleta oficial da Gestão Conexão), não do PCP Hub. */
+:root {
+  --gc-background: #f5f7fa;
+  --gc-foreground: #16283c;
+  --gc-card: #ffffff;
+  --gc-card-foreground: #16283c;
+  --gc-border: #d9e1ea;
+  --gc-input: #d9e1ea;
+  --gc-muted: #eaeef3;
+  --gc-muted-foreground: #4a5a6b;
+  --gc-primary: #1361c4;
+  --gc-primary-foreground: #ffffff;
+  --gc-accent: #2f7fe0;
+  --gc-accent-foreground: #ffffff;
+  --gc-destructive: #e5484d;
+  --gc-destructive-foreground: #ffffff;
+  --gc-success: #1f9d55;
+  --gc-ring: #2f7fe0;
+  --gc-radius: 10px;
+}
+
+.gc-scope {
+  background: var(--gc-background);
+  color: var(--gc-foreground);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+.gc-card {
+  background: var(--gc-card);
+  color: var(--gc-card-foreground);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius);
+  box-shadow: 0 2px 10px rgba(10, 45, 84, 0.06);
+}
+
+.gc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+.gc-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.gc-btn-default { background: var(--gc-primary); color: var(--gc-primary-foreground); }
+.gc-btn-default:hover:not(:disabled) { background: #0b4d9e; }
+.gc-btn-outline { background: transparent; border-color: var(--gc-border); color: var(--gc-foreground); }
+.gc-btn-outline:hover:not(:disabled) { background: var(--gc-muted); }
+.gc-btn-ghost { background: transparent; color: var(--gc-foreground); }
+.gc-btn-ghost:hover:not(:disabled) { background: var(--gc-muted); }
+.gc-btn-sm { padding: 0.35rem 0.65rem; font-size: 0.75rem; }
+
+.gc-input,
+.gc-select {
+  height: 2.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--gc-input);
+  background: var(--gc-card);
+  color: var(--gc-foreground);
+  padding: 0 0.75rem;
+  font-size: 0.85rem;
+}
+.gc-input:focus,
+.gc-select:focus {
+  outline: none;
+  border-color: var(--gc-ring);
+  box-shadow: 0 0 0 3px rgba(47, 127, 224, 0.18);
+}
+
+.gc-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 20, 35, 0.55);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.gc-dialog-content {
+  background: var(--gc-card);
+  color: var(--gc-card-foreground);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius);
+  box-shadow: 0 20px 60px -12px rgba(10, 45, 84, 0.35);
+  max-height: 88vh;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.gc-popover-content {
+  position: absolute;
+  z-index: 90;
+  background: var(--gc-card);
+  color: var(--gc-card-foreground);
+  border: 1px solid var(--gc-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px -8px rgba(10, 45, 84, 0.3);
+  padding: 0.75rem;
+}
+
+.gc-toast-viewport {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 22rem;
+}
+.gc-toast {
+  background: var(--gc-card);
+  border: 1px solid var(--gc-border);
+  border-left: 4px solid var(--gc-primary);
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  box-shadow: 0 8px 24px -8px rgba(10, 45, 84, 0.3);
+  font-size: 0.8rem;
+}
+.gc-toast-destructive { border-left-color: var(--gc-destructive); }
+.gc-toast-title { font-weight: 700; font-family: var(--font-heading); font-size: 0.78rem; }
+.gc-toast-description { color: var(--gc-muted-foreground); margin-top: 2px; }

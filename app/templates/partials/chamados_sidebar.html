@@ -1,0 +1,30 @@
+<a href="{{ url_for('chamados.home') }}" class="gc-nav-flat-link {{ 'active' if request.endpoint == 'chamados.home' else '' }}">
+  <span class="nav-tab-icon" style="background:#2f7fe0">&#127968;</span>
+  <span>{{ t('chamados_inicio') }}</span>
+</a>
+<a href="{{ url_for('chamados.novo_chamado') }}" class="gc-nav-flat-link {{ 'active' if request.endpoint == 'chamados.novo_chamado' else '' }}">
+  <span class="nav-tab-icon" style="background:#3fa34d">&#10133;</span>
+  <span>{{ t('chamados_novo') }}</span>
+</a>
+{% if current_user.is_admin or current_user.country == 'BR' %}
+<a href="{{ url_for('chamados.suporte_brasil') }}" class="gc-nav-flat-link {{ 'active' if request.endpoint == 'chamados.suporte_brasil' else '' }}">
+  <span class="nav-tab-icon" style="background:#e0972f">&#127463;&#127479;</span>
+  <span>{{ t('chamados_suporte_br') }}</span>
+</a>
+{% endif %}
+{% if current_user.is_admin or current_user.country == 'GT' %}
+<a href="{{ url_for('chamados.suporte_guatemala') }}" class="gc-nav-flat-link {{ 'active' if request.endpoint == 'chamados.suporte_guatemala' else '' }}">
+  <span class="nav-tab-icon" style="background:#1f9d8f">&#127468;&#127481;</span>
+  <span>{{ t('chamados_suporte_gt') }}</span>
+</a>
+{% endif %}
+{% if current_user.is_admin %}
+<a href="{{ url_for('chamados.dashboard') }}" class="gc-nav-flat-link {{ 'active' if request.endpoint == 'chamados.dashboard' else '' }}">
+  <span class="nav-tab-icon" style="background:#8a5fe0">&#128202;</span>
+  <span>{{ t('chamados_dashboard') }}</span>
+</a>
+<a href="{{ url_for('chamados.auditoria') }}" class="gc-nav-flat-link {{ 'active' if request.endpoint == 'chamados.auditoria' else '' }}">
+  <span class="nav-tab-icon" style="background:#5b6b7c">&#128737;</span>
+  <span>{{ t('auditoria_sistemica_titulo') }}</span>
+</a>
+{% endif %}

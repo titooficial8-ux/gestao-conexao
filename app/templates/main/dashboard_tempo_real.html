@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='dist/dashboard-tempo-real.css') }}">
+<div id="dashboard-tempo-real-root"></div>
+<script type="module" src="{{ url_for('static', filename='dist/dashboard-tempo-real.js') }}"></script>
+{% endblock %}

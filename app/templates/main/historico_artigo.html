@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='dist/index.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='dist/gc-theme.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='dist/historico-artigo.css') }}">
+<div id="historico-artigo-root"
+     data-search-url="{{ url_for('main.api_historico_artigo_search') }}"
+     data-article-url="{{ url_for('main.api_historico_artigo_data') }}"
+     data-machines-url="{{ url_for('main.api_historico_artigo_machines') }}"
+     data-machine-data-url="{{ url_for('main.api_historico_artigo_machine_data') }}"
+     data-local30-url="{{ url_for('main.api_historico_artigo_local30') }}"></div>
+<script type="module" src="{{ url_for('static', filename='dist/historico-artigo.js') }}"></script>
+{% endblock %}

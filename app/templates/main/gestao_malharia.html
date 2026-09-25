@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='dist/index.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='dist/gc-theme.css') }}">
+<div id="gestao-malharia-root"
+     data-movimentos-url="{{ url_for('main.api_malharia_movimentos') }}"
+     data-sequencia-url="{{ url_for('main.api_malharia_sequencia') }}"
+     data-status-url="{{ url_for('main.api_malharia_status') }}"></div>
+<script type="module" src="{{ url_for('static', filename='dist/gestao-malharia.js') }}"></script>
+{% endblock %}

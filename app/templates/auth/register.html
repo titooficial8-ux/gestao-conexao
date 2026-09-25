@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% from 'macros/password_field.html' import password_field %}
+{% block content_guest %}
+<div class="photo-login-page photo-login-page-slideshow" style="background-image: url('{{ url_for('static', filename='img/bg_register.jpg') }}'); background-size: cover; background-position: center; background-repeat: no-repeat;">
+  <div class="photo-login-envbadge">
+    <span class="flag-icon flag-icon-sm">
+      {% if pais == 'BR' %}
+      <img src="{{ url_for('static', filename='img/flag_br.webp') }}" alt="Brasil" width="22" height="15">
+      {% else %}
+      <img src="{{ url_for('static', filename='img/flag_gt.webp') }}" alt="Guatemala" width="22" height="15">
+      {% endif %}
+    </span>
+    {{ t('brasil')|upper if pais == 'BR' else t('guatemala')|upper }}
+  </div>
+
+  <div class="photo-login-card">
+    <div class="wordmark-wrap"><img src="{{ url_for('static', filename='img/logo_conexao_wordmark_dark.png') }}" alt="Conexão" class="wordmark-logo wordmark-logo-sm"></div>
+
+    <h1 class="photo-login-title">{{ t('register_title') }}</h1>
+
+    <form method="POST" action="{{ url_for('auth.register') }}">
+      <input type="text" name="name" placeholder="{{ t('name') }}" required autofocus class="pill-input">
+      <input type="email" name="email" placeholder="{{ t('email_corporativo_placeholder') }}" required class="pill-input">
+      <p class="field-hint">{{ t('email_corporativo_dica') }}</p>
+      {{ password_field('password', 'registerPassword', t('password'), minlength=6, css_class='pill-input') }}
+      <div class="password-checklist" id="passwordChecklist">
+        <span class="pw-rule" data-rule="upper"><svg class="pw-rule-icon" viewBox="0 0 16 16"><path d="M4 8l3 3 5-6"/></svg>{{ t('senha_req_maiuscula') }}</span>
+        <span class="pw-rule" data-rule="number"><svg class="pw-rule-icon" viewBox="0 0 16 16"><path d="M4 8l3 3 5-6"/></svg>{{ t('senha_req_numero') }}</span>
+        <span class="pw-rule" data-rule="symbol"><svg class="pw-rule-icon" viewBox="0 0 16 16"><path d="M4 8l3 3 5-6"/></svg>{{ t('senha_req_simbolo') }}</span>
+      </div>
+      <button type="submit" class="pill-button">{{ t('register_button') }}</button>
+    </form>
+
+    <p class="photo-login-switch">{{ t('have_account') }} <a href="{{ url_for('auth.login') }}">{{ t('login_link') }}</a></p>
+  </div>
+  {% include 'partials/photo_footer.html' %}
+</div>
+{% endblock %}

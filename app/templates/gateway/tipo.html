@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block content_guest %}
+<div class="photo-login-page photo-login-page-slideshow" style="background-image: url('{{ url_for('static', filename='img/bg_tipo_2.jpg') }}'); background-size: cover; background-position: center; background-repeat: no-repeat;">
+  <div class="photo-login-card">
+    <div class="gateway-logo">
+      <div class="wordmark-wrap"><img src="{{ url_for('static', filename='img/logo_conexao_wordmark_dark.png') }}" alt="Conexão" class="wordmark-logo"></div>
+      <p class="gateway-subtitle">PLANEJAMENTO &bull; CONTROLE &bull; RESULTADO</p>
+    </div>
+    <div class="gateway-section-label">ESCOLHA SEU TIPO DE ACESSO</div>
+    <a href="{{ url_for('gateway.ambiente', tipo='planejamento') }}" class="gateway-option gateway-option-blue">
+      <div class="gateway-option-icon">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+          <circle class="factory-smoke" cx="13.2" cy="2.4" r="1"/>
+          <circle class="factory-smoke" cx="15" cy="1" r="0.75"/>
+          <circle class="factory-smoke" cx="6.7" cy="3.6" r="0.8"/>
+          <rect x="3.6" y="7" width="2.6" height="7"/>
+          <rect x="10.7" y="3" width="2.6" height="11"/>
+          <rect x="17.8" y="8.4" width="2.6" height="5.6"/>
+          <rect x="2" y="14" width="20" height="7.2" rx="0.6"/>
+        </svg>
+      </div>
+      <div class="gateway-option-text">
+        <strong>ACESSO AO PLANEJAMENTO</strong>
+        <span>Controle de Produção &mdash; BR &amp; Guate</span>
+      </div>
+    </a>
+    <a href="{{ url_for('gateway.ambiente', tipo='chamados') }}" class="gateway-option gateway-option-teal">
+      <div class="gateway-option-icon gateway-option-icon-img">
+        <img src="{{ url_for('static', filename='img/claude_mascot.png') }}" alt="Chamados" class="claude-spin-3d">
+      </div>
+      <div class="gateway-option-text">
+        <strong>CHAMADOS / RECURSOS</strong>
+        <span>Controle e Gerenciamento de Tecnologia</span>
+      </div>
+    </a>
+  </div>
+  {% include 'partials/photo_footer.html' %}
+</div>
+{% endblock %}

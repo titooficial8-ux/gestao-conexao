@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ t('dashboard_title') }}{% endblock %}
+{% block content %}
+<h1 class="page-heading">{{ t('welcome') }}, {{ current_user.name }}</h1>
+<div class="category-grid">
+  {% for cat in categories %}
+  <div class="category-card">
+    <div class="category-card-header">
+      <span class="cat-emoji">{{ cat.icon }}</span>
+      <h3>{{ cat.name_pt if lang == 'pt' else cat.name_es }}</h3>
+    </div>
+    <div class="category-card-tabs">
+      {% for tab in cat.visible_tabs %}
+      <a href="{{ tab_url(tab) }}" class="tab-pill">
+        <span class="tab-pill-icon" style="background:{{ tab.icon_color }}">{{ tab.icon }}</span>
+        {{ tab.name_pt if lang == 'pt' else tab.name_es }}
+        {% if tab.is_new %}<span class="badge-new">{{ t('novo_badge') }}</span>{% endif %}
+      </a>
+      {% else %}
+      <span class="tab-pill tab-pill-empty">{{ t('no_tabs_access') }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<div class="sd-header">
+  <div>
+    <h1 class="sd-title">&#9999;&#65039; {{ t('saved_drawing_titulo') }}</h1>
+    <p class="sd-subtitle">{{ t('saved_drawing_subtitulo') }}</p>
+  </div>
+  <div class="sd-filters">
+    <input type="text" id="sdSearch" class="sd-input" placeholder="{{ t('saved_drawing_buscar_placeholder') }}">
+    <select id="sdMachineFilter" class="sd-select">
+      <option value="">{{ t('saved_drawing_todas_maquinas') }}</option>
+      {% for m in machine_options %}<option value="{{ m }}">Máquina {{ m }}</option>{% endfor %}
+    </select>
+    <select id="sdArticleFilter" class="sd-select">
+      <option value="">{{ t('saved_drawing_todos_artigos') }}</option>
+      {% for a in article_options %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+    </select>
+  </div>
+</div>
+
+<div class="sd-tabs">
+  <button type="button" class="sd-tab active" data-tab="pendentes">{{ t('saved_drawing_pendentes') }} <span class="sd-count">{{ counts.pendentes }}</span></button>
+  <button type="button" class="sd-tab" data-tab="salvos">{{ t('saved_drawing_salvos') }} <span class="sd-count">{{ counts.salvos }}</span></button>
+  <button type="button" class="sd-tab" data-tab="todos">{{ t('saved_drawing_todos') }} <span class="sd-count">{{ counts.todos }}</span></button>
+  <button type="button" class="sd-tab" data-tab="historico">{{ t('saved_drawing_historico') }} <span class="sd-count">{{ historico|length }}</span></button>
+</div>
+
+<div class="sd-panel" data-panel="pendentes">
+  <div class="sd-grid">
+    {% for i in itens if i.pendente %}{% include 'partials/_saved_drawing_card.html' %}{% else %}
+    <p class="sd-empty">{{ t('saved_drawing_vazio_pendentes') }}</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="sd-panel" data-panel="salvos" hidden>
+  <div class="sd-grid">
+    {% for i in itens if i.obj.is_saved %}{% include 'partials/_saved_drawing_card.html' %}{% else %}
+    <p class="sd-empty">{{ t('saved_drawing_vazio_salvos') }}</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="sd-panel" data-panel="todos" hidden>
+  <div class="sd-grid">
+    {% for i in itens %}{% include 'partials/_saved_drawing_card.html' %}{% else %}
+    <p class="sd-empty">{{ t('saved_drawing_vazio_todos') }}</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="sd-panel" data-panel="historico" hidden>
+  {% if historico|length == 0 %}
+  <p class="sd-empty">{{ t('saved_drawing_vazio_historico') }}</p>
+  {% else %}
+  <div class="sd-table-wrap">
+    <table class="sd-table">
+      <thead>
+        <tr>
+          <th>Data/Hora</th><th>Máquina</th><th>OP</th><th>Artigo</th><th>Cliente</th><th>{{ t('saved_drawing_salvo_por') }}</th><th>{{ t('saved_drawing_observacao') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in historico %}
+        <tr>
+          <td>{{ h.saved_at.strftime('%d/%m/%Y %H:%M') if h.saved_at else '' }}</td>
+          <td>{{ h.machine }}</td>
+          <td>{{ h.op }}</td>
+          <td>{{ h.article }}</td>
+          <td>{{ h.client or '' }}</td>
+          <td>{{ h.saved_by_name or h.saved_by_email or '' }}</td>
+          <td class="sd-muted">{{ h.observation or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  var tabs = document.querySelectorAll('.sd-tab');
+  var panels = document.querySelectorAll('.sd-panel');
+  tabs.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      tabs.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      panels.forEach(function (p) { p.hidden = p.getAttribute('data-panel') !== btn.getAttribute('data-tab'); });
+    });
+  });
+
+  var search = document.getElementById('sdSearch');
+  var machineFilter = document.getElementById('sdMachineFilter');
+  var articleFilter = document.getElementById('sdArticleFilter');
+
+  function applyFilters() {
+    var q = (search.value || '').trim().toLowerCase();
+    var m = machineFilter.value;
+    var a = articleFilter.value;
+    document.querySelectorAll('.sd-card').forEach(function (card) {
+      var matches = true;
+      if (m && card.getAttribute('data-machine') !== m) matches = false;
+      if (a && card.getAttribute('data-article') !== a) matches = false;
+      if (q) {
+        var hay = card.getAttribute('data-search') || '';
+        if (hay.indexOf(q) === -1) matches = false;
+      }
+      card.style.display = matches ? '' : 'none';
+    });
+  }
+  search.addEventListener('input', applyFilters);
+  machineFilter.addEventListener('change', applyFilters);
+  articleFilter.addEventListener('change', applyFilters);
+})();
+</script>
+{% endblock %}

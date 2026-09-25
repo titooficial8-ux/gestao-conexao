@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<div class="page-banner page-banner-shine">
+  <img src="{{ url_for('static', filename='img/banner_topo.jpg') }}" alt="Conexão Malhas e Desenvolvimento">
+</div>
+
+<div class="prod-toolbar">
+  <div class="prod-toolbar-title">
+    <span class="prod-toolbar-icon">&#9881;</span>
+    <div>
+      <h1 class="page-heading prod-toolbar-heading">{{ t('producao_por_maquina') }}</h1>
+      <div class="prod-toolbar-meta">
+        <span>{{ total_maquinas_cadastradas }} {{ t('maquinas_cadastradas') }}</span>
+        <span>&bull;</span>
+        <span class="badge-ok">{{ t('linha_ativa') }}</span>
+      </div>
+      <div class="prod-toolbar-meta">
+        <span>{{ maquinas_ativas }} {{ t('maquinas_operantes') }}</span>
+        <span>&bull;</span>
+        <span>{{ total_sequencias }} {{ t('sequencias_meta') }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="prod-toolbar-actions">
+    <button type="button" class="prod-btn" disabled>{{ t('acao_lista') }}</button>
+    <a href="{{ url_for('main.view_tab', slug='programacao') }}" class="prod-btn">{{ t('acao_atualizar') }}</a>
+    <button type="button" class="prod-btn" id="btnHistorico">{{ t('acao_historico') }}</button>
+    <button type="button" class="prod-btn" id="btnDownload">{{ t('acao_download') }}</button>
+    <button type="button" class="prod-btn prod-btn-warn" id="btnDiasSemProducao">{{ t('acao_dias_sem_producao') }}</button>
+    <button type="button" class="prod-btn prod-btn-primary" id="btnNovoRegistro">+ {{ t('novo_registro') }}</button>
+  </div>
+</div>
+
+<form method="GET" class="prod-filters" id="formFiltrosProgramacao">
+  <input type="text" name="q" class="prod-search" id="inputBuscaProgramacao" placeholder="{{ t('pesquisar_placeholder') }}" value="{{ busca }}" autocomplete="off">
+  <select name="cliente" class="status-select" onchange="this.form.submit()">
+    <option value="">{{ t('todos_clientes') }}</option>
+    {% for c in clientes_disponiveis %}
+    <option value="{{ c }}" {{ 'selected' if c == filtro_cliente else '' }}>{{ c }}</option>
+    {% endfor %}
+  </select>
+  <select name="mes" class="status-select" onchange="this.form.submit()">
+    <option value="">{{ t('todos_meses') }}</option>
+    {% for mes in meses_disponiveis %}
+    <option value="{{ mes }}" {{ 'selected' if mes == filtro_mes else '' }}>{{ mes }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn-small btn-primary">{{ t('pesquisar') }}</button>
+  {% if busca or filtro_cliente or filtro_mes %}
+  <a href="{{ url_for('main.view_tab', slug='programacao') }}" class="btn-small">{{ t('limpar') }}</a>
+  {% endif %}
+</form>
+
+<script>
+(function () {
+  var form = document.getElementById('formFiltrosProgramacao');
+  var input = document.getElementById('inputBuscaProgramacao');
+  var area = document.getElementById('areaMaquinasResultado');
+  if (!form || !input || !area) return;
+
+  var timer = null;
+  var buscaEmAndamento = null;
+
+  function buscarSemRecarregar() {
+    var params = new URLSearchParams(new FormData(form));
+    params.set('partial', '1');
+    var url = form.getAttribute('action') || window.location.pathname;
+
+    var minhaBusca = ++buscarSemRecarregar.versao;
+    fetch(url + '?' + params.toString())
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        if (minhaBusca !== buscarSemRecarregar.versao) return; // resposta antiga, ignora
+        area.innerHTML = html;
+        if (window.initFactoryCorridors) window.initFactoryCorridors();
+
+        params.delete('partial');
+        var urlLimpa = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+        window.history.replaceState(null, '', urlLimpa);
+      })
+      .catch(function () {});
+  }
+  buscarSemRecarregar.versao = 0;
+
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(buscarSemRecarregar, 400);
+  });
+})();
+</script>
+
+<div id="areaMaquinasResultado">
+  {% include 'main/_programacao_maquinas.html' %}
+</div>
+
+<div class="modal-backdrop" id="modalNovoRegistro" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 class="section-subtitle">{{ t('programar_op_titulo') }}</h3>
+      <button type="button" class="modal-close" id="fecharModalNovoRegistro">&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('main.novo_registro_programacao') }}" class="programar-form">
+      <label>{{ t('maquina') }}
+        <select name="machine_number" class="pill-input-small programar-input" required>
+          <option value="">—</option>
+          {% for m in todas_maquinas %}
+          <option value="{{ m.number }}">{{ t('maquina') }} {{ '%02d'|format(m.number) }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>{{ t('artigo') }}
+        <input type="text" name="artigo" id="novoRegistroArtigo" class="pill-input-small programar-input" required>
+      </label>
+      <label>OP
+        <input type="text" name="op" id="novoRegistroOp" class="pill-input-small programar-input" required>
+      </label>
+      <label>{{ t('cliente') }}
+        <input type="text" name="cliente" id="novoRegistroCliente" class="pill-input-small programar-input" placeholder="{{ t('preenchido_automatico') }}">
+      </label>
+      <label>{{ t('estrutura') }}
+        <input type="text" name="estrutura" id="novoRegistroEstrutura" class="pill-input-small programar-input" placeholder="{{ t('preenchido_automatico') }}">
+      </label>
+      <label>{{ t('cod_segmento') }}
+        <input type="text" name="cod_segmento" id="novoRegistroSegmento" class="pill-input-small programar-input" placeholder="{{ t('preenchido_automatico') }}">
+      </label>
+      <label>{{ t('total_pcs') }}
+        <input type="number" name="total_pcs" min="0" class="pill-input-small programar-input" required>
+      </label>
+      <label>{{ t('qt_solicitada') }}
+        <input type="number" name="qt_solicitada" min="0" class="pill-input-small programar-input" required>
+      </label>
+      <label>{{ t('qt_avulsa') }}
+        <input type="number" name="qt_avulsa" min="0" class="pill-input-small programar-input" value="0">
+      </label>
+      <label>{{ t('termino_malharia') }}
+        <input type="date" name="termino_malharia" class="pill-input-small programar-input">
+      </label>
+      <label id="novoRegistroDtClienteLabel">{{ t('dt_cliente') }}
+        <input type="date" name="dt_cliente" id="novoRegistroDtCliente" class="pill-input-small programar-input">
+      </label>
+      <label id="novoRegistroMesLabel" hidden>{{ t('mes_producao_ortobom') }}
+        <input type="text" name="production_month" id="novoRegistroMes" class="pill-input-small programar-input" placeholder="Setembro/2026">
+      </label>
+      <p class="machine-hint">{{ t('status_inicial_pcp_hint') }}</p>
+      <button type="submit" class="btn-small btn-primary programar-submit">{{ t('programar_op_botao') }}</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modalNovo = document.getElementById('modalNovoRegistro');
+  var abrirNovo = document.getElementById('btnNovoRegistro');
+  var fecharNovo = document.getElementById('fecharModalNovoRegistro');
+  if (abrirNovo && modalNovo) abrirNovo.addEventListener('click', function () { modalNovo.hidden = false; });
+  if (fecharNovo && modalNovo) fecharNovo.addEventListener('click', function () { modalNovo.hidden = true; });
+  if (modalNovo) modalNovo.addEventListener('click', function (e) { if (e.target === modalNovo) modalNovo.hidden = true; });
+
+  var artigoInput = document.getElementById('novoRegistroArtigo');
+  var opInput = document.getElementById('novoRegistroOp');
+  var clienteInput = document.getElementById('novoRegistroCliente');
+  var estruturaInput = document.getElementById('novoRegistroEstrutura');
+  var segmentoInput = document.getElementById('novoRegistroSegmento');
+  var dtClienteInput = document.getElementById('novoRegistroDtCliente');
+  var dtClienteLabel = document.getElementById('novoRegistroDtClienteLabel');
+  var mesLabel = document.getElementById('novoRegistroMesLabel');
+
+  function buscarDadosArtigo() {
+    var artigo = artigoInput.value.trim();
+    if (!artigo) return;
+    var op = opInput.value.trim();
+    var url = '{{ url_for("main.lookup_artigo") }}?artigo=' + encodeURIComponent(artigo) + '&op=' + encodeURIComponent(op);
+    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+      if (data.cliente && !clienteInput.value) clienteInput.value = data.cliente;
+      if (data.estrutura && !estruturaInput.value) estruturaInput.value = data.estrutura;
+      if (data.cod_segmento && !segmentoInput.value) segmentoInput.value = data.cod_segmento;
+      if (data.is_ortobom) {
+        dtClienteLabel.hidden = true;
+        mesLabel.hidden = false;
+      } else {
+        mesLabel.hidden = true;
+        dtClienteLabel.hidden = false;
+        if (data.dt_cliente && !dtClienteInput.value) dtClienteInput.value = data.dt_cliente;
+      }
+    }).catch(function () {});
+  }
+
+  if (artigoInput) artigoInput.addEventListener('blur', buscarDadosArtigo);
+  if (opInput) opInput.addEventListener('blur', buscarDadosArtigo);
+})();
+
+window.__corridorEpoch = window.__corridorEpoch || 0;
+window.initFactoryCorridors = function () {
+  var epoch = ++window.__corridorEpoch; // invalida qualquer animacao antiga em andamento
+
+  var grid = document.querySelector('.machines-grid');
+  var corridors = document.querySelectorAll('.factory-corridor-row');
+  if (!grid || !corridors.length) return;
+
+  corridors.forEach(function (corridor, idx) {
+    var robot = corridor.querySelector('.factory-robot');
+    if (!robot) return;
+
+    robot.style.transition = 'left 1.6s ease-in-out';
+    robot.style.left = '0%';
+    var atRight = false;
+
+    function step() {
+      if (epoch !== window.__corridorEpoch) return; // uma busca nova ja substituiu essa animacao
+
+      var cards = Array.prototype.filter.call(
+        grid.querySelectorAll('.machine-card'),
+        function (c) { return !c.classList.contains('machine-card-glow'); }
+      );
+      if (!cards.length) return;
+      var target = cards[Math.floor(Math.random() * cards.length)];
+      var corridorRect = corridor.getBoundingClientRect();
+      var targetRect = target.getBoundingClientRect();
+      var destPercent = ((targetRect.left + targetRect.width / 2 - corridorRect.left) / corridorRect.width) * 100;
+      destPercent = Math.max(0, Math.min(96, destPercent));
+      var goingRight = destPercent > parseFloat(robot.style.left || '0');
+
+      robot.classList.remove('cart-mode');
+      robot.textContent = '\u{1F916}';
+      robot.style.transform = goingRight ? 'scaleX(1)' : 'scaleX(-1)';
+      robot.style.left = destPercent + '%';
+
+      function onArrive() {
+        robot.removeEventListener('transitionend', onArrive);
+        if (epoch !== window.__corridorEpoch) return;
+        target.classList.add('machine-card-glow');
+
+        setTimeout(function () {
+          if (epoch !== window.__corridorEpoch) return;
+          target.classList.remove('machine-card-glow');
+          robot.classList.add('cart-mode');
+          robot.innerHTML = '<span class="cart-body">\u{1F6D2}</span><span class="cart-rider">\u{1F916}</span><span class="cart-load">\u{1F9F6}</span>';
+          atRight = !atRight;
+          var exitPercent = atRight ? 96 : 0;
+          robot.style.transform = exitPercent > destPercent ? 'scaleX(1)' : 'scaleX(-1)';
+          robot.style.left = exitPercent + '%';
+
+          function onExit() {
+            robot.removeEventListener('transitionend', onExit);
+            if (epoch !== window.__corridorEpoch) return;
+            setTimeout(step, 1200 + Math.random() * 2500);
+          }
+          robot.addEventListener('transitionend', onExit);
+        }, 5000);
+      }
+      robot.addEventListener('transitionend', onArrive);
+    }
+
+    setTimeout(step, 600 + idx * 1800);
+  });
+};
+
+window.initFactoryCorridors();
+</script>
+{% endblock %}

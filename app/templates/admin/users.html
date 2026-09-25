@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ t('admin_users_title') }}{% endblock %}
+{% block content %}
+<div class="table-card">
+<div class="table-scroll">
+<table class="data-table">
+<thead>
+<tr>
+<th>{{ t('name') }}</th>
+<th>{{ t('email') }}</th>
+<th>{{ t('country') }}</th>
+<th>{{ t('created_at') }}</th>
+<th>{{ t('status') }} / {{ t('sectors') }}</th>
+<th>{{ t('actions') }}</th>
+</tr>
+</thead>
+<tbody>
+{% for u in users %}
+<tr>
+<td>{{ u.name }}</td>
+<td>{{ u.email }}</td>
+<td>{{ u.country }}</td>
+<td>{{ u.created_at.strftime('%d/%m/%Y') }}</td>
+<td>
+  <form method="POST" action="{{ url_for('admin.update_user', user_id=u.id) }}" class="inline-config-form">
+    {% if u.reset_password_requested %}
+    <span class="badge-reset-solicitado">{{ t('solicitou_nova_senha') }}</span>
+    {% endif %}
+    <input type="text" name="nova_senha" class="pill-input-small" placeholder="{{ t('nova_senha_placeholder') }}" autocomplete="new-password">
+    <select name="status" class="status-select status-{{ u.status }}">
+      <option value="pendente" {{ 'selected' if u.status=='pendente' else '' }}>{{ t('pendente') }}</option>
+      <option value="ativo" {{ 'selected' if u.status=='ativo' else '' }}>{{ t('ativo') }}</option>
+      <option value="bloqueado" {{ 'selected' if u.status=='bloqueado' else '' }}>{{ t('bloqueado') }}</option>
+    </select>
+    <select name="role_id" class="status-select">
+      <option value="">{{ t('sem_cargo') }}</option>
+      {% for r in roles %}
+      <option value="{{ r.id }}" {{ 'selected' if u.role_id == r.id else '' }}>{{ r.name }}</option>
+      {% endfor %}
+    </select>
+    <div class="sectors-cell">
+      {% for s in sectors %}
+      <label class="checkbox-pill">
+        <input type="checkbox" name="sectors" value="{{ s.id }}" {{ 'checked' if s in u.sectors else '' }}>
+        {{ s.name }}
+      </label>
+      {% endfor %}
+    </div>
+    <label class="checkbox-pill checkbox-admin">
+      <input type="checkbox" name="is_admin" {{ 'checked' if u.is_admin else '' }}>
+      {{ t('is_admin') }}
+    </label>
+    <button type="submit" class="btn-small btn-primary">{{ t('save') }}</button>
+  </form>
+</td>
+<td>
+  <form method="POST" action="{{ url_for('admin.delete_user', user_id=u.id) }}" onsubmit="return confirm('{{ t('delete') }}?');">
+    <button type="submit" class="btn-small btn-danger" {{ 'disabled' if u.id == current_user.id else '' }}>{{ t('delete') }}</button>
+  </form>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</div>
+{% endblock %}

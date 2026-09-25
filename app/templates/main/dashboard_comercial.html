@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% from 'macros/kpi_card.html' import kpi_card %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<div class="machines-header">
+  <div>
+    <h1 class="page-heading" style="margin-bottom:2px;">{{ tab.name_pt if lang == 'pt' else tab.name_es }}</h1>
+    <p class="presel-subtitle" style="margin:0;">{{ t('modelo_comercial_aviso') }}</p>
+  </div>
+  <button type="button" class="btn-small comercial-btn-integracao" disabled>&#8987; {{ t('aguardando_integracao') }}</button>
+</div>
+
+<div class="comercial-modelo-tag">{{ t('modelo_exemplo_tag') }}</div>
+
+<div class="comercial-cambio-row" id="comercialCambioRow">
+  <div class="comercial-cambio-card" data-moeda="USD">
+    <span class="comercial-cambio-flag">🇺🇸</span>
+    <div>
+      <span class="comercial-cambio-label">{{ t('dolar') }} <small>USD/BRL</small></span>
+      <span class="comercial-cambio-valor">—</span>
+      <span class="comercial-cambio-var"></span>
+    </div>
+  </div>
+  <div class="comercial-cambio-card" data-moeda="EUR">
+    <span class="comercial-cambio-flag">🇪🇺</span>
+    <div>
+      <span class="comercial-cambio-label">{{ t('euro') }} <small>EUR/BRL</small></span>
+      <span class="comercial-cambio-valor">—</span>
+      <span class="comercial-cambio-var"></span>
+    </div>
+  </div>
+  <div class="comercial-cambio-card comercial-cambio-real">
+    <span class="comercial-cambio-flag">🇧🇷</span>
+    <div>
+      <span class="comercial-cambio-label">{{ t('real') }} <small>BRL</small></span>
+      <span class="comercial-cambio-valor">R$ 1,00</span>
+      <span class="comercial-cambio-var comercial-cambio-base">{{ t('moeda_base') }}</span>
+    </div>
+  </div>
+  <span class="comercial-cambio-hora" id="comercialCambioHora"></span>
+</div>
+
+<div class="vg-cards-grid" style="margin-top:14px;">
+  {% for k in kpis %}
+  <div class="vg-card">
+    <div class="vg-card-top">
+      <span class="vg-card-label">{{ k.label }}</span>
+      <span class="vg-card-icon" style="background:#2f7fe0;">{{ k.icone }}</span>
+    </div>
+    <span class="vg-card-value">{{ k.valor }}</span>
+    <span class="vg-card-foot" style="color:{{ '#16a34a' if k.positivo else '#dc2626' }}; font-weight:700;">
+      {{ '▲' if k.positivo else '▼' }} {{ k.variacao }}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="vg-two-col" style="margin-top:16px;">
+  <div class="table-card">
+    <h2 class="vg-section-title">{{ t('meta_do_mes') }}</h2>
+    <div class="comercial-meta-row">
+      <span class="comercial-meta-valor">R$ {{ '{:,}'.format(meta_mes.atingido).replace(',', '.') }}</span>
+      <span class="comercial-meta-de">{{ t('de') }} R$ {{ '{:,}'.format(meta_mes.meta).replace(',', '.') }}</span>
+    </div>
+    <div class="vg-bar-track" style="height:12px; margin-top:8px;">
+      <div class="vg-bar-fill vg-bar-fill-alt" style="width:{{ meta_mes.percentual }}%;"></div>
+    </div>
+    <span class="presel-subtitle">{{ meta_mes.percentual }}% {{ t('da_meta_atingida') }}</span>
+
+    <h2 class="vg-section-title" style="margin-top:22px;">{{ t('split_mi_me') }}</h2>
+    <div class="comercial-split-bar">
+      {% for s in split_mi_me %}
+      <div class="comercial-split-segment" style="width:{{ s.valor }}%; background:{{ s.cor }};"></div>
+      {% endfor %}
+    </div>
+    <div class="comercial-split-legend">
+      {% for s in split_mi_me %}
+      <span><span class="comercial-legend-dot" style="background:{{ s.cor }};"></span>{{ s.label }} — {{ s.valor }}%</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="table-card">
+    <h2 class="vg-section-title">{{ t('vendas_por_mes') }}</h2>
+    <div class="comercial-cols-chart">
+      {% set maior_venda = vendas_por_mes | map(attribute='valor') | max %}
+      {% for v in vendas_por_mes %}
+      <div class="comercial-col-item">
+        <span class="comercial-col-value">{{ v.valor }}M</span>
+        <div class="comercial-col-bar" style="height:{{ (v.valor / maior_venda * 100) | round(0) }}px;"></div>
+        <span class="comercial-col-label">{{ v.mes }}</span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <h2 class="vg-section-title" style="margin-top:22px;">{{ t('funil_vendas') }}</h2>
+    <div class="vg-bars">
+      {% set maior_funil = funil | map(attribute='valor') | max %}
+      {% for f in funil %}
+      <div class="vg-bar-row">
+        <span class="vg-bar-label">{{ f.etapa }}</span>
+        <div class="vg-bar-track"><div class="vg-bar-fill" style="width:{{ (f.valor / maior_funil * 100) | round(1) }}%;"></div></div>
+        <span class="vg-bar-value">{{ f.valor }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="vg-two-col" style="margin-top:16px;">
+  <div class="table-card">
+    <h2 class="vg-section-title">{{ t('top_clientes') }}</h2>
+    <div class="vg-bars">
+      {% set maior_cliente = top_clientes | map(attribute='valor') | max %}
+      {% for c in top_clientes %}
+      <div class="vg-bar-row">
+        <span class="vg-bar-label">{{ c.cliente }}</span>
+        <div class="vg-bar-track"><div class="vg-bar-fill vg-bar-fill-alt" style="width:{{ (c.valor / maior_cliente * 100) | round(1) }}%;"></div></div>
+        <span class="vg-bar-value">R$ {{ '{:,}'.format(c.valor).replace(',', '.') }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="table-card">
+    <h2 class="vg-section-title">{{ t('pedidos_recentes') }}</h2>
+    <div class="table-scroll">
+      <table class="data-table prod-table">
+        <thead>
+          <tr><th>{{ t('pedido') }}</th><th>{{ t('cliente') }}</th><th>{{ t('regiao') }}</th><th>{{ t('valor') }}</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {% for p in pedidos_recentes %}
+          <tr>
+            <td>{{ p.pedido }}</td>
+            <td>{{ p.cliente }}</td>
+            <td><span class="badge-neutral">{{ p.regiao }}</span></td>
+            <td>{{ p.valor }}</td>
+            <td>
+              {% if p.status in ('Aprovado', 'Faturado') %}<span class="badge-ok">{{ p.status }}</span>
+              {% elif p.status == 'Cancelado' %}<span class="badge-danger">{{ p.status }}</span>
+              {% else %}<span class="badge-info">{{ p.status }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="comercial-adv-header">
+  <h2 class="vg-section-title" style="margin:0;">{{ t('indicadores_avancados') }}</h2>
+  <span class="presel-subtitle">{{ t('indicadores_avancados_sub') }}</span>
+</div>
+
+{% for grupo in grupos_indicadores_avancados %}
+<h3 class="comercial-adv-group-title">{{ grupo.titulo }}</h3>
+<div class="comercial-adv-grid2">
+  {% for k in grupo.indicadores %}
+  {{ kpi_card(k) }}
+  {% endfor %}
+</div>
+{% endfor %}
+
+<script>
+(function () {
+  var hora = document.getElementById('comercialCambioHora');
+  fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var mapa = { USD: data.USDBRL, EUR: data.EURBRL };
+      document.querySelectorAll('.comercial-cambio-card[data-moeda]').forEach(function (card) {
+        var info = mapa[card.getAttribute('data-moeda')];
+        if (!info) return;
+        var valor = parseFloat(info.bid);
+        var variacao = parseFloat(info.pctChange);
+        card.querySelector('.comercial-cambio-valor').textContent = 'R$ ' + valor.toFixed(4).replace('.', ',');
+        var varEl = card.querySelector('.comercial-cambio-var');
+        varEl.textContent = (variacao >= 0 ? '▲ ' : '▼ ') + Math.abs(variacao).toFixed(2).replace('.', ',') + '%';
+        varEl.style.color = variacao >= 0 ? '#16a34a' : '#dc2626';
+      });
+      if (hora) {
+        var d = new Date();
+        hora.textContent = '{{ t("atualizado_as") }} ' + d.toLocaleTimeString('pt-BR');
+      }
+    })
+    .catch(function () {
+      document.querySelectorAll('.comercial-cambio-valor').forEach(function (el) {
+        if (el.textContent === '—') el.textContent = '{{ t("indisponivel") }}';
+      });
+    });
+})();
+</script>
+{% endblock %}

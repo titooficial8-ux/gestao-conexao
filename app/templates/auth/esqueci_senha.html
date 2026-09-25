@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content_guest %}
+{% set bg_file = 'img/bg_guatemala.jpg' if pais == 'GT' else 'img/bg_login_br.jpg' %}
+<div class="photo-login-page photo-login-page-gt"
+  style="background-image: linear-gradient(rgba(6,10,18,0.28), rgba(6,10,18,0.28)), url('{{ url_for('static', filename=bg_file) }}');">
+  <div class="photo-login-envbadge">
+    <span class="flag-icon flag-icon-sm">
+      {% if pais == 'BR' %}
+      <img src="{{ url_for('static', filename='img/flag_br.webp') }}" alt="Brasil" width="22" height="15">
+      {% else %}
+      <img src="{{ url_for('static', filename='img/flag_gt.webp') }}" alt="Guatemala" width="22" height="15">
+      {% endif %}
+    </span>
+    {{ t('brasil')|upper if pais == 'BR' else t('guatemala')|upper }}
+  </div>
+
+  <div class="photo-login-card">
+    <div class="wordmark-wrap"><img src="{{ url_for('static', filename='img/logo_conexao_wordmark_dark.png') }}" alt="Conexão" class="wordmark-logo wordmark-logo-sm"></div>
+
+    <h1 class="photo-login-title">{{ t('esqueci_senha_titulo') }}</h1>
+    <p class="photo-login-sub">{{ t('esqueci_senha_desc') }}</p>
+
+    <form method="POST" action="{{ url_for('auth.esqueci_senha') }}">
+      <input type="text" name="email" placeholder="{{ t('email_ou_nome') }}" autocomplete="username" required autofocus class="pill-input">
+
+      <input type="text" name="website" class="honeypot-field" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+      <button type="submit" class="pill-button">{{ t('esqueci_senha_button') }}</button>
+    </form>
+
+    <p class="photo-login-switch"><a href="{{ url_for('auth.login') }}">&#8592; {{ t('voltar_para_login') }}</a></p>
+  </div>
+
+  {% include 'partials/photo_footer.html' %}
+</div>
+{% endblock %}

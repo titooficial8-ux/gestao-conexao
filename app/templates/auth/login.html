@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% from 'macros/password_field.html' import password_field %}
+{% block content_guest %}
+{% set bg_file = 'img/bg_guatemala.jpg' if pais == 'GT' else 'img/bg_login_br.jpg' %}
+<div class="photo-login-page photo-login-page-gt"
+  style="background-image: linear-gradient(rgba(6,10,18,0.28), rgba(6,10,18,0.28)), url('{{ url_for('static', filename=bg_file) }}');">
+  <div class="photo-login-envbadge">
+    <span class="flag-icon flag-icon-sm">
+      {% if pais == 'BR' %}
+      <img src="{{ url_for('static', filename='img/flag_br.webp') }}" alt="Brasil" width="22" height="15">
+      {% else %}
+      <img src="{{ url_for('static', filename='img/flag_gt.webp') }}" alt="Guatemala" width="22" height="15">
+      {% endif %}
+    </span>
+    {{ t('brasil')|upper if pais == 'BR' else t('guatemala')|upper }}
+  </div>
+
+  <div class="photo-login-card">
+    <div class="wordmark-wrap"><img src="{{ url_for('static', filename='img/logo_conexao_wordmark_dark.png') }}" alt="Conexão" class="wordmark-logo wordmark-logo-sm"></div>
+
+    <h1 class="photo-login-title">{{ t('login_title') }}</h1>
+    <p class="photo-login-sub">{{ t('acesse_com_email') }}</p>
+
+    <form method="POST" action="{{ url_for('auth.login') }}" id="loginForm">
+      <input type="text" name="email" id="loginEmailField" placeholder="{{ t('email_ou_nome') }}" autocomplete="username" required autofocus class="pill-input">
+      {{ password_field('password', 'loginPassword', t('password'), css_class='pill-input') }}
+
+      <input type="text" name="website" class="honeypot-field" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+      <a href="{{ url_for('auth.esqueci_senha') }}" class="photo-login-forgot">{{ t('esqueci_senha') }}</a>
+
+      <button type="submit" class="pill-button">{{ t('login_button') }}</button>
+    </form>
+
+    <div class="auth-divider"><span>{{ t('ou') }}</span></div>
+    <a href="{{ url_for('auth.linkedin_login') }}" class="linkedin-button">
+      <svg class="linkedin-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 110-4.12 2.06 2.06 0 010 4.12zM7.12 20.45H3.56V9h3.56v11.45z"/></svg>
+      {{ t('entrar_com_linkedin') }}
+    </a>
+
+    <p class="photo-login-switch">{{ t('no_account') }} <a href="{{ url_for('auth.register') }}">{{ t('register_link') }}</a></p>
+    <a href="{{ url_for('gateway.ambiente', tipo=tipo) }}" class="photo-login-backlink">&#8592; {{ t('trocar_ambiente') }}</a>
+  </div>
+
+  {% include 'partials/photo_footer.html' %}
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+<p class="sd-subtitle">{{ t('prod_dias_sem_producao_desc') }}</p>
+
+<form method="post" action="{{ url_for('main.programacao_dias_sem_producao_adicionar') }}" class="bd-form">
+  <input type="date" name="date" required>
+  <select name="machine_number">
+    <option value="">{{ t('prod_dias_sem_producao_todas_maquinas') }}</option>
+    {% for m in maquinas %}<option value="{{ m.number }}">Máquina {{ '%02d'|format(m.number) }}</option>{% endfor %}
+  </select>
+  <input type="text" name="comment" placeholder="Motivo (opcional)">
+  <button type="submit" class="sd-btn sd-btn-primary">{{ t('base_dados_adicionar') }}</button>
+</form>
+
+<div class="bd-list bd-list-scroll">
+  {% for d in dias %}
+  <div class="bd-row">
+    <span>{{ d.date.strftime('%d/%m/%Y') }} <span class="sd-muted">— {{ 'Máq. %02d'|format(d.machine.number) if d.machine else t('prod_dias_sem_producao_todas_maquinas') }}{{ ' — ' + d.comment if d.comment else '' }}</span></span>
+    <form method="post" action="{{ url_for('main.programacao_dias_sem_producao_excluir', item_id=d.id) }}" onsubmit="return confirm('Excluir este dia?');">
+      <button type="submit" class="bd-del">&#10005;</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="sd-empty">—</p>
+  {% endfor %}
+</div>
+
+<form method="post" action="{{ url_for('main.programacao_dias_sem_producao_recalcular') }}" onsubmit="return confirm('Recalcular as datas de todas as OPs ainda não finalizadas, pulando os dias sem produção cadastrados?');" style="margin-top:12px">
+  <button type="submit" class="sd-btn sd-btn-primary" style="width:auto;padding:9px 18px">&#8635; {{ t('prod_dias_sem_producao_recalcular') }}</button>
+</form>

@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<div class="machines-header">
+  <div>
+    <h1 class="page-heading" style="margin-bottom:2px;">{{ tab.name_pt if lang == 'pt' else tab.name_es }}</h1>
+    <p class="presel-subtitle" style="margin:0;">{{ t('controle_estoque_aviso') }}</p>
+  </div>
+  <button type="button" class="btn-small comercial-btn-integracao" disabled>&#8987; {{ t('aguardando_integracao') }}</button>
+</div>
+
+<div class="comercial-modelo-tag">{{ t('modelo_exemplo_tag') }}</div>
+
+<div class="vg-cards-grid" style="margin-top:14px;">
+  {% for k in kpis %}
+  <div class="comercial-cliente-card">
+    <span class="comercial-cliente-icon">{{ k.icone }}</span>
+    <div>
+      <span class="comercial-cliente-label">{{ k.label }}</span>
+      <span class="comercial-cliente-valor">{{ k.valor }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<h2 class="vg-section-title" style="margin-top:24px;">{{ t('materia_prima_em_estoque') }}</h2>
+<div class="prod-filters">
+  <input type="text" id="buscaMateriaPrima" class="prod-search" placeholder="{{ t('pesquisar_materia_prima_placeholder') }}" autocomplete="off">
+</div>
+<div class="table-card" style="margin-top:10px;">
+  <div class="table-scroll">
+    <table class="data-table prod-table" id="tabelaMateriaPrima">
+      <thead>
+        <tr>
+          <th>{{ t('cod_totvs') }}</th>
+          <th>{{ t('descricao') }}</th>
+          <th>{{ t('fornecedor') }}</th>
+          <th>{{ t('estoque_kg') }}</th>
+          <th>{{ t('rotatividade') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in itens %}
+        <tr>
+          <td>{{ i.cod_totvs }}</td>
+          <td>{{ i.artigo }}</td>
+          <td>{{ i.fornecedor }}</td>
+          <td>{{ '{:,}'.format(i.kg).replace(',', '.') }} kg</td>
+          <td>
+            {% if i.rotatividade == 'alta' %}<span class="badge-ok">{{ t('alta_rotatividade') }}</span>
+            {% elif i.rotatividade == 'media' %}<span class="badge-warn">{{ t('media_rotatividade') }}</span>
+            {% else %}<span class="badge-danger">{{ t('baixa_rotatividade') }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" style="font-weight:800;">{{ t('total') }}</td>
+          <td style="font-weight:800;">{{ '{:,}'.format(total_kg).replace(',', '.') }} kg</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    <p id="materiaPrimaVazio" class="prod-table-empty" hidden>{{ t('nenhum_pedido_encontrado') }}</p>
+  </div>
+</div>
+
+<h2 class="vg-section-title" style="margin-top:24px;">{{ t('disponibilidade_vs_empenho') }}</h2>
+<p class="presel-subtitle" style="margin-top:-10px; margin-bottom:12px;">{{ t('disponibilidade_vs_empenho_sub') }}</p>
+<div class="table-card">
+  <div class="table-scroll">
+    <table class="data-table prod-table">
+      <thead>
+        <tr>
+          <th>{{ t('cod_totvs') }}</th>
+          <th>{{ t('descricao') }}</th>
+          <th>{{ t('estoque_atual') }}</th>
+          <th>{{ t('empenhado_op') }}</th>
+          <th>{{ t('saldo_disponivel') }}</th>
+          <th>{{ t('situacao') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in disponibilidade %}
+        <tr>
+          <td>{{ d.cod_totvs }}</td>
+          <td>{{ d.artigo }}</td>
+          <td>{{ '{:,}'.format(d.estoque).replace(',', '.') }} kg</td>
+          <td>{{ '{:,}'.format(d.empenhado).replace(',', '.') }} kg</td>
+          <td style="font-weight:800; color:{{ '#dc2626' if d.saldo < 0 else '#166534' }};">
+            {{ '{:,}'.format(d.saldo).replace(',', '.') }} kg
+          </td>
+          <td>
+            {% if d.situacao == 'suficiente' %}<span class="badge-ok">{{ t('situacao_suficiente') }}</span>
+            {% elif d.situacao == 'atencao' %}<span class="badge-warn">{{ t('situacao_atencao') }}</span>
+            {% else %}<span class="badge-danger">{{ t('situacao_insuficiente') }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<h2 class="vg-section-title" style="margin-top:24px;">{{ t('fios_por_rotatividade') }}</h2>
+<div class="vg-two-col estoque-rotatividade-grid">
+  <div class="table-card">
+    <h3 class="estoque-rot-title estoque-rot-title-alta">🟢 {{ t('alta_rotatividade') }} ({{ por_rotatividade.alta | length }})</h3>
+    <div class="estoque-rot-list">
+      {% for i in por_rotatividade.alta %}
+      <div class="estoque-rot-item">
+        <span>{{ i.artigo }}</span>
+        <span class="estoque-rot-item-kg">{{ '{:,}'.format(i.kg).replace(',', '.') }} kg</span>
+      </div>
+      {% else %}
+      <p class="prod-table-empty">{{ t('nenhum_fio_categoria') }}</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="table-card">
+    <h3 class="estoque-rot-title estoque-rot-title-media">🟡 {{ t('media_rotatividade') }} ({{ por_rotatividade.media | length }})</h3>
+    <div class="estoque-rot-list">
+      {% for i in por_rotatividade.media %}
+      <div class="estoque-rot-item">
+        <span>{{ i.artigo }}</span>
+        <span class="estoque-rot-item-kg">{{ '{:,}'.format(i.kg).replace(',', '.') }} kg</span>
+      </div>
+      {% else %}
+      <p class="prod-table-empty">{{ t('nenhum_fio_categoria') }}</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="table-card">
+    <h3 class="estoque-rot-title estoque-rot-title-baixa">🔴 {{ t('baixa_rotatividade') }} ({{ por_rotatividade.baixa | length }})</h3>
+    <div class="estoque-rot-list">
+      {% for i in por_rotatividade.baixa %}
+      <div class="estoque-rot-item">
+        <span>{{ i.artigo }}</span>
+        <span class="estoque-rot-item-kg">{{ '{:,}'.format(i.kg).replace(',', '.') }} kg</span>
+      </div>
+      {% else %}
+      <p class="prod-table-empty">{{ t('nenhum_fio_categoria') }}</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="vg-two-col" style="margin-top:20px;">
+  <div class="table-card">
+    <h2 class="vg-section-title">{{ t('maiores_saidas') }}</h2>
+    <p class="presel-subtitle" style="margin-top:-8px; margin-bottom:14px;">{{ t('maiores_saidas_sub') }}</p>
+    <div class="vg-bars">
+      {% set maior_saida = saidas | map(attribute='kg') | max %}
+      {% for s in saidas %}
+      <div class="vg-bar-row vg-bar-row-wide">
+        <span class="vg-bar-label">{{ s.artigo }}</span>
+        <div class="vg-bar-track"><div class="vg-bar-fill" style="width:{{ (s.kg / maior_saida * 100) | round(1) }}%;"></div></div>
+        <span class="vg-bar-value">{{ '{:,}'.format(s.kg).replace(',', '.') }} kg</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="table-card">
+    <h2 class="vg-section-title">{{ t('ranking_fornecedores') }}</h2>
+    <div class="vg-bars">
+      {% set maior_forn = ranking_fornecedores | map(attribute='kg') | max %}
+      {% for f in ranking_fornecedores %}
+      <div class="vg-bar-row vg-bar-row-wide">
+        <span class="vg-bar-label">{{ f.fornecedor }}</span>
+        <div class="vg-bar-track"><div class="vg-bar-fill vg-bar-fill-alt" style="width:{{ (f.kg / maior_forn * 100) | round(1) }}%;"></div></div>
+        <span class="vg-bar-value">{{ f.itens }} {{ t('fios_meta') }} · {{ '{:,}'.format(f.kg).replace(',', '.') }} kg</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var input = document.getElementById('buscaMateriaPrima');
+  var tabela = document.getElementById('tabelaMateriaPrima');
+  var vazio = document.getElementById('materiaPrimaVazio');
+  if (!input || !tabela) return;
+  var linhas = Array.prototype.slice.call(tabela.querySelectorAll('tbody tr'));
+
+  input.addEventListener('input', function () {
+    var termo = input.value.trim().toLowerCase();
+    var visiveis = 0;
+    linhas.forEach(function (linha) {
+      var bate = linha.textContent.toLowerCase().indexOf(termo) !== -1;
+      linha.hidden = !bate;
+      if (bate) visiveis += 1;
+    });
+    vazio.hidden = visiveis !== 0;
+  });
+})();
+</script>
+{% endblock %}

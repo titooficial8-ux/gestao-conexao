@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+*.db
+.env
+instance/
+node_modules/
+frontend/dist/
+app/static/dist/
+.tools/
+Claude outputs/
+*.log
