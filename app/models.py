@@ -468,3 +468,39 @@ class Tab(db.Model):
         allowed_ids = {s.id for s in self.sectors}
         user_sector_ids = {s.id for s in user.sectors}
         return bool(allowed_ids & user_sector_ids)
+
+
+class TechTicket(db.Model):
+    """Chamado do portal de Tecnologia e I.A (mesmos campos do PCP Hub)."""
+    __tablename__ = 'tech_tickets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    region = db.Column(db.String(2), nullable=False, default='BR')
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    requester_name = db.Column(db.String(150))
+    requester_email = db.Column(db.String(150))
+    notify_email = db.Column(db.String(150))
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(40), nullable=False, default='OUTROS')
+    sector = db.Column(db.String(60))
+    area = db.Column(db.String(150))
+    priority = db.Column(db.String(10), nullable=False, default='MEDIA')
+    status = db.Column(db.String(15), nullable=False, default='ABERTO')
+    assigned_to = db.Column(db.String(150))
+    resolution = db.Column(db.Text)
+    resolved_at = db.Column(db.DateTime)
+    # fluxo "Desenvolver"
+    dev_service = db.Column(db.String(60))
+    dev_request_type = db.Column(db.String(40))
+    dev_target = db.Column(db.String(150))
+    # nomes dos arquivos salvos em instance/uploads/chamados, separados por '|'
+    images = db.Column(db.Text, default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User')
+
+    @property
+    def image_list(self):
+        return [i for i in (self.images or '').split('|') if i]

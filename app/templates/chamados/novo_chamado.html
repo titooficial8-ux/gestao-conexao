@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% block sidebar_nav %}{% include 'partials/chamados_sidebar.html' %}{% endblock %}
+{% block page_title %}{{ t('chamados_novo_titulo') }}{% endblock %}
+{% block content %}
+<div class="chamados-hero">
+  <h1>{{ t('chamados_titulo') }}</h1>
+  <p>{{ t('chamados_subtitulo') }} &middot; {{ t('ambiente') }}: {{ 'Guatemala' if region == 'GT' else 'Brasil' }}</p>
+</div>
+
+<div class="ticket-choice" id="ticketChoice">
+  <button type="button" class="ticket-choice-card" data-open="chamado">
+    <span class="ticket-choice-icon">&#127911;</span>
+    <strong>{{ t('chamado_abrir') }}</strong>
+    <small>{{ t('chamado_abrir_desc') }}</small>
+  </button>
+  <button type="button" class="ticket-choice-card amber" data-open="desenvolver">
+    <span class="ticket-choice-icon">&#128161;</span>
+    <strong>{{ t('chamado_desenvolver') }}</strong>
+    <small>{{ t('chamado_desenvolver_desc') }}</small>
+  </button>
+</div>
+
+{# ---------- Abrir chamado ---------- #}
+<form method="POST" enctype="multipart/form-data" class="ticket-form" id="panel-chamado" hidden>
+  <input type="hidden" name="tipo" value="chamado">
+  <h2>{{ t('chamado_abrir') }}</h2>
+
+  <input type="text" name="title" class="ticket-input" placeholder="{{ t('chamado_titulo_placeholder') }}" required minlength="3" maxlength="200">
+  <textarea name="description" class="ticket-input" rows="4" placeholder="{{ t('chamado_descricao_placeholder') }}"></textarea>
+
+  <div class="ticket-grid-2">
+    <label class="ticket-field">
+      <span>{{ t('chamado_categoria') }}</span>
+      <select name="category" class="ticket-input">
+        {% for c in categories %}<option value="{{ c }}" {{ 'selected' if c == 'OUTROS' else '' }}>{{ c }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="ticket-field">
+      <span>{{ t('chamado_seu_email') }}</span>
+      <input type="email" name="notify_email" class="ticket-input" value="{{ current_user.email }}" placeholder="{{ t('chamado_email_placeholder') }}">
+    </label>
+  </div>
+
+  <p class="ticket-note">{{ t('chamado_prioridade_nota') }}</p>
+
+  <label class="ticket-field">
+    <span>{{ t('chamado_setor') }}</span>
+    <select name="sector" class="ticket-input">
+      {% for s in sectors %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <input type="text" name="area" class="ticket-input" placeholder="{{ t('chamado_local_placeholder') }}" maxlength="150">
+
+  <label class="ticket-field">
+    <span>&#128247; {{ t('chamado_anexar_imagens') }}</span>
+    <input type="file" name="images" accept="image/*" multiple class="ticket-file">
+  </label>
+
+  <div class="ticket-actions">
+    <button type="button" class="btn-small ticket-btn-outline" data-back>&larr; {{ t('voltar') }}</button>
+    <button type="submit" class="btn-small btn-primary">{{ t('chamado_abrir') }}</button>
+  </div>
+</form>
+
+{# ---------- Desenvolver (3 passos) ---------- #}
+<form method="POST" enctype="multipart/form-data" class="ticket-form" id="panel-desenvolver" hidden>
+  <input type="hidden" name="tipo" value="desenvolver">
+  <input type="hidden" name="dev_service" id="devService">
+  <h2>&#128161; {{ t('chamado_solicitar_dev') }}</h2>
+
+  <div class="dev-step" data-step="1">
+    <div class="ticket-note amber">{{ t('chamado_dev_intro') }}</div>
+    <div class="ticket-actions">
+      <button type="button" class="btn-small ticket-btn-outline" data-back>&larr; {{ t('voltar') }}</button>
+      <button type="button" class="btn-small ticket-btn-amber" data-goto="2">{{ t('chamado_dev_entendi') }}</button>
+    </div>
+  </div>
+
+  <div class="dev-step" data-step="2" hidden>
+    <p class="dev-step-title">{{ t('chamado_dev_escolha') }}</p>
+    <div class="dev-services">
+      {% for s in dev_services %}
+      <button type="button" class="dev-service" data-service="{{ s.name }}">
+        <strong>{{ s.name }}</strong>
+        <small>{{ s.desc_es if lang == 'es' else s.desc_pt }}</small>
+      </button>
+      {% endfor %}
+    </div>
+    <div class="ticket-actions">
+      <button type="button" class="btn-small ticket-btn-outline" data-goto="1">&larr; {{ t('voltar') }}</button>
+    </div>
+  </div>
+
+  <div class="dev-step" data-step="3" hidden>
+    <div class="dev-badges">
+      <span class="dev-badge amber">&#128161; <span id="devServiceLabel"></span></span>
+      <span class="dev-badge">{{ 'Guatemala' if region == 'GT' else 'Brasil' }}</span>
+    </div>
+
+    <div class="ticket-note amber" id="devTargetBox" hidden>
+      <label class="ticket-field">
+        <span>{{ t('chamado_dev_qual_criacao') }}</span>
+        <select name="dev_target" id="devTarget" class="ticket-input">
+          <option value="">{{ t('chamado_dev_selecione_criacao') }}</option>
+          {% for d in dev_targets %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+        </select>
+      </label>
+      <input type="text" name="dev_target_other" id="devTargetOther" class="ticket-input" placeholder="{{ t('chamado_dev_outros_placeholder') }}" hidden>
+    </div>
+
+    <input type="text" name="title" class="ticket-input" placeholder="{{ t('chamado_dev_nome_placeholder') }}" required minlength="3" maxlength="200">
+    <textarea name="description" class="ticket-input" rows="5" placeholder="{{ t('chamado_dev_descricao_placeholder') }}"></textarea>
+    <label class="ticket-field">
+      <span>{{ t('chamado_dev_tipo_solicitacao') }}</span>
+      <select name="dev_request_type" class="ticket-input">
+        {% for r in dev_request_types %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="ticket-field">
+      <span>&#128247; {{ t('chamado_anexar_imagens') }}</span>
+      <input type="file" name="images" accept="image/*" multiple class="ticket-file">
+    </label>
+
+    <div class="ticket-actions">
+      <button type="button" class="btn-small ticket-btn-outline" data-goto="2">&larr; {{ t('voltar') }}</button>
+      <button type="submit" class="btn-small ticket-btn-amber">{{ t('chamado_dev_enviar') }}</button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function () {
+  var choice = document.getElementById('ticketChoice');
+  var panels = { chamado: document.getElementById('panel-chamado'), desenvolver: document.getElementById('panel-desenvolver') };
+  var dev = panels.desenvolver;
+
+  function show(which) {
+    choice.hidden = !!which;
+    Object.keys(panels).forEach(function (k) { panels[k].hidden = k !== which; });
+    if (which === 'desenvolver') goto(1);
+  }
+  function goto(step) {
+    dev.querySelectorAll('.dev-step').forEach(function (el) { el.hidden = el.dataset.step !== String(step); });
+    // campos obrigatorios so valem no passo 3 (senao o navegador bloqueia o envio escondido)
+    dev.querySelectorAll('.dev-step[data-step="3"] [required]').forEach(function (el) { el.disabled = step !== 3; });
+  }
+
+  document.querySelectorAll('[data-open]').forEach(function (b) {
+    b.addEventListener('click', function () { show(b.dataset.open); });
+  });
+  document.querySelectorAll('[data-back]').forEach(function (b) {
+    b.addEventListener('click', function () { show(null); });
+  });
+  dev.querySelectorAll('[data-goto]').forEach(function (b) {
+    b.addEventListener('click', function () { goto(Number(b.dataset.goto)); });
+  });
+
+  var target = document.getElementById('devTarget');
+  var targetOther = document.getElementById('devTargetOther');
+  var targetBox = document.getElementById('devTargetBox');
+  dev.querySelectorAll('.dev-service').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var name = b.dataset.service;
+      document.getElementById('devService').value = name;
+      document.getElementById('devServiceLabel').textContent = name;
+      var isUpdate = name === 'Atualização de Criações';
+      targetBox.hidden = !isUpdate;
+      target.required = isUpdate;
+      target.value = '';
+      targetOther.hidden = true;
+      targetOther.value = '';
+      goto(3);
+    });
+  });
+  target.addEventListener('change', function () { targetOther.hidden = target.value !== 'Outros'; });
+
+  var inicial = {{ tipo|tojson }};
+  show(inicial === 'desenvolver' || inicial === 'chamado' ? inicial : null);
+})();
+</script>
+{% endblock %}
