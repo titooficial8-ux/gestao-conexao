@@ -50,7 +50,7 @@ def create_app():
     @app.context_processor
     def inject_globals():
         lang = session.get('lang', 'pt')
-        pais_atual = 'GT' if lang == 'es' else 'BR'
+        pais_atual = session.get('login_pais') or ('GT' if lang == 'es' else 'BR')
         # o botao ativo (Planejamento/Chamados) segue a area que o usuario
         # esta navegando de fato, nao so a escolha inicial da sessao
         if request.blueprint == 'chamados':

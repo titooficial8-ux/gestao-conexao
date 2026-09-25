@@ -1,9 +1,13 @@
-from flask import Blueprint, render_template, abort
+from flask import Blueprint, render_template, abort, session
 from flask_login import login_required, current_user
 
 from app.decorators import admin_required
 
 chamados_bp = Blueprint('chamados', __name__, url_prefix='/chamados')
+
+
+def _ambiente_atual():
+    return session.get('login_pais', 'BR')
 
 
 @chamados_bp.route('/')
@@ -21,7 +25,7 @@ def novo_chamado():
 @chamados_bp.route('/suporte-brasil')
 @login_required
 def suporte_brasil():
-    if not (current_user.is_admin or current_user.country == 'BR'):
+    if _ambiente_atual() != 'BR':
         abort(403)
     return render_template('chamados/placeholder.html', titulo_key='chamados_suporte_br_titulo')
 
@@ -29,7 +33,7 @@ def suporte_brasil():
 @chamados_bp.route('/suporte-guatemala')
 @login_required
 def suporte_guatemala():
-    if not (current_user.is_admin or current_user.country == 'GT'):
+    if _ambiente_atual() != 'GT':
         abort(403)
     return render_template('chamados/placeholder.html', titulo_key='chamados_suporte_gt_titulo')
 
