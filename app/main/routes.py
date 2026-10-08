@@ -1263,11 +1263,13 @@ def view_tab(slug):
         )
 
     if slug == 'pedidos-comercial-me':
-        from app.comercial_me.routes import ambiente_atual, catalogo, visao_geral
+        from app.comercial_me import paineis
+        from app.comercial_me.dados import catalogo
+        from app.comercial_me.routes import ambiente_atual, idioma_atual
         regiao = ambiente_atual()
         return render_template(
             'main/comercial_me.html', tab=tab, regiao=regiao,
-            catalogo=catalogo(regiao), visao=visao_geral(regiao, session.get('lang', 'pt')),
+            catalogo=catalogo(), paineis=paineis.disponiveis(idioma_atual()),
         )
 
     return render_template('main/tab.html', tab=tab)

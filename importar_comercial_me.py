@@ -86,8 +86,33 @@ CONFIG = [
     (VOL, 'SUNLOCK SPA-CH', dict(id='vol_sunlock', titulo='Sunlock SPA (Chile)', grupo=G_VOL, regiao='BR', tipo='planilha')),
     (VOL, 'SIMMONS-ARG', dict(id='vol_simmons', titulo='Simmons (Argentina)', grupo=G_VOL, regiao='BR', tipo='planilha')),
     (VOL, 'Flexible Clientes div.', dict(id='vol_flexible', titulo='Flexible: clientes diversos', grupo=G_VOL, regiao='BR', tipo='planilha')),
+    # Aba oculta que alimenta os resumos de volume. SO as colunas comerciais abaixo sao importadas
+    # (custos, rentabilidade, impostos e comissoes ficam de fora de proposito).
+    (VOL, 'Dados de origem', dict(id='vol_origem', titulo='Faturamento detalhado (base de origem)', grupo=G_VOL, regiao='BR', tipo='tabela', header=1,
+                                   oculta_ok=True, colunas_permitidas=['MÊS', 'ANO', 'TIPO', 'CLIENTE', 'PAIS EXTERIOR', 'Fatura', 'Artigo',
+                                                                        'Descrição Item', 'Preço Unit', 'Valor (total)', 'Unidade', 'Gramatura',
+                                                                        'Peças', 'MT', 'KG'])),
     (VOL, 'Flex-Hist-Pais', dict(id='vol_flex_hist', titulo='Flex: histórico por país', grupo=G_VOL, regiao='BR', tipo='planilha')),
 ]
+
+# Informacoes passadas pela Mary (responsavel pelo Comercial ME): o que e cada base, com que frequencia
+# ela e atualizada e quais metricas-chave alimenta. Chave = trecho do nome do arquivo.
+BASES = {
+    'Volume Vendas': dict(base='Relatório de resultado de vendas', atualizacao='Mensal',
+                          metricas='Volume & Valor (Histórico | CY | por Cliente | x SKU)'),
+    'PEDIDOS BR': dict(base='Pedidos – Follow-up (BR)', atualizacao='Diária',
+                       metricas='Nº de pro-formas, pedidos, média de produção, coleta'),
+    'GUATEMALA': dict(base='Pedidos – Follow-up (GT)', atualizacao='Diária',
+                      metricas='Nº de pro-formas, pedidos, média de produção, coleta'),
+    'Gestao de Credito': dict(base='Gestão de Crédito e pagamentos', atualizacao='Diária',
+                              metricas='Termos de crédito, status de pagamentos, conciliação de contas x cliente'),
+    'Proform': dict(base='Proforma-Invoice', atualizacao='Quando necessário',
+                    metricas='Modelo de Proforma-Invoice com base de dados de clientes (importador / entrega)'),
+    'PEDIDOS E COTA': dict(base='Tracker – cotações de produtos e pedidos de amostras', atualizacao='Diária',
+                           metricas='Cotações x cliente, ID, preços e características de produto'),
+    'Processos': dict(base='Relatório da operação de Comex', atualizacao='Diária',
+                      metricas='Documenta as fases da produção para coordenar o envio de pedidos'),
+}
 
 ERROS = {'#N/A', '#REF!', '#DIV/0!', '#VALUE!', '#NAME?', '#NULL!', '#NUM!'}
 MAX_COLS = 60
@@ -156,7 +181,7 @@ def _atualizado_em(linhas_acima):
 
 
 # colunas que sao IDENTIFICADORES (pedido, codigo, OP, NF, telefone): ficam como texto, sem ponto de milhar
-_ID = re.compile(r'(PEDIDO|\bCOD|CODE|CODIGO|NBR|NÚM|\bNUM\b|ORDER|INVOICE|\bNF\b|NOTA FISCAL|FONE|TELF|\bID\b|\bOP\b|NÚMERO|# )', re.I)
+_ID = re.compile(r'(FATURA|ARTIGO|PEDIDO|\bCOD|CODE|CODIGO|NBR|NÚM|\bNUM\b|ORDER|INVOICE|\bNF\b|NOTA FISCAL|FONE|TELF|\bID\b|\bOP\b|NÚMERO|# )', re.I)
 _VALOR = re.compile(r'(TOTAL|DIF|US\$|PAGAR|CREDITO|CRÉDITO|METROS|VALOR|PREÇO|PRECIO|QUANT|MTS|KGS)', re.I)
 
 
@@ -185,6 +210,10 @@ def montar(ws, cfg):
             vistos[nome] = vistos.get(nome, 0) + 1
             colunas.append(nome if vistos[nome] == 1 else f'{nome} ({vistos[nome]})')
         rows = [v for _, v in todas[1:]]
+        if cfg.get('colunas_permitidas'):
+            manter = [j for j, nome in enumerate(colunas) if nome in cfg['colunas_permitidas']]
+            colunas = [colunas[j] for j in manter]
+            rows = [[r[j] for j in manter] for r in rows]
         for j, nome in enumerate(colunas):
             if _ID.search(nome) and not _VALOR.search(nome):
                 for r in rows:
@@ -220,9 +249,11 @@ def main():
         print(f'\n{os.path.basename(arq)}')
         wb = openpyxl.load_workbook(arq, read_only=True, data_only=True)
         nomes = {ws.title.strip(): ws for ws in wb.worksheets}
+        salvo = getattr(wb.properties, 'modified', None)           # data em que a planilha foi salva pela ultima vez
+        info_base = next((v for t, v in BASES.items() if t.lower() in os.path.basename(arq).lower()), {})
         for aba, cfg in abas:
             ws = nomes.get(aba.strip())
-            if ws is None or ws.sheet_state != 'visible':
+            if ws is None or (ws.sheet_state != 'visible' and not cfg.get('oculta_ok')):
                 ignoradas.append(f'{os.path.basename(arq)} / {aba}: aba não encontrada ou oculta')
                 continue
             dados = montar(ws, cfg)
@@ -240,10 +271,12 @@ def main():
                     continue
                 item = dict(id=id_, titulo=titulo, grupo=cfg['grupo'], regiao=regiao, tipo=cfg['tipo'],
                             arquivo=os.path.basename(arq), aba=aba.strip(), atualizado_em=dados['atualizado_em'],
+                            salvo_em=salvo.strftime('%Y-%m-%d %H:%M') if salvo else None, **info_base,
                             colunas=dados['colunas'], linhas=linhas)
                 with open(os.path.join(SAIDA, id_ + '.json'), 'w', encoding='utf-8') as f:
                     json.dump(item, f, ensure_ascii=False, separators=(',', ':'))
-                catalogo.append({k: item[k] for k in ('id', 'titulo', 'grupo', 'regiao', 'tipo', 'arquivo', 'aba', 'atualizado_em')}
+                catalogo.append({k: item.get(k) for k in ('id', 'titulo', 'grupo', 'regiao', 'tipo', 'arquivo', 'aba', 'atualizado_em',
+                                                          'salvo_em', 'base', 'atualizacao', 'metricas')}
                                 | dict(n_linhas=len(linhas), n_colunas=len(dados['colunas'])))
                 print(f'  {id_:<22} {len(linhas):>5} linhas x {len(dados["colunas"]):>2} colunas  [{regiao}]  {titulo}')
         wb.close()
