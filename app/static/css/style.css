@@ -2559,3 +2559,15 @@ textarea.ticket-input { resize: vertical; }
 .cme-pos { color: #11703c; } .cme-neg { color: #a3262b; }
 .cme-carregando { opacity: 0.55; transition: opacity .15s; }
 @media (max-width: 900px) { .cme-graficos { grid-template-columns: minmax(0, 1fr); } }
+.cme-clicavel { cursor: pointer; }
+.cme-kpi.cme-clicavel:hover { box-shadow: 0 4px 16px rgba(10,45,84,0.16); }
+.cme-tabela tbody tr.cme-clicavel:hover td, .cme-tcard tbody tr.cme-clicavel:hover td { background: var(--blue-50); }
+.cme-auto { margin-bottom: 16px; }
+.cme-auto .cme-canvas { height: 240px; }
+.cme-modal { position: fixed; inset: 0; background: rgba(8,20,40,0.55); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.cme-modal[hidden] { display: none; }
+.cme-modal-box { position: relative; background: var(--white); border-radius: var(--radius); padding: 22px 24px; max-width: 640px; width: 100%; max-height: 85vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+.cme-modal-box h3 { margin: 0 30px 14px 0; font-size: 16px; color: var(--blue-900); }
+.cme-modal-fechar { position: absolute; top: 10px; right: 14px; border: 0; background: none; font-size: 26px; cursor: pointer; color: var(--gray-500); }
+.cme-detalhe th { width: 38%; text-align: left; font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: .04em; vertical-align: top; }
+.cme-detalhe td { white-space: normal; word-break: break-word; }

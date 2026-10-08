@@ -66,6 +66,7 @@
             <button type="button" class="btn-small ticket-btn-outline" id="cmeCsv">{{ t('cme_exportar') }}</button>
           </div>
         </div>
+        <div id="cmeAuto"></div>
         <div class="table-scroll cme-scroll"><table class="data-table cme-tabela" id="cmeTabela"></table></div>
         <div class="cme-rodape">
           <span id="cmeContagem"></span>
@@ -79,6 +80,7 @@
     </div>
   </div>
 
+  <div class="cme-modal" id="cmeModal" hidden><div class="cme-modal-box"><button type="button" class="cme-modal-fechar" id="cmeModalX" aria-label="×">&times;</button><h3 id="cmeModalTit"></h3><div id="cmeModalCorpo"></div></div></div>
   <script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
   <script>
   (function () {
@@ -123,6 +125,7 @@
 
     function usar(id, d) {
       estado.dados = d;
+      autoPainel(d);
       estado.textos = d.linhas.map(function (r) { return r.join(' ').toLowerCase(); });
       var meta = TXT.fonte + ': ' + d.arquivo + ' › ' + d.aba;
       if (d.atualizado_em) meta += ' · ' + TXT.atualizado + ' ' + d.atualizado_em;
@@ -225,6 +228,8 @@
     var GRAFICOS = [];
     var filtrosAtuais = {};
     var painelAtual = null;
+    var filtrosDef = [];
+    var AUTOG = [];
     var seq = 0;
 
     function el(tag, cls, txt) {
@@ -268,7 +273,7 @@
       var plan = aba === '__planilhas';
       $('cmePainel').hidden = plan;
       $('cmePlanilhas').hidden = !plan;
-      if (plan) { limparGraficos(); if (!estado.id) history.replaceState(null, '', '#planilhas'); return; }
+      if (plan) { limparGraficos(); if (estado.dados) autoPainel(estado.dados); if (!estado.id) history.replaceState(null, '', '#planilhas'); return; }
       history.replaceState(null, '', '#' + aba);
       painelAtual = aba; filtrosAtuais = {};
       carregarPainel();
@@ -306,6 +311,7 @@
     }
 
     function desenharFiltros(fs) {
+      filtrosDef = fs;
       var box = $('cmeFiltros'); box.textContent = '';
       box.hidden = !fs.length;
       fs.forEach(function (f) {
@@ -350,7 +356,8 @@
     }
 
     function cartaoKpi(k) {
-      var c = el('div', 'cme-kpi' + (k.tom ? ' ' + k.tom : ''));
+      var c = el('div', 'cme-kpi' + (k.tom ? ' ' + k.tom : '') + ' cme-clicavel');
+      c.addEventListener('click', function () { var t = document.querySelector('#cmeCorpo .cme-tcard'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
       c.appendChild(el('span', 'cme-kpi-rotulo', k.rotulo));
       c.appendChild(el('strong', null, fmt(k.valor, k.fmt, true)));
       var rod = el('div', 'cme-kpi-rodape');
@@ -362,7 +369,7 @@
       return c;
     }
 
-    function cartaoGrafico(g) {
+    function cartaoGrafico(g, lista) {
       var c = el('div', 'table-card cme-grafico' + (g.largura === 'inteira' ? ' inteira' : ''));
       c.appendChild(el('h3', null, g.titulo));
       var caixa = el('div', 'cme-canvas' + (g.tipo === 'hbar' ? ' alto' : '')); var cv = document.createElement('canvas'); caixa.appendChild(cv); c.appendChild(caixa);
@@ -391,13 +398,26 @@
           } } }
         }
       };
+      var alvo = function (i) {
+        var lab = g.labels[i], achado = null;
+        filtrosDef.forEach(function (f) { if (!achado && f.id !== 'ano' && f.id !== 'origem') f.opcoes.forEach(function (o) { if (o.v && o.t === lab) achado = { f: f.id, v: o.v }; }); });
+        return achado;
+      };
+      if (!rosca || true) {
+        op.onClick = function (ev, els) {
+          if (!els.length) return; var a = alvo(els[0].index);
+          if (a) { filtrosAtuais[a.f] = a.v; carregarPainel(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+          else abrirDetalhe(g.titulo + ' — ' + g.labels[els[0].index], g.series.map(function (sr) { return [sr.nome, fmt(sr.dados[els[0].index], g.fmt)]; }));
+        };
+        op.onHover = function (ev, els) { ev.native.target.style.cursor = els.length ? 'pointer' : 'default'; };
+      }
       if (!rosca) {
         var eixoV = { beginAtZero: true, ticks: { callback: function (v) { return fmt(v, g.fmt, true); } }, stacked: !!g.empilhado };
         var eixoC = { stacked: !!g.empilhado, ticks: { autoSkip: false, maxRotation: 50 }, grid: { display: false } };
         if (hbar) { op.indexAxis = 'y'; op.scales = { x: eixoV, y: { ticks: { autoSkip: false }, grid: { display: false }, stacked: !!g.empilhado } }; }
         else op.scales = { x: eixoC, y: eixoV };
       }
-      GRAFICOS.push(new Chart(cv, { type: tipo, data: { labels: g.labels, datasets: datasets }, options: op }));
+      (lista || GRAFICOS).push(new Chart(cv, { type: tipo, data: { labels: g.labels, datasets: datasets }, options: op }));
       return c;
     }
 
@@ -428,7 +448,8 @@
       function pintar() {
         tb.textContent = '';
         t.linhas.slice(0, aberto ? t.linhas.length : LIM).forEach(function (l) {
-          var r = el('tr');
+          var r = el('tr'); r.className = 'cme-clicavel';
+          r.addEventListener('click', function () { abrirDetalhe(t.titulo, t.colunas.map(function (col, j) { var d = el('td'); celula(d, l[j], col.tipo); return [col.nome, d.firstChild && d.firstChild.nodeType === 1 ? d.firstChild.textContent : d.textContent]; })); });
           t.colunas.forEach(function (col, j) { var td = el('td'); celula(td, l[j], col.tipo); if (td.textContent.length > 28) td.title = td.textContent; r.appendChild(td); });
           tb.appendChild(r);
         });
@@ -440,6 +461,75 @@
         c.appendChild(b);
       }
       return c;
+    }
+
+
+    function abrirDetalhe(titulo, pares) {
+      $('cmeModalTit').textContent = titulo; var c = $('cmeModalCorpo'); c.textContent = '';
+      var tb = el('table', 'data-table cme-detalhe');
+      pares.forEach(function (p) { var r = el('tr'); r.appendChild(el('th', null, p[0])); r.appendChild(el('td', null, p[1] === null || p[1] === '' ? '—' : p[1])); tb.appendChild(r); });
+      c.appendChild(tb); $('cmeModal').hidden = false;
+    }
+    $('cmeModalX').addEventListener('click', function () { $('cmeModal').hidden = true; });
+    $('cmeModal').addEventListener('click', function (e) { if (e.target === $('cmeModal')) $('cmeModal').hidden = true; });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('cmeModal').hidden = true; });
+
+    // dashboard automatico de qualquer planilha
+    function autoPainel(d) {
+      AUTOG.forEach(function (g) { g.destroy(); }); AUTOG = [];
+      var box = $('cmeAuto'); box.textContent = '';
+      var cat = CATALOGO.filter(function (t) { return t.id === d.id; })[0] || {};
+      var n = d.linhas.length; if (!n) return;
+      var kp = el('div', 'cme-kpigrid cme-auto');
+      var kpi = function (rot, val, nota) { var c = el('div', 'cme-kpi'); c.appendChild(el('span', 'cme-kpi-rotulo', rot)); c.appendChild(el('strong', null, val)); if (nota) c.appendChild(el('small', null, nota)); kp.appendChild(c); };
+      kpi(TXT.linhas, nf(n), d.colunas.length + ' ' + (LOCALE === 'pt-BR' ? 'colunas' : 'columnas'));
+      if (cat.atualizacao) kpi(TXT.atualizacao, cat.atualizacao, cat.salvo_em ? TXT.salvo_em + ' ' + cat.salvo_em.slice(8, 10) + '/' + cat.salvo_em.slice(5, 7) + '/' + cat.salvo_em.slice(0, 4) : '');
+      var grade = d.tipo !== 'tabela';
+      var nomes = d.colunas.map(function (c, j) { var h = grade && d.linhas[0] && typeof d.linhas[0][j] === 'string' && d.linhas[0][j].length <= 25 ? d.linhas[0][j] : (grade ? (LOCALE === 'pt-BR' ? 'Coluna ' : 'Columna ') + c : c); return h.length > 40 ? h.slice(0, 38) + '…' : h; });
+      d = { id: d.id, tipo: d.tipo, linhas: d.linhas, colunas: nomes };
+      var nc = d.colunas.length, num = [], txt = [], dat = -1;
+      for (var j = 0; j < nc; j++) {
+        var nn = 0, ne = 0, nd = 0, uniq = {}, len = 0;
+        d.linhas.forEach(function (r) { var v = r[j]; if (v === null || v === undefined || v === '') return; ne++; if (typeof v === 'number') nn++; else { len += String(v).length; if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) nd++; uniq[v] = 1; } });
+        if (!ne) continue;
+        if (nd / ne > 0.7) { if (dat < 0) dat = j; }
+        else if (nn / ne > 0.7 && !/^(ano|year|mes|mês|month|n[ºo°]|#)/i.test(d.colunas[j])) num.push(j);
+        else if (nn / ne < 0.3) { var u = Object.keys(uniq).length; if (u >= 2 && u <= Math.min(25, Math.max(3, ne * 0.6)) && len / Math.max(1, ne - nn) <= 28) txt.push([j, u]); }
+      }
+      var pref = /total|valor|metros|\bmt\b|kg|us\$|usd|volume|saldo|monto|importe/i;
+      num.sort(function (a, b) { return (pref.test(d.colunas[b]) ? 1 : 0) - (pref.test(d.colunas[a]) ? 1 : 0); });
+      num.slice(0, grade ? 2 : 3).forEach(function (j) {
+        var soma = 0, c = 0, mx = null; d.linhas.forEach(function (r) { var v = r[j]; if (typeof v === 'number') { soma += v; c++; if (mx === null || v > mx) mx = v; } });
+        var f = /us\$|usd/i.test(d.colunas[j]) ? 'usd' : (/r\$|brl/i.test(d.colunas[j]) ? 'brl' : 'int');
+        kpi(d.colunas[j], f === 'int' ? nf(soma, { maximumFractionDigits: 2 }) : fmt(soma, f, true), (LOCALE === 'pt-BR' ? 'média ' : 'promedio ') + nf(soma / c, { maximumFractionDigits: 2 }) + ' · máx ' + nf(mx, { maximumFractionDigits: 2 }));
+      });
+      box.appendChild(kp);
+      var gr = el('div', 'cme-graficos cme-auto');
+      var medida = num.length ? num[0] : -1;
+      txt.sort(function (a, b) { return a[1] - b[1]; });
+      if (grade && medida >= 0) {
+        var lc = -1; for (var q = 0; q < nc && lc < 0; q++) { if (q === medida) continue; var tx = 0, te = 0; d.linhas.forEach(function (r) { if (r[q] !== null && r[q] !== '' && r[q] !== undefined) { te++; if (typeof r[q] === 'string') tx++; } }); if (te >= 4 && tx / te > 0.8) lc = q; }
+        if (lc >= 0) {
+          var al = d.linhas.filter(function (r) { return typeof r[lc] === 'string' && typeof r[medida] === 'number' && !/^(total|grand total|soma)/i.test(r[lc]); }).sort(function (a, b) { return Math.abs(b[medida]) - Math.abs(a[medida]); }).slice(0, 12);
+          if (al.length >= 2) {
+            kpi((LOCALE === 'pt-BR' ? 'Maior: ' : 'Mayor: ') + d.colunas[medida], nf(al[0][medida], { maximumFractionDigits: 2 }), al[0][lc]);
+            gr.appendChild(cartaoGrafico({ id: 'autog', titulo: d.colunas[medida] + ' — ' + d.colunas[lc], tipo: 'hbar', labels: al.map(function (r) { return r[lc]; }), series: [{ nome: d.colunas[medida], dados: al.map(function (r) { return r[medida]; }) }], fmt: 'int', largura: 'meia' }, AUTOG));
+          }
+        }
+      }
+      (grade ? [] : txt).slice(0, 2).forEach(function (tc, i) {
+        var acc = {}; d.linhas.forEach(function (r) { var k = r[tc[0]]; if (k === null || k === '' || k === undefined) return; acc[k] = (acc[k] || 0) + (medida >= 0 && typeof r[medida] === 'number' ? r[medida] : (medida >= 0 ? 0 : 1)); });
+        var arr = Object.keys(acc).map(function (k) { return [k, acc[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, i ? 8 : 10);
+        if (arr.length < 2) return;
+        var titulo = (medida >= 0 ? d.colunas[medida] : TXT.linhas) + ' — ' + d.colunas[tc[0]];
+        gr.appendChild(cartaoGrafico({ id: 'auto' + i, titulo: titulo, tipo: i ? 'doughnut' : 'hbar', labels: arr.map(function (a) { return a[0]; }), series: [{ nome: medida >= 0 ? d.colunas[medida] : TXT.linhas, dados: arr.map(function (a) { return a[1]; }) }], fmt: 'int', largura: 'meia' }, AUTOG));
+      });
+      if (dat >= 0) {
+        var m = {}; d.linhas.forEach(function (r) { var v = r[dat]; if (!v || typeof v !== 'string') return; var k = v.slice(6, 10) + '-' + v.slice(3, 5); m[k] = (m[k] || 0) + (medida >= 0 && typeof r[medida] === 'number' ? r[medida] : (medida >= 0 ? 0 : 1)); });
+        var ks = Object.keys(m).sort();
+        if (ks.length > 1) gr.appendChild(cartaoGrafico({ id: 'autot', titulo: (medida >= 0 ? d.colunas[medida] : TXT.linhas) + ' — ' + d.colunas[dat], tipo: 'line', labels: ks.map(function (k) { return k.slice(5) + '/' + k.slice(0, 4); }), series: [{ nome: '', dados: ks.map(function (k) { return m[k]; }) }], fmt: 'int', largura: 'inteira' }, AUTOG));
+      }
+      if (gr.childNodes.length) box.appendChild(gr);
     }
 
     // ------------------------------------------------------------ planilhas (visualizador)
