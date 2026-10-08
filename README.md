@@ -61,10 +61,28 @@ GestaoConexao/
     main/routes.py           -> dashboard e páginas de módulo (abas) do Planejamento
     admin/routes.py          -> usuários, setores, permissões
     chamados/routes.py       -> módulo de Chamados / Recursos (helpdesk interno)
+    comercial_me/routes.py   -> aba Comercial ME (planilhas de exportação importadas)
+    seed_data/comercial_me/  -> tabelas geradas por importar_comercial_me.py (JSON)
+  importar_pcp_hub.py        -> carrega a fotografia do PCP Hub (Planejamento e Produção)
+  importar_comercial_me.py   -> lê "Planilhas de Exportação/*.xlsx" e gera a aba Comercial ME
     templates/               -> HTML (Jinja2)
     static/css/style.css     -> tema escuro na entrada, branco/azul (Conexão) no app
     static/js/main.js        -> menu lateral (accordion + toggle mobile)
 ```
+
+## Atualizar a aba Comercial ME
+
+Quando as planilhas de exportação forem atualizadas, substitua os arquivos na pasta
+`Planilhas de Exportação` e rode, na pasta do projeto com a venv ativa:
+
+```
+python importar_comercial_me.py
+```
+
+Ele lê só as abas visíveis (abas ocultas, como contatos e dados bancários, não são importadas),
+gera os arquivos em `app/seed_data/comercial_me/` e a aba passa a mostrar os dados novos.
+O que cada ambiente vê: Brasil mostra as planilhas do Brasil (e as amostras marcadas BR);
+Guatemala mostra as da Guatemala (e as amostras marcadas GT).
 
 ## Próximos passos sugeridos
 

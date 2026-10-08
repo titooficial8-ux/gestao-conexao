@@ -1,0 +1,274 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+{% set pais_nome = 'Guatemala' if regiao == 'GT' else 'Brasil' %}
+<div class="cme">
+  <div class="chamados-hero">
+    <h1>{{ t('cme_titulo') }}</h1>
+    <p>{{ t('cme_subtitulo') }} &middot; {{ t('ambiente') }}: {{ pais_nome }}</p>
+  </div>
+
+  {% if not catalogo %}
+  <div class="table-card"><p class="ticket-empty">{{ t('cme_sem_dados') }}</p></div>
+  {% else %}
+  {% set rotulos_es = {'Pedidos': 'Pedidos', 'Crédito e pagamentos': 'Crédito y pagos', 'Amostras e cotações': 'Muestras y cotizaciones',
+                      'Documentação e envios': 'Documentación y envíos', 'Volume de vendas': 'Volumen de ventas', 'Outras planilhas': 'Otras planillas'} %}
+  {% set grupos = [] %}
+  {% for tb in catalogo %}{% if tb.grupo not in grupos %}{% set _ = grupos.append(tb.grupo) %}{% endif %}{% endfor %}
+
+  <div class="cme-grupos" id="cmeGrupos" role="tablist">
+    <button type="button" class="cme-grupo active" data-grupo="__visao">{{ t('cme_visao_geral') }}</button>
+    {% for g in grupos %}
+    <button type="button" class="cme-grupo" data-grupo="{{ g }}">{{ rotulos_es.get(g, g) if lang == 'es' else g }} <span class="cme-contagem">{{ catalogo|selectattr('grupo', 'equalto', g)|list|length }}</span></button>
+    {% endfor %}
+  </div>
+
+  {# ---------- Visao geral ---------- #}
+  <div id="cmeVisao">
+    {% if visao.kpis %}
+    <div class="ticket-kpis cme-kpis">
+      {% for k in visao.kpis %}
+      <div class="ticket-kpi {{ loop.cycle('', 'blue', 'green', 'amber') }}">
+        <span>{{ k.rotulo }}</span>
+        <strong>{{ k.prefixo or '' }}{{ '{:,}'.format(k.valor).replace(',', '.') }}{{ k.sufixo or '' }}</strong>
+        {% if k.nota %}<small>{{ k.nota }}</small>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="cme-rankings">
+      {% for r in visao.rankings %}
+      {% set maximo = (r.itens|map(attribute=1)|max) if r.itens else 1 %}
+      <div class="table-card cme-ranking">
+        <h3>{{ r.titulo }}</h3>
+        {% for nome, valor in r.itens %}
+        <div class="cme-barra-linha">
+          <span class="cme-barra-nome" title="{{ nome }}">{{ nome }}</span>
+          <span class="cme-barra"><i style="width:{{ (valor / maximo * 100)|round(1) }}%"></i></span>
+          <span class="cme-barra-valor">{{ '{:,}'.format(valor).replace(',', '.') }}</span>
+        </div>
+        {% else %}<p class="ticket-empty">—</p>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="table-card">
+      <h3 class="cme-tit-lista">{{ t('cme_planilhas_importadas') }}</h3>
+      <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>{{ t('cme_grupo') }}</th><th>{{ t('cme_tabela') }}</th><th>{{ t('cme_fonte') }}</th><th class="cme-num">{{ t('cme_linhas') }}</th></tr></thead>
+        <tbody>
+          {% for tb in catalogo %}
+          <tr><td>{{ rotulos_es.get(tb.grupo, tb.grupo) if lang == 'es' else tb.grupo }}</td>
+              <td><a href="#" class="cme-abrir" data-id="{{ tb.id }}" data-grupo="{{ tb.grupo }}">{{ tb.titulo }}</a></td>
+              <td class="cme-fonte">{{ tb.arquivo }} &rsaquo; {{ tb.aba }}</td>
+              <td class="cme-num">{{ '{:,}'.format(tb.n_linhas).replace(',', '.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  {# ---------- Visualizador de tabelas ---------- #}
+  <div id="cmeTabelas" hidden>
+    <div class="cme-pills" id="cmePills"></div>
+    <div class="table-card cme-viewer">
+      <div class="cme-barra-topo">
+        <div>
+          <h3 id="cmeTitulo"></h3>
+          <p class="cme-meta" id="cmeMeta"></p>
+        </div>
+        <div class="cme-ferramentas">
+          <input type="search" id="cmeBusca" class="ticket-input" placeholder="{{ t('cme_buscar') }}">
+          <button type="button" class="btn-small ticket-btn-outline" id="cmeCsv">{{ t('cme_exportar') }}</button>
+        </div>
+      </div>
+      <div class="table-scroll cme-scroll"><table class="data-table cme-tabela" id="cmeTabela"></table></div>
+      <div class="cme-rodape">
+        <span id="cmeContagem"></span>
+        <span class="cme-paginacao" id="cmePaginacao">
+          <button type="button" class="btn-small ticket-btn-outline" id="cmeAnt">&larr; {{ t('cme_anterior') }}</button>
+          <span id="cmePagina"></span>
+          <button type="button" class="btn-small ticket-btn-outline" id="cmeProx">{{ t('cme_proxima') }} &rarr;</button>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var CATALOGO = {{ catalogo|tojson }};
+    var LOCALE = {{ ('es-GT' if lang == 'es' else 'pt-BR')|tojson }};
+    var URL_TABELA = {{ url_for('comercial_me.tabela', id_='__ID__')|tojson }};
+    var TXT = {{ {'carregando': t('cme_carregando'), 'erro': t('cme_erro'), 'linhas': t('cme_linhas'), 'de': t('cme_de'),
+                  'pagina': t('cme_pagina'), 'fonte': t('cme_fonte'), 'atualizado': t('cme_atualizado'), 'nenhum': t('cme_nenhum')}|tojson }};
+    var PAGINA = 50;
+
+    var $ = function (id) { return document.getElementById(id); };
+    var estado = { id: null, dados: null, indices: [], busca: '', col: null, dir: 1, pagina: 0, textos: [] };
+    var cache = {};
+
+    function mostrarGrupo(grupo) {
+      Array.prototype.forEach.call(document.querySelectorAll('.cme-grupo'), function (b) {
+        b.classList.toggle('active', b.dataset.grupo === grupo);
+      });
+      var visao = grupo === '__visao';
+      $('cmeVisao').hidden = !visao;
+      $('cmeTabelas').hidden = visao;
+      if (visao) { history.replaceState(null, '', location.pathname); return; }
+      var pills = $('cmePills'); pills.textContent = '';
+      var itens = CATALOGO.filter(function (t) { return t.grupo === grupo; });
+      itens.forEach(function (t) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'cme-pill'; b.textContent = t.titulo; b.dataset.id = t.id;
+        b.addEventListener('click', function () { abrirTabela(t.id); });
+        pills.appendChild(b);
+      });
+      if (!estado.id || !itens.some(function (t) { return t.id === estado.id; })) abrirTabela(itens[0].id);
+      else marcarPill();
+    }
+
+    function marcarPill() {
+      Array.prototype.forEach.call(document.querySelectorAll('.cme-pill'), function (b) {
+        b.classList.toggle('active', b.dataset.id === estado.id);
+      });
+    }
+
+    function abrirTabela(id) {
+      estado.id = id; estado.busca = ''; estado.col = null; estado.dir = 1; estado.pagina = 0;
+      $('cmeBusca').value = '';
+      var rolagem = document.querySelector('.cme-scroll'); rolagem.scrollLeft = 0; rolagem.scrollTop = 0;
+      history.replaceState(null, '', '#' + id);
+      marcarPill();
+      $('cmeTitulo').textContent = (CATALOGO.filter(function (t) { return t.id === id; })[0] || {}).titulo || '';
+      $('cmeMeta').textContent = TXT.carregando;
+      $('cmeTabela').textContent = '';
+      if (cache[id]) return usar(id, cache[id]);
+      fetch(URL_TABELA.replace('__ID__', encodeURIComponent(id)), { credentials: 'same-origin' })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function (d) { cache[id] = d; if (estado.id === id) usar(id, d); })
+        .catch(function () { if (estado.id === id) $('cmeMeta').textContent = TXT.erro; });
+    }
+
+    function usar(id, d) {
+      estado.dados = d;
+      estado.textos = d.linhas.map(function (r) { return r.join(' ').toLowerCase(); });
+      var meta = TXT.fonte + ': ' + d.arquivo + ' › ' + d.aba;
+      if (d.atualizado_em) meta += ' · ' + TXT.atualizado + ' ' + d.atualizado_em;
+      $('cmeMeta').textContent = meta;
+      filtrar();
+    }
+
+    function chave(v) {
+      if (v === null || v === undefined || v === '') return null;
+      if (typeof v === 'number') return v;
+      var m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(v);
+      if (m) return Number(m[3]) * 10000 + Number(m[2]) * 100 + Number(m[1]);
+      return String(v).toLowerCase();
+    }
+
+    function filtrar() {
+      var d = estado.dados, q = estado.busca.trim().toLowerCase();
+      var idx = [];
+      for (var i = 0; i < d.linhas.length; i++) if (!q || estado.textos[i].indexOf(q) !== -1) idx.push(i);
+      if (estado.col !== null && d.tipo === 'tabela') {
+        var c = estado.col, dir = estado.dir;
+        idx.sort(function (a, b) {
+          var x = chave(d.linhas[a][c]), y = chave(d.linhas[b][c]);
+          if (x === null && y === null) return a - b;
+          if (x === null) return 1;
+          if (y === null) return -1;
+          if (typeof x === typeof y) return (x < y ? -1 : x > y ? 1 : 0) * dir;
+          return (typeof x === 'number' ? -1 : 1) * dir;
+        });
+      }
+      estado.indices = idx;
+      if (estado.pagina * PAGINA >= idx.length) estado.pagina = 0;
+      desenhar();
+    }
+
+    function formatar(v) {
+      if (v === null || v === undefined) return '';
+      if (typeof v === 'number') {
+        if (Number.isInteger(v) && v >= 1900 && v <= 2100) return String(v);  // anos nos cabecalhos das planilhas
+        return v.toLocaleString(LOCALE, { maximumFractionDigits: 4 });
+      }
+      return String(v);
+    }
+
+    function desenhar() {
+      var d = estado.dados, tipoTabela = d.tipo === 'tabela';
+      var tab = $('cmeTabela'); tab.textContent = '';
+      var thead = document.createElement('thead'), trh = document.createElement('tr');
+      d.colunas.forEach(function (nome, j) {
+        var th = document.createElement('th'); th.textContent = nome; th.title = nome;
+        if (tipoTabela) {
+          th.className = 'cme-ordenavel';
+          if (estado.col === j) th.textContent = nome + (estado.dir === 1 ? ' ▲' : ' ▼');
+          th.addEventListener('click', function () {
+            if (estado.col === j) estado.dir = -estado.dir; else { estado.col = j; estado.dir = 1; }
+            filtrar();
+          });
+        }
+        trh.appendChild(th);
+      });
+      thead.appendChild(trh); tab.appendChild(thead);
+      var tbody = document.createElement('tbody');
+      var ini = tipoTabela ? estado.pagina * PAGINA : 0;
+      var fim = tipoTabela ? Math.min(ini + PAGINA, estado.indices.length) : estado.indices.length;
+      for (var k = ini; k < fim; k++) {
+        var linha = d.linhas[estado.indices[k]], tr = document.createElement('tr');
+        for (var j = 0; j < d.colunas.length; j++) {
+          var v = linha[j], td = document.createElement('td'), txt = formatar(v);
+          td.textContent = txt; if (txt.length > 28) td.title = txt;
+          if (typeof v === 'number') td.className = 'cme-num';
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      tab.appendChild(tbody);
+      var total = estado.indices.length;
+      $('cmeContagem').textContent = total ? total.toLocaleString(LOCALE) + ' ' + TXT.linhas : TXT.nenhum;
+      var paginas = Math.max(1, Math.ceil(total / PAGINA));
+      $('cmePaginacao').hidden = !tipoTabela || paginas <= 1;
+      $('cmePagina').textContent = TXT.pagina + ' ' + (estado.pagina + 1) + ' ' + TXT.de + ' ' + paginas;
+      $('cmeAnt').disabled = estado.pagina === 0;
+      $('cmeProx').disabled = estado.pagina >= paginas - 1;
+    }
+
+    function exportarCsv() {
+      var d = estado.dados; if (!d) return;
+      var esc = function (v) {
+        var s = v === null || v === undefined ? '' : (typeof v === 'number' ? String(v).replace('.', ',') : String(v));
+        return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      };
+      var linhas = [d.colunas.map(esc).join(';')];
+      estado.indices.forEach(function (i) { linhas.push(d.linhas[i].map(esc).join(';')); });
+      var blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = d.id + '.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    }
+
+    document.querySelectorAll('.cme-grupo').forEach(function (b) {
+      b.addEventListener('click', function () { mostrarGrupo(b.dataset.grupo); });
+    });
+    document.querySelectorAll('.cme-abrir').forEach(function (a) {
+      a.addEventListener('click', function (e) { e.preventDefault(); estado.id = a.dataset.id; mostrarGrupo(a.dataset.grupo); abrirTabela(a.dataset.id); });
+    });
+    var timer;
+    $('cmeBusca').addEventListener('input', function (e) {
+      clearTimeout(timer);
+      timer = setTimeout(function () { estado.busca = e.target.value; estado.pagina = 0; if (estado.dados) filtrar(); }, 150);
+    });
+    $('cmeAnt').addEventListener('click', function () { estado.pagina--; desenhar(); });
+    $('cmeProx').addEventListener('click', function () { estado.pagina++; desenhar(); });
+    $('cmeCsv').addEventListener('click', exportarCsv);
+
+    var inicial = CATALOGO.filter(function (t) { return t.id === location.hash.slice(1); })[0];
+    if (inicial) { estado.id = inicial.id; mostrarGrupo(inicial.grupo); abrirTabela(inicial.id); }
+  })();
+  </script>
+  {% endif %}
+</div>
+{% endblock %}

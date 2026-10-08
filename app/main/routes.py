@@ -1,7 +1,7 @@
 import re
 import unicodedata
 
-from flask import Blueprint, render_template, abort, redirect, url_for, request, flash, jsonify, Response
+from flask import Blueprint, render_template, abort, redirect, url_for, request, flash, jsonify, Response, session
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 
@@ -1263,10 +1263,11 @@ def view_tab(slug):
         )
 
     if slug == 'pedidos-comercial-me':
+        from app.comercial_me.routes import ambiente_atual, catalogo, visao_geral
+        regiao = ambiente_atual()
         return render_template(
-            'main/pedidos_comercial.html', tab=tab, regiao='ME',
-            colunas=PEDIDOS_ME_COLUNAS, pedidos=PEDIDOS_ME_MODELO,
-            indicadores_clientes=INDICADORES_CLIENTES_ME, pedidos_por_pais=PEDIDOS_POR_PAIS_ME,
+            'main/comercial_me.html', tab=tab, regiao=regiao,
+            catalogo=catalogo(regiao), visao=visao_geral(regiao, session.get('lang', 'pt')),
         )
 
     return render_template('main/tab.html', tab=tab)

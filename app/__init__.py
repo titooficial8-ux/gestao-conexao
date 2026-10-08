@@ -37,11 +37,13 @@ def create_app():
     from app.main.routes import main_bp
     from app.admin.routes import admin_bp
     from app.chamados.routes import chamados_bp
+    from app.comercial_me.routes import comercial_me_bp
     app.register_blueprint(gateway_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(chamados_bp)
+    app.register_blueprint(comercial_me_bp)
 
     app.jinja_env.globals['tab_url'] = tab_url
 
@@ -89,5 +91,11 @@ def create_app():
         if first_run:
             from app.seed import seed_data
             seed_data()
+        # a aba 'Pedidos Comercial (ME)' agora se chama 'Comercial ME' (bancos ja criados nao passam pelo seed)
+        from app.models import Tab
+        aba_me = Tab.query.filter_by(slug='pedidos-comercial-me').first()
+        if aba_me and (aba_me.name_pt, aba_me.name_es) != ('Comercial ME', 'Comercial ME'):
+            aba_me.name_pt = aba_me.name_es = 'Comercial ME'
+            db.session.commit()
 
     return app

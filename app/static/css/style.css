@@ -2466,3 +2466,50 @@ textarea.ticket-input { resize: vertical; }
 .ticket-badge.prio-media { background: var(--blue-100); color: var(--blue-700); }
 .ticket-badge.prio-alta { background: #ffedd5; color: #c2410c; }
 .ticket-badge.prio-critica { background: #fde3e3; color: var(--danger-dark); }
+
+/* ===== Comercial ME ===== */
+.cme-grupos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.cme-grupo {
+  background: var(--white); border: 1px solid var(--gray-300); color: var(--gray-700); cursor: pointer;
+  padding: 9px 16px; border-radius: 999px; font: inherit; font-size: 13.5px; font-weight: 600;
+}
+.cme-grupo:hover { border-color: var(--blue-500); color: var(--blue-700); }
+.cme-grupo.active { background: var(--blue-700); border-color: var(--blue-700); color: var(--white); }
+.cme-contagem { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 11.5px; background: rgba(127,127,127,0.18); }
+.cme-grupo.active .cme-contagem { background: rgba(255,255,255,0.25); }
+.cme [hidden] { display: none !important; }
+
+.cme-kpis small { display: block; margin-top: 4px; font-size: 12px; color: var(--gray-500); }
+.cme-kpis .ticket-kpi strong { font-size: 22px; }
+.cme-rankings { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; margin-bottom: 4px; }
+.cme-ranking h3, .cme-tit-lista { margin: 0 0 14px 0; font-size: 15px; color: var(--blue-900); }
+.cme-barra-linha { display: grid; grid-template-columns: minmax(90px, 160px) 1fr auto; gap: 10px; align-items: center; margin-bottom: 9px; font-size: 13px; }
+.cme-barra-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.cme-barra { background: var(--gray-200); border-radius: 999px; height: 10px; overflow: hidden; }
+.cme-barra i { display: block; height: 100%; background: var(--blue-500); border-radius: 999px; }
+.cme-barra-valor { font-weight: 700; color: var(--blue-900); font-variant-numeric: tabular-nums; }
+.cme-fonte { color: var(--gray-500); font-size: 12.5px; }
+.cme-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.cme-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.cme-pill {
+  background: var(--blue-50); border: 1px solid var(--blue-100); color: var(--blue-700); cursor: pointer;
+  padding: 7px 13px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600;
+}
+.cme-pill:hover { border-color: var(--blue-500); }
+.cme-pill.active { background: var(--blue-500); border-color: var(--blue-500); color: var(--white); }
+.cme-barra-topo { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.cme-barra-topo h3 { margin: 0; font-size: 17px; color: var(--blue-900); }
+.cme-meta { margin: 4px 0 0 0; font-size: 12.5px; color: var(--gray-500); }
+.cme-ferramentas { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cme-ferramentas .ticket-input { width: 260px; }
+.cme-scroll { max-height: 640px; overflow: auto; border: 1px solid var(--gray-200); border-radius: 8px; }
+.cme-tabela { font-size: 12.5px; }
+.cme-tabela th { position: sticky; top: 0; background: var(--gray-100); z-index: 1; max-width: 220px; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; }
+.cme-tabela th.cme-ordenavel { cursor: pointer; user-select: none; }
+.cme-tabela th.cme-ordenavel:hover { color: var(--blue-700); }
+.cme-tabela td { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 8px 12px; }
+.cme-tabela tbody tr:hover td { background: var(--blue-50); }
+.cme-rodape { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--gray-700); }
+.cme-paginacao { display: flex; align-items: center; gap: 10px; }
+.cme-paginacao button:disabled { opacity: 0.45; cursor: default; }
