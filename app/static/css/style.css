@@ -2571,3 +2571,7 @@ textarea.ticket-input { resize: vertical; }
 .cme-modal-fechar { position: absolute; top: 10px; right: 14px; border: 0; background: none; font-size: 26px; cursor: pointer; color: var(--gray-500); }
 .cme-detalhe th { width: 38%; text-align: left; font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: .04em; vertical-align: top; }
 .cme-detalhe td { white-space: normal; word-break: break-word; }
+/* valores em destaque */
+.cme-tcard td.cme-num, .cme-tabela td.cme-num { font-weight: 700; color: var(--blue-900); }
+.cme-kpi strong { font-size: 27px; letter-spacing: -0.01em; }
+.cme-kpi.verde strong { color: #11703c; } .cme-kpi.vermelho strong { color: #a3262b; } .cme-kpi.ambar strong { color: #8a5a0c; }
