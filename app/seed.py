@@ -71,8 +71,8 @@ CATEGORIES_DATA = [
         'order': 2,
         'sector': 'Comercial',
         'tabs': [
-            ('dashboard-comercial', 'Dashboard Comercial', 'Dashboard Comercial', '\U0001F4CA', '#2f7fe0', True),
-            ('pedidos-comercial-mi', 'Pedidos Comercial (MI)', 'Pedidos Comercial (MI)', '\U0001F1E7\U0001F1F7', '#3fa34d', True),
+            ('dashboard-comercial', 'BI COMERCIAL', 'BI COMERCIAL', '\U0001F4CA', '#2f7fe0', True),
+            ('pedidos-comercial-mi', 'COMERCIAL MI', 'COMERCIAL MI', '\U0001F1E7\U0001F1F7', '#3fa34d', True),
             ('pedidos-comercial-me', 'Comercial ME', 'Comercial ME', '\U0001F30E', '#e0972f', True),
         ],
     },

@@ -97,5 +97,18 @@ def create_app():
         if aba_me and (aba_me.name_pt, aba_me.name_es) != ('Comercial ME', 'Comercial ME'):
             aba_me.name_pt = aba_me.name_es = 'Comercial ME'
             db.session.commit()
+        # nomes das abas do Comercial
+        renomear = {'dashboard-comercial': 'BI COMERCIAL', 'pedidos-comercial-mi': 'COMERCIAL MI'}
+        mudou = False
+        for slug, nome in renomear.items():
+            aba = Tab.query.filter_by(slug=slug).first()
+            if aba and (aba.name_pt, aba.name_es) != (nome, nome):
+                aba.name_pt = aba.name_es = nome
+                mudou = True
+        if mudou:
+            db.session.commit()
+        # contas iniciais por setor (idempotente)
+        from app.usuarios_padrao import criar_usuarios_padrao
+        criar_usuarios_padrao()
 
     return app
