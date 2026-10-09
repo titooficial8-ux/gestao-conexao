@@ -12,5 +12,33 @@
     "526": "SEGUNDA QUALIDADE",
     "545": "COLCHAO ME",
     "50": "COLCHAO ME"
+  },
+  "operacoes_150": {
+    "_leia-me": "Operacoes (codigo TOTVS) que entram no Relatorio 150 = vendas e devolucoes de venda, como na planilha de Receitas. Compras, servicos e vendas intercompany (ex.: 507, 574) ficam de fora. Se criarem uma operacao de venda nova, inclua o codigo aqui.",
+    "codigos": [
+      500,
+      1500,
+      545,
+      526,
+      546,
+      23,
+      50,
+      6,
+      541,
+      1006,
+      1023,
+      1527,
+      508,
+      1507,
+      1520,
+      506,
+      501,
+      547,
+      569,
+      1517,
+      1508,
+      1535,
+      564
+    ]
   }
 }

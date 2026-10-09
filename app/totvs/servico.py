@@ -241,11 +241,17 @@ def _meses(inicio: date, fim: date):
         a, m = prox.year, prox.month
 
 
+def _operacoes_150(base) -> str:
+    cods = (base.ajustes().get('operacoes_150') or {}).get('codigos') or []
+    return ','.join(str(c) for c in cods)
+
+
 def gerar_blocos(inicio: date, fim: date, pular_existentes: bool = False) -> dict:
     """Busca no TOTVS mes a mes e grava um bloco (Relatorio 150) por mes em instance/totvs/base."""
-    from app.totvs import api
+    from app.totvs import api, base
     import pandas as pd
 
+    api.OPERACOES_150 = _operacoes_150(base) or api.OPERACOES_150
     _log('Autenticando no TOTVS...')
     cli = api.TotvsModaClient()
     cli.autenticar()

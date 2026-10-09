@@ -251,6 +251,38 @@
     return card;
   }
 
+
+  function progressoCard(titulo, d, linhas) {
+    var c = ui.el('div', 'table-card sl-prog'), topo = ui.el('div', 'sl-prog-topo'); topo.appendChild(ui.el('h3', null, titulo));
+    var tg = ui.el('div', 'sl-toggle'), per = 'acum';
+    var bm = ui.el('button', null, MESES[d.mes - 1]), ba = ui.el('button', 'ativo', ES ? 'Acumulado' : 'Acumulado'); bm.type = ba.type = 'button';
+    tg.appendChild(bm); tg.appendChild(ba); topo.appendChild(tg); c.appendChild(topo);
+    var lista = ui.el('div', 'sl-prog-lista'); c.appendChild(lista);
+    c.appendChild(ui.el('div', 'sl-prog-leg', ES ? '● ≥100% del plan   ● 80–99%   ● <80%   ┃ = plan' : '● ≥100% do plano   ● 80–99%   ● <80%   ┃ = plano'));
+    function R(v) { return 'R$ ' + mi(v); }
+    function pintar() {
+      lista.textContent = '';
+      var itens = linhas.map(function (l) { return { r: l.rotulo, plano: (l[per].plano || 0), real: (l[per].real || 0) }; })
+        .filter(function (x) { return x.plano || x.real; }).sort(function (a, b) { return (b.plano || b.real) - (a.plano || a.real); });
+      if (!itens.length) { lista.appendChild(ui.el('p', 'ticket-empty', ES ? 'Sin datos' : 'Sem dados')); return; }
+      itens.forEach(function (x) {
+        var pc = x.plano ? x.real / x.plano : null, cor = pc === null ? 'cinza' : (pc >= 1 ? 'verde' : (pc >= 0.8 ? 'ambar' : 'verm'));
+        var li = ui.el('div', 'sl-prog-item');
+        li.appendChild(ui.el('div', 'sl-prog-nome', x.r));
+        var pista = ui.el('div', 'sl-prog-pista'), fill = ui.el('i', 'sl-prog-fill ' + cor); fill.style.width = (pc === null ? 0 : Math.min(pc, 1.25) / 1.25 * 100) + '%'; pista.appendChild(fill);
+        if (pc !== null) { var mk = ui.el('b', 'sl-prog-marca'); mk.style.left = (1 / 1.25 * 100) + '%'; pista.appendChild(mk); }
+        li.appendChild(pista);
+        var val = ui.el('div', 'sl-prog-val'); val.appendChild(ui.el('strong', null, R(x.real)));
+        val.appendChild(ui.el('span', null, x.plano ? (ES ? 'de ' : 'de ') + R(x.plano) : (ES ? 'sin plan' : 'sem plano'))); li.appendChild(val);
+        li.appendChild(ui.el('div', 'sl-prog-pct ' + cor, pc === null ? '–' : ui.nf(pc * 100, { maximumFractionDigits: 0 }) + '%'));
+        lista.appendChild(li);
+      });
+    }
+    bm.addEventListener('click', function () { per = 'mes'; bm.className = 'ativo'; ba.className = ''; pintar(); });
+    ba.addEventListener('click', function () { per = 'acum'; ba.className = 'ativo'; bm.className = ''; pintar(); });
+    pintar(); return c;
+  }
+
   function desenharSlide(d) {
     var corpo = $('biSlideCorpo'); ui.limpar(); corpo.textContent = '';
     if (d.vazio) { corpo.appendChild(ui.el('div', 'table-card', ES ? 'Aún no hay datos. Use "Cargar histórico" (arriba) para traer las notas del TOTVS.' : 'Ainda não há dados. Use "Carregar histórico" (acima) para trazer as notas do TOTVS.')); $('biSlideFiltros').textContent = ''; return; }
@@ -273,12 +305,8 @@
 
     corpo.appendChild(graficoReceita(d));
     var gr = ui.el('div', 'cme-graficos');
-    var rs = d.receita.filter(function (l) { return l.acum.real || l.acum.plano; });
-    gr.appendChild(ui.cartaoGrafico({ id: 's_seg', titulo: (ES ? 'Acumulado por segmento — Plan x Real (R$)' : 'Acumulado por segmento — Plano x Realizado (R$)'), tipo: 'bar', fmt: 'brl', labels: rs.map(function (l) { return l.rotulo; }),
-      series: [{ nome: ES ? 'Plan' : 'Plano', dados: rs.map(function (l) { return Math.round(l.acum.plano); }) }, { nome: ES ? 'Real' : 'Realizado', dados: rs.map(function (l) { return Math.round(l.acum.real); }) }] }));
-    var it = d.internacional.filter(function (l) { return l.acum.real || l.acum.plano; });
-    gr.appendChild(ui.cartaoGrafico({ id: 's_int', titulo: ES ? 'Mercado internacional — acumulado Plan x Real (R$)' : 'Mercado internacional — acumulado Plano x Realizado (R$)', tipo: 'bar', fmt: 'brl', labels: it.map(function (l) { return l.rotulo; }),
-      series: [{ nome: ES ? 'Plan' : 'Plano', dados: it.map(function (l) { return Math.round(l.acum.plano); }) }, { nome: ES ? 'Real' : 'Realizado', dados: it.map(function (l) { return Math.round(l.acum.real); }) }] }));
+    gr.appendChild(progressoCard(ES ? 'Atingimiento del plan por segmento' : 'Atingimento do plano por segmento', d, d.receita));
+    gr.appendChild(progressoCard(ES ? 'Mercado internacional — atingimiento del plan' : 'Mercado internacional — atingimento do plano', d, d.internacional));
     corpo.appendChild(gr);
 
     corpo.appendChild(tabelaSlide(ES ? 'SEGMENTOS — R$ (receta neta)' : 'SEGMENTOS — R$ (receita líquida)', d, d.receita, d.receita_total, brl));
