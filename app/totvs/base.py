@@ -58,10 +58,18 @@ def condicoes():
     return out
 
 
-@lru_cache(maxsize=1)
+_aj_cache = {}
+
+
 def ajustes():
+    """ajustes.json relido sempre que o arquivo muda (nao precisa reiniciar o servidor)."""
     p = SEED / 'ajustes.json'
-    return json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
+    if not p.exists():
+        return {}
+    m = p.stat().st_mtime_ns
+    if _aj_cache.get('m') != m:
+        _aj_cache.update(m=m, v=json.loads(p.read_text(encoding='utf-8')))
+    return _aj_cache['v']
 
 
 def _data(v):
