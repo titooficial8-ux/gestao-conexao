@@ -341,7 +341,7 @@
 
     corpo.appendChild(graficoReceita(d));
     var gr = ui.el('div', 'cme-graficos');
-    var tSeg = ES ? 'Atingimiento del plan por segmento' : 'Atingimento do plano por segmento', tInt = ES ? 'Mercado internacional — atingimiento del plan' : 'Mercado internacional — atingimento do plano';
+    var tSeg = ES ? 'Receta por segmento' : 'Receita por segmento', tInt = ES ? 'Mercado internacional — atingimiento del plan' : 'Mercado internacional — atingimento do plano';
     gr.appendChild(progressoCard(tSeg, d, d.receita, 'mes'));
     gr.appendChild(progressoCard(tSeg, d, d.receita, 'acum'));
     gr.appendChild(progressoCard(tInt, d, d.internacional, 'mes'));
