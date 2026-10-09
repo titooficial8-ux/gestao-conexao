@@ -252,6 +252,17 @@
     var rotulos = { id: 'rotulosReceita', afterDatasetsDraw: function (ch) {
       var ctx = ch.ctx; ctx.save(); ctx.font = '700 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
       ch.getDatasetMeta(0).data.forEach(function (el, i) { var v = real[i]; if (!v) return; var h = el.base - el.y; ctx.fillStyle = h > 24 ? '#fff' : '#10263F'; ctx.fillText(ui.nf(v / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'MI', el.x, h > 24 ? el.base - 8 : el.y - 6); });
+      // rotulos das linhas: plano (verde, acima do ponto) e ano anterior (cinza, abaixo), com fundo claro para ler sobre as barras
+      function etiqueta(txt, x, y, cor) {
+        ctx.font = '700 10.5px sans-serif'; var w = ctx.measureText(txt).width + 10, h = 17;
+        ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.strokeStyle = cor; ctx.lineWidth = 1;
+        ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 6); else ctx.rect(x - w / 2, y - h / 2, w, h); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = cor; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(txt, x, y + 0.5);
+      }
+      [[1, '#11703c', -17, S.map(function (x) { return x.plano; })], [2, '#6b7686', 19, S.map(function (x) { return x.ant; })]].forEach(function (cfg) {
+        ch.getDatasetMeta(cfg[0]).data.forEach(function (el, i) { var v = cfg[3][i]; if (!v) return;
+          etiqueta(ui.nf(v / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'MI', el.x, Math.min(Math.max(el.y + cfg[2], 12), ch.chartArea.bottom - 28), cfg[1]); });
+      });
       ctx.restore(); } };
     GRAF_RECEITA = new Chart(cv, { data: { labels: labels, datasets: [
       { type: 'bar', label: String(d.ano), data: real, order: 3, borderRadius: 6, maxBarThickness: 46,

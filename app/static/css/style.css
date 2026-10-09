@@ -2625,7 +2625,7 @@ textarea.ticket-input { resize: vertical; }
 .sl-chip span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--gray-500); font-weight: 700; }
 .sl-chip strong { font-size: 17px; color: var(--blue-900); font-variant-numeric: tabular-nums; }
 .sl-chip.ok strong { color: #11703c; } .sl-chip.baixo strong { color: #c53a3e; }
-.sl-g-canvas { position: relative; height: 340px; }
+.sl-g-canvas { position: relative; height: 380px; }
 /* slide: numeros e cabecalhos centralizados */
 .sl-tab th.cme-num, .sl-tab td.cme-num { text-align: center; }
 .sl-tab td.sl-rot { text-align: left; }
