@@ -28,6 +28,7 @@ class Ctx:
     def __init__(self, lang, filtros):
         self.lang = 'es' if lang == 'es' else 'pt'
         self.f = filtros or {}
+        self.regiao = 'GT' if str(self.f.get('regiao') or '').upper() == 'GT' else 'BR'
         self.hoje = date.today()
 
     def T(self, pt, es):
@@ -229,7 +230,8 @@ def _filtro_pais(c, nomes, chaves):
 
 
 def _filtro_origem(c):
-    atual = (c.f.get('origem') or '').upper()
+    atual = c.f.get('origem')
+    atual = (c.regiao if atual is None else atual).upper()
     if atual not in ('BR', 'GT'):
         atual = ''
     return _filtro('origem', c.T('Origem', 'Origen'), [('', c.T('Brasil + Guatemala', 'Brasil + Guatemala')), ('BR', 'Brasil'), ('GT', 'Guatemala')], atual), atual
@@ -856,10 +858,24 @@ def painel_pedidos_gt(c):
 # =============================================================== VISAO GERAL
 
 def _sem_filtros(c, **fixos):
-    return Ctx(c.lang, fixos)
+    return Ctx(c.lang, dict(fixos, regiao=c.regiao))
+
+
+def _visao_gt(c):
+    gt = painel_pedidos_gt(_sem_filtros(c))
+    amo = painel_amostras(_sem_filtros(c))
+    kpis = list(gt['kpis']) + [amo['kpis'][2]]
+    graficos = list(gt['graficos']) + [amo['graficos'][0]]
+    graficos[-1]['titulo'] = c.T('Cotações de amostras por status (Guatemala)', 'Cotizaciones de muestras por estado (Guatemala)')
+    tabelas = list(gt['tabelas'])
+    for t in tabelas:
+        t['linhas'] = t['linhas'][:10]
+    return dict(titulo=c.T('Visão geral', 'Resumen'), filtros=[], kpis=kpis, graficos=graficos, tabelas=tabelas, fonte='Exportação')
 
 
 def painel_visao(c):
+    if c.regiao == 'GT':
+        return _visao_gt(c)
     fat = painel_faturamento(_sem_filtros(c))
     ped = painel_pedidos_br(_sem_filtros(c))
     cre = painel_credito(_sem_filtros(c))
@@ -885,6 +901,10 @@ def painel_visao(c):
     graf_pf = grafico('g_pf', c.T('Pro-formas por mês: Brasil x Guatemala (US$)', 'Pro-formas por mes: Brasil x Guatemala (US$)'), 'bar',
                       [c.mes(m) for m in meses], [dict(nome='Brasil', dados=[round(m_br.get(m, 0)) for m in meses]),
                                                    dict(nome='Guatemala', dados=[round(m_gt.get(m, 0)) for m in meses])], 'usd', largura='inteira')
+    if c.regiao == 'BR':
+        kpis.pop(3)
+        graf_pf['titulo'] = c.T('Pro-formas por mês — Brasil (US$)', 'Pro-formas por mes — Brasil (US$)')
+        graf_pf['series'] = graf_pf['series'][:1]
     graficos = [fat['graficos'][0], graf_pf, fat['graficos'][2], ped['graficos'][4], cre['graficos'][0], amo['graficos'][0]]
     graficos[0]['titulo'] = c.T('Faturamento mensal (R$)', 'Facturación mensual (R$)')
     graficos[2]['titulo'] = c.T('Top 10 clientes no ano (R$)', 'Top 10 clientes del año (R$)')
@@ -913,7 +933,8 @@ _PAINEIS = [
 
 
 def disponiveis(lang):
-    return [dict(id=id_, titulo=es if lang == 'es' else pt) for id_, pt, es, _, deps in _PAINEIS if all(existe(d) for d in deps)]
+    reg = {'pedidos_br': 'BR', 'pedidos_gt': 'GT'}
+    return [dict(id=id_, titulo=es if lang == 'es' else pt, regiao=reg.get(id_)) for id_, pt, es, _, deps in _PAINEIS if all(existe(d) for d in deps)]
 
 
 def montar(nome, lang, filtros):

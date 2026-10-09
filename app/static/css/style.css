@@ -2575,3 +2575,10 @@ textarea.ticket-input { resize: vertical; }
 .cme-tcard td.cme-num, .cme-tabela td.cme-num { font-weight: 700; color: var(--blue-900); }
 .cme-kpi strong { font-size: 27px; letter-spacing: -0.01em; }
 .cme-kpi.verde strong { color: #11703c; } .cme-kpi.vermelho strong { color: #a3262b; } .cme-kpi.ambar strong { color: #8a5a0c; }
+/* seletor de pais do Comercial ME */
+.cme-hero { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+.cme-regioes { display: inline-flex; background: var(--white); border-radius: 999px; padding: 4px; box-shadow: var(--shadow); gap: 4px; }
+.cme-regiao { display: inline-flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 7px 16px 7px 10px; border-radius: 999px; cursor: pointer; font-size: 14px; font-weight: 700; color: var(--gray-700); }
+.cme-regiao img { border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,0.12); object-fit: cover; }
+.cme-regiao:hover { background: var(--blue-50); }
+.cme-regiao.active { background: var(--blue-700); color: var(--white); }

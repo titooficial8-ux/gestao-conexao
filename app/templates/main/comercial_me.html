@@ -6,9 +6,15 @@
                     'Documentação e envios': 'Documentación y envíos', 'Volume de vendas': 'Volumen de ventas', 'Outras planilhas': 'Otras planillas'} %}
 {% set freq_es = {'Diária': 'Diaria', 'Mensal': 'Mensual', 'Quando necessário': 'Cuando sea necesario'} %}
 <div class="cme">
-  <div class="chamados-hero">
-    <h1>{{ t('cme_titulo') }}</h1>
-    <p>{{ t('cme_subtitulo') }}</p>
+  <div class="chamados-hero cme-hero">
+    <div>
+      <h1>{{ t('cme_titulo') }}</h1>
+      <p>{{ t('cme_subtitulo') }}</p>
+    </div>
+    <div class="cme-regioes" id="cmeRegioes" role="group">
+      <button type="button" class="cme-regiao" data-regiao="BR"><img src="{{ url_for('static', filename='img/flag_br.webp') }}" alt="" width="26" height="18"><span>Brasil</span></button>
+      <button type="button" class="cme-regiao" data-regiao="GT"><img src="{{ url_for('static', filename='img/flag_gt.webp') }}" alt="" width="26" height="18"><span>Guatemala</span></button>
+    </div>
   </div>
 
   {% if not catalogo %}
@@ -19,7 +25,7 @@
 
   <div class="cme-grupos" id="cmeAbas" role="tablist">
     {% for p in paineis %}
-    <button type="button" class="cme-grupo" data-aba="{{ p.id }}">{{ p.titulo }}</button>
+    <button type="button" class="cme-grupo" data-aba="{{ p.id }}"{% if p.regiao %} data-regiao="{{ p.regiao }}"{% endif %}>{{ p.titulo }}</button>
     {% endfor %}
     <button type="button" class="cme-grupo" data-aba="__planilhas">{{ t('cme_planilhas') }} <span class="cme-contagem">{{ catalogo|length }}</span></button>
   </div>
@@ -229,6 +235,9 @@
     var filtrosAtuais = {};
     var painelAtual = null;
     var filtrosDef = [];
+    var REGIAO = 'BR';
+    try { REGIAO = localStorage.getItem('cme_regiao') || {{ regiao|tojson }}; } catch (e) { REGIAO = {{ regiao|tojson }}; }
+    if (REGIAO !== 'GT') REGIAO = 'BR';
     var AUTOG = [];
     var seq = 0;
 
@@ -266,6 +275,21 @@
 
     var PALETA = ['#2f7fe0', '#1f9d55', '#e0972f', '#e5484d', '#7a5af8', '#0e9fb3', '#d6409f', '#8892a6', '#5b8c00', '#b45309'];
 
+    function aplicarRegiao(trocar) {
+      Array.prototype.forEach.call(document.querySelectorAll('#cmeRegioes .cme-regiao'), function (b) { b.classList.toggle('active', b.dataset.regiao === REGIAO); });
+      Array.prototype.forEach.call(document.querySelectorAll('#cmeAbas [data-regiao]'), function (b) { b.hidden = b.dataset.regiao !== REGIAO; });
+      if (!trocar) return;
+      try { localStorage.setItem('cme_regiao', REGIAO); } catch (e) {}
+      var atual = document.querySelector('#cmeAbas .cme-grupo.active');
+      var aba = atual ? atual.dataset.aba : null;
+      if (!aba || aba === '__planilhas') return;
+      var oculta = document.querySelector('#cmeAbas [data-aba="' + aba + '"]').hidden;
+      abrirAba(oculta ? PAINEIS[0].id : aba);
+    }
+    document.querySelectorAll('#cmeRegioes .cme-regiao').forEach(function (b) {
+      b.addEventListener('click', function () { if (REGIAO === b.dataset.regiao) return; REGIAO = b.dataset.regiao; aplicarRegiao(true); });
+    });
+
     function abrirAba(aba) {
       Array.prototype.forEach.call(document.querySelectorAll('#cmeAbas .cme-grupo'), function (b) {
         b.classList.toggle('active', b.dataset.aba === aba);
@@ -281,8 +305,8 @@
 
     function carregarPainel() {
       var id = painelAtual, n = ++seq;
-      var qs = Object.keys(filtrosAtuais).filter(function (k) { return filtrosAtuais[k] !== undefined; })
-        .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(filtrosAtuais[k]); }).join('&');
+      var qs = ['regiao=' + REGIAO].concat(Object.keys(filtrosAtuais).filter(function (k) { return filtrosAtuais[k] !== undefined; })
+        .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(filtrosAtuais[k]); })).join('&');
       $('cmeCorpo').classList.add('cme-carregando');
       if (!$('cmeCorpo').childNodes.length) $('cmeCorpo').appendChild(el('p', 'cme-meta', TXT.carregando));
       fetch(URL_PAINEL.replace('__ID__', encodeURIComponent(id)) + (qs ? '?' + qs : ''), { credentials: 'same-origin' })
@@ -614,6 +638,7 @@
     $('cmeProx').addEventListener('click', function () { estado.pagina++; desenhar(); });
     $('cmeCsv').addEventListener('click', exportarCsv);
 
+    aplicarRegiao(false);
     var hash = location.hash.slice(1);
     var tabInicial = CATALOGO.filter(function (t) { return t.id === hash; })[0];
     if (tabInicial) { abrirAba('__planilhas'); estado.id = tabInicial.id; mostrarGrupo(tabInicial.grupo); abrirTabela(tabInicial.id); }
