@@ -211,6 +211,46 @@
     t.appendChild(tb); c.appendChild(w); return c;
   }
 
+
+  var GRAF_RECEITA = null;
+  function mi(v) { return ui.nf(v / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' mi'; }
+  function graficoReceita(d) {
+    var card = ui.el('div', 'table-card sl-grafico');
+    var topo = ui.el('div', 'sl-g-topo');
+    var tit = ui.el('div'); tit.appendChild(ui.el('h3', null, (ES ? 'Receita neta por mes' : 'Receita líquida por mês') + ' — ' + d.ano));
+    tit.appendChild(ui.el('p', 'cme-meta', (ES ? 'Barras = realizado · línea verde = plan · línea gris = ' : 'Barras = realizado · linha verde = plano · linha cinza = ') + d.ano_ant)); topo.appendChild(tit);
+    var tot = d.receita_total.acum, chips = ui.el('div', 'sl-chips');
+    function chip(rot, val, cls) { var c = ui.el('div', 'sl-chip ' + (cls || '')); c.appendChild(ui.el('span', null, rot)); c.appendChild(ui.el('strong', null, val)); chips.appendChild(c); }
+    chip(ES ? 'Acumulado real' : 'Acumulado realizado', 'R$ ' + mi(tot.real));
+    chip(ES ? 'Plan acumulado' : 'Plano acumulado', 'R$ ' + mi(tot.plano));
+    chip(ES ? '% del plan' : '% do plano', tot.plano ? ui.nf(tot.real / tot.plano * 100, { maximumFractionDigits: 0 }) + '%' : '–', tot.real >= tot.plano ? 'ok' : 'baixo');
+    chip('vs ' + d.ano_ant, (tot.v_ant >= 0 ? '+' : '') + ui.nf(tot.v_ant * 100, { maximumFractionDigits: 1 }) + '%', tot.v_ant >= 0 ? 'ok' : 'baixo');
+    topo.appendChild(chips); card.appendChild(topo);
+    var caixa = ui.el('div', 'sl-g-canvas'), cv = document.createElement('canvas'); caixa.appendChild(cv); card.appendChild(caixa);
+    var S = d.serie_mensal, labels = S.map(function (x) { return MESES[x.mes - 1].slice(0, 3); });
+    var real = S.map(function (x) { return x.real ? Math.round(x.real) : null; });
+    if (GRAF_RECEITA) { try { GRAF_RECEITA.destroy(); } catch (e) {} }
+    var rotulos = { id: 'rotulosReceita', afterDatasetsDraw: function (ch) {
+      var ctx = ch.ctx; ctx.save(); ctx.font = '700 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ch.getDatasetMeta(0).data.forEach(function (el, i) { var v = real[i]; if (!v) return; var h = el.base - el.y; ctx.fillStyle = h > 24 ? '#fff' : '#10263F'; ctx.fillText(ui.nf(v / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), el.x, h > 24 ? el.base - 8 : el.y - 6); });
+      ctx.restore(); } };
+    GRAF_RECEITA = new Chart(cv, { data: { labels: labels, datasets: [
+      { type: 'bar', label: String(d.ano), data: real, order: 3, borderRadius: 6, maxBarThickness: 46,
+        backgroundColor: S.map(function (x) { return x.mes === d.mes ? '#0a3d8f' : 'rgba(47,127,224,0.88)'; }) },
+      { type: 'line', label: ES ? 'Plan' : 'Plano', data: S.map(function (x) { return Math.round(x.plano); }), order: 1, borderColor: '#1f9d55', backgroundColor: '#1f9d55', borderWidth: 2.5, borderDash: [7, 5], pointRadius: 4, pointBackgroundColor: '#fff', pointBorderWidth: 2, tension: 0.25 },
+      { type: 'line', label: String(d.ano_ant), data: S.map(function (x) { return Math.round(x.ant); }), order: 2, borderColor: '#9aa6bc', backgroundColor: 'rgba(154,166,188,0.15)', fill: true, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.25 }] },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, layout: { padding: { top: 26, right: 8 } },
+        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 9, padding: 18 } },
+          tooltip: { backgroundColor: 'rgba(10,45,84,0.95)', padding: 12, titleFont: { size: 13 }, callbacks: {
+            title: function (it) { return MESES[it[0].dataIndex] + ' / ' + d.ano; },
+            label: function (c) { return ' ' + c.dataset.label + ': R$ ' + mi(c.parsed.y); },
+            afterBody: function (it) { var x = S[it[0].dataIndex], o = []; if (x.real && x.plano) o.push((ES ? 'vs plan: ' : 'vs plano: ') + ui.nf((x.real / x.plano - 1) * 100, { maximumFractionDigits: 1 }) + '%'); if (x.real && x.ant) o.push('vs ' + d.ano_ant + ': ' + ui.nf((x.real / x.ant - 1) * 100, { maximumFractionDigits: 1 }) + '%'); return o; } } } },
+        scales: { x: { grid: { display: false }, ticks: { font: { weight: '600' } } },
+          y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return ui.nf(v / 1e6, { maximumFractionDigits: 0 }) + ' mi'; } } } } },
+      plugins: [rotulos] });
+    return card;
+  }
+
   function desenharSlide(d) {
     var corpo = $('biSlideCorpo'); ui.limpar(); corpo.textContent = '';
     if (d.vazio) { corpo.appendChild(ui.el('div', 'table-card', ES ? 'Aún no hay datos. Use "Cargar histórico" (arriba) para traer las notas del TOTVS.' : 'Ainda não há dados. Use "Carregar histórico" (acima) para trazer as notas do TOTVS.')); $('biSlideFiltros').textContent = ''; return; }
@@ -231,10 +271,8 @@
      [ES ? 'Falta para la meta' : 'Valor a atingir a meta', cb2.a_atingir_meta, 'brl', null, 'azul']].forEach(function (k) { kp.appendChild(ui.cartaoKpi({ rotulo: k[0], valor: k[1], fmt: k[2], nota: k[3], tom: k[4] })); });
     corpo.appendChild(kp);
 
+    corpo.appendChild(graficoReceita(d));
     var gr = ui.el('div', 'cme-graficos');
-    gr.appendChild(ui.cartaoGrafico({ id: 's_serie', titulo: (ES ? 'Receita neta por mes — ' : 'Receita líquida por mês — ') + d.ano_ant + ' x ' + d.ano + ' x ' + (ES ? 'Plan' : 'Plano'), tipo: 'bar', largura: 'inteira', fmt: 'brl',
-      labels: d.serie_mensal.map(function (x) { return MESES[x.mes - 1].slice(0, 3); }),
-      series: [{ nome: String(d.ano_ant), dados: d.serie_mensal.map(function (x) { return Math.round(x.ant); }) }, { nome: ES ? 'Plan' : 'Plano', dados: d.serie_mensal.map(function (x) { return Math.round(x.plano); }) }, { nome: String(d.ano), dados: d.serie_mensal.map(function (x) { return Math.round(x.real); }) }] }));
     var rs = d.receita.filter(function (l) { return l.acum.real || l.acum.plano; });
     gr.appendChild(ui.cartaoGrafico({ id: 's_seg', titulo: (ES ? 'Acumulado por segmento — Plan x Real (R$)' : 'Acumulado por segmento — Plano x Realizado (R$)'), tipo: 'bar', fmt: 'brl', labels: rs.map(function (l) { return l.rotulo; }),
       series: [{ nome: ES ? 'Plan' : 'Plano', dados: rs.map(function (l) { return Math.round(l.acum.plano); }) }, { nome: ES ? 'Real' : 'Realizado', dados: rs.map(function (l) { return Math.round(l.acum.real); }) }] }));
