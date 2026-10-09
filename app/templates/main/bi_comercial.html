@@ -317,8 +317,8 @@
 
     var cb2 = d.cabecalho, kp = ui.el('div', 'cme-kpigrid');
     [[ES ? 'Receita bruta' : 'Receita bruta R$', cb2.receita_bruta, 'brl', null, 'azul'], [ES ? 'Devoluciones (bruto)' : 'Devoluções (bruto)', cb2.devolucao_bruta, 'brl', ES ? 'líquido ' + brl(cb2.devolucao_liquida) : 'líquido ' + brl(cb2.devolucao_liquida), 'vermelho'],
-     [ES ? 'Receita neta' : 'Receita líquida', cb2.receita_liquida, 'brl', (ES ? 'vs plan: ' : 'vs plano: ') + pct(d.receita_total.mes.v_plano), 'verde'],
      [ES ? 'Deducciones' : 'Deduções (impostos)', cb2.deducoes, 'brl', pct(cb2.deducoes_pct) + (ES ? ' de la bruta' : ' da bruta'), 'ambar'],
+     [ES ? 'Receita neta' : 'Receita líquida', cb2.receita_liquida, 'brl', (ES ? 'vs plan: ' : 'vs plano: ') + pct(d.receita_total.mes.v_plano), 'verde'],
      [ES ? 'Falta para la meta' : 'Valor a atingir a meta', cb2.a_atingir_meta, 'brl', null, 'azul']].forEach(function (k) { kp.appendChild(ui.cartaoKpi({ rotulo: k[0], valor: k[1], fmt: k[2], nota: k[3], tom: k[4] })); });
     corpo.appendChild(kp);
 
