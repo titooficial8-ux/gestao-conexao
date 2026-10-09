@@ -321,8 +321,7 @@
      K(ES ? 'Devoluciones (bruto)' : 'Devoluções (bruto)', cb2.devolucao_bruta, (ES ? 'neto: R$ ' : 'líquido: R$ ') + mi(cb2.devolucao_liquida), 'vermelho'),
      K(ES ? 'Deducciones (impuestos)' : 'Deduções (impostos)', cb2.deducoes, pct(cb2.deducoes_pct) + (ES ? ' de la bruta' : ' da bruta'), 'ambar'),
      K(ES ? 'Receta neta (sin devoluciones)' : 'Receita líquida (sem devoluções)', cb2.liquida_sem_devolucoes, (ES ? 'antes de las devoluciones' : 'antes das devoluções'), 'azul'),
-     K(ES ? 'Receta neta (con devoluciones descontadas)' : 'Receita líquida (já descontadas as devoluções)', cb2.receita_liquida, (ES ? 'vs plan: ' : 'vs plano: ') + pct(d.receita_total.mes.v_plano), 'verde'),
-     K(ES ? 'Falta para la meta' : 'Valor a atingir a meta', cb2.a_atingir_meta, null, 'azul')].forEach(function (k) { kp.appendChild(ui.cartaoKpi(k)); });
+     K(ES ? 'Receta neta (con devoluciones descontadas)' : 'Receita líquida (já descontadas as devoluções)', cb2.receita_liquida, (ES ? 'vs plan: ' : 'vs plano: ') + pct(d.receita_total.mes.v_plano), 'verde')].forEach(function (k) { kp.appendChild(ui.cartaoKpi(k)); });
     corpo.appendChild(kp);
 
     corpo.appendChild(graficoReceita(d));
