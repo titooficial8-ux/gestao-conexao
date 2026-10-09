@@ -165,8 +165,9 @@
     var h1 = ui.el('tr'); h1.appendChild(ui.el('th')); var a = ui.el('th', 'sl-grupo', MESES[d.mes - 1]); a.colSpan = 5; h1.appendChild(a);
     var b = ui.el('th', 'sl-grupo', ES ? 'Acumulado' : 'Acumulado'); b.colSpan = 5; h1.appendChild(b);
     var h2 = ui.el('tr'); h2.appendChild(ui.el('th'));
-    [d.ano_ant + ' (YTD)', ES ? 'Plan' : 'Plano', ES ? 'Real' : 'Realizado', '% ' + d.ano_ant, '% ' + (ES ? 'Plan' : 'Plano')].forEach(function (x) { h2.appendChild(ui.el('th', 'cme-num', x)); });
-    [d.ano_ant + ' (YTD)', ES ? 'Plan' : 'Plano', ES ? 'Real' : 'Realizado', '% ' + d.ano_ant, '% ' + (ES ? 'Plan' : 'Plano')].forEach(function (x) { h2.appendChild(ui.el('th', 'cme-num', x)); });
+    function th2(a, b) { var c = ui.el('th', 'cme-num sl-th2'); c.appendChild(ui.el('div', null, a)); c.appendChild(ui.el('div', 'sl-th2b', b)); return c; }
+    var cab = [[String(d.ano_ant), d.mes + ' - YTD'], [String(d.ano), ES ? 'Plan' : 'Plano'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['% Var.', String(d.ano_ant)], ['% Var.', ES ? 'Plan' : 'Plano']];
+    cab.concat(cab).forEach(function (x) { h2.appendChild(th2(x[0], x[1])); });
     var th = ui.el('thead'); th.appendChild(h1); th.appendChild(h2); t.appendChild(th);
     var tb = ui.el('tbody');
     function linhaTr(l, ehTotal) {
@@ -192,9 +193,9 @@
     var w = ui.el('div', 'table-scroll'); var t = ui.el('table', 'data-table sl-tab'); w.appendChild(t);
     var h1 = ui.el('tr'); h1.appendChild(ui.el('th')); var a = ui.el('th', 'sl-grupo', MESES[d.mes - 1]); a.colSpan = 3; h1.appendChild(a); var b = ui.el('th', 'sl-grupo', 'Acumulado'); b.colSpan = 3; h1.appendChild(b);
     var h2 = ui.el('tr'); h2.appendChild(ui.el('th'));
-    colunasPlano.concat(colunasPlano).forEach(function (x) { h2.appendChild(ui.el('th', 'cme-num', x)); });
+    colunasPlano.concat(colunasPlano).forEach(function (x) { var c = ui.el('th', 'cme-num sl-th2'); c.appendChild(ui.el('div', null, x[0])); c.appendChild(ui.el('div', 'sl-th2b', x[1])); h2.appendChild(c); });
     var th = ui.el('thead'); th.appendChild(h1); th.appendChild(h2); t.appendChild(th); var tb = ui.el('tbody');
-    var chave = colunasPlano[0].indexOf(d.ano_ant) >= 0 ? 'ant' : 'plano';
+    var chave = colunasPlano[0][0] === String(d.ano_ant) ? 'ant' : 'plano';
     function tr(l, tot) {
       var r = ui.el('tr', tot ? 'sl-total' : null); r.appendChild(ui.el('td', 'sl-rot', l.rotulo));
       ['mes', 'acum'].forEach(function (k) { var x = l[k];
@@ -247,8 +248,8 @@
     corpo.appendChild(tabelaSlide(ES ? 'CANTIDADES — KILOS' : 'QUANTIDADES — QUILOS', d, d.quilos, d.quilos_total, brl));
     corpo.appendChild(tabelaSlide(ES ? 'PRECIO MEDIO NETO (R$/m)' : 'PREÇO MÉDIO LÍQUIDO (R$/m)', d, d.preco_medio, null, num2));
     corpo.appendChild(tabelaSlide(ES ? 'REPRESENTANTES — metros de colchón' : 'REPRESENTANTES — metros de colchão', d, d.representantes, d.representantes_total, brl));
-    corpo.appendChild(tabelaDois('ORTOBOM — ' + (ES ? 'metros por filial' : 'metros por filial'), d, d.ortobom, d.ortobom_total, d.ortobom_plano, [String(d.ano_ant), ES ? 'Real' : 'Realizado', '%'], brl));
-    corpo.appendChild(tabelaDois(ES ? 'MERCADO INTERNACIONAL — R$' : 'MERCADO INTERNACIONAL — R$', d, d.internacional, d.internacional_total, null, [ES ? 'Plan' : 'Plano', ES ? 'Real' : 'Realizado', '%'], brl));
+    corpo.appendChild(tabelaDois('ORTOBOM — ' + (ES ? 'metros por filial' : 'metros por filial'), d, d.ortobom, d.ortobom_total, d.ortobom_plano, [[String(d.ano_ant), d.mes + ' - YTD'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['% Var.', String(d.ano_ant)]], brl));
+    corpo.appendChild(tabelaDois(ES ? 'MERCADO INTERNACIONAL — R$' : 'MERCADO INTERNACIONAL — R$', d, d.internacional, d.internacional_total, null, [[String(d.ano), ES ? 'Plan' : 'Plano'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['% Var.', ES ? 'Plan' : 'Plano']], brl));
     var nota = ui.el('div', 'cme-meta sl-obs', ES ? 'Los números salen directo de las notas fiscales del TOTVS (Relatório 150) y del plan cargado desde la planilla de Receitas. La planilla usa un histórico digitado (hoja ACUM) para algunos acumulados; aquí todo se calcula de las notas, por eso puede haber pequeñas diferencias.' : 'Os números saem direto das notas fiscais do TOTVS (Relatório 150) e do plano importado da planilha de Receitas. A planilha usa um histórico digitado (aba ACUM) em alguns acumulados; aqui tudo é calculado das notas, então pode haver pequenas diferenças.');
     corpo.appendChild(nota);
   }

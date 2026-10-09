@@ -2616,3 +2616,4 @@ textarea.ticket-input { resize: vertical; }
 .sl-obs { margin: 14px 4px 28px; max-width: 900px; }
 .sl-total td.sl-verm { background: #ff0000; color: #fff; }
 .sl-total td.sl-verde { background: #ccffcc; } .sl-total td.sl-amar { background: #ffffcc; }
+.sl-th2 { line-height: 1.25; } .sl-th2b { font-weight: 600; opacity: .85; font-size: 11.5px; }
