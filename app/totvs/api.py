@@ -569,7 +569,7 @@ def buscar_pessoas(cli, codigos: list[int], diag: Diagnostico) -> dict[int, dict
             break
         for lote in _lotes(pendentes, 100):
             itens = _tentar(cli, url, [
-                {"filter": {"personCodeList": lote}, "pageSize": 1000, "expand": "representatives"},
+                {"filter": {"personCodeList": lote}, "pageSize": 100, "expand": "representatives"},
                 {"filter": {"personCodeList": lote}, "pageSize": 1000},
                 {"filter": {"personCodeList": lote}, "pageSize": 100},
             ], diag, nome)
