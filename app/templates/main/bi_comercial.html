@@ -322,7 +322,14 @@
      K(ES ? 'Receita bruta (menos devoluciones)' : 'Receita bruta (menos devolução)', cb2.receita_bruta, null, 'azul'),
      K(ES ? 'Deducciones (impuestos)' : 'Deduções (impostos)', cb2.deducoes, pct(cb2.deducoes_pct) + (ES ? ' de la bruta' : ' da bruta'), 'ambar'),
      K(ES ? 'Devoluciones (bruto)' : 'Devoluções (bruto)', cb2.devolucao_bruta, pctDev, 'vermelho'),
-     K(ES ? 'Receita neta (descontadas devoluciones/impuestos)' : 'Receita líquida (Descontadas as Devoluções/Impostos)', cb2.receita_liquida, (ES ? 'vs plan: ' : 'vs plano: ') + pct(d.receita_total.mes.v_plano), 'verde')].forEach(function (k) { kp.appendChild(ui.cartaoKpi(k)); });
+     K(ES ? 'Receita neta (descontadas devoluciones/impuestos)' : 'Receita líquida (Descontadas as Devoluções/Impostos)', cb2.receita_liquida, (ES ? 'vs plan: ' : 'vs plano: ') + pct(d.receita_total.mes.v_plano), 'verde'),
+     (function () {
+       var tm = d.receita_total.mes, falta = tm.plano - tm.real, ac = d.receita_total.acum, faltaAc = ac.plano - ac.real;
+       var batida = falta <= 0;
+       var c = K(batida ? (ES ? 'Plan del mes superado' : 'Meta do mês superada') : (ES ? 'Falta para cumplir el plan del mes' : 'Falta para bater o plano do mês'), Math.abs(falta),
+         (ES ? 'plan: R$ ' : 'plano: R$ ') + mi(tm.plano) + ' · ' + (tm.plano ? ui.nf(tm.real / tm.plano * 100, { maximumFractionDigits: 1 }) : '0') + '% ' + (ES ? 'logrado' : 'atingido'), batida ? 'verde' : 'vermelho');
+       c.texto = (batida ? '+ ' : '') + 'R$ ' + mi(Math.abs(falta)); return c;
+     })()].forEach(function (k) { kp.appendChild(ui.cartaoKpi(k)); });
     corpo.appendChild(kp);
 
     corpo.appendChild(graficoReceita(d));
