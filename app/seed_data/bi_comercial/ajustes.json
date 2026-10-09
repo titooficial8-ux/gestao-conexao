@@ -6,5 +6,11 @@
   "constantes_slide": {
     "valor_a_atingir_meta_soma": 41214,
     "acumulado_representantes_subtrai": 112370
+  },
+  "segmento_por_operacao": {
+    "_leia-me": "Quando o TOTVS devolve COLCHAO MI (ou vazio) para essas operacoes, vale o segmento daqui (conferido contra o Relatorio 150 de set/2026).",
+    "526": "SEGUNDA QUALIDADE",
+    "545": "COLCHAO ME",
+    "50": "COLCHAO ME"
   }
 }

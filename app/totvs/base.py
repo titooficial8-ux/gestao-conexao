@@ -83,7 +83,11 @@ def derivar(r: dict) -> dict:
     desc = str(r.get('DESC.') or '')
     tipo = 'DEV' if 'DEV' in desc else 'VDA'                 # A: =IFERROR(MID(Q,FIND("DEV",Q),3),"VDA")
     d = _data(r.get('DATA'))
-    seg = t['seg'].get(_k(r.get('SEGMENTO')), '#N/A')           # E
+    seg_raw = r.get('SEGMENTO')
+    por_op = {k: v for k, v in (ajustes().get('segmento_por_operacao') or {}).items() if not k.startswith('_')}
+    if por_op.get(str(r.get('OPER'))) and _k(seg_raw) in ('', 'colchao mi'):
+        seg_raw = por_op[str(r.get('OPER'))]
+    seg = t['seg'].get(_k(seg_raw), '#N/A')                       # E
     over = {_k(k): v for k, v in (ajustes().get('segmento_por_fantasia') or {}).items()}.get(_k(r.get('FANTASIA')))
     if over and seg == 'COLCHÃO':
         seg = over                                              # reclassificacao manual (ex.: cliente M.E. faturado como MI)

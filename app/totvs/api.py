@@ -35,7 +35,7 @@ _BR = os.getenv("TOTVS_BRANCHES", "auto").strip().lower()
 BRANCHES = [] if _BR in ("", "auto") else [int(b) for b in _BR.replace(";", ",").split(",") if b.strip()]
 DEFAULT_START = os.getenv("FATURAMENTO_INICIO", f"{date.today().year}-01-01")
 # Somente saídas por padrão (faturamento). Use "All" para trazer entradas também.
-OPERATION_TYPE = os.getenv("FATURAMENTO_TIPO_OPERACAO", "Output")
+OPERATION_TYPE = os.getenv("FATURAMENTO_TIPO_OPERACAO", "All")  # All: traz tambem as entradas (devolucoes de venda)
 WINDOW_DAYS = int(os.getenv("FATURAMENTO_JANELA_DIAS", "31"))  # máx. API = 6 meses
 VERIFY_SSL = os.getenv("TOTVS_VERIFY_SSL", "true").lower() != "false"
 
@@ -45,6 +45,8 @@ CANCELAR = threading.Event()  # o botao "Parar busca" liga isto; as chamadas a A
 class Cancelado(Exception):
     pass
 
+
+NOMES_REP: dict[int, str] = {}   # codigo do representante -> nome (alimentado pelos pedidos; o servico pre-carrega dos meses ja salvos)
 
 PAGE_SIZE = 100  # máximo permitido pela API
 EXPAND = "person,items,taxes,payments,salesOrder"
@@ -567,6 +569,7 @@ def buscar_pessoas(cli, codigos: list[int], diag: Diagnostico) -> dict[int, dict
             break
         for lote in _lotes(pendentes, 100):
             itens = _tentar(cli, url, [
+                {"filter": {"personCodeList": lote}, "pageSize": 1000, "expand": "representatives"},
                 {"filter": {"personCodeList": lote}, "pageSize": 1000},
                 {"filter": {"personCodeList": lote}, "pageSize": 100},
             ], diag, nome)
@@ -706,6 +709,11 @@ def montar_relatorio150(cli, notas: list[dict], pasta_diag: Path) -> tuple[pd.Da
         validas = [n for n in validas if n.get("operationCode") in permitidas]
     elif OPERACOES_150 == "financeiro" and ops:
         validas = [n for n in validas if ops.get(n.get("operationCode"), {}).get("isFinancial")]
+    if OPERACOES_150 in ("financeiro", "vendas"):
+        # Relatório 150 = vendas (saídas) + devoluções de venda (entradas). Compras, serviços tomados, frete etc. ficam de fora.
+        def _saida(n):
+            return str(n.get("operationType", "")).lower() in ("output", "2", "s", "saida", "saída")
+        validas = [n for n in validas if _saida(n) or "DEV" in str(n.get("operatioName") or "").upper()]
     print(f"  notas no relatório após filtro de operações ({OPERACOES_150}): {len(validas)}")
 
     pessoas = buscar_pessoas(cli, [n.get("personCode") for n in validas], diag)
@@ -714,8 +722,19 @@ def montar_relatorio150(cli, notas: list[dict], pasta_diag: Path) -> tuple[pd.Da
     pedidos = {(int(s.get("branchCode") or n.get("branchCode")), int(s["orderCode"]))
                for n in validas for s in (n.get("salesOrder") or []) if s.get("orderCode")}
     reps_ped = buscar_representantes_pedidos(cli, pedidos, diag) if pedidos else {}
+    # Devoluções (e notas sem pedido de venda) não têm representante no pedido: vale o representante do cadastro do cliente.
+    def _rep_cadastro(n):
+        for r in (pessoas.get(n.get("personCode"), {}).get("representatives") or []):
+            if r.get("representativeCode") is not None:
+                return int(r["representativeCode"])
+        return None
     nomes_rep = {}
     cods_sem_nome = [r for r, nm in reps_ped.values() if r is not None and not nm]
+    for cod, nm in reps_ped.values():
+        if cod is not None and nm:
+            NOMES_REP[int(cod)] = nm
+    cods_sem_nome += [c for c in (_rep_cadastro(n) for n in validas) if c is not None]
+    cods_sem_nome = [c for c in cods_sem_nome if int(c) not in NOMES_REP]
     if cods_sem_nome:
         nomes_rep = buscar_nomes_representantes(cli, cods_sem_nome, diag)
     print(f"  pedidos com representante: {sum(1 for r, _ in reps_ped.values() if r is not None)}/{len(pedidos)}")
@@ -743,8 +762,10 @@ def montar_relatorio150(cli, notas: list[dict], pasta_diag: Path) -> tuple[pd.Da
             if chave in reps_ped:
                 rep_cod, rep_nome = reps_ped[chave]
                 break
+        if rep_cod is None:
+            rep_cod = _rep_cadastro(n)
         if rep_cod is not None and not rep_nome:
-            rep_nome = nomes_rep.get(int(rep_cod))
+            rep_nome = NOMES_REP.get(int(rep_cod)) or nomes_rep.get(int(rep_cod))
         for it in n.get("items") or []:
             cod = _cod_produto(it)
             prod = produtos.get(cod, {}) if cod is not None else {}

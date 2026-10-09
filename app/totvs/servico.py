@@ -218,6 +218,20 @@ def _empresas_do_usuario(api, cli):
     return _empresas
 
 
+def _nomes_rep_salvos() -> dict:
+    out = {}
+    for b in _blocos():
+        try:
+            d = json.loads(b.read_text(encoding='utf-8'))
+            i, j = d['colunas'].index('COD.REP'), d['colunas'].index('REPRE')
+            for r in d['linhas']:
+                if r[i] is not None and r[j]:
+                    out[int(r[i])] = r[j]
+        except Exception:  # noqa: BLE001
+            continue
+    return out
+
+
 def _meses(inicio: date, fim: date):
     a, m = inicio.year, inicio.month
     while (a, m) <= (fim.year, fim.month):
@@ -237,29 +251,38 @@ def gerar_blocos(inicio: date, fim: date, pular_existentes: bool = False) -> dic
     cli.autenticar()
     empresas = _empresas_do_usuario(api, cli)
     hoje_ym = _agora().strftime('%Y-%m')
+    # A API so filtra pela data de EMISSAO; o Relatorio 150 usa a data da FATURA (entrada de devolucoes emitidas no mes anterior).
+    # Por isso busca desde 45 dias antes e separa as notas pelo mes da data da fatura.
+    meses = [(ym, a, b) for ym, a, b in _meses(inicio, fim) if not (pular_existentes and (BASE_DIR / f'150_{ym}.json').exists() and ym < hoje_ym)]
+    if not meses:
+        _log('Nada a buscar: todos os meses ja estao carregados.')
+        return dict(meses=[], n_itens=0)
+    busca_ini = meses[0][1] - timedelta(days=45)
+    _log(f'Buscando notas fiscais {busca_ini:%d/%m/%Y} a {fim:%d/%m/%Y}...')
+    try:
+        notas = api.buscar_notas(cli, busca_ini, fim, empresas)
+    except api.EmpresaNaoPermitida:
+        notas = []
+        for emp in empresas:
+            try:
+                notas.extend(api.buscar_notas(cli, busca_ini, fim, [emp]))
+            except api.EmpresaNaoPermitida:
+                print(f'empresa {emp} nao liberada - pulando')
+    por_mes = {}
+    for n in notas:
+        por_mes.setdefault(str(n.get('invoiceDate') or n.get('issueDate') or '')[:7], []).append(n)
+    for cod, nome in _nomes_rep_salvos().items():      # representantes ja conhecidos dos meses anteriores
+        api.NOMES_REP.setdefault(cod, nome)
     feitos, total_itens = [], 0
-    for ym, ini_m, fim_m in _meses(inicio, fim):
-        arq = BASE_DIR / f'150_{ym}.json'
-        if pular_existentes and arq.exists() and ym < hoje_ym:
-            _log(f'{ym}: ja carregado, pulando')
-            continue
-        _log(f'{ym}: buscando notas fiscais...')
-        try:
-            notas = api.buscar_notas(cli, ini_m, fim_m, empresas)
-        except api.EmpresaNaoPermitida:
-            notas = []
-            for emp in empresas:
-                try:
-                    notas.extend(api.buscar_notas(cli, ini_m, fim_m, [emp]))
-                except api.EmpresaNaoPermitida:
-                    print(f'empresa {emp} nao liberada - pulando')
-        _log(f'{ym}: {len(notas)} notas; montando o Relatorio 150...')
-        df150, diag = api.montar_relatorio150(cli, notas, DIR / 'diagnostico_base')
+    for ym, ini_m, fim_m in meses:
+        notas_m = [n for n in por_mes.get(ym, []) if ini_m.isoformat() <= str(n.get('invoiceDate') or n.get('issueDate'))[:10] <= fim_m.isoformat()]
+        _log(f'{ym}: {len(notas_m)} notas; montando o Relatorio 150...')
+        df150, diag = api.montar_relatorio150(cli, notas_m, DIR / 'diagnostico_base')
         cols = list(df150.columns)
         linhas = [[None if (isinstance(v, float) and v != v) or v is pd.NaT else (v.isoformat() if hasattr(v, 'isoformat') else v) for v in r]
                   for r in df150.itertuples(index=False, name=None)]
-        _escrever(arq, dict(periodo=ym, gerado_em=_agora().isoformat(timespec='seconds'), colunas=cols, linhas=linhas,
-                            problemas=(diag.problemas if diag else [])))
+        _escrever(BASE_DIR / f'150_{ym}.json', dict(periodo=ym, gerado_em=_agora().isoformat(timespec='seconds'), colunas=cols, linhas=linhas,
+                                                    problemas=(diag.problemas if diag else [])))
         feitos.append(ym)
         total_itens += len(linhas)
     return dict(meses=feitos, n_itens=total_itens)
