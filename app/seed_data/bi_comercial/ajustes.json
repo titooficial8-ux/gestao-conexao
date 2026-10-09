@@ -40,5 +40,12 @@
       1535,
       564
     ]
+  },
+  "segmentos_ocultos": {
+    "_leia-me": "Segmentos que nao aparecem no Slide mensal (fora dos totais). Remova daqui para voltar a usar.",
+    "lista": [
+      "CALÇADO",
+      "MOVELEIRO"
+    ]
   }
 }

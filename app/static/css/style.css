@@ -2649,3 +2649,45 @@ textarea.ticket-input { resize: vertical; }
 .sl-prog-pct.verde { color: #11703c; } .sl-prog-pct.ambar { color: #b4690e; } .sl-prog-pct.verm { color: #c53a3e; } .sl-prog-pct.cinza { color: var(--gray-500); }
 .sl-prog-leg { margin-top: 14px; font-size: 11.5px; color: var(--gray-500); }
 @media (max-width: 700px) { .sl-prog-item { grid-template-columns: 1fr 54px; } .sl-prog-pista, .sl-prog-val { grid-column: 1 / -1; } }
+
+/* ===== Slide mensal: visual de apresentacao ===== */
+.sl-nav { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 16px; position: sticky; top: 0; z-index: 5; background: rgba(245,247,251,0.94); padding: 8px 0; backdrop-filter: blur(4px); }
+.sl-nav a { padding: 6px 14px; border-radius: 999px; background: #fff; border: 1px solid var(--gray-200); font-size: 12.5px; font-weight: 700; color: var(--blue-700); text-decoration: none; }
+.sl-nav a:hover { background: var(--blue-50); border-color: var(--blue-500); }
+.sl-imprimir { margin-left: auto; }
+.sl-card { border-radius: 14px; padding: 22px 24px 18px; margin-bottom: 20px; scroll-margin-top: 70px; }
+.sl-sec-topo { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.sl-num { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #0a3d8f, #2f7fe0); color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; flex: none; }
+.sl-sec-topo h3 { margin: 0; font-size: 18px; color: var(--blue-900); letter-spacing: .01em; }
+.sl-sub { margin: 2px 0 0; font-size: 12.5px; color: var(--gray-500); }
+.sl2 { border-collapse: separate; border-spacing: 0; width: 100%; }
+.sl2 th, .sl2 td { padding: 11px 12px; font-size: 14px; border-bottom: 1px solid #eef1f6; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sl2 th.sl-grupo { background: linear-gradient(90deg, #0a3d8f, #1d5fc4); color: #fff; text-align: center; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; border: 0; padding: 9px 12px; }
+.sl2 th.sl-grupo2 { background: linear-gradient(90deg, #12315e, #0a3d8f); border-left: 4px solid #fff; }
+.sl2 th.sl-th2 { background: #f6f8fc; color: #4a5872; border-bottom: 2px solid #dfe5f0; font-size: 12.5px; }
+.sl2 td.sl-ini, .sl2 th.sl-th2:nth-child(7) { border-left: 4px solid #eef1f6; }
+.sl2 tbody tr:nth-child(even) td { background: #fbfcfe; }
+.sl2 tbody tr:hover td { background: #f0f5ff; }
+.sl2 td.sl-rot { text-align: left; font-weight: 700; color: var(--blue-900); position: sticky; left: 0; background: #fff; min-width: 190px; }
+.sl2 tbody tr:nth-child(even) td.sl-rot { background: #fbfcfe; }
+.sl2 td.sl-real span { font-weight: 800; font-size: 15px; }
+.sl2 td.sl-ok span { color: #11703c; } .sl2 td.sl-baixo span { color: #b4690e; }
+.sl-pill { display: inline-block; min-width: 62px; padding: 4px 10px; border-radius: 999px; font-weight: 800; font-size: 12.5px; text-align: center; }
+.sl-pill.p-verm { background: #fde1e2; color: #b4232a; } .sl-pill.p-amar { background: #fdf0d5; color: #9a5b05; }
+.sl-pill.p-ver { background: #dcf5e6; color: #11703c; } .sl-pill.p-neu { color: #a0a9ba; background: transparent; font-weight: 600; }
+.sl2 tr.sl-total td { background: #0a3d8f !important; color: #fff !important; font-weight: 800; border-bottom: 0; }
+.sl2 tr.sl-total td span, .sl2 tr.sl-total td.sl-rot { color: #fff !important; background: transparent; }
+.sl2 tr.sl-total .sl-pill { background: rgba(255,255,255,0.16); color: #fff; }
+.sl2 tr.sl-total .sl-pill.p-verm { background: #e5484d; } .sl2 tr.sl-total .sl-pill.p-ver { background: #1f9d55; }
+.sl2 tr.sl-plano td { font-style: italic; background: #f5f6fa; color: #4a5872; }
+.sl2 tr.sl-plano td.sl-rot { background: #f5f6fa; }
+
+@media print {
+  @page { size: A4 landscape; margin: 9mm; }
+  header, .gc-nav, .gc-page-title, .cme-hero, .bi-gerar, #biVisoes, #biSlideFiltros, .sl-nav, .gc-topbar { display: none !important; }
+  body, .content, main { background: #fff !important; padding: 0 !important; }
+  .sl-card, .sl-grafico, .sl-prog { break-inside: avoid; box-shadow: none !important; border: 1px solid #dfe5f0; }
+  .sl2 th, .sl2 td { font-size: 11px; padding: 5px 7px; }
+  .cme-kpigrid { break-inside: avoid; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

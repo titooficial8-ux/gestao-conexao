@@ -159,26 +159,46 @@
   function pct(v) { return ui.nf(v * 100, { maximumFractionDigits: 0 }) + '%'; }
   function zero(l) { return ['ant', 'plano', 'real'].every(function (k) { return !(l.mes[k]) && !(l.acum[k]); }); }
 
-  function tabelaSlide(titulo, d, linhas, total, fmt, nota) {
-    var c = ui.el('div', 'table-card sl-card'); c.appendChild(ui.el('h3', null, titulo)); if (nota) c.appendChild(ui.el('p', 'cme-meta', nota));
-    var w = ui.el('div', 'table-scroll'); var t = ui.el('table', 'data-table sl-tab'); w.appendChild(t);
-    var h1 = ui.el('tr'); h1.appendChild(ui.el('th')); var a = ui.el('th', 'sl-grupo', MESES[d.mes - 1]); a.colSpan = 5; h1.appendChild(a);
-    var b = ui.el('th', 'sl-grupo', ES ? 'Acumulado' : 'Acumulado'); b.colSpan = 5; h1.appendChild(b);
+  // ---- tabelas do slide (visual de apresentacao)
+  var SEC = 0;
+  function cartaoSecao(id, titulo, sub) {
+    var c = ui.el('section', 'table-card sl-card'); c.id = id;
+    var h = ui.el('div', 'sl-sec-topo'); h.appendChild(ui.el('span', 'sl-num', String(++SEC)));
+    var t = ui.el('div'); t.appendChild(ui.el('h3', null, titulo)); if (sub) t.appendChild(ui.el('p', 'sl-sub', sub)); h.appendChild(t); c.appendChild(h); return c;
+  }
+  function pill(v, lim) {
+    if (!v) return ui.el('span', 'sl-pill p-neu', '–');
+    var cls = v < lim ? 'p-verm' : (v < 0 ? 'p-amar' : 'p-ver');
+    return ui.el('span', 'sl-pill ' + cls, (v > 0 ? '+' : '') + pct(v));
+  }
+  function celPill(v, lim) { var td = ui.el('td', 'cme-num'); td.appendChild(pill(v, lim)); return td; }
+  function celReal(real, ref, fmt) {
+    var td = ui.el('td', 'cme-num sl-real ' + (!real ? '' : (real >= ref ? 'sl-ok' : 'sl-baixo')));
+    td.appendChild(ui.el('span', null, real ? fmt(real) : '–')); return td;
+  }
+  function cabecalhoGrupos(d, nGrupo) {
+    var h1 = ui.el('tr'); h1.appendChild(ui.el('th')); var a = ui.el('th', 'sl-grupo', MESES[d.mes - 1] + ' / ' + d.ano); a.colSpan = nGrupo;
+    var b = ui.el('th', 'sl-grupo sl-grupo2', (ES ? 'Acumulado ' : 'Acumulado ') + d.ano + ' (' + (ES ? 'ene–' : 'jan–') + MESES[d.mes - 1].slice(0, 3).toLowerCase() + ')'); b.colSpan = nGrupo; h1.appendChild(a); h1.appendChild(b); return h1;
+  }
+  function th2(a, b) { var c = ui.el('th', 'cme-num sl-th2'); c.appendChild(ui.el('div', null, a)); c.appendChild(ui.el('div', 'sl-th2b', b)); return c; }
+
+  function tabelaSlide(id, titulo, sub, d, linhas, total, fmt) {
+    var c = cartaoSecao(id, titulo, sub);
+    var w = ui.el('div', 'table-scroll'); var t = ui.el('table', 'data-table sl-tab sl2'); w.appendChild(t);
+    var th = ui.el('thead'); th.appendChild(cabecalhoGrupos(d, 5));
     var h2 = ui.el('tr'); h2.appendChild(ui.el('th'));
-    function th2(a, b) { var c = ui.el('th', 'cme-num sl-th2'); c.appendChild(ui.el('div', null, a)); c.appendChild(ui.el('div', 'sl-th2b', b)); return c; }
-    var cab = [[String(d.ano_ant), d.mes + ' - YTD'], [String(d.ano), ES ? 'Plan' : 'Plano'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['% Var.', String(d.ano_ant)], ['% Var.', ES ? 'Plan' : 'Plano']];
+    var cab = [[String(d.ano_ant), d.mes + ' - YTD'], [String(d.ano), ES ? 'Plan' : 'Plano'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['Var.', 'vs ' + d.ano_ant], ['Var.', 'vs ' + (ES ? 'plan' : 'plano')]];
     cab.concat(cab).forEach(function (x) { h2.appendChild(th2(x[0], x[1])); });
-    var th = ui.el('thead'); th.appendChild(h1); th.appendChild(h2); t.appendChild(th);
+    th.appendChild(h2); t.appendChild(th);
     var tb = ui.el('tbody');
     function linhaTr(l, ehTotal) {
       var r = ui.el('tr', ehTotal ? 'sl-total' : null); r.appendChild(ui.el('td', 'sl-rot', l.rotulo));
-      ['mes', 'acum'].forEach(function (k) {
-        var x = l[k];
-        r.appendChild(ui.el('td', 'cme-num', x.ant ? fmt(x.ant) : '–'));
+      ['mes', 'acum'].forEach(function (k, gi) {
+        var x = l[k], ini = gi ? ' sl-ini' : '';
+        var a1 = ui.el('td', 'cme-num' + ini, x.ant ? fmt(x.ant) : '–'); r.appendChild(a1);
         r.appendChild(ui.el('td', 'cme-num', x.plano ? fmt(x.plano) : '–'));
-        var cr = ui.el('td', 'cme-num sl-real ' + (x.real > x.ant ? 'sl-verde' : (x.real < x.ant ? 'sl-amar' : '')), x.real ? fmt(x.real) : '–'); r.appendChild(cr);
-        r.appendChild(ui.el('td', 'cme-num ' + (x.v_ant < -0.2 ? 'sl-verm' : (x.v_ant > 0 ? 'sl-pos' : '')), x.v_ant ? pct(x.v_ant) : '–'));
-        r.appendChild(ui.el('td', 'cme-num ' + (x.v_plano < -0.1 ? 'sl-verm' : (x.v_plano > 0 ? 'sl-pos' : '')), x.v_plano ? pct(x.v_plano) : '–'));
+        r.appendChild(celReal(x.real, x.ant, fmt));
+        r.appendChild(celPill(x.v_ant, -0.2)); r.appendChild(celPill(x.v_plano, -0.1));
       });
       return r;
     }
@@ -187,30 +207,28 @@
     t.appendChild(tb); c.appendChild(w); return c;
   }
 
-  function tabelaDois(titulo, d, linhas, total, plano, colunasPlano, fmt) {
-    // Ortobom (metros: ano-1 x realizado) e Mercado Internacional (plano x realizado)
-    var c = ui.el('div', 'table-card sl-card'); c.appendChild(ui.el('h3', null, titulo));
-    var w = ui.el('div', 'table-scroll'); var t = ui.el('table', 'data-table sl-tab'); w.appendChild(t);
-    var h1 = ui.el('tr'); h1.appendChild(ui.el('th')); var a = ui.el('th', 'sl-grupo', MESES[d.mes - 1]); a.colSpan = 3; h1.appendChild(a); var b = ui.el('th', 'sl-grupo', 'Acumulado'); b.colSpan = 3; h1.appendChild(b);
+  function tabelaDois(id, titulo, sub, d, linhas, total, plano, colunasPlano, fmt) {
+    var c = cartaoSecao(id, titulo, sub);
+    var w = ui.el('div', 'table-scroll'); var t = ui.el('table', 'data-table sl-tab sl2'); w.appendChild(t);
+    var th = ui.el('thead'); th.appendChild(cabecalhoGrupos(d, 3));
     var h2 = ui.el('tr'); h2.appendChild(ui.el('th'));
-    colunasPlano.concat(colunasPlano).forEach(function (x) { var c = ui.el('th', 'cme-num sl-th2'); c.appendChild(ui.el('div', null, x[0])); c.appendChild(ui.el('div', 'sl-th2b', x[1])); h2.appendChild(c); });
-    var th = ui.el('thead'); th.appendChild(h1); th.appendChild(h2); t.appendChild(th); var tb = ui.el('tbody');
+    colunasPlano.concat(colunasPlano).forEach(function (x) { h2.appendChild(th2(x[0], x[1])); });
+    th.appendChild(h2); t.appendChild(th); var tb = ui.el('tbody');
     var chave = colunasPlano[0][0] === String(d.ano_ant) ? 'ant' : 'plano';
     function tr(l, tot) {
       var r = ui.el('tr', tot ? 'sl-total' : null); r.appendChild(ui.el('td', 'sl-rot', l.rotulo));
-      ['mes', 'acum'].forEach(function (k) { var x = l[k];
-        r.appendChild(ui.el('td', 'cme-num', x[chave] ? fmt(x[chave]) : '–'));
-        r.appendChild(ui.el('td', 'cme-num sl-real ' + (x.real > (x[chave] || 0) ? 'sl-verde' : (x.real < (x[chave] || 0) ? 'sl-amar' : '')), x.real ? fmt(x.real) : '–'));
-        r.appendChild(ui.el('td', 'cme-num ' + (x.var < -0.2 ? 'sl-verm' : (x.var > 0 ? 'sl-pos' : '')), x.var ? pct(x.var) : '–')); });
+      ['mes', 'acum'].forEach(function (k, gi) { var x = l[k];
+        r.appendChild(ui.el('td', 'cme-num' + (gi ? ' sl-ini' : ''), x[chave] ? fmt(x[chave]) : '–'));
+        r.appendChild(celReal(x.real, x[chave] || 0, fmt));
+        r.appendChild(celPill(x.var, -0.2)); });
       return r; }
     linhas.forEach(function (l) { var z = !(l.mes.real || l.mes[chave] || l.acum.real || l.acum[chave]); if (mostrarZeros || !z) tb.appendChild(tr(l, false)); });
     tb.appendChild(tr(total, true));
     if (plano) { var p = ui.el('tr', 'sl-plano'); p.appendChild(ui.el('td', 'sl-rot', plano.rotulo));
-      ['mes', 'acum'].forEach(function (k) { p.appendChild(ui.el('td')); p.appendChild(ui.el('td', 'cme-num', plano[k].real ? fmt(plano[k].real) : '–')); p.appendChild(ui.el('td', 'cme-num ' + (plano[k].var < -0.2 ? 'sl-verm' : (plano[k].var > 0 ? 'sl-pos' : '')), plano[k].var ? pct(plano[k].var) : '–')); });
+      ['mes', 'acum'].forEach(function (k, gi) { p.appendChild(ui.el('td', gi ? 'sl-ini' : '')); var x = ui.el('td', 'cme-num', plano[k].real ? fmt(plano[k].real) : '–'); p.appendChild(x); p.appendChild(celPill(plano[k].var, -0.2)); });
       tb.appendChild(p); }
     t.appendChild(tb); c.appendChild(w); return c;
   }
-
 
   var GRAF_RECEITA = null;
   function mi(v) { return ui.nf(v / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' mi'; }
@@ -309,13 +327,19 @@
     gr.appendChild(progressoCard(ES ? 'Mercado internacional — atingimiento del plan' : 'Mercado internacional — atingimento do plano', d, d.internacional));
     corpo.appendChild(gr);
 
-    corpo.appendChild(tabelaSlide(ES ? 'SEGMENTOS — R$ (receta neta)' : 'SEGMENTOS — R$ (receita líquida)', d, d.receita, d.receita_total, brl));
-    corpo.appendChild(tabelaSlide(ES ? 'CANTIDADES — METROS' : 'QUANTIDADES — METROS', d, d.metros, d.metros_total, brl));
-    corpo.appendChild(tabelaSlide(ES ? 'CANTIDADES — KILOS' : 'QUANTIDADES — QUILOS', d, d.quilos, d.quilos_total, brl));
-    corpo.appendChild(tabelaSlide(ES ? 'PRECIO MEDIO NETO (R$/m)' : 'PREÇO MÉDIO LÍQUIDO (R$/m)', d, d.preco_medio, null, num2));
-    corpo.appendChild(tabelaSlide(ES ? 'REPRESENTANTES — metros de colchón' : 'REPRESENTANTES — metros de colchão', d, d.representantes, d.representantes_total, brl));
-    corpo.appendChild(tabelaDois('ORTOBOM — ' + (ES ? 'metros por filial' : 'metros por filial'), d, d.ortobom, d.ortobom_total, d.ortobom_plano, [[String(d.ano_ant), d.mes + ' - YTD'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['% Var.', String(d.ano_ant)]], brl));
-    corpo.appendChild(tabelaDois(ES ? 'MERCADO INTERNACIONAL — R$' : 'MERCADO INTERNACIONAL — R$', d, d.internacional, d.internacional_total, null, [[String(d.ano), ES ? 'Plan' : 'Plano'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['% Var.', ES ? 'Plan' : 'Plano']], brl));
+    SEC = 0;
+    var nav = ui.el('div', 'sl-nav');
+    [['sl-seg', ES ? 'Segmentos' : 'Segmentos'], ['sl-mt', ES ? 'Metros' : 'Metros'], ['sl-kg', ES ? 'Kilos' : 'Quilos'], ['sl-pm', ES ? 'Precio medio' : 'Preço médio'], ['sl-rep', ES ? 'Representantes' : 'Representantes'], ['sl-orto', 'Ortobom'], ['sl-int', ES ? 'Mercado internacional' : 'Mercado internacional']].forEach(function (x) {
+      var a = ui.el('a', null, x[1]); a.href = '#' + x[0]; a.addEventListener('click', function (e) { e.preventDefault(); var el = document.getElementById(x[0]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); nav.appendChild(a); });
+    var imp = ui.el('button', 'btn-small ticket-btn-outline sl-imprimir', ES ? '🖨 Imprimir / PDF' : '🖨 Imprimir / PDF'); imp.type = 'button'; imp.addEventListener('click', function () { window.print(); }); nav.appendChild(imp);
+    corpo.appendChild(nav);
+    corpo.appendChild(tabelaSlide('sl-seg', ES ? 'Segmentos — receta neta' : 'Segmentos — receita líquida', ES ? 'R$ · mes y acumulado del año, contra el año anterior y el plan' : 'R$ · mês e acumulado do ano, contra o ano anterior e o plano', d, d.receita, d.receita_total, brl));
+    corpo.appendChild(tabelaSlide('sl-mt', ES ? 'Cantidades — metros' : 'Quantidades — metros', ES ? 'Metros vendidos (neto de devoluciones)' : 'Metros vendidos (líquido de devoluções)', d, d.metros, d.metros_total, brl));
+    corpo.appendChild(tabelaSlide('sl-kg', ES ? 'Cantidades — kilos' : 'Quantidades — quilos', ES ? 'Kilos vendidos' : 'Quilos vendidos', d, d.quilos, d.quilos_total, brl));
+    corpo.appendChild(tabelaSlide('sl-pm', ES ? 'Precio medio neto' : 'Preço médio líquido', ES ? 'R$ por metro (receta neta ÷ metros)' : 'R$ por metro (receita líquida ÷ metros)', d, d.preco_medio, null, num2));
+    corpo.appendChild(tabelaSlide('sl-rep', ES ? 'Representantes' : 'Representantes', ES ? 'Metros de colchón por representante' : 'Metros de colchão por representante', d, d.representantes, d.representantes_total, brl));
+    corpo.appendChild(tabelaDois('sl-orto', 'Ortobom', ES ? 'Metros por filial' : 'Metros por filial', d, d.ortobom, d.ortobom_total, d.ortobom_plano, [[String(d.ano_ant), d.mes + ' - YTD'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['Var.', 'vs ' + d.ano_ant]], brl));
+    corpo.appendChild(tabelaDois('sl-int', ES ? 'Mercado internacional' : 'Mercado internacional', ES ? 'R$ por país, contra el plan' : 'R$ por país, contra o plano', d, d.internacional, d.internacional_total, null, [[String(d.ano), ES ? 'Plan' : 'Plano'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['Var.', 'vs ' + (ES ? 'plan' : 'plano')]], brl));
     var nota = ui.el('div', 'cme-meta sl-obs', ES ? 'Los números salen directo de las notas fiscales del TOTVS (Relatório 150) y del plan cargado desde la planilla de Receitas. La planilla usa un histórico digitado (hoja ACUM) para algunos acumulados; aquí todo se calcula de las notas, por eso puede haber pequeñas diferencias.' : 'Os números saem direto das notas fiscais do TOTVS (Relatório 150) e do plano importado da planilha de Receitas. A planilha usa um histórico digitado (aba ACUM) em alguns acumulados; aqui tudo é calculado das notas, então pode haver pequenas diferenças.');
     corpo.appendChild(nota);
   }

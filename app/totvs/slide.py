@@ -64,6 +64,8 @@ def montar(regs: list[dict], mes: int, ano: int) -> dict:
     """regs = lista de base.derivar(...). Devolve o slide do mes/ano."""
     P = planos()
     aj = base.ajustes().get('constantes_slide', {})
+    ocultos = {base._k(x) for x in (base.ajustes().get('segmentos_ocultos') or {}).get('lista', [])}
+    regs = [x for x in regs if base._k(x['seg']) not in ocultos]            # ex.: CALCADO e MOVELEIRO ficam fora de tudo
     ant = ano - 1
 
     def soma(campo, **f):
