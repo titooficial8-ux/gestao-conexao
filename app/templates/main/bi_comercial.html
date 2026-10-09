@@ -341,7 +341,7 @@
 
     corpo.appendChild(graficoReceita(d));
     var gr = ui.el('div', 'cme-graficos');
-    var tSeg = ES ? 'Receta por segmento' : 'Receita por segmento', tInt = ES ? 'RECEITA MERCADO EXTERNO - POR PAÍS' : 'RECEITA MERCADO EXTERNO - POR PAÍS';
+    var tSeg = ES ? 'Receta por segmento' : 'Receita por segmento', tInt = ES ? 'Receita mercado externo - por país' : 'Receita mercado externo - por país';
     gr.appendChild(progressoCard(tSeg, d, d.receita, 'mes'));
     gr.appendChild(progressoCard(tSeg, d, d.receita, 'acum'));
     gr.appendChild(progressoCard(tInt, d, d.internacional, 'mes'));
