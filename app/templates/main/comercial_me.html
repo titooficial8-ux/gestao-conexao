@@ -27,7 +27,7 @@
     {% for p in paineis %}
     <button type="button" class="cme-grupo" data-aba="{{ p.id }}"{% if p.regiao %} data-regiao="{{ p.regiao }}"{% endif %}>{{ p.titulo }}</button>
     {% endfor %}
-    <button type="button" class="cme-grupo" data-aba="__planilhas">{{ t('cme_planilhas') }} <span class="cme-contagem">{{ catalogo|length }}</span></button>
+    <button type="button" class="cme-grupo" data-aba="__planilhas">{{ t('cme_planilhas') }} <span class="cme-contagem" id="cmeNTotal">{{ catalogo|length }}</span></button>
   </div>
 
   {# ---------- Paineis ---------- #}
@@ -42,7 +42,7 @@
     <div class="cme-grupos cme-subgrupos" id="cmeGrupos">
       <button type="button" class="cme-grupo active" data-grupo="__lista">{{ t('cme_visao_geral') }}</button>
       {% for g in grupos %}
-      <button type="button" class="cme-grupo" data-grupo="{{ g }}">{{ rotulos_es.get(g, g) if es else g }} <span class="cme-contagem">{{ catalogo|selectattr('grupo', 'equalto', g)|list|length }}</span></button>
+      <button type="button" class="cme-grupo" data-grupo="{{ g }}">{{ rotulos_es.get(g, g) if es else g }} <span class="cme-contagem" data-n-grupo="{{ g }}">{{ catalogo|selectattr('grupo', 'equalto', g)|list|length }}</span></button>
       {% endfor %}
     </div>
     <div id="cmeLista" class="table-card">
@@ -52,7 +52,7 @@
         <thead><tr><th>{{ t('cme_grupo') }}</th><th>{{ t('cme_tabela') }}</th><th>{{ t('cme_atualizacao') }}</th><th>{{ t('cme_fonte') }}</th><th class="cme-num">{{ t('cme_linhas') }}</th></tr></thead>
         <tbody>
           {% for tb in catalogo %}
-          <tr><td>{{ rotulos_es.get(tb.grupo, tb.grupo) if es else tb.grupo }}</td>
+          <tr data-regiao="{{ tb.regiao }}"><td>{{ rotulos_es.get(tb.grupo, tb.grupo) if es else tb.grupo }}</td>
               <td><a href="#" class="cme-abrir" data-id="{{ tb.id }}" data-grupo="{{ tb.grupo }}">{{ tb.titulo }}</a></td>
               <td>{% if tb.atualizacao %}<span class="cme-chip">{{ freq_es.get(tb.atualizacao, tb.atualizacao) if es else tb.atualizacao }}</span>{% endif %}</td>
               <td class="cme-fonte">{{ tb.arquivo }} &rsaquo; {{ tb.aba }}</td>
@@ -275,9 +275,25 @@
 
     var PALETA = ['#2f7fe0', '#1f9d55', '#e0972f', '#e5484d', '#7a5af8', '#0e9fb3', '#d6409f', '#8892a6', '#5b8c00', '#b45309'];
 
+    function doRegiao() { return CATALOGO.filter(function (t) { return t.regiao === REGIAO; }); }
+    function aplicarPlanilhas() {
+      var ids = {}; doRegiao().forEach(function (t) { ids[t.id] = 1; });
+      Array.prototype.forEach.call(document.querySelectorAll('#cmeLista tbody tr'), function (tr) { tr.hidden = tr.dataset.regiao !== REGIAO; });
+      var cont = {}; doRegiao().forEach(function (t) { cont[t.grupo] = (cont[t.grupo] || 0) + 1; });
+      Array.prototype.forEach.call(document.querySelectorAll('#cmeGrupos [data-grupo]'), function (b) {
+        if (b.dataset.grupo === '__lista') return;
+        b.hidden = !cont[b.dataset.grupo];
+        var n = b.querySelector('[data-n-grupo]'); if (n) n.textContent = cont[b.dataset.grupo] || 0;
+      });
+      $('cmeNTotal').textContent = doRegiao().length;
+      if (estado.id && !ids[estado.id]) { estado.id = null; mostrarGrupo('__lista'); }
+      else if (!$('cmeTabelas').hidden) { var g = CATALOGO.filter(function (t) { return t.id === estado.id; })[0]; if (g) mostrarGrupo(g.grupo); }
+    }
+
     function aplicarRegiao(trocar) {
       Array.prototype.forEach.call(document.querySelectorAll('#cmeRegioes .cme-regiao'), function (b) { b.classList.toggle('active', b.dataset.regiao === REGIAO); });
       Array.prototype.forEach.call(document.querySelectorAll('#cmeAbas [data-regiao]'), function (b) { b.hidden = b.dataset.regiao !== REGIAO; });
+      aplicarPlanilhas();
       if (!trocar) return;
       try { localStorage.setItem('cme_regiao', REGIAO); } catch (e) {}
       var atual = document.querySelector('#cmeAbas .cme-grupo.active');
@@ -609,7 +625,7 @@
       $('cmeTabelas').hidden = lista;
       if (lista) { history.replaceState(null, '', '#planilhas'); return; }
       var pills = $('cmePills'); pills.textContent = '';
-      var itens = CATALOGO.filter(function (t) { return t.grupo === grupo; });
+      var itens = doRegiao().filter(function (t) { return t.grupo === grupo; });
       itens.forEach(function (t) {
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'cme-pill'; b.textContent = t.titulo; b.dataset.id = t.id;
@@ -641,7 +657,7 @@
     aplicarRegiao(false);
     var hash = location.hash.slice(1);
     var tabInicial = CATALOGO.filter(function (t) { return t.id === hash; })[0];
-    if (tabInicial) { abrirAba('__planilhas'); estado.id = tabInicial.id; mostrarGrupo(tabInicial.grupo); abrirTabela(tabInicial.id); }
+    if (tabInicial) { REGIAO = tabInicial.regiao; aplicarRegiao(false); abrirAba('__planilhas'); estado.id = tabInicial.id; mostrarGrupo(tabInicial.grupo); abrirTabela(tabInicial.id); }
     else if (hash === 'planilhas') abrirAba('__planilhas');
     else if (PAINEIS.some(function (p) { return p.id === hash; })) abrirAba(hash);
     else abrirAba(PAINEIS.length ? PAINEIS[0].id : '__planilhas');
