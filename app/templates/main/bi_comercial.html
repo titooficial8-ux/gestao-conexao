@@ -156,8 +156,8 @@
   var MESES = ES ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] : ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   var slideSel = {}, mostrarZeros = false;
   function brl(v) { return ui.nf(v, { maximumFractionDigits: 0 }); }
-  function mil(v) { return ui.nf(v / 1000, { maximumFractionDigits: 0 }); }
-  function num2(v) { return ui.nf(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function mil(v) { return 'R$ ' + ui.nf(v / 1000, { maximumFractionDigits: 0 }); }
+  function num2(v) { return 'R$ ' + ui.nf(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function pct(v) { return ui.nf(v * 100, { maximumFractionDigits: 0 }) + '%'; }
   function zero(l) { return ['ant', 'plano', 'real'].every(function (k) { return !(l.mes[k]) && !(l.acum[k]); }); }
 
