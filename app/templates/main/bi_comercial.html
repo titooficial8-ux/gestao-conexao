@@ -282,11 +282,9 @@
   }
 
 
-  function progressoCard(titulo, d, linhas) {
+  function progressoCard(titulo, d, linhas, per) {
     var c = ui.el('div', 'table-card sl-prog'), topo = ui.el('div', 'sl-prog-topo'); topo.appendChild(ui.el('h3', null, titulo));
-    var tg = ui.el('div', 'sl-toggle'), per = 'acum';
-    var bm = ui.el('button', null, MESES[d.mes - 1]), ba = ui.el('button', 'ativo', ES ? 'Acumulado' : 'Acumulado'); bm.type = ba.type = 'button';
-    tg.appendChild(bm); tg.appendChild(ba); topo.appendChild(tg); c.appendChild(topo);
+    topo.appendChild(ui.el('span', 'sl-chip-per ' + per, per === 'mes' ? MESES[d.mes - 1] + ' / ' + d.ano : (ES ? 'Acumulado ' : 'Acumulado ') + d.ano)); c.appendChild(topo);
     var lista = ui.el('div', 'sl-prog-lista'); c.appendChild(lista);
     c.appendChild(ui.el('div', 'sl-prog-leg', ES ? '● ≥100% del plan   ● 80–99%   ● <80%   ┃ = plan' : '● ≥100% do plano   ● 80–99%   ● <80%   ┃ = plano'));
     function R(v) { return 'R$ ' + mi(v); }
@@ -308,8 +306,6 @@
         lista.appendChild(li);
       });
     }
-    bm.addEventListener('click', function () { per = 'mes'; bm.className = 'ativo'; ba.className = ''; pintar(); });
-    ba.addEventListener('click', function () { per = 'acum'; ba.className = 'ativo'; bm.className = ''; pintar(); });
     pintar(); return c;
   }
 
@@ -345,8 +341,11 @@
 
     corpo.appendChild(graficoReceita(d));
     var gr = ui.el('div', 'cme-graficos');
-    gr.appendChild(progressoCard(ES ? 'Atingimiento del plan por segmento' : 'Atingimento do plano por segmento', d, d.receita));
-    gr.appendChild(progressoCard(ES ? 'Mercado internacional — atingimiento del plan' : 'Mercado internacional — atingimento do plano', d, d.internacional));
+    var tSeg = ES ? 'Atingimiento del plan por segmento' : 'Atingimento do plano por segmento', tInt = ES ? 'Mercado internacional — atingimiento del plan' : 'Mercado internacional — atingimento do plano';
+    gr.appendChild(progressoCard(tSeg, d, d.receita, 'mes'));
+    gr.appendChild(progressoCard(tSeg, d, d.receita, 'acum'));
+    gr.appendChild(progressoCard(tInt, d, d.internacional, 'mes'));
+    gr.appendChild(progressoCard(tInt, d, d.internacional, 'acum'));
     corpo.appendChild(gr);
 
     SEC = 0;
