@@ -318,7 +318,7 @@
     var cb2 = d.cabecalho, kp = ui.el('div', 'cme-kpigrid');
     function K(rot, v, nota, tom) { return { rotulo: rot, valor: v, fmt: 'brl', texto: 'R$ ' + mi(v), nota: nota, tom: tom }; }
     [K(ES ? 'Receita bruta (sin devoluciones)' : 'Receita bruta (sem devoluções)', cb2.receita_bruta_sem_dev, (ES ? 'después de devoluciones: R$ ' : 'após devoluções: R$ ') + mi(cb2.receita_bruta), 'azul'),
-     K(ES ? 'Devoluciones (bruto)' : 'Devoluções (bruto)', cb2.devolucao_bruta, (ES ? 'neto: R$ ' : 'líquido: R$ ') + mi(cb2.devolucao_liquida), 'vermelho'),
+     K(ES ? 'Devoluciones (bruto)' : 'Devoluções (bruto)', cb2.devolucao_bruta, ui.nf(cb2.receita_bruta_sem_dev ? cb2.devolucao_bruta / cb2.receita_bruta_sem_dev * 100 : 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%' + (ES ? ' de la bruta' : ' da bruta'), 'vermelho'),
      K(ES ? 'Deducciones (impuestos)' : 'Deduções (impostos)', cb2.deducoes, pct(cb2.deducoes_pct) + (ES ? ' de la bruta' : ' da bruta'), 'ambar'),
      K(ES ? 'Receta neta (sin devoluciones)' : 'Receita líquida (sem devoluções)', cb2.liquida_sem_devolucoes, (ES ? 'antes de las devoluciones' : 'antes das devoluções'), 'azul'),
      K(ES ? 'Receta neta (con devoluciones descontadas)' : 'Receita líquida (já descontadas as devoluções)', cb2.receita_liquida, (ES ? 'vs plan: ' : 'vs plano: ') + pct(d.receita_total.mes.v_plano), 'verde')].forEach(function (k) { kp.appendChild(ui.cartaoKpi(k)); });
