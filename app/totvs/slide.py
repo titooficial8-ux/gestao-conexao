@@ -108,7 +108,7 @@ def montar(regs: list[dict], mes: int, ano: int) -> dict:
     bruta = soma('bruta', mes=mes, ano=ano)
     dev_b, dev_l = -soma('bruta', mes=mes, ano=ano, tipo='DEV'), -soma('liquida', mes=mes, ano=ano, tipo='DEV')
     real_liq = tot_rs['mes']['real']
-    cab = dict(receita_bruta=bruta, devolucao_bruta=dev_b, devolucao_liquida=dev_l, receita_liquida=real_liq,
+    cab = dict(liquida_sem_devolucoes=real_liq + dev_l, receita_bruta_sem_dev=bruta + dev_b, receita_bruta=bruta, devolucao_bruta=dev_b, devolucao_liquida=dev_l, receita_liquida=real_liq,
                deducoes=bruta - real_liq, deducoes_pct=(bruta - real_liq) / bruta if bruta else 0,
                liquida_sem_devolucao=real_liq - dev_l,
                a_atingir_meta=tot_rs['mes']['plano'] - real_liq + (aj.get('valor_a_atingir_meta_soma') or 0))

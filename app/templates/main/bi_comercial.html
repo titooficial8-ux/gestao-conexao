@@ -232,7 +232,7 @@
   }
 
   var GRAF_RECEITA = null;
-  function mi(v) { return ui.nf(v / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' mi'; }
+  function mi(v) { var c = Math.abs(v) >= 1e6 ? 2 : 3; return ui.nf(v / 1e6, { minimumFractionDigits: c, maximumFractionDigits: c }) + ' mi'; }
   function graficoReceita(d) {
     var card = ui.el('div', 'table-card sl-grafico');
     var topo = ui.el('div', 'sl-g-topo');
@@ -316,10 +316,13 @@
     f.appendChild(ui.el('span', 'cme-meta sl-gerado', (ES ? 'Datos hasta ' : 'Dados atualizados em ') + dhBR(d.gerado_em)));
 
     var cb2 = d.cabecalho, kp = ui.el('div', 'cme-kpigrid');
-    [[ES ? 'Receita bruta' : 'Receita bruta R$', cb2.receita_bruta, 'brl', null, 'azul'], [ES ? 'Devoluciones (bruto)' : 'Devoluções (bruto)', cb2.devolucao_bruta, 'brl', ES ? 'líquido ' + brl(cb2.devolucao_liquida) : 'líquido ' + brl(cb2.devolucao_liquida), 'vermelho'],
-     [ES ? 'Deducciones' : 'Deduções (impostos)', cb2.deducoes, 'brl', pct(cb2.deducoes_pct) + (ES ? ' de la bruta' : ' da bruta'), 'ambar'],
-     [ES ? 'Receita neta' : 'Receita líquida', cb2.receita_liquida, 'brl', (ES ? 'vs plan: ' : 'vs plano: ') + pct(d.receita_total.mes.v_plano), 'verde'],
-     [ES ? 'Falta para la meta' : 'Valor a atingir a meta', cb2.a_atingir_meta, 'brl', null, 'azul']].forEach(function (k) { kp.appendChild(ui.cartaoKpi({ rotulo: k[0], valor: k[1], fmt: k[2], nota: k[3], tom: k[4] })); });
+    function K(rot, v, nota, tom) { return { rotulo: rot, valor: v, fmt: 'brl', texto: 'R$ ' + mi(v), nota: nota, tom: tom }; }
+    [K(ES ? 'Receita bruta (sin devoluciones)' : 'Receita bruta (sem devoluções)', cb2.receita_bruta_sem_dev, (ES ? 'después de devoluciones: R$ ' : 'após devoluções: R$ ') + mi(cb2.receita_bruta), 'azul'),
+     K(ES ? 'Devoluciones (bruto)' : 'Devoluções (bruto)', cb2.devolucao_bruta, (ES ? 'neto: R$ ' : 'líquido: R$ ') + mi(cb2.devolucao_liquida), 'vermelho'),
+     K(ES ? 'Deducciones (impuestos)' : 'Deduções (impostos)', cb2.deducoes, pct(cb2.deducoes_pct) + (ES ? ' de la bruta' : ' da bruta'), 'ambar'),
+     K(ES ? 'Receta neta (sin devoluciones)' : 'Receita líquida (sem devoluções)', cb2.liquida_sem_devolucoes, (ES ? 'antes de las devoluciones' : 'antes das devoluções'), 'azul'),
+     K(ES ? 'Receta neta (con devoluciones descontadas)' : 'Receita líquida (já descontadas as devoluções)', cb2.receita_liquida, (ES ? 'vs plan: ' : 'vs plano: ') + pct(d.receita_total.mes.v_plano), 'verde'),
+     K(ES ? 'Falta para la meta' : 'Valor a atingir a meta', cb2.a_atingir_meta, null, 'azul')].forEach(function (k) { kp.appendChild(ui.cartaoKpi(k)); });
     corpo.appendChild(kp);
 
     corpo.appendChild(graficoReceita(d));

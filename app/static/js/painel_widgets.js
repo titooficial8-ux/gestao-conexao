@@ -88,7 +88,7 @@ window.criarPainelUI = function (cfg) {
       var c = el('div', 'cme-kpi' + (k.tom ? ' ' + k.tom : '') + ' cme-clicavel');
       c.addEventListener('click', function () { var t = document.querySelector('#cmeCorpo .cme-tcard'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
       c.appendChild(el('span', 'cme-kpi-rotulo', k.rotulo));
-      c.appendChild(el('strong', null, fmt(k.valor, k.fmt, true)));
+      c.appendChild(el('strong', null, k.texto || fmt(k.valor, k.fmt, true)));
       if (k.alt) c.appendChild(el('div', 'cme-kpi-alt', '≈ ' + fmt(k.alt.valor, k.alt.fmt, true)));
       var rod = el('div', 'cme-kpi-rodape');
       if (k.delta !== null && k.delta !== undefined) {
