@@ -85,3 +85,10 @@ def download(tag, tipo):
     if not nome:
         abort(404)
     return send_from_directory(servico.DIR, nome, as_attachment=True)
+
+
+@bi_bp.route('/cancelar', methods=['POST'])
+@login_required
+def cancelar():
+    _autorizar()
+    return _json(dict(ok=servico.cancelar()))

@@ -152,11 +152,14 @@ def gerar_dados(inicio: date, fim: date, tag: str) -> dict:
 
 
 def _rodar(inicio: date, fim: date, tag: str, origem: str) -> None:
+    from app.totvs import api
     try:
         m = gerar_dados(inicio, fim, tag)
         ESTADO.update(erro=None, msg=f'Concluido: {m["n_itens"]} itens em {m["n_validas"]} notas validas.')
         if origem == 'agenda':
             _escrever(DIR / 'agenda.json', dict(ultima_ok=_agora().date().isoformat(), tentativa=_agora().isoformat(timespec='seconds')))
+    except api.Cancelado:
+        ESTADO.update(erro=None, msg='Busca cancelada.')
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         ESTADO.update(erro=str(e)[:600], msg='Falhou')
@@ -168,12 +171,24 @@ def _rodar(inicio: date, fim: date, tag: str, origem: str) -> None:
 
 def iniciar(inicio: date, fim: date, tag: str = 'custom', origem: str = 'botao') -> bool:
     """Dispara a geracao em segundo plano. False se ja ha uma em andamento."""
+    from app.totvs import api
     with _lock:
         if ESTADO['rodando']:
             return False
+        api.CANCELAR.clear()
         ESTADO.update(rodando=True, tag=tag, inicio=inicio.isoformat(), fim=fim.isoformat(), msg='Iniciando...',
                       iniciado_em=_agora().isoformat(timespec='seconds'), erro=None, origem=origem)
     threading.Thread(target=_rodar, args=(inicio, fim, tag, origem), daemon=True, name='totvs-gerar').start()
+    return True
+
+
+def cancelar() -> bool:
+    """Pede para a busca em andamento parar (ela aborta na proxima chamada a API)."""
+    from app.totvs import api
+    if not ESTADO['rodando']:
+        return False
+    api.CANCELAR.set()
+    ESTADO['msg'] = 'Cancelando...'
     return True
 
 
@@ -194,16 +209,20 @@ def _ler_agenda() -> dict:
         return {}
 
 
+def _recupera_atrasada() -> bool:
+    return os.getenv('BI_RECUPERAR_ATRASADA', '0') == '1'
+
+
 def proxima_atualizacao() -> str:
     h, m = hora_agendada()
     agora = _agora()
     alvo = agora.replace(hour=h, minute=m, second=0, microsecond=0)
-    ag = _ler_agenda()
-    if agora >= alvo and ag.get('ultima_ok') == agora.date().isoformat():
+    if agora >= alvo + timedelta(minutes=JANELA_MIN) and not _recupera_atrasada() or _ler_agenda().get('ultima_ok') == agora.date().isoformat() and agora >= alvo:
         alvo += timedelta(days=1)
-    elif agora >= alvo:
-        return 'pendente (roda assim que possivel)'
     return alvo.strftime('%d/%m/%Y %H:%M')
+
+
+JANELA_MIN = 15  # a atualizacao automatica so dispara ate 15 min depois do horario (servidor ligado)
 
 
 def _tick() -> None:
@@ -211,15 +230,18 @@ def _tick() -> None:
         return
     h, m = hora_agendada()
     agora = _agora()
-    if agora < agora.replace(hour=h, minute=m, second=0, microsecond=0):
+    alvo = agora.replace(hour=h, minute=m, second=0, microsecond=0)
+    if agora < alvo:
         return
+    if not _recupera_atrasada() and agora > alvo + timedelta(minutes=JANELA_MIN):
+        return  # servidor ligado depois da janela: nao busca sozinho (use o botao)
     ag = _ler_agenda()
     if ag.get('ultima_ok') == agora.date().isoformat():
         return
     ult = ag.get('tentativa')
-    if ult:  # depois de uma falha espera 30 min antes de tentar de novo
+    if ult and ESTADO.get('erro'):  # depois de uma falha espera 30 min antes de tentar de novo
         try:
-            if (agora - datetime.fromisoformat(ult)).total_seconds() < 1800 and ag.get('ultima_ok') != agora.date().isoformat() and ESTADO.get('erro'):
+            if (agora - datetime.fromisoformat(ult)).total_seconds() < 1800:
                 return
         except ValueError:
             pass

@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -37,6 +38,13 @@ DEFAULT_START = os.getenv("FATURAMENTO_INICIO", f"{date.today().year}-01-01")
 OPERATION_TYPE = os.getenv("FATURAMENTO_TIPO_OPERACAO", "Output")
 WINDOW_DAYS = int(os.getenv("FATURAMENTO_JANELA_DIAS", "31"))  # máx. API = 6 meses
 VERIFY_SSL = os.getenv("TOTVS_VERIFY_SSL", "true").lower() != "false"
+
+CANCELAR = threading.Event()  # o botao "Parar busca" liga isto; as chamadas a API checam e abortam
+
+
+class Cancelado(Exception):
+    pass
+
 
 PAGE_SIZE = 100  # máximo permitido pela API
 EXPAND = "person,items,taxes,payments,salesOrder"
@@ -128,6 +136,8 @@ class TotvsModaClient:
         print("  ✔ token obtido")
 
     def _garantir_token(self) -> None:
+        if CANCELAR.is_set():
+            raise Cancelado('Busca cancelada pelo usuario')
         if not self.token:
             self.autenticar()
         elif time.time() >= self.token_expira:

@@ -22,7 +22,7 @@
       <button type="button" class="btn-primary bi-btn" id="biGerar">{{ 'Generar informe' if es else 'Gerar relatório' }}</button>
       <button type="button" class="btn-small ticket-btn-outline" id="biAtualizar">{{ 'Actualizar año actual' if es else 'Atualizar ano atual' }}</button>
     </div>
-    <div class="bi-progresso" id="biProgresso" hidden></div>
+    <div class="bi-progresso" id="biProgresso" hidden><span id="biProgTxt"></span> <button type="button" class="btn-small ticket-btn-outline" id="biParar">{{ 'Detener búsqueda' if es else 'Parar busca' }}</button></div>
   </div>
 
   <div class="cme-grupos" id="biFontes">
@@ -42,7 +42,7 @@
 (function () {
   var ES = {{ es|tojson }};
   var LOCALE = ES ? 'es-GT' : 'pt-BR';
-  var URL_DADOS = {{ url_for('bi_comercial.dados')|tojson }}, URL_STATUS = {{ url_for('bi_comercial.status')|tojson }}, URL_GERAR = {{ url_for('bi_comercial.gerar')|tojson }};
+  var URL_DADOS = {{ url_for('bi_comercial.dados')|tojson }}, URL_STATUS = {{ url_for('bi_comercial.status')|tojson }}, URL_GERAR = {{ url_for('bi_comercial.gerar')|tojson }}, URL_CANCELAR = {{ url_for('bi_comercial.cancelar')|tojson }};
   var URL_DL = {{ url_for('bi_comercial.download', tag='__T__', tipo='__K__')|tojson }};
   var TXT = { dias: ES ? 'días' : 'dias', ver_todas: ES ? 'Ver todas' : 'Ver todas', ver_menos: ES ? 'Ver menos' : 'Ver menos', nenhum: ES ? 'Sin datos' : 'Sem dados', sem_dados: ES ? 'Sin datos para este filtro.' : 'Sem dados para este filtro.' };
   var $ = function (id) { return document.getElementById(id); };
@@ -65,8 +65,8 @@
     var e = st.estado;
     if (e.erro && !e.rodando) box.appendChild(ui.el('div', 'bi-aviso', (ES ? 'Último error: ' : 'Última falha: ') + e.erro));
     var pr = $('biProgresso');
-    pr.hidden = !e.rodando;
-    if (e.rodando) pr.textContent = '⏳ ' + (e.msg || '') + ' (' + dataBR(e.inicio) + ' → ' + dataBR(e.fim) + ')';
+    pr.hidden = !e.rodando; $('biParar').disabled = !e.rodando || /Cancelando/.test(e.msg || '');
+    if (e.rodando) $('biProgTxt').textContent = '⏳ ' + (e.msg || '') + ' (' + dataBR(e.inicio) + ' → ' + dataBR(e.fim) + ')';
     $('biGerar').disabled = $('biAtualizar').disabled = e.rodando || !st.configurado;
     var dl = $('biDownloads'); dl.textContent = '';
     var mm = fonte === 'custom' ? st.custom : st.padrao;
@@ -136,6 +136,7 @@
   });
   Array.prototype.forEach.call(document.querySelectorAll('#biFontes [data-fonte]'), function (b) { b.addEventListener('click', function () { mudarFonte(b.dataset.fonte); }); });
 
+  $('biParar').addEventListener('click', function () { this.disabled = true; fetch(URL_CANCELAR, { method: 'POST', credentials: 'same-origin' }).then(function () { consultarStatus(); }); });
   consultarStatus(function () { carregar(); });
 })();
 </script>
