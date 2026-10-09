@@ -45,7 +45,7 @@ def painel(nome):
     _autorizar()
     if nome not in {p['id'] for p in paineis.disponiveis(idioma_atual())}:
         abort(404)
-    filtros = {k: request.args.get(k, None) for k in ('ano', 'cliente', 'pais', 'origem', 'regiao')}
+    filtros = {k: request.args.get(k, None) for k in ('ano', 'cliente', 'pais', 'origem', 'regiao', 'cambio')}
     resp = jsonify(paineis.montar(nome, idioma_atual(), filtros))
     resp.headers['Cache-Control'] = 'no-store'
     return resp

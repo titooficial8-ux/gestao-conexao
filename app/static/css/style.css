@@ -2582,3 +2582,10 @@ textarea.ticket-input { resize: vertical; }
 .cme-regiao img { border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,0.12); object-fit: cover; }
 .cme-regiao:hover { background: var(--blue-50); }
 .cme-regiao.active { background: var(--blue-700); color: var(--white); }
+/* real + dolar */
+.cme-hero-dir { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cme-cambio { display: inline-flex; align-items: center; gap: 8px; background: var(--white); border-radius: 999px; padding: 6px 12px; box-shadow: var(--shadow); font-size: 12.5px; font-weight: 700; color: var(--gray-700); }
+.cme-cambio[hidden] { display: none; }
+.cme-cambio input { width: 62px; border: 1px solid var(--gray-200); border-radius: 6px; padding: 3px 6px; font-weight: 700; font-size: 13px; }
+.cme-kpi-alt { margin-top: 2px; font-size: 17px; font-weight: 800; color: #11703c; font-variant-numeric: tabular-nums; }
+.cme-celula-alt { font-size: 11px; font-weight: 600; color: #11703c; }

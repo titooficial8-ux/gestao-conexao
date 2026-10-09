@@ -24,10 +24,19 @@ MESES = {
 
 # ----------------------------------------------------------------- auxiliares
 
+# Taxa citada na propria planilha de credito ("29Ago - Fx 5,41"); pode ser trocada na tela.
+CAMBIO_PADRAO = 5.41
+
+
 class Ctx:
     def __init__(self, lang, filtros):
         self.lang = 'es' if lang == 'es' else 'pt'
         self.f = filtros or {}
+        try:
+            cb = float(str(self.f.get('cambio') or '').replace(',', '.'))
+        except ValueError:
+            cb = 0
+        self.cambio = cb if 1 <= cb <= 20 else CAMBIO_PADRAO  # US$ -> R$ (so usado no Brasil)
         self.regiao = 'GT' if str(self.f.get('regiao') or '').upper() == 'GT' else 'BR'
         self.hoje = date.today()
 
@@ -937,11 +946,28 @@ def disponiveis(lang):
     return [dict(id=id_, titulo=es if lang == 'es' else pt, regiao=reg.get(id_)) for id_, pt, es, _, deps in _PAINEIS if all(existe(d) for d in deps)]
 
 
+def _aplicar_cambio(p, cambio):
+    """Brasil: todo valor em US$ ganha o equivalente em R$ (KPIs, graficos e tabelas)."""
+    for k in p.get('kpis', []):
+        if k['fmt'] in ('usd', 'usd2') and isinstance(k['valor'], (int, float)):
+            casas = 2 if k['fmt'] == 'usd2' else 0
+            k['alt'] = dict(valor=round(k['valor'] * cambio, casas), fmt='brl2' if casas else 'brl')
+    for g in p.get('graficos', []):
+        if g['fmt'] == 'usd':
+            g['cambio'] = cambio
+    for t in p.get('tabelas', []):
+        if any(col['tipo'] in ('usd', 'usd2') for col in t['colunas']):
+            t['cambio'] = cambio
+
+
 def montar(nome, lang, filtros):
     c = Ctx(lang, filtros)
     for id_, _, _, fn, deps in _PAINEIS:
         if id_ == nome:
             p = fn(c)
+            if c.regiao == 'BR':
+                _aplicar_cambio(p, c.cambio)
+            p['cambio'] = c.cambio if c.regiao == 'BR' else None
             p['id'] = nome
             p['fontes'] = fontes(c, deps)
             p['posicao'] = c.data(c.hoje)
