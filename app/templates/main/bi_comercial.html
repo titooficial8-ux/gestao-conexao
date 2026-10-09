@@ -330,13 +330,14 @@
 
     SEC = 0;
     var nav = ui.el('div', 'sl-nav');
-    [['sl-seg', ES ? 'Segmentos' : 'Segmentos'], ['sl-mt', ES ? 'Metros' : 'Metros'], ['sl-kg', ES ? 'Kilos' : 'Quilos'], ['sl-pm', ES ? 'Precio medio' : 'Preço médio'], ['sl-rep', ES ? 'Representantes' : 'Representantes'], ['sl-orto', 'Ortobom'], ['sl-int', ES ? 'Mercado internacional' : 'Mercado internacional']].forEach(function (x) {
+    [['sl-seg', ES ? 'Segmentos' : 'Segmentos'], ['sl-mt', ES ? 'Metros' : 'Metros'], (d.quilos.some(function (l) { return !zero(l); }) ? ['sl-kg', ES ? 'Kilos' : 'Quilos'] : null), ['sl-pm', ES ? 'Precio medio' : 'Preço médio'], ['sl-rep', ES ? 'Representantes' : 'Representantes'], ['sl-orto', 'Ortobom'], ['sl-int', ES ? 'Mercado internacional' : 'Mercado internacional']].filter(Boolean).forEach(function (x) {
       var a = ui.el('a', null, x[1]); a.href = '#' + x[0]; a.addEventListener('click', function (e) { e.preventDefault(); var el = document.getElementById(x[0]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); nav.appendChild(a); });
     var imp = ui.el('button', 'btn-small ticket-btn-outline sl-imprimir', ES ? '🖨 Imprimir / PDF' : '🖨 Imprimir / PDF'); imp.type = 'button'; imp.addEventListener('click', function () { window.print(); }); nav.appendChild(imp);
     corpo.appendChild(nav);
     corpo.appendChild(tabelaSlide('sl-seg', ES ? 'Segmentos — receta neta' : 'Segmentos — receita líquida', ES ? 'R$ · mes y acumulado del año, contra el año anterior y el plan' : 'R$ · mês e acumulado do ano, contra o ano anterior e o plano', d, d.receita, d.receita_total, brl));
     corpo.appendChild(tabelaSlide('sl-mt', ES ? 'Cantidades — metros' : 'Quantidades — metros', ES ? 'Metros vendidos (neto de devoluciones)' : 'Metros vendidos (líquido de devoluções)', d, d.metros, d.metros_total, brl));
-    corpo.appendChild(tabelaSlide('sl-kg', ES ? 'Cantidades — kilos' : 'Quantidades — quilos', ES ? 'Kilos vendidos' : 'Quilos vendidos', d, d.quilos, d.quilos_total, brl));
+    var temKg = d.quilos.some(function (l) { return !zero(l); });
+    if (temKg) corpo.appendChild(tabelaSlide('sl-kg', ES ? 'Cantidades — kilos' : 'Quantidades — quilos', ES ? 'Kilos vendidos' : 'Quilos vendidos', d, d.quilos, d.quilos_total, brl));
     corpo.appendChild(tabelaSlide('sl-pm', ES ? 'Precio medio neto' : 'Preço médio líquido', ES ? 'R$ por metro (receta neta ÷ metros)' : 'R$ por metro (receita líquida ÷ metros)', d, d.preco_medio, null, num2));
     corpo.appendChild(tabelaSlide('sl-rep', ES ? 'Representantes' : 'Representantes', ES ? 'Metros de colchón por representante' : 'Metros de colchão por representante', d, d.representantes, d.representantes_total, brl));
     corpo.appendChild(tabelaDois('sl-orto', 'Ortobom', ES ? 'Metros por filial' : 'Metros por filial', d, d.ortobom, d.ortobom_total, d.ortobom_plano, [[String(d.ano_ant), d.mes + ' - YTD'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['Var.', 'vs ' + d.ano_ant]], brl));
