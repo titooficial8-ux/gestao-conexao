@@ -161,7 +161,7 @@ def _rodar(inicio: date, fim: date, tag: str, origem: str) -> None:
         traceback.print_exc()
         ESTADO.update(erro=str(e)[:600], msg='Falhou')
         if origem == 'agenda':
-            _escrever(DIR / 'agenda.json', dict(**_ler_agenda(), tentativa=_agora().isoformat(timespec='seconds')))
+            _escrever(DIR / 'agenda.json', {**_ler_agenda(), 'tentativa': _agora().isoformat(timespec='seconds')})
     finally:
         ESTADO['rodando'] = False
 
