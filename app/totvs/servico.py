@@ -61,6 +61,7 @@ def carregar(tag: str):
 
 
 _cache = {}
+SHARD_VERSAO = 2   # 2 = devolucoes de venda + lista de operacoes + janela por data da fatura (v1 nao tinha devolucoes)
 BASE_DIR = DIR / 'base'          # um arquivo por mes: 150_AAAA-MM.json (Relatorio 150 daquele mes)
 
 
@@ -70,6 +71,28 @@ def _blocos():
 
 def meses_armazenados():
     return [b.stem[4:] for b in _blocos()]
+
+
+def meses_antigos():
+    """Meses guardados por uma versao antiga da busca (ex.: sem devolucoes) -> precisam ser recarregados."""
+    out = []
+    for b in _blocos():
+        try:
+            if (json.loads(b.read_text(encoding='utf-8')).get('versao') or 1) < SHARD_VERSAO:
+                out.append(b.stem[4:])
+        except Exception:  # noqa: BLE001
+            out.append(b.stem[4:])
+    return out
+
+
+def _bloco_atual(ym) -> bool:
+    b = BASE_DIR / f'150_{ym}.json'
+    if not b.exists():
+        return False
+    try:
+        return (json.loads(b.read_text(encoding='utf-8')).get('versao') or 1) >= SHARD_VERSAO
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _chave_blocos():
@@ -259,7 +282,7 @@ def gerar_blocos(inicio: date, fim: date, pular_existentes: bool = False) -> dic
     hoje_ym = _agora().strftime('%Y-%m')
     # A API so filtra pela data de EMISSAO; o Relatorio 150 usa a data da FATURA (entrada de devolucoes emitidas no mes anterior).
     # Por isso busca desde 45 dias antes e separa as notas pelo mes da data da fatura.
-    meses = [(ym, a, b) for ym, a, b in _meses(inicio, fim) if not (pular_existentes and (BASE_DIR / f'150_{ym}.json').exists() and ym < hoje_ym)]
+    meses = [(ym, a, b) for ym, a, b in _meses(inicio, fim) if not (pular_existentes and _bloco_atual(ym) and ym < hoje_ym)]
     if not meses:
         _log('Nada a buscar: todos os meses ja estao carregados.')
         return dict(meses=[], n_itens=0)
@@ -287,7 +310,7 @@ def gerar_blocos(inicio: date, fim: date, pular_existentes: bool = False) -> dic
         cols = list(df150.columns)
         linhas = [[None if (isinstance(v, float) and v != v) or v is pd.NaT else (v.isoformat() if hasattr(v, 'isoformat') else v) for v in r]
                   for r in df150.itertuples(index=False, name=None)]
-        _escrever(BASE_DIR / f'150_{ym}.json', dict(periodo=ym, gerado_em=_agora().isoformat(timespec='seconds'), colunas=cols, linhas=linhas,
+        _escrever(BASE_DIR / f'150_{ym}.json', dict(versao=SHARD_VERSAO, periodo=ym, gerado_em=_agora().isoformat(timespec='seconds'), colunas=cols, linhas=linhas,
                                                     problemas=(diag.problemas if diag else [])))
         feitos.append(ym)
         total_itens += len(linhas)

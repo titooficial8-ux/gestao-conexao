@@ -31,7 +31,7 @@ def _status():
     return dict(
         estado=dict(servico.ESTADO), configurado=servico.configurado(),
         padrao=servico.meta('padrao'), custom=servico.meta('custom'),
-        proxima=servico.proxima_atualizacao(), meses=servico.meses_armazenados(),
+        proxima=servico.proxima_atualizacao(), meses=servico.meses_armazenados(), antigos=servico.meses_antigos(),
     )
 
 

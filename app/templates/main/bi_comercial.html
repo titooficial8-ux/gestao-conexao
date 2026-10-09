@@ -74,6 +74,7 @@
     l1.appendChild(ui.el('span', 'cme-chip', (ES ? 'Actualizado: ' : 'Atualizado: ') + (m ? dhBR(m.gerado_em) : (ES ? 'nunca' : 'ainda não')))); 
     l1.appendChild(ui.el('span', 'cme-meta', (ES ? 'Automática: ' : 'Automática: ') + st.proxima));
     box.appendChild(l1);
+    if (st.antigos && st.antigos.length) box.appendChild(ui.el('div', 'bi-aviso', (ES ? 'Datos de una versión anterior (sin devoluciones) en ' : 'Dados de uma versão antiga (sem devoluções) em ') + st.antigos.length + (ES ? ' mes(es). Haga clic en «Cargar histórico» para rehacer.' : ' mês(es). Clique em «Carregar histórico» para refazer.')));
     if (!st.configurado) box.appendChild(ui.el('div', 'bi-aviso', ES ? 'TOTVS no configurado: complete el archivo .env (ver .env.example).' : 'TOTVS não configurado: preencha o arquivo .env (veja .env.example).'));
     var e = st.estado;
     if (e.erro && !e.rodando) box.appendChild(ui.el('div', 'bi-aviso', (ES ? 'Último error: ' : 'Última falha: ') + e.erro));
