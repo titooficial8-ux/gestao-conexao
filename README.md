@@ -93,15 +93,19 @@ Guatemala mostra as da Guatemala (e as amostras marcadas GT).
 - Adicionar tela de "esqueci minha senha".
 - Colocar o projeto em produção atrás de HTTPS (ex.: Caddy/Nginx) e usar um servidor WSGI (gunicorn/waitress) em vez do `flask run`.
 
-## BI COMERCIAL (faturamento TOTVS em tempo real)
+## BI COMERCIAL (faturamento TOTVS)
 
-A aba **BI COMERCIAL** (Comercial) puxa as notas fiscais direto da API do TOTVS Moda
-(lógica do script `Faturamento_TOTVS`, em `app/totvs/api.py`) e monta o dashboard.
+A aba **BI COMERCIAL** tem duas visões:
 
-- **Credenciais**: ficam só no arquivo `.env` do PC (nunca no GitHub). Copie as chaves de `.env.example`
-  (`TOTVS_CLIENT_ID`, `TOTVS_CLIENT_SECRET`, `TOTVS_USERNAME`, `TOTVS_PASSWORD`...).
-- **Atualização diária às 08:00**: o servidor (`python run.py`) confere a cada 30 s; se já passou das 08:00 e hoje ainda
-  não atualizou (inclusive se o PC estava desligado de manhã), ele busca de 01/01 do ano até hoje. Horário: `BI_HORA_ATUALIZACAO`.
-- **Botão "Gerar relatório"**: escolhe data inicial/final, busca no TOTVS e gera o Relatório 150 (Excel + CSV padrão TOTVS)
-  e o Excel completo, que ficam disponíveis para download na própria tela.
-- Dados gravados em `instance/totvs/` (não vai para o Git).
+- **Slide mensal**: réplica da aba `2 - SLIDE_LIQ` da planilha de Receitas (segmentos em R$, metros, quilos, preço médio,
+  representantes, Ortobom por filial e mercado internacional; mês x ano anterior x plano, mês e acumulado), para qualquer mês.
+  Tudo é calculado das notas fiscais do TOTVS (Relatório 150, `app/totvs/base.py` replica as colunas calculadas da planilha)
+  e do **plano** importado da própria planilha (`python importar_bi_comercial.py "RECEITAS_FOL.xlsx"` → `app/seed_data/bi_comercial/`).
+- **Painel TOTVS (detalhe)**: KPIs/gráficos por cliente, representante, segmento, UF, artigo e últimas notas.
+
+Dados: guardados por mês em `instance/totvs/base/` (não vai para o Git). Botões na tela:
+**Carregar histórico** (carga inicial: janeiro do ano passado até hoje, mês a mês, pode parar com *Parar busca*),
+**Atualizar agora** (mês anterior + atual) e **Gerar relatório** (período livre → Relatório 150 em Excel/CSV).
+Com o servidor ligado e o histórico carregado, atualiza sozinho a cada 30 min (`BI_INTERVALO_MIN`).
+Credenciais da API: só no `.env` (veja `.env.example`), nunca no GitHub.
+Ajustes manuais da planilha ficam em `app/seed_data/bi_comercial/ajustes.json`.

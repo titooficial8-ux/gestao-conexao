@@ -48,7 +48,12 @@ def caminho_dados(tag: str) -> Path:
 
 
 def carregar(tag: str):
-    """(meta, colunas, linhas) da fonte, ou None se ainda nao foi gerada."""
+    """{meta, colunas, linhas} da fonte, ou None se ainda nao foi gerada.
+    'padrao' = ano corrente, montado a partir do armazem mensal (se houver); 'custom' = ultimo periodo gerado."""
+    if tag == 'padrao':
+        d = _padrao_do_armazem()
+        if d:
+            return d
     c = caminho_dados(tag)
     if not c.exists():
         return None
@@ -56,6 +61,51 @@ def carregar(tag: str):
 
 
 _cache = {}
+BASE_DIR = DIR / 'base'          # um arquivo por mes: 150_AAAA-MM.json (Relatorio 150 daquele mes)
+
+
+def _blocos():
+    return sorted(BASE_DIR.glob('150_????-??.json')) if BASE_DIR.exists() else []
+
+
+def meses_armazenados():
+    return [b.stem[4:] for b in _blocos()]
+
+
+def _chave_blocos():
+    return tuple((b.name, b.stat().st_mtime_ns) for b in _blocos())
+
+
+_cache_arm = {}
+
+
+def linhas_armazem():
+    """(colunas, linhas) de TODOS os meses guardados (cache enquanto os arquivos nao mudam)."""
+    k = _chave_blocos()
+    if _cache_arm.get('k') != k:
+        cols, linhas, gerado = None, [], ''
+        for b in _blocos():
+            d = json.loads(b.read_text(encoding='utf-8'))
+            cols = cols or d['colunas']
+            linhas.extend(d['linhas'])
+            gerado = max(gerado, d.get('gerado_em', ''))
+        _cache_arm.update(k=k, cols=cols, linhas=linhas, gerado=gerado)
+    return _cache_arm.get('cols'), _cache_arm.get('linhas') or [], _cache_arm.get('gerado', '')
+
+
+def _padrao_do_armazem():
+    cols, linhas, gerado = linhas_armazem()
+    if not linhas:
+        return None
+    hoje = _agora().date()
+    i = cols.index('DATA')
+    ano = [r for r in linhas if str(r[i])[:4] == str(hoje.year)]
+    if not ano:
+        return None
+    ultima = max(str(r[i])[:10] for r in ano)
+    m = dict(tag='padrao', inicio=f'{hoje.year}-01-01', fim=ultima, gerado_em=gerado, n_itens=len(ano), n_notas=len({(r[0], r[cols.index('NFE')]) for r in ano}),
+             n_validas=len({(r[0], r[cols.index('NFE')]) for r in ano}), total_nf=0.0, arquivos={}, problemas=[], origem='armazem')
+    return dict(meta=m, colunas=cols, linhas=ano)
 
 
 def _carregar_cache(caminho, mtime):
@@ -151,13 +201,81 @@ def gerar_dados(inicio: date, fim: date, tag: str) -> dict:
     return m
 
 
+_empresas = []
+
+
+def _empresas_do_usuario(api, cli):
+    if _empresas:
+        return _empresas
+    do_token = api.empresas_do_token(api.claims_do_token(cli.token or ''))
+    emp = api.BRANCHES or do_token
+    if not emp:
+        _log('Descobrindo as empresas cadastradas...')
+        emp = api.descobrir_empresas(cli)
+    if not emp:
+        raise RuntimeError('Nao consegui descobrir as empresas. Informe TOTVS_BRANCHES no arquivo .env (ex.: TOTVS_BRANCHES=1,2).')
+    _empresas[:] = emp
+    return _empresas
+
+
+def _meses(inicio: date, fim: date):
+    a, m = inicio.year, inicio.month
+    while (a, m) <= (fim.year, fim.month):
+        ini = date(a, m, 1)
+        prox = date(a + (m == 12), 1 if m == 12 else m + 1, 1)
+        yield f'{a}-{m:02d}', max(ini, inicio), min(prox - timedelta(days=1), fim)
+        a, m = prox.year, prox.month
+
+
+def gerar_blocos(inicio: date, fim: date, pular_existentes: bool = False) -> dict:
+    """Busca no TOTVS mes a mes e grava um bloco (Relatorio 150) por mes em instance/totvs/base."""
+    from app.totvs import api
+    import pandas as pd
+
+    _log('Autenticando no TOTVS...')
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    empresas = _empresas_do_usuario(api, cli)
+    hoje_ym = _agora().strftime('%Y-%m')
+    feitos, total_itens = [], 0
+    for ym, ini_m, fim_m in _meses(inicio, fim):
+        arq = BASE_DIR / f'150_{ym}.json'
+        if pular_existentes and arq.exists() and ym < hoje_ym:
+            _log(f'{ym}: ja carregado, pulando')
+            continue
+        _log(f'{ym}: buscando notas fiscais...')
+        try:
+            notas = api.buscar_notas(cli, ini_m, fim_m, empresas)
+        except api.EmpresaNaoPermitida:
+            notas = []
+            for emp in empresas:
+                try:
+                    notas.extend(api.buscar_notas(cli, ini_m, fim_m, [emp]))
+                except api.EmpresaNaoPermitida:
+                    print(f'empresa {emp} nao liberada - pulando')
+        _log(f'{ym}: {len(notas)} notas; montando o Relatorio 150...')
+        df150, diag = api.montar_relatorio150(cli, notas, DIR / 'diagnostico_base')
+        cols = list(df150.columns)
+        linhas = [[None if (isinstance(v, float) and v != v) or v is pd.NaT else (v.isoformat() if hasattr(v, 'isoformat') else v) for v in r]
+                  for r in df150.itertuples(index=False, name=None)]
+        _escrever(arq, dict(periodo=ym, gerado_em=_agora().isoformat(timespec='seconds'), colunas=cols, linhas=linhas,
+                            problemas=(diag.problemas if diag else [])))
+        feitos.append(ym)
+        total_itens += len(linhas)
+    return dict(meses=feitos, n_itens=total_itens)
+
+
 def _rodar(inicio: date, fim: date, tag: str, origem: str) -> None:
     from app.totvs import api
     try:
-        m = gerar_dados(inicio, fim, tag)
-        ESTADO.update(erro=None, msg=f'Concluido: {m["n_itens"]} itens em {m["n_validas"]} notas validas.')
+        if tag == 'base':
+            m = gerar_blocos(inicio, fim, pular_existentes=(origem == 'historico'))
+            ESTADO.update(erro=None, msg=f'Concluido: {len(m["meses"])} mes(es) atualizado(s), {m["n_itens"]} itens.')
+        else:
+            m = gerar_dados(inicio, fim, tag)
+            ESTADO.update(erro=None, msg=f'Concluido: {m["n_itens"]} itens em {m["n_validas"]} notas validas.')
         if origem == 'agenda':
-            _escrever(DIR / 'agenda.json', dict(ultima_ok=_agora().date().isoformat(), tentativa=_agora().isoformat(timespec='seconds')))
+            _escrever(DIR / 'agenda.json', dict(ultima_ok=_agora().isoformat(timespec='seconds'), tentativa=_agora().isoformat(timespec='seconds')))
     except api.Cancelado:
         ESTADO.update(erro=None, msg='Busca cancelada.')
     except Exception as e:  # noqa: BLE001
@@ -193,13 +311,11 @@ def cancelar() -> bool:
 
 
 # ------------------------------------------------------------------ agenda 08:00
-def hora_agendada() -> tuple[int, int]:
-    txt = os.getenv('BI_HORA_ATUALIZACAO', HORA_PADRAO)
+def intervalo_min() -> int:
     try:
-        h, m = txt.split(':')
-        return int(h), int(m)
+        return max(5, int(os.getenv('BI_INTERVALO_MIN', '30')))
     except ValueError:
-        return 8, 0
+        return 30
 
 
 def _ler_agenda() -> dict:
@@ -209,51 +325,38 @@ def _ler_agenda() -> dict:
         return {}
 
 
-def _recupera_atrasada() -> bool:
-    return os.getenv('BI_RECUPERAR_ATRASADA', '0') == '1'
-
-
 def proxima_atualizacao() -> str:
-    h, m = hora_agendada()
-    agora = _agora()
-    alvo = agora.replace(hour=h, minute=m, second=0, microsecond=0)
-    if agora >= alvo + timedelta(minutes=JANELA_MIN) and not _recupera_atrasada() or _ler_agenda().get('ultima_ok') == agora.date().isoformat() and agora >= alvo:
-        alvo += timedelta(days=1)
-    return alvo.strftime('%d/%m/%Y %H:%M')
-
-
-JANELA_MIN = 15  # a atualizacao automatica so dispara ate 15 min depois do horario (servidor ligado)
+    """Texto para a tela: a atualizacao automatica roda a cada N minutos (so com o servidor ligado e historico carregado)."""
+    if not meses_armazenados():
+        return 'automatica desligada (carregue o historico primeiro)'
+    ag = _ler_agenda().get('tentativa')
+    try:
+        prox = datetime.fromisoformat(ag) + timedelta(minutes=intervalo_min()) if ag else _agora()
+    except ValueError:
+        prox = _agora()
+    return f'a cada {intervalo_min()} min (proxima ~{max(prox, _agora()):%H:%M})'
 
 
 def _tick() -> None:
-    if not configurado() or ESTADO['rodando']:
+    if not configurado() or ESTADO['rodando'] or not meses_armazenados():
         return
-    h, m = hora_agendada()
-    agora = _agora()
-    alvo = agora.replace(hour=h, minute=m, second=0, microsecond=0)
-    if agora < alvo:
-        return
-    if not _recupera_atrasada() and agora > alvo + timedelta(minutes=JANELA_MIN):
-        return  # servidor ligado depois da janela: nao busca sozinho (use o botao)
-    ag = _ler_agenda()
-    if ag.get('ultima_ok') == agora.date().isoformat():
-        return
-    ult = ag.get('tentativa')
-    if ult and ESTADO.get('erro'):  # depois de uma falha espera 30 min antes de tentar de novo
+    ag = _ler_agenda().get('tentativa')
+    if ag:
         try:
-            if (agora - datetime.fromisoformat(ult)).total_seconds() < 1800:
+            if (_agora() - datetime.fromisoformat(ag)).total_seconds() < intervalo_min() * 60:
                 return
         except ValueError:
             pass
-    iniciar(date(agora.year, 1, 1), agora.date(), 'padrao', 'agenda')
+    hoje = _agora().date()
+    ini = (hoje.replace(day=1) - timedelta(days=1)).replace(day=1)       # mes anterior (pega notas lancadas com atraso)
+    iniciar(ini, hoje, 'base', 'agenda')
 
 
 def iniciar_agendador() -> None:
-    """Thread leve que confere a cada 30s se ja passou das 08:00 e hoje ainda nao atualizou
-    (se o servidor ficou desligado de manha, atualiza assim que subir)."""
+    """Thread leve: a cada 30 s confere se ja passou o intervalo (30 min) desde a ultima atualizacao automatica."""
     def loop():
         import time
-        time.sleep(15)
+        time.sleep(20)
         while True:
             try:
                 _tick()

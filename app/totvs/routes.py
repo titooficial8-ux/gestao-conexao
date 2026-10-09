@@ -1,5 +1,6 @@
 """BI COMERCIAL: dados do faturamento TOTVS (dashboard, geracao sob demanda e downloads)."""
-from datetime import date
+from datetime import date, timedelta
+from functools import lru_cache
 
 from flask import Blueprint, abort, jsonify, request, send_from_directory
 from flask_login import current_user, login_required
@@ -7,7 +8,7 @@ from flask_login import current_user, login_required
 from app.comercial_me.routes import idioma_atual
 from app.models import Tab
 
-from . import painel, servico
+from . import base, painel, servico, slide
 
 bi_bp = Blueprint('bi_comercial', __name__, url_prefix='/bi-comercial')
 SLUG = 'dashboard-comercial'
@@ -30,7 +31,7 @@ def _status():
     return dict(
         estado=dict(servico.ESTADO), configurado=servico.configurado(),
         padrao=servico.meta('padrao'), custom=servico.meta('custom'),
-        proxima=servico.proxima_atualizacao(), hora=f'{servico.hora_agendada()[0]:02d}:{servico.hora_agendada()[1]:02d}',
+        proxima=servico.proxima_atualizacao(), meses=servico.meses_armazenados(),
     )
 
 
@@ -67,12 +68,20 @@ def gerar():
     if not servico.configurado():
         return _json(dict(ok=False, erro='Credenciais do TOTVS nao configuradas no arquivo .env (veja .env.example).')), 400
     ini, fim = _data(request.form.get('inicio')), _data(request.form.get('fim'))
+    if request.form.get('modo') in ('recente', 'historico'):
+        ini = fim = date.today()
     if not ini or not fim or fim < ini:
         return _json(dict(ok=False, erro='Datas invalidas.')), 400
     if fim > date.today():
         fim = date.today()
-    tag = 'padrao' if request.form.get('fonte') == 'padrao' else 'custom'
-    iniciou = servico.iniciar(ini, fim, tag, 'botao')
+    modo = request.form.get('modo', 'custom')
+    if modo == 'recente':      # "Atualizar agora": mes anterior + mes atual, direto no armazem
+        ini = (date.today().replace(day=1) - timedelta(days=1)).replace(day=1)
+        iniciou = servico.iniciar(ini, date.today(), 'base', 'botao')
+    elif modo == 'historico':  # carga inicial: de janeiro do ano passado ate hoje (pula meses ja carregados)
+        iniciou = servico.iniciar(date(date.today().year - 1, 1, 1), date.today(), 'base', 'historico')
+    else:
+        iniciou = servico.iniciar(ini, fim, 'custom', 'botao')
     return _json(dict(ok=iniciou, erro=None if iniciou else 'Ja existe uma geracao em andamento.'))
 
 
@@ -92,3 +101,25 @@ def download(tag, tipo):
 def cancelar():
     _autorizar()
     return _json(dict(ok=servico.cancelar()))
+
+
+@lru_cache(maxsize=1)
+def _derivados(chave):
+    cols, linhas, _ = servico.linhas_armazem()
+    return [base.derivar(dict(zip(cols, r))) for r in linhas] if cols else []
+
+
+@bi_bp.route('/slide')
+@login_required
+def slide_mensal():
+    _autorizar()
+    regs = _derivados(servico._chave_blocos())
+    if not regs:
+        return _json(dict(vazio=True))
+    anos = sorted({x['ano'] for x in regs if x['ano']})
+    ano = request.args.get('ano', type=int) or anos[-1]
+    meses = sorted({x['mes'] for x in regs if x['ano'] == ano and x['mes']})
+    mes = request.args.get('mes', type=int) or (meses[-1] if meses else 1)
+    out = slide.montar(regs, mes, ano)
+    out.update(vazio=False, anos=anos, meses=meses, gerado_em=servico.linhas_armazem()[2], plano_origem=base._ler('origem'))
+    return _json(out)

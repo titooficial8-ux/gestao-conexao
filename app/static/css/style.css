@@ -2600,3 +2600,19 @@ textarea.ticket-input { resize: vertical; }
 .bi-progresso { margin-top: 12px; padding: 10px 14px; background: var(--blue-50); border-radius: 8px; font-weight: 600; color: var(--blue-900); }
 .bi-downloads { margin-left: auto; display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .bi .cme-grupos { align-items: center; }
+/* Slide mensal (BI Comercial) */
+.sl-card { margin-bottom: 16px; }
+.sl-card h3 { margin: 0 0 10px 0; font-size: 15px; color: var(--blue-900); letter-spacing: .02em; }
+.sl-tab th.sl-grupo { text-align: center; background: var(--blue-700); color: #fff; font-size: 12px; letter-spacing: .05em; }
+.sl-tab td, .sl-tab th { padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+.sl-tab .sl-rot { font-weight: 700; color: var(--blue-900); max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.sl-tab td.sl-real { font-weight: 800; }
+.sl-verde { background: #ccffcc; } .sl-amar { background: #ffffcc; }
+.sl-verm { background: #ff0000; color: #fff; font-weight: 700; } .sl-pos { color: #11703c; font-weight: 700; }
+.sl-total td { font-weight: 800; background: var(--blue-50); border-top: 2px solid var(--blue-700); }
+.sl-plano td { font-style: italic; background: #f5f6fa; }
+.sl-chk { flex-direction: row; align-items: center; gap: 4px; text-transform: none; letter-spacing: 0; font-weight: 600; }
+.sl-gerado { margin-left: auto; align-self: center; }
+.sl-obs { margin: 14px 4px 28px; max-width: 900px; }
+.sl-total td.sl-verm { background: #ff0000; color: #fff; }
+.sl-total td.sl-verde { background: #ccffcc; } .sl-total td.sl-amar { background: #ffffcc; }
