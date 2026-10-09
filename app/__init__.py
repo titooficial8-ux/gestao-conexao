@@ -38,12 +38,14 @@ def create_app():
     from app.admin.routes import admin_bp
     from app.chamados.routes import chamados_bp
     from app.comercial_me.routes import comercial_me_bp
+    from app.totvs.routes import bi_bp
     app.register_blueprint(gateway_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(chamados_bp)
     app.register_blueprint(comercial_me_bp)
+    app.register_blueprint(bi_bp)
 
     app.jinja_env.globals['tab_url'] = tab_url
 
@@ -110,5 +112,11 @@ def create_app():
         # contas iniciais por setor (idempotente)
         from app.usuarios_padrao import criar_usuarios_padrao
         criar_usuarios_padrao()
+
+    # atualizacao diaria (08:00) do faturamento TOTVS. O 'python run.py' (debug) abre 2 processos: so o filho
+    # do reloader (WERKZEUG_RUN_MAIN) agenda. Em outro servidor, defina BI_AGENDADOR=1 no .env.
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or os.environ.get('BI_AGENDADOR') == '1':
+        from app.totvs.servico import iniciar_agendador
+        iniciar_agendador()
 
     return app

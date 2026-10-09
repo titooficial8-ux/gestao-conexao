@@ -2589,3 +2589,14 @@ textarea.ticket-input { resize: vertical; }
 .cme-cambio input { width: 62px; border: 1px solid var(--gray-200); border-radius: 6px; padding: 3px 6px; font-weight: 700; font-size: 13px; }
 .cme-kpi-alt { margin-top: 2px; font-size: 17px; font-weight: 800; color: #11703c; font-variant-numeric: tabular-nums; }
 .cme-celula-alt { font-size: 11px; font-weight: 600; color: #11703c; }
+/* BI Comercial */
+.bi-status { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; max-width: 520px; }
+.bi-st-linha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.bi-aviso { font-size: 12.5px; color: #8a5a0c; background: #fdefd2; padding: 4px 10px; border-radius: 8px; font-weight: 600; }
+.bi-gerar { margin-bottom: 16px; }
+.bi-gerar-titulo { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.bi-gerar-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.bi-btn { padding: 9px 18px; font-weight: 700; }
+.bi-progresso { margin-top: 12px; padding: 10px 14px; background: var(--blue-50); border-radius: 8px; font-weight: 600; color: var(--blue-900); }
+.bi-downloads { margin-left: auto; display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.bi .cme-grupos { align-items: center; }

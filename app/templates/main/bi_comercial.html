@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+{% set es = lang == 'es' %}
+<div class="cme bi">
+  <div class="chamados-hero cme-hero">
+    <div>
+      <h1>BI COMERCIAL</h1>
+      <p>{{ 'Facturación TOTVS — datos reales de las notas fiscales' if es else 'Faturamento TOTVS — dados reais das notas fiscais' }}</p>
+    </div>
+    <div class="bi-status" id="biStatus"></div>
+  </div>
+
+  <div class="table-card bi-gerar">
+    <div class="bi-gerar-titulo">
+      <strong>{{ 'Generar informe bajo demanda' if es else 'Gerar relatório sob demanda' }}</strong>
+      <span class="cme-meta">{{ 'Busca en el TOTVS el período elegido y arma el informe (Relatório 150 + Excel).' if es else 'Busca no TOTVS o período escolhido e monta o relatório (Relatório 150 + Excel).' }}</span>
+    </div>
+    <div class="bi-gerar-form">
+      <label class="cme-filtro"><span>{{ 'Desde' if es else 'Data inicial' }}</span><input type="date" id="biGIni" class="ticket-input"></label>
+      <label class="cme-filtro"><span>{{ 'Hasta' if es else 'Data final' }}</span><input type="date" id="biGFim" class="ticket-input"></label>
+      <button type="button" class="btn-primary bi-btn" id="biGerar">{{ 'Generar informe' if es else 'Gerar relatório' }}</button>
+      <button type="button" class="btn-small ticket-btn-outline" id="biAtualizar">{{ 'Actualizar año actual' if es else 'Atualizar ano atual' }}</button>
+    </div>
+    <div class="bi-progresso" id="biProgresso" hidden></div>
+  </div>
+
+  <div class="cme-grupos" id="biFontes">
+    <button type="button" class="cme-grupo active" data-fonte="padrao">{{ 'Año actual (diario 08h)' if es else 'Ano atual (diário 08h)' }}</button>
+    <button type="button" class="cme-grupo" data-fonte="custom">{{ 'Período generado' if es else 'Período gerado' }}</button>
+    <span class="bi-downloads" id="biDownloads"></span>
+  </div>
+
+  <div class="cme-filtros" id="biFiltros"></div>
+  <div id="cmeCorpo"></div>
+</div>
+
+<div class="cme-modal" id="cmeModal" hidden><div class="cme-modal-box"><button type="button" class="cme-modal-fechar" id="cmeModalX" aria-label="×">&times;</button><h3 id="cmeModalTit"></h3><div id="cmeModalCorpo"></div></div></div>
+<script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
+<script src="{{ url_for('static', filename='js/painel_widgets.js') }}"></script>
+<script>
+(function () {
+  var ES = {{ es|tojson }};
+  var LOCALE = ES ? 'es-GT' : 'pt-BR';
+  var URL_DADOS = {{ url_for('bi_comercial.dados')|tojson }}, URL_STATUS = {{ url_for('bi_comercial.status')|tojson }}, URL_GERAR = {{ url_for('bi_comercial.gerar')|tojson }};
+  var URL_DL = {{ url_for('bi_comercial.download', tag='__T__', tipo='__K__')|tojson }};
+  var TXT = { dias: ES ? 'días' : 'dias', ver_todas: ES ? 'Ver todas' : 'Ver todas', ver_menos: ES ? 'Ver menos' : 'Ver menos', nenhum: ES ? 'Sin datos' : 'Sem dados', sem_dados: ES ? 'Sin datos para este filtro.' : 'Sem dados para este filtro.' };
+  var $ = function (id) { return document.getElementById(id); };
+  var ui = criarPainelUI({ locale: LOCALE, txt: TXT, aoFiltrar: function (id, v) { filtros[id] = v; carregar(); } });
+  var fonte = 'padrao', filtros = {}, st = null, timer = null;
+
+  function dataBR(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : ''; }
+  function dhBR(iso) { return iso ? dataBR(iso) + ' ' + iso.slice(11, 16) : ''; }
+  function hoje() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  $('biGIni').value = hoje().slice(0, 8) + '01'; $('biGFim').value = hoje();
+
+  function pintarStatus() {
+    if (!st) return;
+    var m = st.padrao, box = $('biStatus'); box.textContent = '';
+    var l1 = ui.el('div', 'bi-st-linha');
+    l1.appendChild(ui.el('span', 'cme-chip', (ES ? 'Actualizado: ' : 'Atualizado: ') + (m ? dhBR(m.gerado_em) : (ES ? 'nunca' : 'ainda não')))); 
+    l1.appendChild(ui.el('span', 'cme-meta', (ES ? 'Próxima: ' : 'Próxima: ') + st.proxima + ' (' + st.hora + ')'));
+    box.appendChild(l1);
+    if (!st.configurado) box.appendChild(ui.el('div', 'bi-aviso', ES ? 'TOTVS no configurado: complete el archivo .env (ver .env.example).' : 'TOTVS não configurado: preencha o arquivo .env (veja .env.example).'));
+    var e = st.estado;
+    if (e.erro && !e.rodando) box.appendChild(ui.el('div', 'bi-aviso', (ES ? 'Último error: ' : 'Última falha: ') + e.erro));
+    var pr = $('biProgresso');
+    pr.hidden = !e.rodando;
+    if (e.rodando) pr.textContent = '⏳ ' + (e.msg || '') + ' (' + dataBR(e.inicio) + ' → ' + dataBR(e.fim) + ')';
+    $('biGerar').disabled = $('biAtualizar').disabled = e.rodando || !st.configurado;
+    var dl = $('biDownloads'); dl.textContent = '';
+    var mm = fonte === 'custom' ? st.custom : st.padrao;
+    if (mm && mm.arquivos) [['xlsx150', 'Relatório 150 (Excel)'], ['csv150', 'CSV TOTVS'], ['xlsx', ES ? 'Excel completo' : 'Excel completo']].forEach(function (a) {
+      if (!mm.arquivos[a[0]]) return; var l = ui.el('a', 'btn-small ticket-btn-outline', '⬇ ' + a[1]); l.href = URL_DL.replace('__T__', fonte).replace('__K__', a[0]); dl.appendChild(l);
+    });
+  }
+
+  function consultarStatus(depois) {
+    fetch(URL_STATUS, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
+      var rodava = st && st.estado.rodando; st = s; pintarStatus();
+      if (s.estado.rodando) { clearTimeout(timer); timer = setTimeout(function () { consultarStatus(); }, 2500); }
+      else if (rodava) { if (s.estado.tag === 'custom') mudarFonte('custom'); else carregar(); }
+      if (depois) depois();
+    });
+  }
+
+  function mudarFonte(f) {
+    fonte = f; filtros = {};
+    Array.prototype.forEach.call(document.querySelectorAll('#biFontes [data-fonte]'), function (b) { b.classList.toggle('active', b.dataset.fonte === f); });
+    pintarStatus(); carregar();
+  }
+
+  function desenharFiltros(p) {
+    var box = $('biFiltros'); box.textContent = '';
+    if (!p.periodo) return;
+    [['data_ini', ES ? 'Desde' : 'De', p.periodo.inicio], ['data_fim', ES ? 'Hasta' : 'Até', p.periodo.fim]].forEach(function (d) {
+      var lab = ui.el('label', 'cme-filtro'); lab.appendChild(ui.el('span', null, d[1]));
+      var i = ui.el('input', 'ticket-input'); i.type = 'date'; i.value = d[2]; i.min = p.periodo.min; i.max = p.periodo.max;
+      i.addEventListener('change', function () { filtros[d[0]] = i.value; carregar(); }); lab.appendChild(i); box.appendChild(lab);
+    });
+    (p.filtros || []).forEach(function (f) {
+      var lab = ui.el('label', 'cme-filtro'); lab.appendChild(ui.el('span', null, f.rotulo));
+      var sel = ui.el('select', 'ticket-input');
+      f.opcoes.forEach(function (o) { var op = ui.el('option', null, o.t); op.value = o.v; if (o.v === f.valor) op.selected = true; sel.appendChild(op); });
+      sel.addEventListener('change', function () { filtros[f.id] = sel.value; carregar(); }); lab.appendChild(sel); box.appendChild(lab);
+    });
+    ui.setFiltros(p.filtros);
+  }
+
+  function carregar() {
+    var qs = ['fonte=' + fonte].concat(Object.keys(filtros).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(filtros[k]); })).join('&');
+    var corpo = $('cmeCorpo'); corpo.classList.add('cme-carregando');
+    fetch(URL_DADOS + '?' + qs, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (p) {
+      ui.limpar(); corpo.textContent = ''; corpo.classList.remove('cme-carregando');
+      if (p.vazio) {
+        $('biFiltros').textContent = '';
+        corpo.appendChild(ui.el('div', 'table-card', ES ? 'Todavía no hay datos en esta fuente. Use "Generar informe" o "Actualizar año actual".' : 'Ainda não há dados nesta fonte. Use "Gerar relatório" ou "Atualizar ano atual".'));
+        return;
+      }
+      desenharFiltros(p);
+      var kp = ui.el('div', 'cme-kpigrid'); p.kpis.forEach(function (k) { kp.appendChild(ui.cartaoKpi(k)); }); corpo.appendChild(kp);
+      var gr = ui.el('div', 'cme-graficos'); p.graficos.forEach(function (g) { gr.appendChild(ui.cartaoGrafico(g)); }); corpo.appendChild(gr);
+      p.tabelas.forEach(function (t) { corpo.appendChild(ui.cartaoTabela(t)); });
+    }).catch(function () { corpo.classList.remove('cme-carregando'); corpo.textContent = ES ? 'Error al cargar.' : 'Erro ao carregar.'; });
+  }
+
+  function gerar(ini, fim, f) {
+    var fd = new FormData(); fd.append('inicio', ini); fd.append('fim', fim); fd.append('fonte', f || 'custom');
+    fetch(URL_GERAR, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) { alert(j.erro || 'Erro'); return; } consultarStatus();
+    });
+  }
+  $('biGerar').addEventListener('click', function () { gerar($('biGIni').value, $('biGFim').value); });
+  $('biAtualizar').addEventListener('click', function () {
+    gerar(hoje().slice(0, 4) + '-01-01', hoje(), 'padrao');
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#biFontes [data-fonte]'), function (b) { b.addEventListener('click', function () { mudarFonte(b.dataset.fonte); }); });
+
+  consultarStatus(function () { carregar(); });
+})();
+</script>
+{% endblock %}

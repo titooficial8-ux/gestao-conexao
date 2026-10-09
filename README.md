@@ -92,3 +92,16 @@ Guatemala mostra as da Guatemala (e as amostras marcadas GT).
 - Implementar de fato o módulo de Chamados (abrir/acompanhar chamados, indicadores).
 - Adicionar tela de "esqueci minha senha".
 - Colocar o projeto em produção atrás de HTTPS (ex.: Caddy/Nginx) e usar um servidor WSGI (gunicorn/waitress) em vez do `flask run`.
+
+## BI COMERCIAL (faturamento TOTVS em tempo real)
+
+A aba **BI COMERCIAL** (Comercial) puxa as notas fiscais direto da API do TOTVS Moda
+(lógica do script `Faturamento_TOTVS`, em `app/totvs/api.py`) e monta o dashboard.
+
+- **Credenciais**: ficam só no arquivo `.env` do PC (nunca no GitHub). Copie as chaves de `.env.example`
+  (`TOTVS_CLIENT_ID`, `TOTVS_CLIENT_SECRET`, `TOTVS_USERNAME`, `TOTVS_PASSWORD`...).
+- **Atualização diária às 08:00**: o servidor (`python run.py`) confere a cada 30 s; se já passou das 08:00 e hoje ainda
+  não atualizou (inclusive se o PC estava desligado de manhã), ele busca de 01/01 do ano até hoje. Horário: `BI_HORA_ATUALIZACAO`.
+- **Botão "Gerar relatório"**: escolhe data inicial/final, busca no TOTVS e gera o Relatório 150 (Excel + CSV padrão TOTVS)
+  e o Excel completo, que ficam disponíveis para download na própria tela.
+- Dados gravados em `instance/totvs/` (não vai para o Git).

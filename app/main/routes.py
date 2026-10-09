@@ -1159,7 +1159,7 @@ def view_tab(slug):
         return redirect(url_for('admin.users'))
 
     if slug == 'dashboard-comercial':
-        return render_template('main/dashboard_comercial.html', tab=tab, **DASHBOARD_COMERCIAL_MODELO)
+        return render_template('main/bi_comercial.html', tab=tab)
 
     if slug == 'dashboard-estoque':
         return render_template('main/dashboard_estoque.html', tab=tab, **DASHBOARD_ESTOQUE_MODELO)
