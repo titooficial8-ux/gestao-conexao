@@ -374,27 +374,37 @@
     function pluginValores(g) {
       return { id: 'valores', afterDatasetsDraw: function (chart) {
         var ctx = chart.ctx, tipo = chart.config.type, hb = chart.options.indexAxis === 'y';
-        var nSeries = chart.data.datasets.length, nPts = chart.data.labels.length;
-        if (tipo !== 'doughnut' && nSeries * nPts > 18) return;
-        ctx.save(); ctx.font = '700 11.5px sans-serif'; ctx.textBaseline = 'middle';
-        var dark = getComputedStyle(document.body).backgroundColor, cor = '#10263F';
+        var nSeries = chart.data.datasets.length, nPts = chart.data.labels.length, total = nSeries * nPts;
+        var empilhado = !!(chart.options.scales && chart.options.scales.x && chart.options.scales.x.stacked && !hb);
+        var denso = tipo !== 'doughnut' && total > 18;
+        ctx.save(); ctx.textBaseline = 'middle';
         chart.data.datasets.forEach(function (ds, di) {
           var meta = chart.getDatasetMeta(di); if (meta.hidden) return;
+          var maxI = -1, maxV = -Infinity;
+          if (tipo === 'line' && denso) ds.data.forEach(function (v, i) { if (v > maxV) { maxV = v; maxI = i; } });
           meta.data.forEach(function (el, i) {
             var v = ds.data[i]; if (v === null || v === undefined || v === 0) return;
             var txt = fmt(v, g.fmt, true);
             if (tipo === 'doughnut') {
               var tot = ds.data.reduce(function (a, b) { return a + (b || 0); }, 0);
               if (!tot || v / tot < 0.07) return;
-              var c = el.tooltipPosition(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-              ctx.fillText(Math.round(v / tot * 100) + '%', c.x, c.y);
-              return;
+              var c = el.tooltipPosition(); ctx.font = '700 11.5px sans-serif'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+              ctx.fillText(Math.round(v / tot * 100) + '%', c.x, c.y); return;
             }
-            ctx.fillStyle = cor;
-            var pos = el.tooltipPosition();
-            if (hb) { ctx.textAlign = 'left'; ctx.fillText(txt, (v >= 0 ? el.x : el.base) + (v >= 0 ? 6 : -6 - ctx.measureText(txt).width), el.y); }
-            else if (tipo === 'line') { ctx.textAlign = 'center'; ctx.fillText(txt, pos.x, pos.y - 12); }
-            else { ctx.textAlign = 'center'; ctx.fillText(txt, el.x, (v >= 0 ? el.y - 10 : el.y + 12)); }
+            if (empilhado) {
+              var h = Math.abs(el.base - el.y); if (h < 15) return;
+              ctx.font = '700 10.5px sans-serif'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+              ctx.fillText(txt, el.x, (el.y + el.base) / 2); return;
+            }
+            if (tipo === 'line') {
+              if (denso && i !== maxI && i !== nPts - 1) return;
+              var pos = el.tooltipPosition(); ctx.font = '700 11px sans-serif'; ctx.fillStyle = '#10263F'; ctx.textAlign = 'center';
+              ctx.fillText(txt, Math.min(pos.x, chart.chartArea.right - 18), pos.y - 12); return;
+            }
+            ctx.fillStyle = '#10263F';
+            if (hb) { ctx.font = '700 11.5px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(txt, (v >= 0 ? el.x : el.base) + (v >= 0 ? 6 : -6 - ctx.measureText(txt).width), el.y); }
+            else if (denso) { ctx.font = '700 10.5px sans-serif'; ctx.textAlign = 'left'; ctx.save(); ctx.translate(el.x, el.y - 6); ctx.rotate(-Math.PI / 2); ctx.fillText(txt, 0, 0); ctx.restore(); }
+            else { ctx.font = '700 11.5px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(txt, el.x, (v >= 0 ? el.y - 10 : el.y + 12)); }
           });
         });
         ctx.restore();
@@ -421,7 +431,7 @@
       });
       var op = {
         responsive: true, maintainAspectRatio: false,
-        layout: { padding: { top: 22, right: hbar ? 78 : 12 } },
+        layout: { padding: { top: (g.tipo === 'bar' && g.series.length * g.labels.length > 18 && !g.empilhado) ? 56 : 22, right: hbar ? 78 : 12 } },
         plugins: {
           legend: { display: rosca || g.series.length > 1, position: rosca ? 'right' : 'bottom', labels: { boxWidth: 12, generateLabels: rosca ? function (ch) { var d = ch.data.datasets[0]; return ch.data.labels.map(function (l, i) { return { text: l + ' — ' + fmt(d.data[i], g.fmt, true), fillStyle: Array.isArray(d.backgroundColor) ? d.backgroundColor[i] : d.backgroundColor, strokeStyle: '#fff', index: i, hidden: false }; }); } : undefined } },
           tooltip: { callbacks: { label: function (ctx) {
