@@ -1,0 +1,53 @@
+{
+  "_leia-me": "Ajustes manuais que a area comercial fazia na planilha de Receitas. Edite aqui para mudar a regra.",
+  "segmento_por_fantasia": {
+    "COLCHONES DEL PARAGUAY S.R.L.": "COLCHÃO M.E."
+  },
+  "constantes_slide": {
+    "valor_a_atingir_meta_soma": 41214,
+    "acumulado_representantes_subtrai": 112370
+  },
+  "segmento_por_operacao": {
+    "_leia-me": "Quando o TOTVS devolve COLCHAO MI (ou vazio) para essas operacoes, vale o segmento daqui (conferido contra o Relatorio 150 de set/2026).",
+    "526": "SEGUNDA QUALIDADE",
+    "545": "COLCHAO ME",
+    "50": "COLCHAO ME"
+  },
+  "operacoes_150": {
+    "_leia-me": "Operacoes (codigo TOTVS) que entram no Relatorio 150 = vendas e devolucoes de venda, como na planilha de Receitas. Compras, servicos e vendas intercompany (ex.: 507, 574) ficam de fora. Se criarem uma operacao de venda nova, inclua o codigo aqui.",
+    "codigos": [
+      500,
+      1500,
+      545,
+      526,
+      546,
+      23,
+      50,
+      6,
+      541,
+      1006,
+      1023,
+      1527,
+      508,
+      1507,
+      1520,
+      506,
+      501,
+      547,
+      569,
+      1517,
+      1508,
+      1535,
+      564
+    ]
+  },
+  "segmentos_ocultos": {
+    "_leia-me": "Segmentos que nao aparecem no Slide mensal (fora dos totais). Remova daqui para voltar a usar.",
+    "lista": [
+      "CALÇADO",
+      "MOVELEIRO",
+      "FACÇÃO",
+      "FACÇÃO AUT"
+    ]
+  }
+}

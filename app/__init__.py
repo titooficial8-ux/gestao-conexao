@@ -37,11 +37,15 @@ def create_app():
     from app.main.routes import main_bp
     from app.admin.routes import admin_bp
     from app.chamados.routes import chamados_bp
+    from app.comercial_me.routes import comercial_me_bp
+    from app.totvs.routes import bi_bp
     app.register_blueprint(gateway_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(chamados_bp)
+    app.register_blueprint(comercial_me_bp)
+    app.register_blueprint(bi_bp)
 
     app.jinja_env.globals['tab_url'] = tab_url
 
@@ -50,7 +54,7 @@ def create_app():
     @app.context_processor
     def inject_globals():
         lang = session.get('lang', 'pt')
-        pais_atual = 'GT' if lang == 'es' else 'BR'
+        pais_atual = session.get('login_pais') or ('GT' if lang == 'es' else 'BR')
         # o botao ativo (Planejamento/Chamados) segue a area que o usuario
         # esta navegando de fato, nao so a escolha inicial da sessao
         if request.blueprint == 'chamados':
@@ -89,5 +93,30 @@ def create_app():
         if first_run:
             from app.seed import seed_data
             seed_data()
+        # a aba 'Pedidos Comercial (ME)' agora se chama 'Comercial ME' (bancos ja criados nao passam pelo seed)
+        from app.models import Tab
+        aba_me = Tab.query.filter_by(slug='pedidos-comercial-me').first()
+        if aba_me and (aba_me.name_pt, aba_me.name_es) != ('Comercial ME', 'Comercial ME'):
+            aba_me.name_pt = aba_me.name_es = 'Comercial ME'
+            db.session.commit()
+        # nomes das abas do Comercial
+        renomear = {'dashboard-comercial': 'BI COMERCIAL', 'pedidos-comercial-mi': 'COMERCIAL MI'}
+        mudou = False
+        for slug, nome in renomear.items():
+            aba = Tab.query.filter_by(slug=slug).first()
+            if aba and (aba.name_pt, aba.name_es) != (nome, nome):
+                aba.name_pt = aba.name_es = nome
+                mudou = True
+        if mudou:
+            db.session.commit()
+        # contas iniciais por setor (idempotente)
+        from app.usuarios_padrao import criar_usuarios_padrao
+        criar_usuarios_padrao()
+
+    # atualizacao diaria (08:00) do faturamento TOTVS. O 'python run.py' (debug) abre 2 processos: so o filho
+    # do reloader (WERKZEUG_RUN_MAIN) agenda. Em outro servidor, defina BI_AGENDADOR=1 no .env.
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or os.environ.get('BI_AGENDADOR') == '1':
+        from app.totvs.servico import iniciar_agendador
+        iniciar_agendador()
 
     return app

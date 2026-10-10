@@ -92,9 +92,15 @@
         {% endblock %}
       </div>
       <div class="gc-nav-region">
+        {% if acesso_tipo == 'chamados' %}
+        <a href="{{ url_for('main.dashboard') }}" class="gc-nav-region-btn">
+          <span>{{ t('acessar_gestao') }}</span>
+        </a>
+        {% else %}
         <a href="{{ url_for('chamados.novo_chamado') }}" class="gc-nav-region-btn">
           <span>{{ t('abrir_chamado') }}</span>
         </a>
+        {% endif %}
       </div>
     </div>
   </nav>

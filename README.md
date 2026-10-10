@@ -61,10 +61,28 @@ GestaoConexao/
     main/routes.py           -> dashboard e páginas de módulo (abas) do Planejamento
     admin/routes.py          -> usuários, setores, permissões
     chamados/routes.py       -> módulo de Chamados / Recursos (helpdesk interno)
+    comercial_me/routes.py   -> aba Comercial ME (planilhas de exportação importadas)
+    seed_data/comercial_me/  -> tabelas geradas por importar_comercial_me.py (JSON)
+  importar_pcp_hub.py        -> carrega a fotografia do PCP Hub (Planejamento e Produção)
+  importar_comercial_me.py   -> lê "Planilhas de Exportação/*.xlsx" e gera a aba Comercial ME
     templates/               -> HTML (Jinja2)
     static/css/style.css     -> tema escuro na entrada, branco/azul (Conexão) no app
     static/js/main.js        -> menu lateral (accordion + toggle mobile)
 ```
+
+## Atualizar a aba Comercial ME
+
+Quando as planilhas de exportação forem atualizadas, substitua os arquivos na pasta
+`Planilhas de Exportação` e rode, na pasta do projeto com a venv ativa:
+
+```
+python importar_comercial_me.py
+```
+
+Ele lê só as abas visíveis (abas ocultas, como contatos e dados bancários, não são importadas),
+gera os arquivos em `app/seed_data/comercial_me/` e a aba passa a mostrar os dados novos.
+O que cada ambiente vê: Brasil mostra as planilhas do Brasil (e as amostras marcadas BR);
+Guatemala mostra as da Guatemala (e as amostras marcadas GT).
 
 ## Próximos passos sugeridos
 
@@ -74,3 +92,20 @@ GestaoConexao/
 - Implementar de fato o módulo de Chamados (abrir/acompanhar chamados, indicadores).
 - Adicionar tela de "esqueci minha senha".
 - Colocar o projeto em produção atrás de HTTPS (ex.: Caddy/Nginx) e usar um servidor WSGI (gunicorn/waitress) em vez do `flask run`.
+
+## BI COMERCIAL (faturamento TOTVS)
+
+A aba **BI COMERCIAL** tem duas visões:
+
+- **Slide mensal**: réplica da aba `2 - SLIDE_LIQ` da planilha de Receitas (segmentos em R$, metros, quilos, preço médio,
+  representantes, Ortobom por filial e mercado internacional; mês x ano anterior x plano, mês e acumulado), para qualquer mês.
+  Tudo é calculado das notas fiscais do TOTVS (Relatório 150, `app/totvs/base.py` replica as colunas calculadas da planilha)
+  e do **plano** importado da própria planilha (`python importar_bi_comercial.py "RECEITAS_FOL.xlsx"` → `app/seed_data/bi_comercial/`).
+- **Painel TOTVS (detalhe)**: KPIs/gráficos por cliente, representante, segmento, UF, artigo e últimas notas.
+
+Dados: guardados por mês em `instance/totvs/base/` (não vai para o Git). Botões na tela:
+**Carregar histórico** (carga inicial: janeiro do ano passado até hoje, mês a mês, pode parar com *Parar busca*),
+**Atualizar agora** (mês anterior + atual) e **Gerar relatório** (período livre → Relatório 150 em Excel/CSV).
+Com o servidor ligado e o histórico carregado, atualiza sozinho a cada 30 min (`BI_INTERVALO_MIN`).
+Credenciais da API: só no `.env` (veja `.env.example`), nunca no GitHub.
+Ajustes manuais da planilha ficam em `app/seed_data/bi_comercial/ajustes.json`.

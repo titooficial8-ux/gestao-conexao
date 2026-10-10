@@ -1,7 +1,7 @@
 import re
 import unicodedata
 
-from flask import Blueprint, render_template, abort, redirect, url_for, request, flash, jsonify, Response
+from flask import Blueprint, render_template, abort, redirect, url_for, request, flash, jsonify, Response, session
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 
@@ -1159,7 +1159,7 @@ def view_tab(slug):
         return redirect(url_for('admin.users'))
 
     if slug == 'dashboard-comercial':
-        return render_template('main/dashboard_comercial.html', tab=tab, **DASHBOARD_COMERCIAL_MODELO)
+        return render_template('main/bi_comercial.html', tab=tab)
 
     if slug == 'dashboard-estoque':
         return render_template('main/dashboard_estoque.html', tab=tab, **DASHBOARD_ESTOQUE_MODELO)
@@ -1263,10 +1263,13 @@ def view_tab(slug):
         )
 
     if slug == 'pedidos-comercial-me':
+        from app.comercial_me import paineis
+        from app.comercial_me.dados import catalogo
+        from app.comercial_me.routes import ambiente_atual, idioma_atual
+        regiao = ambiente_atual()
         return render_template(
-            'main/pedidos_comercial.html', tab=tab, regiao='ME',
-            colunas=PEDIDOS_ME_COLUNAS, pedidos=PEDIDOS_ME_MODELO,
-            indicadores_clientes=INDICADORES_CLIENTES_ME, pedidos_por_pais=PEDIDOS_POR_PAIS_ME,
+            'main/comercial_me.html', tab=tab, regiao=regiao,
+            catalogo=catalogo(), paineis=paineis.disponiveis(idioma_atual()),
         )
 
     return render_template('main/tab.html', tab=tab)

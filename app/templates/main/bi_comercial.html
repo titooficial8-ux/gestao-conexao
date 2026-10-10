@@ -1,0 +1,392 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+{% set es = lang == 'es' %}
+<div class="cme bi">
+  <div class="chamados-hero cme-hero">
+    <div>
+      <h1>BI COMERCIAL</h1>
+      <p>{{ 'Facturación TOTVS — datos reales de las notas fiscales' if es else 'Faturamento TOTVS — dados reais das notas fiscais' }}</p>
+    </div>
+    <div class="bi-status" id="biStatus"></div>
+  </div>
+
+  <div class="table-card bi-gerar">
+    <div class="bi-gerar-titulo">
+      <strong>{{ 'Generar informe bajo demanda' if es else 'Gerar relatório sob demanda' }}</strong>
+      <span class="cme-meta">{{ 'Busca en el TOTVS el período elegido y arma el informe (Relatório 150 + Excel).' if es else 'Busca no TOTVS o período escolhido e monta o relatório (Relatório 150 + Excel).' }}</span>
+    </div>
+    <div class="bi-gerar-form">
+      <label class="cme-filtro"><span>{{ 'Desde' if es else 'Data inicial' }}</span><input type="date" id="biGIni" class="ticket-input"></label>
+      <label class="cme-filtro"><span>{{ 'Hasta' if es else 'Data final' }}</span><input type="date" id="biGFim" class="ticket-input"></label>
+      <button type="button" class="btn-primary bi-btn" id="biGerar">{{ 'Generar informe' if es else 'Gerar relatório' }}</button>
+      <button type="button" class="btn-small ticket-btn-outline" id="biAtualizar">{{ 'Actualizar ahora' if es else 'Atualizar agora' }}</button>
+      <button type="button" class="btn-small ticket-btn-outline" id="biHistorico" title="{{ 'Carga inicial: desde enero del año pasado hasta hoy' if es else 'Carga inicial: de janeiro do ano passado até hoje (pula meses já carregados)' }}">{{ 'Cargar histórico' if es else 'Carregar histórico' }}</button>
+    </div>
+    <div class="bi-progresso" id="biProgresso" hidden><span id="biProgTxt"></span> <button type="button" class="btn-small ticket-btn-outline" id="biParar">{{ 'Detener búsqueda' if es else 'Parar busca' }}</button></div>
+  </div>
+
+  <div class="cme-grupos" id="biVisoes">
+    <button type="button" class="cme-grupo active" data-visao="slide">{{ 'Slide mensual' if es else 'Slide mensal' }}</button>
+    <button type="button" class="cme-grupo" data-visao="painel">{{ 'Panel TOTVS (detalle)' if es else 'Painel TOTVS (detalhe)' }}</button>
+  </div>
+
+  <div id="biSlide">
+    <div class="cme-filtros" id="biSlideFiltros"></div>
+    <div id="biSlideCorpo"></div>
+  </div>
+
+  <div id="biPainel" hidden>
+  <div class="cme-grupos" id="biFontes">
+    <button type="button" class="cme-grupo active" data-fonte="padrao">{{ 'Año actual (diario 08h)' if es else 'Ano atual (diário 08h)' }}</button>
+    <button type="button" class="cme-grupo" data-fonte="custom">{{ 'Período generado' if es else 'Período gerado' }}</button>
+    <span class="bi-downloads" id="biDownloads"></span>
+  </div>
+
+  <div class="cme-filtros" id="biFiltros"></div>
+  <div id="cmeCorpo"></div>
+  </div>
+</div>
+
+<div class="cme-modal" id="cmeModal" hidden><div class="cme-modal-box"><button type="button" class="cme-modal-fechar" id="cmeModalX" aria-label="×">&times;</button><h3 id="cmeModalTit"></h3><div id="cmeModalCorpo"></div></div></div>
+<script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
+<script src="{{ url_for('static', filename='js/painel_widgets.js') }}"></script>
+<script>
+(function () {
+  var ES = {{ es|tojson }};
+  var LOCALE = ES ? 'es-GT' : 'pt-BR';
+  var URL_DADOS = {{ url_for('bi_comercial.dados')|tojson }}, URL_STATUS = {{ url_for('bi_comercial.status')|tojson }}, URL_GERAR = {{ url_for('bi_comercial.gerar')|tojson }}, URL_CANCELAR = {{ url_for('bi_comercial.cancelar')|tojson }}, URL_SLIDE = {{ url_for('bi_comercial.slide_mensal')|tojson }};
+  var URL_DL = {{ url_for('bi_comercial.download', tag='__T__', tipo='__K__')|tojson }};
+  var TXT = { dias: ES ? 'días' : 'dias', ver_todas: ES ? 'Ver todas' : 'Ver todas', ver_menos: ES ? 'Ver menos' : 'Ver menos', nenhum: ES ? 'Sin datos' : 'Sem dados', sem_dados: ES ? 'Sin datos para este filtro.' : 'Sem dados para este filtro.' };
+  var $ = function (id) { return document.getElementById(id); };
+  var ui = criarPainelUI({ locale: LOCALE, txt: TXT, aoFiltrar: function (id, v) { filtros[id] = v; carregar(); } });
+  var fonte = 'padrao', filtros = {}, st = null, timer = null;
+
+  function dataBR(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : ''; }
+  function dhBR(iso) { return iso ? dataBR(iso) + ' ' + iso.slice(11, 16) : ''; }
+  function hoje() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  $('biGIni').value = hoje().slice(0, 8) + '01'; $('biGFim').value = hoje();
+
+  function pintarStatus() {
+    if (!st) return;
+    var m = st.padrao, box = $('biStatus'); box.textContent = '';
+    var l1 = ui.el('div', 'bi-st-linha');
+    l1.appendChild(ui.el('span', 'cme-chip', (ES ? 'Actualizado: ' : 'Atualizado: ') + (m ? dhBR(m.gerado_em) : (ES ? 'nunca' : 'ainda não')))); 
+    l1.appendChild(ui.el('span', 'cme-meta', (ES ? 'Automática: ' : 'Automática: ') + st.proxima));
+    box.appendChild(l1);
+    if (st.antigos && st.antigos.length) box.appendChild(ui.el('div', 'bi-aviso', (ES ? 'Datos de una versión anterior (sin devoluciones) en ' : 'Dados de uma versão antiga (sem devoluções) em ') + st.antigos.length + (ES ? ' mes(es). Haga clic en «Cargar histórico» para rehacer.' : ' mês(es). Clique em «Carregar histórico» para refazer.')));
+    if (!st.configurado) box.appendChild(ui.el('div', 'bi-aviso', ES ? 'TOTVS no configurado: complete el archivo .env (ver .env.example).' : 'TOTVS não configurado: preencha o arquivo .env (veja .env.example).'));
+    var e = st.estado;
+    if (e.erro && !e.rodando) box.appendChild(ui.el('div', 'bi-aviso', (ES ? 'Último error: ' : 'Última falha: ') + e.erro));
+    var pr = $('biProgresso');
+    pr.hidden = !e.rodando; $('biParar').disabled = !e.rodando || /Cancelando/.test(e.msg || '');
+    if (e.rodando) $('biProgTxt').textContent = '⏳ ' + (e.msg || '') + ' (' + dataBR(e.inicio) + ' → ' + dataBR(e.fim) + ')';
+    $('biGerar').disabled = $('biAtualizar').disabled = e.rodando || !st.configurado;
+    var sb = $('biSlideAtualizar');
+    if (sb) { sb.disabled = e.rodando || !st.configurado; sb.textContent = e.rodando ? (ES ? '⏳ Actualizando…' : '⏳ Atualizando…') : (ES ? '⟳ Actualizar' : '⟳ Atualizar'); if (!st.configurado) sb.title = ES ? 'TOTVS no configurado (.env)' : 'TOTVS não configurado (.env)'; }
+    var dl = $('biDownloads'); dl.textContent = '';
+    var mm = fonte === 'custom' ? st.custom : st.padrao;
+    if (mm && mm.arquivos) [['xlsx150', 'Relatório 150 (Excel)'], ['csv150', 'CSV TOTVS'], ['xlsx', ES ? 'Excel completo' : 'Excel completo']].forEach(function (a) {
+      if (!mm.arquivos[a[0]]) return; var l = ui.el('a', 'btn-small ticket-btn-outline', '⬇ ' + a[1]); l.href = URL_DL.replace('__T__', fonte).replace('__K__', a[0]); dl.appendChild(l);
+    });
+  }
+
+  function consultarStatus(depois) {
+    fetch(URL_STATUS, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
+      var rodava = st && st.estado.rodando; st = s; pintarStatus();
+      if (s.estado.rodando) { clearTimeout(timer); timer = setTimeout(function () { consultarStatus(); }, 2500); }
+      else if (rodava) { if (s.estado.tag === 'custom') { mudarVisao('painel'); mudarFonte('custom'); } else if (!$('biSlide').hidden) carregarSlide(); else carregar(); }
+      if (depois) depois();
+    });
+  }
+
+  function mudarFonte(f) {
+    fonte = f; filtros = {};
+    Array.prototype.forEach.call(document.querySelectorAll('#biFontes [data-fonte]'), function (b) { b.classList.toggle('active', b.dataset.fonte === f); });
+    pintarStatus(); carregar();
+  }
+
+  function desenharFiltros(p) {
+    var box = $('biFiltros'); box.textContent = '';
+    if (!p.periodo) return;
+    [['data_ini', ES ? 'Desde' : 'De', p.periodo.inicio], ['data_fim', ES ? 'Hasta' : 'Até', p.periodo.fim]].forEach(function (d) {
+      var lab = ui.el('label', 'cme-filtro'); lab.appendChild(ui.el('span', null, d[1]));
+      var i = ui.el('input', 'ticket-input'); i.type = 'date'; i.value = d[2]; i.min = p.periodo.min; i.max = p.periodo.max;
+      i.addEventListener('change', function () { filtros[d[0]] = i.value; carregar(); }); lab.appendChild(i); box.appendChild(lab);
+    });
+    (p.filtros || []).forEach(function (f) {
+      var lab = ui.el('label', 'cme-filtro'); lab.appendChild(ui.el('span', null, f.rotulo));
+      var sel = ui.el('select', 'ticket-input');
+      f.opcoes.forEach(function (o) { var op = ui.el('option', null, o.t); op.value = o.v; if (o.v === f.valor) op.selected = true; sel.appendChild(op); });
+      sel.addEventListener('change', function () { filtros[f.id] = sel.value; carregar(); }); lab.appendChild(sel); box.appendChild(lab);
+    });
+    ui.setFiltros(p.filtros);
+  }
+
+  function carregar() {
+    var qs = ['fonte=' + fonte].concat(Object.keys(filtros).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(filtros[k]); })).join('&');
+    var corpo = $('cmeCorpo'); corpo.classList.add('cme-carregando');
+    fetch(URL_DADOS + '?' + qs, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (p) {
+      ui.limpar(); corpo.textContent = ''; corpo.classList.remove('cme-carregando');
+      if (p.vazio) {
+        $('biFiltros').textContent = '';
+        corpo.appendChild(ui.el('div', 'table-card', ES ? 'Todavía no hay datos en esta fuente. Use "Generar informe" o "Actualizar año actual".' : 'Ainda não há dados nesta fonte. Use "Gerar relatório" ou "Atualizar ano atual".'));
+        return;
+      }
+      desenharFiltros(p);
+      var kp = ui.el('div', 'cme-kpigrid'); p.kpis.forEach(function (k) { kp.appendChild(ui.cartaoKpi(k)); }); corpo.appendChild(kp);
+      var gr = ui.el('div', 'cme-graficos'); p.graficos.forEach(function (g) { gr.appendChild(ui.cartaoGrafico(g)); }); corpo.appendChild(gr);
+      p.tabelas.forEach(function (t) { corpo.appendChild(ui.cartaoTabela(t)); });
+    }).catch(function () { corpo.classList.remove('cme-carregando'); corpo.textContent = ES ? 'Error al cargar.' : 'Erro ao carregar.'; });
+  }
+
+  function gerar(ini, fim, modo) {
+    var fd = new FormData(); fd.append('inicio', ini); fd.append('fim', fim); fd.append('modo', modo || 'custom');
+    fetch(URL_GERAR, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) { alert(j.erro || 'Erro'); return; } consultarStatus();
+    });
+  }
+  $('biGerar').addEventListener('click', function () { gerar($('biGIni').value, $('biGFim').value); });
+  $('biAtualizar').addEventListener('click', function () {
+    gerar(hoje(), hoje(), 'recente');
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#biFontes [data-fonte]'), function (b) { b.addEventListener('click', function () { mudarFonte(b.dataset.fonte); }); });
+
+  $('biParar').addEventListener('click', function () { this.disabled = true; fetch(URL_CANCELAR, { method: 'POST', credentials: 'same-origin' }).then(function () { consultarStatus(); }); });
+
+  // ---------------------------------------------------------------- slide mensal (replica da aba 2 - SLIDE_LIQ)
+  var MESES = ES ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] : ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var slideSel = {}, mostrarZeros = false;
+  function brl(v) { return ui.nf(v, { maximumFractionDigits: 0 }); }
+  function mil(v) { return 'R$ ' + ui.nf(v / 1000, { maximumFractionDigits: 0 }); }
+  function num2(v) { return 'R$ ' + ui.nf(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function pct(v) { return ui.nf(v * 100, { maximumFractionDigits: 0 }) + '%'; }
+  function zero(l) { return ['ant', 'plano', 'real'].every(function (k) { return !(l.mes[k]) && !(l.acum[k]); }); }
+
+  // ---- tabelas do slide (visual de apresentacao)
+  var SEC = 0;
+  function cartaoSecao(id, titulo, sub) {
+    var c = ui.el('section', 'table-card sl-card'); c.id = id;
+    var h = ui.el('div', 'sl-sec-topo'); h.appendChild(ui.el('span', 'sl-num', String(++SEC)));
+    var t = ui.el('div'); t.appendChild(ui.el('h3', null, titulo)); if (sub) t.appendChild(ui.el('p', 'sl-sub', sub)); h.appendChild(t); c.appendChild(h); return c;
+  }
+  function pill(v, lim) {
+    if (!v) return ui.el('span', 'sl-pill p-neu', '–');
+    var cls = v < lim ? 'p-verm' : (v < 0 ? 'p-amar' : 'p-ver');
+    return ui.el('span', 'sl-pill ' + cls, (v > 0 ? '+' : '') + pct(v));
+  }
+  function celPill(v, lim) { var td = ui.el('td', 'cme-num'); td.appendChild(pill(v, lim)); return td; }
+  function celReal(real, ref, fmt) {
+    var td = ui.el('td', 'cme-num sl-real ' + (!real ? '' : (real >= ref ? 'sl-ok' : 'sl-baixo')));
+    td.appendChild(ui.el('span', null, real ? fmt(real) : '–')); return td;
+  }
+  function cabecalhoGrupos(d, nGrupo) {
+    var h1 = ui.el('tr'); h1.appendChild(ui.el('th')); var a = ui.el('th', 'sl-grupo', MESES[d.mes - 1] + ' / ' + d.ano); a.colSpan = nGrupo;
+    var b = ui.el('th', 'sl-grupo sl-grupo2', (ES ? 'Acumulado ' : 'Acumulado ') + d.ano + ' (' + (ES ? 'ene–' : 'jan–') + MESES[d.mes - 1].slice(0, 3).toLowerCase() + ')'); b.colSpan = nGrupo; h1.appendChild(a); h1.appendChild(b); return h1;
+  }
+  function th2(a, b) { var c = ui.el('th', 'cme-num sl-th2'); c.appendChild(ui.el('div', null, a)); c.appendChild(ui.el('div', 'sl-th2b', b)); return c; }
+
+  function tabelaSlide(id, titulo, sub, d, linhas, total, fmt) {
+    var c = cartaoSecao(id, titulo, sub);
+    var w = ui.el('div', 'table-scroll'); var t = ui.el('table', 'data-table sl-tab sl2'); w.appendChild(t);
+    var th = ui.el('thead'); th.appendChild(cabecalhoGrupos(d, 5));
+    var h2 = ui.el('tr'); h2.appendChild(ui.el('th'));
+    var cab = [[String(d.ano_ant), d.mes + ' - YTD'], [String(d.ano), ES ? 'Plan' : 'Plano'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['Var.', 'vs ' + d.ano_ant], ['Var.', 'vs ' + (ES ? 'plan' : 'plano')]];
+    cab.concat(cab).forEach(function (x) { h2.appendChild(th2(x[0], x[1])); });
+    th.appendChild(h2); t.appendChild(th);
+    var tb = ui.el('tbody');
+    function linhaTr(l, ehTotal) {
+      var r = ui.el('tr', ehTotal ? 'sl-total' : null); r.appendChild(ui.el('td', 'sl-rot', l.rotulo));
+      ['mes', 'acum'].forEach(function (k, gi) {
+        var x = l[k], ini = gi ? ' sl-ini' : '';
+        var a1 = ui.el('td', 'cme-num' + ini, x.ant ? fmt(x.ant) : '–'); r.appendChild(a1);
+        r.appendChild(ui.el('td', 'cme-num', x.plano ? fmt(x.plano) : '–'));
+        r.appendChild(celReal(x.real, x.ant, fmt));
+        r.appendChild(celPill(x.v_ant, -0.2)); r.appendChild(celPill(x.v_plano, -0.1));
+      });
+      return r;
+    }
+    linhas.forEach(function (l) { if (mostrarZeros || !zero(l)) tb.appendChild(linhaTr(l, false)); });
+    if (total) tb.appendChild(linhaTr(total, true));
+    t.appendChild(tb); c.appendChild(w); return c;
+  }
+
+  function tabelaDois(id, titulo, sub, d, linhas, total, plano, colunasPlano, fmt) {
+    var c = cartaoSecao(id, titulo, sub);
+    var w = ui.el('div', 'table-scroll'); var t = ui.el('table', 'data-table sl-tab sl2'); w.appendChild(t);
+    var th = ui.el('thead'); th.appendChild(cabecalhoGrupos(d, 3));
+    var h2 = ui.el('tr'); h2.appendChild(ui.el('th'));
+    colunasPlano.concat(colunasPlano).forEach(function (x) { h2.appendChild(th2(x[0], x[1])); });
+    th.appendChild(h2); t.appendChild(th); var tb = ui.el('tbody');
+    var chave = colunasPlano[0][0] === String(d.ano_ant) ? 'ant' : 'plano';
+    function tr(l, tot) {
+      var r = ui.el('tr', tot ? 'sl-total' : null); r.appendChild(ui.el('td', 'sl-rot', l.rotulo));
+      ['mes', 'acum'].forEach(function (k, gi) { var x = l[k];
+        r.appendChild(ui.el('td', 'cme-num' + (gi ? ' sl-ini' : ''), x[chave] ? fmt(x[chave]) : '–'));
+        r.appendChild(celReal(x.real, x[chave] || 0, fmt));
+        r.appendChild(celPill(x.var, -0.2)); });
+      return r; }
+    linhas.forEach(function (l) { var z = !(l.mes.real || l.mes[chave] || l.acum.real || l.acum[chave]); if (mostrarZeros || !z) tb.appendChild(tr(l, false)); });
+    tb.appendChild(tr(total, true));
+    if (plano) { var p = ui.el('tr', 'sl-plano'); p.appendChild(ui.el('td', 'sl-rot', plano.rotulo));
+      ['mes', 'acum'].forEach(function (k, gi) { p.appendChild(ui.el('td', gi ? 'sl-ini' : '')); var x = ui.el('td', 'cme-num', plano[k].real ? fmt(plano[k].real) : '–'); p.appendChild(x); p.appendChild(celPill(plano[k].var, -0.2)); });
+      tb.appendChild(p); }
+    t.appendChild(tb); c.appendChild(w); return c;
+  }
+
+  var GRAF_RECEITA = null;
+  function mi(v) { return ui.nf(v / 1e6, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' mi'; }
+  function graficoReceita(d) {
+    var card = ui.el('div', 'table-card sl-grafico');
+    var topo = ui.el('div', 'sl-g-topo');
+    var tit = ui.el('div'); tit.appendChild(ui.el('h3', null, (ES ? 'Receita neta por mes' : 'Receita líquida por mês') + ' — ' + d.ano));
+    tit.appendChild(ui.el('p', 'cme-meta', (ES ? 'Barras = realizado · línea verde = plan · línea gris = ' : 'Barras = realizado · linha verde = plano · linha cinza = ') + d.ano_ant)); topo.appendChild(tit);
+    var tot = d.receita_total.acum, chips = ui.el('div', 'sl-chips');
+    function chip(rot, val, cls) { var c = ui.el('div', 'sl-chip ' + (cls || '')); c.appendChild(ui.el('span', null, rot)); c.appendChild(ui.el('strong', null, val)); chips.appendChild(c); }
+    chip(ES ? 'Acumulado real' : 'Acumulado realizado', 'R$ ' + mi(tot.real));
+    chip(ES ? 'Plan acumulado' : 'Plano acumulado', 'R$ ' + mi(tot.plano));
+    chip(ES ? '% del plan' : '% do plano', tot.plano ? ui.nf(tot.real / tot.plano * 100, { maximumFractionDigits: 0 }) + '%' : '–', tot.real >= tot.plano ? 'ok' : 'baixo');
+    chip('vs ' + d.ano_ant, (tot.v_ant >= 0 ? '+' : '') + ui.nf(tot.v_ant * 100, { maximumFractionDigits: 1 }) + '%', tot.v_ant >= 0 ? 'ok' : 'baixo');
+    topo.appendChild(chips); card.appendChild(topo);
+    var caixa = ui.el('div', 'sl-g-canvas'), cv = document.createElement('canvas'); caixa.appendChild(cv); card.appendChild(caixa);
+    var S = d.serie_mensal, labels = S.map(function (x) { return MESES[x.mes - 1].slice(0, 3); });
+    var real = S.map(function (x) { return x.real ? Math.round(x.real) : null; });
+    if (GRAF_RECEITA) { try { GRAF_RECEITA.destroy(); } catch (e) {} }
+    var rotulos = { id: 'rotulosReceita', afterDatasetsDraw: function (ch) {
+      var ctx = ch.ctx; ctx.save(); ctx.font = '700 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ch.getDatasetMeta(0).data.forEach(function (el, i) { var v = real[i]; if (!v) return; var h = el.base - el.y; ctx.fillStyle = h > 24 ? '#fff' : '#10263F'; ctx.fillText(ui.nf(v / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'MI', el.x, h > 24 ? el.base - 8 : el.y - 6); });
+      // rotulos das linhas: plano (verde, acima do ponto) e ano anterior (cinza, abaixo), com fundo claro para ler sobre as barras
+      function etiqueta(txt, x, y, cor) {
+        ctx.font = '700 10.5px sans-serif'; var w = ctx.measureText(txt).width + 10, h = 17;
+        ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.strokeStyle = cor; ctx.lineWidth = 1;
+        ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 6); else ctx.rect(x - w / 2, y - h / 2, w, h); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = cor; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(txt, x, y + 0.5);
+      }
+      [[1, '#11703c', -17, S.map(function (x) { return x.plano; })], [2, '#6b7686', 19, S.map(function (x) { return x.ant; })]].forEach(function (cfg) {
+        ch.getDatasetMeta(cfg[0]).data.forEach(function (el, i) { var v = cfg[3][i]; if (!v) return;
+          etiqueta(ui.nf(v / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'MI', el.x, Math.min(Math.max(el.y + cfg[2], 12), ch.chartArea.bottom - 28), cfg[1]); });
+      });
+      ctx.restore(); } };
+    GRAF_RECEITA = new Chart(cv, { data: { labels: labels, datasets: [
+      { type: 'bar', label: String(d.ano), data: real, order: 3, borderRadius: 6, maxBarThickness: 46,
+        backgroundColor: S.map(function (x) { return x.mes === d.mes ? '#0a3d8f' : 'rgba(47,127,224,0.88)'; }) },
+      { type: 'line', label: ES ? 'Plan' : 'Plano', data: S.map(function (x) { return Math.round(x.plano); }), order: 1, borderColor: '#1f9d55', backgroundColor: '#1f9d55', borderWidth: 2.5, borderDash: [7, 5], pointRadius: 4, pointBackgroundColor: '#fff', pointBorderWidth: 2, tension: 0.25 },
+      { type: 'line', label: String(d.ano_ant), data: S.map(function (x) { return Math.round(x.ant); }), order: 2, borderColor: '#9aa6bc', backgroundColor: 'rgba(154,166,188,0.15)', fill: true, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.25 }] },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, layout: { padding: { top: 26, right: 8 } },
+        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 9, padding: 18 } },
+          tooltip: { backgroundColor: 'rgba(10,45,84,0.95)', padding: 12, titleFont: { size: 13 }, callbacks: {
+            title: function (it) { return MESES[it[0].dataIndex] + ' / ' + d.ano; },
+            label: function (c) { return ' ' + c.dataset.label + ': R$ ' + mi(c.parsed.y); },
+            afterBody: function (it) { var x = S[it[0].dataIndex], o = []; if (x.real && x.plano) o.push((ES ? 'vs plan: ' : 'vs plano: ') + ui.nf((x.real / x.plano - 1) * 100, { maximumFractionDigits: 1 }) + '%'); if (x.real && x.ant) o.push('vs ' + d.ano_ant + ': ' + ui.nf((x.real / x.ant - 1) * 100, { maximumFractionDigits: 1 }) + '%'); return o; } } } },
+        scales: { x: { grid: { display: false }, ticks: { font: { weight: '600' } } },
+          y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return ui.nf(v / 1e6, { maximumFractionDigits: 0 }) + ' mi'; } } } } },
+      plugins: [rotulos] });
+    return card;
+  }
+
+
+  function progressoCard(titulo, d, linhas, per) {
+    var c = ui.el('div', 'table-card sl-prog'), topo = ui.el('div', 'sl-prog-topo'); topo.appendChild(ui.el('h3', null, titulo));
+    topo.appendChild(ui.el('span', 'sl-chip-per ' + per, per === 'mes' ? MESES[d.mes - 1] + ' / ' + d.ano : (ES ? 'Acumulado ' : 'Acumulado ') + d.ano)); c.appendChild(topo);
+    var lista = ui.el('div', 'sl-prog-lista'); c.appendChild(lista);
+    c.appendChild(ui.el('div', 'sl-prog-leg', ES ? '● ≥100% del plan   ● 80–99%   ● <80%   ┃ = plan' : '● ≥100% do plano   ● 80–99%   ● <80%   ┃ = plano'));
+    function R(v) { return 'R$ ' + mi(v); }
+    function pintar() {
+      lista.textContent = '';
+      var itens = linhas.map(function (l) { return { r: l.rotulo, plano: (l[per].plano || 0), real: (l[per].real || 0) }; })
+        .filter(function (x) { return x.plano || x.real; }).sort(function (a, b) { return (b.plano || b.real) - (a.plano || a.real); });
+      if (!itens.length) { lista.appendChild(ui.el('p', 'ticket-empty', ES ? 'Sin datos' : 'Sem dados')); return; }
+      itens.forEach(function (x) {
+        var pc = x.plano ? x.real / x.plano : null, cor = pc === null ? 'cinza' : (pc >= 1 ? 'verde' : (pc >= 0.8 ? 'ambar' : 'verm'));
+        var li = ui.el('div', 'sl-prog-item');
+        li.appendChild(ui.el('div', 'sl-prog-nome', x.r));
+        var pista = ui.el('div', 'sl-prog-pista'), fill = ui.el('i', 'sl-prog-fill ' + cor); fill.style.width = (pc === null ? 0 : Math.min(pc, 1.25) / 1.25 * 100) + '%'; pista.appendChild(fill);
+        if (pc !== null) { var mk = ui.el('b', 'sl-prog-marca'); mk.style.left = (1 / 1.25 * 100) + '%'; pista.appendChild(mk); }
+        li.appendChild(pista);
+        var val = ui.el('div', 'sl-prog-val'); val.appendChild(ui.el('strong', null, R(x.real)));
+        val.appendChild(ui.el('span', null, x.plano ? (ES ? 'de ' : 'de ') + R(x.plano) : (ES ? 'sin plan' : 'sem plano'))); li.appendChild(val);
+        li.appendChild(ui.el('div', 'sl-prog-pct ' + cor, pc === null ? '–' : ui.nf(pc * 100, { maximumFractionDigits: 0 }) + '%'));
+        lista.appendChild(li);
+      });
+    }
+    pintar(); return c;
+  }
+
+  function desenharSlide(d) {
+    var corpo = $('biSlideCorpo'); ui.limpar(); corpo.textContent = '';
+    if (d.vazio) { corpo.appendChild(ui.el('div', 'table-card', ES ? 'Aún no hay datos. Use "Cargar histórico" (arriba) para traer las notas del TOTVS.' : 'Ainda não há dados. Use "Carregar histórico" (acima) para trazer as notas do TOTVS.')); $('biSlideFiltros').textContent = ''; return; }
+    var f = $('biSlideFiltros'); f.textContent = '';
+    function sel(rot, ops, val, ch) { var l = ui.el('label', 'cme-filtro'); l.appendChild(ui.el('span', null, rot)); var s = ui.el('select', 'ticket-input');
+      ops.forEach(function (o) { var op = ui.el('option', null, o[1]); op.value = o[0]; if (String(o[0]) === String(val)) op.selected = true; s.appendChild(op); });
+      s.addEventListener('change', function () { slideSel[ch] = s.value; if (ch === 'ano') delete slideSel.mes; carregarSlide(); }); l.appendChild(s); f.appendChild(l); }
+    sel(ES ? 'Mes de referencia' : 'Mês referência', d.meses.map(function (m) { return [m, MESES[m - 1]]; }), d.mes, 'mes');
+    sel(ES ? 'Año' : 'Ano', d.anos.map(function (a) { return [a, a]; }), d.ano, 'ano');
+    var bt = ui.el('button', 'btn-primary sl-atualizar', ES ? '⟳ Actualizar' : '⟳ Atualizar'); bt.type = 'button'; bt.id = 'biSlideAtualizar';
+    bt.title = ES ? 'Trae las notas del TOTVS ahora (mes anterior y actual)' : 'Puxa as notas do TOTVS agora (mês anterior e atual)';
+    bt.addEventListener('click', function () { gerar(hoje(), hoje(), 'recente'); }); f.appendChild(bt);
+    var lz = ui.el('label', 'cme-filtro sl-chk'); var cb = ui.el('input'); cb.type = 'checkbox'; cb.checked = mostrarZeros; cb.addEventListener('change', function () { mostrarZeros = cb.checked; desenharSlide(d); });
+    lz.appendChild(cb); lz.appendChild(ui.el('span', null, ES ? ' Mostrar líneas en cero' : ' Mostrar linhas zeradas')); f.appendChild(lz);
+    f.appendChild(ui.el('span', 'cme-meta sl-gerado', (ES ? 'Datos hasta ' : 'Dados atualizados em ') + dhBR(d.gerado_em)));
+
+    pintarStatus();
+    var cb2 = d.cabecalho, kp = ui.el('div', 'cme-kpigrid');
+    function K(rot, v, nota, tom) { return { rotulo: rot, valor: v, fmt: 'brl', texto: 'R$ ' + mi(v), nota: nota, tom: tom }; }
+    var pctDev = ui.nf(cb2.receita_bruta_sem_dev ? cb2.devolucao_bruta / cb2.receita_bruta_sem_dev * 100 : 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%' + (ES ? ' de la bruta' : ' da bruta');
+    [K(ES ? 'Receita bruta' : 'Receita bruta', cb2.receita_bruta_sem_dev, null, 'azul'),
+     K(ES ? 'Receita bruta (menos devoluciones)' : 'Receita bruta (menos devolução)', cb2.receita_bruta, null, 'azul'),
+     K(ES ? 'Deducciones (impuestos)' : 'Deduções (impostos)', cb2.deducoes, pct(cb2.deducoes_pct) + (ES ? ' de la bruta' : ' da bruta'), 'ambar'),
+     K(ES ? 'Devoluciones (bruto)' : 'Devoluções (bruto)', cb2.devolucao_bruta, pctDev, 'vermelho'),
+     K(ES ? 'Receita neta (descontadas devoluciones/impuestos)' : 'Receita líquida (Descontadas as Devoluções/Impostos)', cb2.receita_liquida, (ES ? 'vs plan: ' : 'vs plano: ') + pct(d.receita_total.mes.v_plano), 'verde'),
+     (function () {
+       var tm = d.receita_total.mes, falta = tm.plano - tm.real, ac = d.receita_total.acum, faltaAc = ac.plano - ac.real;
+       var batida = falta <= 0;
+       var c = K(batida ? (ES ? 'Plan del mes superado' : 'Meta do mês superada') : (ES ? 'Falta para cumplir el plan del mes' : 'Falta para bater o plano do mês'), Math.abs(falta),
+         (ES ? 'plan: R$ ' : 'plano: R$ ') + mi(tm.plano) + ' · ' + (tm.plano ? ui.nf(tm.real / tm.plano * 100, { maximumFractionDigits: 1 }) : '0') + '% ' + (ES ? 'logrado' : 'atingido'), batida ? 'verde' : 'vermelho');
+       c.texto = (batida ? '+ ' : '') + 'R$ ' + mi(Math.abs(falta)); return c;
+     })()].forEach(function (k) { kp.appendChild(ui.cartaoKpi(k)); });
+    corpo.appendChild(kp);
+
+    corpo.appendChild(graficoReceita(d));
+    var gr = ui.el('div', 'cme-graficos');
+    var tSeg = ES ? 'Receta por segmento' : 'Receita por segmento', tInt = ES ? 'Receita mercado externo - por país' : 'Receita mercado externo - por país';
+    gr.appendChild(progressoCard(tSeg, d, d.receita, 'mes'));
+    gr.appendChild(progressoCard(tSeg, d, d.receita, 'acum'));
+    gr.appendChild(progressoCard(tInt, d, d.internacional, 'mes'));
+    gr.appendChild(progressoCard(tInt, d, d.internacional, 'acum'));
+    corpo.appendChild(gr);
+
+    SEC = 0;
+    var nav = ui.el('div', 'sl-nav');
+    [['sl-seg', ES ? 'Segmentos' : 'Segmentos'], ['sl-mt', ES ? 'Metros' : 'Metros'], (d.quilos.some(function (l) { return !zero(l); }) ? ['sl-kg', ES ? 'Kilos' : 'Quilos'] : null), ['sl-pm', ES ? 'Precio medio' : 'Preço médio'], ['sl-rep', ES ? 'Representantes' : 'Representantes'], ['sl-orto', 'Ortobom'], ['sl-int', ES ? 'Mercado internacional' : 'Mercado internacional']].filter(Boolean).forEach(function (x) {
+      var a = ui.el('a', null, x[1]); a.href = '#' + x[0]; a.addEventListener('click', function (e) { e.preventDefault(); var el = document.getElementById(x[0]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); nav.appendChild(a); });
+    var imp = ui.el('button', 'btn-small ticket-btn-outline sl-imprimir', ES ? '🖨 Imprimir / PDF' : '🖨 Imprimir / PDF'); imp.type = 'button'; imp.addEventListener('click', function () { window.print(); }); nav.appendChild(imp);
+    corpo.appendChild(nav);
+    corpo.appendChild(tabelaSlide('sl-seg', ES ? 'Segmentos — receta neta (R$ mil)' : 'Segmentos — receita líquida (R$ mil)', ES ? 'En miles de R$ · mes y acumulado del año, contra el año anterior y el plan' : 'Em milhares de R$ · mês e acumulado do ano, contra o ano anterior e o plano', d, d.receita, d.receita_total, mil));
+    corpo.appendChild(tabelaSlide('sl-mt', ES ? 'Cantidades — metros' : 'Quantidades — metros', ES ? 'Metros vendidos (neto de devoluciones)' : 'Metros vendidos (líquido de devoluções)', d, d.metros, d.metros_total, brl));
+    var temKg = d.quilos.some(function (l) { return !zero(l); });
+    if (temKg) corpo.appendChild(tabelaSlide('sl-kg', ES ? 'Cantidades — kilos' : 'Quantidades — quilos', ES ? 'Kilos vendidos' : 'Quilos vendidos', d, d.quilos, d.quilos_total, brl));
+    corpo.appendChild(tabelaSlide('sl-pm', ES ? 'Precio medio neto' : 'Preço médio líquido', ES ? 'R$ por metro (receta neta ÷ metros)' : 'R$ por metro (receita líquida ÷ metros)', d, d.preco_medio, null, num2));
+    corpo.appendChild(tabelaSlide('sl-rep', ES ? 'Representantes' : 'Representantes', ES ? 'Metros de colchón por representante' : 'Metros de colchão por representante', d, d.representantes, d.representantes_total, brl));
+    corpo.appendChild(tabelaDois('sl-orto', 'Ortobom', ES ? 'Metros por filial' : 'Metros por filial', d, d.ortobom, d.ortobom_total, d.ortobom_plano, [[String(d.ano_ant), d.mes + ' - YTD'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['Var.', 'vs ' + d.ano_ant]], brl));
+    corpo.appendChild(tabelaDois('sl-int', ES ? 'Mercado internacional (R$ mil)' : 'Mercado internacional (R$ mil)', ES ? 'En miles de R$ por país, contra el plan' : 'Em milhares de R$ por país, contra o plano', d, d.internacional, d.internacional_total, null, [[String(d.ano), ES ? 'Plan' : 'Plano'], [String(d.ano), ES ? 'Real' : 'Realizado'], ['Var.', 'vs ' + (ES ? 'plan' : 'plano')]], mil));
+    var nota = ui.el('div', 'cme-meta sl-obs', ES ? 'Los números salen directo de las notas fiscales del TOTVS (Relatório 150) y del plan cargado desde la planilla de Receitas. La planilla usa un histórico digitado (hoja ACUM) para algunos acumulados; aquí todo se calcula de las notas, por eso puede haber pequeñas diferencias.' : 'Os números saem direto das notas fiscais do TOTVS (Relatório 150) e do plano importado da planilha de Receitas. A planilha usa um histórico digitado (aba ACUM) em alguns acumulados; aqui tudo é calculado das notas, então pode haver pequenas diferenças.');
+    corpo.appendChild(nota);
+  }
+
+  function carregarSlide() {
+    var qs = Object.keys(slideSel).map(function (k) { return k + '=' + encodeURIComponent(slideSel[k]); }).join('&');
+    $('biSlideCorpo').classList.add('cme-carregando');
+    fetch(URL_SLIDE + (qs ? '?' + qs : ''), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { $('biSlideCorpo').classList.remove('cme-carregando'); desenharSlide(d); });
+  }
+  function mudarVisao(v) {
+    Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.classList.toggle('active', b.dataset.visao === v); });
+    $('biSlide').hidden = v !== 'slide'; $('biPainel').hidden = v !== 'painel';
+    ui.limpar(); if (v === 'slide') carregarSlide(); else carregar();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.addEventListener('click', function () { mudarVisao(b.dataset.visao); }); });
+  $('biHistorico').addEventListener('click', function () { if (confirm(ES ? 'Esto trae todas las notas desde enero del año pasado y puede tardar varios minutos. ¿Continuar?' : 'Isso busca todas as notas desde janeiro do ano passado e pode demorar vários minutos. Continuar?')) gerar(hoje(), hoje(), 'historico'); });
+
+  consultarStatus(function () { carregarSlide(); });
+})();
+</script>
+{% endblock %}
