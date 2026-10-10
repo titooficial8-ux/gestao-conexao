@@ -82,6 +82,8 @@
     pr.hidden = !e.rodando; $('biParar').disabled = !e.rodando || /Cancelando/.test(e.msg || '');
     if (e.rodando) $('biProgTxt').textContent = '⏳ ' + (e.msg || '') + ' (' + dataBR(e.inicio) + ' → ' + dataBR(e.fim) + ')';
     $('biGerar').disabled = $('biAtualizar').disabled = e.rodando || !st.configurado;
+    var sb = $('biSlideAtualizar');
+    if (sb) { sb.disabled = e.rodando || !st.configurado; sb.textContent = e.rodando ? (ES ? '⏳ Actualizando…' : '⏳ Atualizando…') : (ES ? '⟳ Actualizar' : '⟳ Atualizar'); if (!st.configurado) sb.title = ES ? 'TOTVS no configurado (.env)' : 'TOTVS não configurado (.env)'; }
     var dl = $('biDownloads'); dl.textContent = '';
     var mm = fonte === 'custom' ? st.custom : st.padrao;
     if (mm && mm.arquivos) [['xlsx150', 'Relatório 150 (Excel)'], ['csv150', 'CSV TOTVS'], ['xlsx', ES ? 'Excel completo' : 'Excel completo']].forEach(function (a) {
@@ -319,10 +321,14 @@
       s.addEventListener('change', function () { slideSel[ch] = s.value; if (ch === 'ano') delete slideSel.mes; carregarSlide(); }); l.appendChild(s); f.appendChild(l); }
     sel(ES ? 'Mes de referencia' : 'Mês referência', d.meses.map(function (m) { return [m, MESES[m - 1]]; }), d.mes, 'mes');
     sel(ES ? 'Año' : 'Ano', d.anos.map(function (a) { return [a, a]; }), d.ano, 'ano');
+    var bt = ui.el('button', 'btn-primary sl-atualizar', ES ? '⟳ Actualizar' : '⟳ Atualizar'); bt.type = 'button'; bt.id = 'biSlideAtualizar';
+    bt.title = ES ? 'Trae las notas del TOTVS ahora (mes anterior y actual)' : 'Puxa as notas do TOTVS agora (mês anterior e atual)';
+    bt.addEventListener('click', function () { gerar(hoje(), hoje(), 'recente'); }); f.appendChild(bt);
     var lz = ui.el('label', 'cme-filtro sl-chk'); var cb = ui.el('input'); cb.type = 'checkbox'; cb.checked = mostrarZeros; cb.addEventListener('change', function () { mostrarZeros = cb.checked; desenharSlide(d); });
     lz.appendChild(cb); lz.appendChild(ui.el('span', null, ES ? ' Mostrar líneas en cero' : ' Mostrar linhas zeradas')); f.appendChild(lz);
     f.appendChild(ui.el('span', 'cme-meta sl-gerado', (ES ? 'Datos hasta ' : 'Dados atualizados em ') + dhBR(d.gerado_em)));
 
+    pintarStatus();
     var cb2 = d.cabecalho, kp = ui.el('div', 'cme-kpigrid');
     function K(rot, v, nota, tom) { return { rotulo: rot, valor: v, fmt: 'brl', texto: 'R$ ' + mi(v), nota: nota, tom: tom }; }
     var pctDev = ui.nf(cb2.receita_bruta_sem_dev ? cb2.devolucao_bruta / cb2.receita_bruta_sem_dev * 100 : 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%' + (ES ? ' de la bruta' : ' da bruta');
