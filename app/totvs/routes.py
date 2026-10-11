@@ -30,7 +30,7 @@ def _data(txt):
 def _status():
     return dict(
         estado=dict(servico.ESTADO), configurado=servico.configurado(),
-        padrao=servico.meta('padrao'), custom=servico.meta('custom'),
+        padrao=servico.meta_rapido('padrao'), custom=servico.meta('custom'),
         proxima=servico.proxima_atualizacao(), meses=servico.meses_armazenados(), antigos=servico.meses_antigos(), pendentes=servico.meses_pendentes(),
     )
 
@@ -104,10 +104,24 @@ def cancelar():
     return _json(dict(ok=servico.cancelar()))
 
 
+_der_cache = {}
+
+
 @lru_cache(maxsize=1)
 def _derivados(chave):
-    cols, linhas, _ = servico.linhas_armazem()
-    return [base.derivar(dict(zip(cols, r))) for r in linhas] if cols else []
+    """Linhas derivadas de todos os meses; so recalcula os blocos que mudaram."""
+    out = []
+    vivos = set()
+    for b in servico._blocos():
+        k = (b.name, b.stat().st_mtime_ns)
+        vivos.add(k)
+        if k not in _der_cache:
+            d = servico._bloco_dados(b)
+            _der_cache[k] = [base.derivar(dict(zip(d['colunas'], r))) for r in d['linhas']]
+        out.extend(_der_cache[k])
+    for k in [k for k in _der_cache if k not in vivos]:
+        del _der_cache[k]
+    return out
 
 
 @bi_bp.route('/slide')

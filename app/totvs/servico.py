@@ -69,51 +69,117 @@ def _blocos():
     return sorted(BASE_DIR.glob('150_????-??.json')) if BASE_DIR.exists() else []
 
 
+_idx_lock = threading.Lock()
+
+
+def _resumo(d: dict, b: Path) -> dict:
+    """Resumo minusculo de um bloco mensal (para a tela nao precisar abrir os arquivos grandes a cada consulta)."""
+    ultima = ''
+    try:
+        i = d['colunas'].index('DATA')
+        ultima = max((str(r[i])[:10] for r in d['linhas'] if r[i]), default='')
+    except (ValueError, KeyError):
+        pass
+    return dict(versao=d.get('versao') or 1, gerado_em=d.get('gerado_em', ''), n=len(d.get('linhas') or []), ultima=ultima, mtime=b.stat().st_mtime_ns)
+
+
+def _indice() -> dict:
+    """{AAAA-MM: resumo}. Le so o indice; um bloco so e aberto se mudou fora do fluxo normal."""
+    with _idx_lock:
+        arq = BASE_DIR / '_indice.json'
+        try:
+            idx = json.loads(arq.read_text(encoding='utf-8'))
+        except Exception:  # noqa: BLE001
+            idx = {}
+        mudou = False
+        presentes = {b.stem[4:]: b for b in _blocos()}
+        for ym in list(idx):
+            if ym not in presentes:
+                del idx[ym]
+                mudou = True
+        for ym, b in presentes.items():
+            if ym not in idx or idx[ym].get('mtime') != b.stat().st_mtime_ns:
+                try:
+                    idx[ym] = _resumo(json.loads(b.read_text(encoding='utf-8')), b)
+                except Exception:  # noqa: BLE001
+                    idx[ym] = dict(versao=0, gerado_em='', n=0, ultima='', mtime=b.stat().st_mtime_ns)
+                mudou = True
+        if mudou and BASE_DIR.exists():
+            _escrever(arq, idx)
+        return idx
+
+
+def _gravar_bloco(ym: str, obj: dict) -> None:
+    caminho = BASE_DIR / f'150_{ym}.json'
+    _escrever(caminho, obj)
+    with _idx_lock:
+        arq = BASE_DIR / '_indice.json'
+        try:
+            idx = json.loads(arq.read_text(encoding='utf-8'))
+        except Exception:  # noqa: BLE001
+            idx = {}
+        idx[ym] = _resumo(obj, caminho)
+        _escrever(arq, idx)
+
+
 def meses_armazenados():
-    return [b.stem[4:] for b in _blocos()]
+    return sorted(_indice())
 
 
 def meses_antigos():
     """Meses guardados por uma versao antiga da busca (ex.: sem devolucoes) -> precisam ser recarregados."""
-    out = []
-    for b in _blocos():
-        try:
-            if (json.loads(b.read_text(encoding='utf-8')).get('versao') or 1) < SHARD_VERSAO:
-                out.append(b.stem[4:])
-        except Exception:  # noqa: BLE001
-            out.append(b.stem[4:])
-    return out
+    return [ym for ym, r in sorted(_indice().items()) if (r.get('versao') or 1) < SHARD_VERSAO]
 
 
 def _bloco_atual(ym) -> bool:
-    b = BASE_DIR / f'150_{ym}.json'
-    if not b.exists():
-        return False
-    try:
-        return (json.loads(b.read_text(encoding='utf-8')).get('versao') or 1) >= SHARD_VERSAO
-    except Exception:  # noqa: BLE001
-        return False
+    r = _indice().get(ym)
+    return bool(r) and (r.get('versao') or 1) >= SHARD_VERSAO
 
 
 def _chave_blocos():
     return tuple((b.name, b.stat().st_mtime_ns) for b in _blocos())
 
 
+_cache_bloco = {}
+
+
+def _bloco_dados(b: Path) -> dict:
+    """Conteudo de um bloco mensal; so reabre o arquivo se ele mudou."""
+    k = (b.name, b.stat().st_mtime_ns)
+    if k not in _cache_bloco:
+        for velho in [x for x in _cache_bloco if x[0] == b.name]:
+            del _cache_bloco[velho]
+        _cache_bloco[k] = json.loads(b.read_text(encoding='utf-8'))
+    return _cache_bloco[k]
+
+
 _cache_arm = {}
 
 
 def linhas_armazem():
-    """(colunas, linhas) de TODOS os meses guardados (cache enquanto os arquivos nao mudam)."""
+    """(colunas, linhas, gerado_em) de TODOS os meses guardados."""
     k = _chave_blocos()
     if _cache_arm.get('k') != k:
         cols, linhas, gerado = None, [], ''
         for b in _blocos():
-            d = json.loads(b.read_text(encoding='utf-8'))
+            d = _bloco_dados(b)
             cols = cols or d['colunas']
             linhas.extend(d['linhas'])
             gerado = max(gerado, d.get('gerado_em', ''))
         _cache_arm.update(k=k, cols=cols, linhas=linhas, gerado=gerado)
     return _cache_arm.get('cols'), _cache_arm.get('linhas') or [], _cache_arm.get('gerado', '')
+
+
+def meta_rapido(tag: str):
+    """Mesmo que meta(), mas para 'padrao' sem abrir os blocos (usado no /status, que e consultado a cada poucos segundos)."""
+    if tag != 'padrao':
+        return meta(tag)
+    ano = str(_agora().year)
+    idx = {ym: r for ym, r in _indice().items() if ym.startswith(ano) and r.get('n')}
+    if not idx:
+        return None
+    return dict(tag='padrao', inicio=f'{ano}-01-01', fim=max(r['ultima'] for r in idx.values()), gerado_em=max(r['gerado_em'] for r in idx.values()),
+                n_itens=sum(r['n'] for r in idx.values()), arquivos={}, problemas=[], origem='armazem')
 
 
 def _padrao_do_armazem():
@@ -245,7 +311,7 @@ def _nomes_rep_salvos() -> dict:
     out = {}
     for b in _blocos():
         try:
-            d = json.loads(b.read_text(encoding='utf-8'))
+            d = _bloco_dados(b)
             i, j = d['colunas'].index('COD.REP'), d['colunas'].index('REPRE')
             for r in d['linhas']:
                 if r[i] is not None and r[j]:
@@ -328,7 +394,7 @@ def gerar_blocos(inicio: date, fim: date, pular_existentes: bool = False) -> dic
         cols = list(df150.columns)
         linhas = [[None if (isinstance(v, float) and v != v) or v is pd.NaT else (v.isoformat() if hasattr(v, 'isoformat') else v) for v in r]
                   for r in df150.itertuples(index=False, name=None)]
-        _escrever(BASE_DIR / f'150_{ym}.json', dict(versao=SHARD_VERSAO, periodo=ym, gerado_em=_agora().isoformat(timespec='seconds'), colunas=cols, linhas=linhas,
+        _gravar_bloco(ym, dict(versao=SHARD_VERSAO, periodo=ym, gerado_em=_agora().isoformat(timespec='seconds'), colunas=cols, linhas=linhas,
                                                     problemas=(diag.problemas if diag else [])))
         feitos.append(ym)
         total_itens += len(linhas)
