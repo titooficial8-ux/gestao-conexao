@@ -66,7 +66,7 @@ def montar(regs: list[dict], mes: int, ano: int) -> dict:
     ant = ano - 1
     aj = base.ajustes().get('constantes_slide', {})
     ocultos = {base._k(x) for x in (base.ajustes().get('segmentos_ocultos') or {}).get('lista', [])}
-    regs = [x for x in regs if base._k(x['seg']) not in ocultos and x['ano'] in (ano, ant)]            # ex.: CALCADO e MOVELEIRO ficam fora de tudo
+    regs = [x for x in regs if x['ano'] in (ano, ant)]            # segmentos ocultos continuam nos totais (como na planilha); so a linha some
 
     def soma(campo, **f):
         t = 0.0
@@ -188,6 +188,8 @@ def montar(regs: list[dict], mes: int, ano: int) -> dict:
     serie = [dict(mes=m, ant=por.get((ant, m), 0), real=por.get((ano, m), 0),
                   plano=sum(P['seg'].get((base._k(sg), m), {}).get('val', 0) for sg in SEGMENTOS_RS)) for m in range(1, 13)]
 
+    visivel = lambda l: [x for x in l if base._k(x['rotulo']) not in ocultos]
+    rs, mt, kg = visivel(rs), visivel(mt), visivel(kg)
     return dict(serie_mensal=serie, mes=mes, ano=ano, ano_ant=ant, cabecalho=cab, receita=rs, receita_total=tot_rs, metros=mt, metros_total=tot_mt, quilos=kg, quilos_total=tot_kg,
                 preco_medio=pm, representantes=reps, representantes_total=tot_reps, ortobom=orto, ortobom_total=orto_tot, ortobom_plano=orto_plano,
                 internacional=intl, internacional_total=it)

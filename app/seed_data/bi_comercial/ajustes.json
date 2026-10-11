@@ -42,7 +42,7 @@
     ]
   },
   "segmentos_ocultos": {
-    "_leia-me": "Segmentos que nao aparecem no Slide mensal (fora dos totais). Remova daqui para voltar a usar.",
+    "_leia-me": "Segmentos cuja LINHA nao aparece no Slide mensal (os valores continuam somados nos totais, como na planilha). Remova daqui para voltar a usar.",
     "lista": [
       "CALÇADO",
       "MOVELEIRO",
