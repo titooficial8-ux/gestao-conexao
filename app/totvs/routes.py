@@ -107,19 +107,20 @@ def cancelar():
 _der_cache = {}
 
 
-@lru_cache(maxsize=1)
-def _derivados(chave):
-    """Linhas derivadas de todos os meses; so recalcula os blocos que mudaram."""
-    out = []
-    vivos = set()
+@lru_cache(maxsize=4)
+def _derivados(chave, anos):
+    """Linhas derivadas dos meses dos anos pedidos; so recalcula os blocos que mudaram."""
+    out, vivos = [], set()
     for b in servico._blocos():
+        if int(b.stem[4:8]) not in anos:
+            continue
         k = (b.name, b.stat().st_mtime_ns)
         vivos.add(k)
         if k not in _der_cache:
             d = servico._bloco_dados(b)
             _der_cache[k] = [base.derivar(dict(zip(d['colunas'], r))) for r in d['linhas']]
         out.extend(_der_cache[k])
-    for k in [k for k in _der_cache if k not in vivos]:
+    for k in [k for k in _der_cache if k not in vivos and int(k[0][4:8]) in anos]:
         del _der_cache[k]
     return out
 
@@ -128,13 +129,17 @@ def _derivados(chave):
 @login_required
 def slide_mensal():
     _autorizar()
-    regs = _derivados(servico._chave_blocos())
-    if not regs:
+    idx = servico._indice()
+    if not idx:
         return _json(dict(vazio=True))
-    anos = sorted({x['ano'] for x in regs if x['ano']})
+    anos = sorted({int(ym[:4]) for ym in idx})
     ano = request.args.get('ano', type=int) or anos[-1]
-    meses = sorted({x['mes'] for x in regs if x['ano'] == ano and x['mes']})
-    mes = request.args.get('mes', type=int) or (meses[-1] if meses else 1)
+    meses = sorted(int(ym[5:]) for ym in idx if ym.startswith(f'{ano}-'))
+    if not meses:
+        ano = anos[-1]
+        meses = sorted(int(ym[5:]) for ym in idx if ym.startswith(f'{ano}-'))
+    mes = request.args.get('mes', type=int) or meses[-1]
+    regs = _derivados(servico._chave_blocos(), (ano, ano - 1))
     out = slide.montar(regs, mes, ano)
-    out.update(vazio=False, anos=anos, meses=meses, gerado_em=servico.linhas_armazem()[2], plano_origem=base._ler('origem'))
+    out.update(vazio=False, anos=anos, meses=meses, gerado_em=max(r['gerado_em'] for r in idx.values()), plano_origem=base._ler('origem'))
     return _json(out)

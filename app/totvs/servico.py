@@ -83,6 +83,22 @@ def _resumo(d: dict, b: Path) -> dict:
     return dict(versao=d.get('versao') or 1, gerado_em=d.get('gerado_em', ''), n=len(d.get('linhas') or []), ultima=ultima, mtime=b.stat().st_mtime_ns)
 
 
+def _resumo_rapido(b: Path) -> dict:
+    """Resumo sem abrir o arquivo inteiro: 'versao' e 'gerado_em' ficam no comeco do JSON (antes das linhas)."""
+    import re
+    try:
+        with open(b, 'rb') as f:
+            ini = f.read(600).decode('utf-8', 'ignore')
+    except OSError:
+        ini = ''
+    v = re.search(r'"versao"\s*:\s*(\d+)', ini)
+    g = re.search(r'"gerado_em"\s*:\s*"([^"]*)"', ini)
+    ym = b.stem[4:]
+    a_, m_ = int(ym[:4]), int(ym[5:])
+    fim_mes = (date(a_ + (m_ == 12), 1 if m_ == 12 else m_ + 1, 1) - timedelta(days=1)).isoformat()
+    return dict(versao=int(v.group(1)) if v else 1, gerado_em=g.group(1) if g else '', n=1, ultima=min(fim_mes, _agora().date().isoformat()), mtime=b.stat().st_mtime_ns)
+
+
 def _indice() -> dict:
     """{AAAA-MM: resumo}. Le so o indice; um bloco so e aberto se mudou fora do fluxo normal."""
     with _idx_lock:
@@ -99,10 +115,7 @@ def _indice() -> dict:
                 mudou = True
         for ym, b in presentes.items():
             if ym not in idx or idx[ym].get('mtime') != b.stat().st_mtime_ns:
-                try:
-                    idx[ym] = _resumo(json.loads(b.read_text(encoding='utf-8')), b)
-                except Exception:  # noqa: BLE001
-                    idx[ym] = dict(versao=0, gerado_em='', n=0, ultima='', mtime=b.stat().st_mtime_ns)
+                idx[ym] = _resumo_rapido(b)
                 mudou = True
         if mudou and BASE_DIR.exists():
             _escrever(arq, idx)
