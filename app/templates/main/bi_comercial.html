@@ -169,9 +169,9 @@
   var MESES = ES ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] : ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   var slideSel = {}, mostrarZeros = false;
   function brl(v) { return ui.nf(v, { maximumFractionDigits: 0 }); }
-  function mil(v) { return 'R$ ' + ui.nf(v / 1000, { maximumFractionDigits: 0 }); }
+  function mil(v) { var d = Math.abs(v) > 0 && Math.abs(v) < 10000 ? 1 : 0; return 'R$ ' + ui.nf(v / 1000, { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function num2(v) { return 'R$ ' + ui.nf(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  function pct(v) { return ui.nf(v * 100, { maximumFractionDigits: 0 }) + '%'; }
+  function pct(v, dec) { dec = dec === undefined ? 0 : dec; return ui.nf(v * 100, { minimumFractionDigits: dec, maximumFractionDigits: dec }) + '%'; }   // slide: 2 casas (como a planilha), Ortobom: 1
   function zero(l) { return ['ant', 'plano', 'real'].every(function (k) { return !(l.mes[k]) && !(l.acum[k]); }); }
 
   // ---- tabelas do slide (visual de apresentacao)
@@ -181,12 +181,12 @@
     var h = ui.el('div', 'sl-sec-topo'); h.appendChild(ui.el('span', 'sl-num', String(++SEC)));
     var t = ui.el('div'); t.appendChild(ui.el('h3', null, titulo)); if (sub) t.appendChild(ui.el('p', 'sl-sub', sub)); h.appendChild(t); c.appendChild(h); return c;
   }
-  function pill(v, lim) {
+  function pill(v, lim, dec) {
     if (!v) return ui.el('span', 'sl-pill p-neu', '–');
     var cls = v < lim ? 'p-verm' : (v < 0 ? 'p-amar' : 'p-ver');
-    return ui.el('span', 'sl-pill ' + cls, (v > 0 ? '+' : '') + pct(v));
+    return ui.el('span', 'sl-pill ' + cls, (v > 0 ? '+' : '') + pct(v, dec === undefined ? 2 : dec));
   }
-  function celPill(v, lim) { var td = ui.el('td', 'cme-num'); td.appendChild(pill(v, lim)); return td; }
+  function celPill(v, lim, dec) { var td = ui.el('td', 'cme-num'); td.appendChild(pill(v, lim, dec)); return td; }
   function celReal(real, ref, fmt) {
     var td = ui.el('td', 'cme-num sl-real ' + (!real ? '' : (real >= ref ? 'sl-ok' : 'sl-baixo')));
     td.appendChild(ui.el('span', null, real ? fmt(real) : '–')); return td;
@@ -235,12 +235,12 @@
       ['mes', 'acum'].forEach(function (k, gi) { var x = l[k];
         r.appendChild(ui.el('td', 'cme-num' + (gi ? ' sl-ini' : ''), x[chave] ? fmt(x[chave]) : '–'));
         r.appendChild(celReal(x.real, x[chave] || 0, fmt));
-        r.appendChild(celPill(x.var, -0.2)); });
+        r.appendChild(celPill(x.var, -0.2, chave === 'ant' ? 1 : 2)); });
       return r; }
     linhas.forEach(function (l) { var z = !(l.mes.real || l.mes[chave] || l.acum.real || l.acum[chave]); if (mostrarZeros || !z) tb.appendChild(tr(l, false)); });
     tb.appendChild(tr(total, true));
     if (plano) { var p = ui.el('tr', 'sl-plano'); p.appendChild(ui.el('td', 'sl-rot', plano.rotulo));
-      ['mes', 'acum'].forEach(function (k, gi) { p.appendChild(ui.el('td', gi ? 'sl-ini' : '')); var x = ui.el('td', 'cme-num', plano[k].real ? fmt(plano[k].real) : '–'); p.appendChild(x); p.appendChild(celPill(plano[k].var, -0.2)); });
+      ['mes', 'acum'].forEach(function (k, gi) { p.appendChild(ui.el('td', gi ? 'sl-ini' : '')); var x = ui.el('td', 'cme-num', plano[k].real ? fmt(plano[k].real) : '–'); p.appendChild(x); p.appendChild(celPill(plano[k].var, -0.2, chave === 'ant' ? 1 : 2)); });
       tb.appendChild(p); }
     t.appendChild(tb); c.appendChild(w); return c;
   }
