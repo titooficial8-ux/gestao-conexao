@@ -108,6 +108,11 @@ def derivar(r: dict) -> dict:
     over = {_k(k): v for k, v in (ajustes().get('segmento_por_fantasia') or {}).items()}.get(_k(r.get('FANTASIA')))
     if over and seg == 'COLCHÃO':
         seg = over                                              # reclassificacao manual (ex.: cliente M.E. faturado como MI)
+    por_nota = ajustes().get('segmento_por_nota') or {}
+    if tipo == 'VDA':                                            # classificacao manual da planilha: "NFE" (nota toda) ou "NFE:CODIDO" (um item)
+        nota = por_nota.get(f"{r.get('NFE')}:{r.get('CODIDO')}") or por_nota.get(str(r.get('NFE')))
+        if nota:
+            seg = nota
     rep = '#N/A' if seg == '#N/A' else 'NADA'
     if seg == 'COLCHÃO' and r.get('REPRE'):                      # F
         rep = t['rep'].get(_k(r.get('REPRE')), '#N/A')
