@@ -31,7 +31,7 @@ def _status():
     return dict(
         estado=dict(servico.ESTADO), configurado=servico.configurado(),
         padrao=servico.meta('padrao'), custom=servico.meta('custom'),
-        proxima=servico.proxima_atualizacao(), meses=servico.meses_armazenados(), antigos=servico.meses_antigos(),
+        proxima=servico.proxima_atualizacao(), meses=servico.meses_armazenados(), antigos=servico.meses_antigos(), pendentes=servico.meses_pendentes(),
     )
 
 
@@ -45,6 +45,7 @@ def _json(obj):
 @login_required
 def status():
     _autorizar()
+    servico.tentar_automatico()        # quem abre a tela ja dispara o que estiver pendente
     return _json(_status())
 
 

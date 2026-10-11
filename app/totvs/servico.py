@@ -255,6 +255,14 @@ def _nomes_rep_salvos() -> dict:
     return out
 
 
+def meses_pendentes() -> list:
+    """Meses (de janeiro do ano passado ate o mes anterior) ainda sem carga ou com carga de versao antiga."""
+    hoje = _agora().date()
+    ini = date(hoje.year - 1, 1, 1)
+    fim = hoje.replace(day=1) - timedelta(days=1)
+    return [ym for ym, _, _ in _meses(ini, fim) if not _bloco_atual(ym)]
+
+
 def _meses(inicio: date, fim: date):
     a, m = inicio.year, inicio.month
     while (a, m) <= (fim.year, fim.month):
@@ -320,21 +328,35 @@ def gerar_blocos(inicio: date, fim: date, pular_existentes: bool = False) -> dic
 def _rodar(inicio: date, fim: date, tag: str, origem: str) -> None:
     from app.totvs import api
     try:
-        if tag == 'base':
+        if tag == 'base' and origem == 'historico_auto':
+            total = 0
+            pend = meses_pendentes()
+            grupos = [pend[i:i + 3] for i in range(0, len(pend), 3)][::-1]       # mais recentes primeiro
+            for n, g in enumerate(grupos, 1):
+                a_, m_ = int(g[0][:4]), int(g[0][5:])
+                z_, w_ = int(g[-1][:4]), int(g[-1][5:])
+                fim_g = date(z_ + (w_ == 12), 1 if w_ == 12 else w_ + 1, 1) - timedelta(days=1)
+                _log(f'Historico automatico: bloco {n}/{len(grupos)} ({g[0]} a {g[-1]})...')
+                total += gerar_blocos(date(a_, m_, 1), fim_g, pular_existentes=True)['n_itens']
+            hoje = _agora().date()
+            gerar_blocos((hoje.replace(day=1) - timedelta(days=1)).replace(day=1), hoje)   # mes anterior + atual
+            ESTADO.update(erro=None, msg=f'Historico completo ({total} itens carregados).')
+            _escrever(DIR / 'agenda.json', {**_ler_agenda(), 'ultima_ok': _agora().isoformat(timespec='seconds'), 'tentativa': _agora().isoformat(timespec='seconds'), 'erro': False})
+        elif tag == 'base':
             m = gerar_blocos(inicio, fim, pular_existentes=(origem == 'historico'))
             ESTADO.update(erro=None, msg=f'Concluido: {len(m["meses"])} mes(es) atualizado(s), {m["n_itens"]} itens.')
         else:
             m = gerar_dados(inicio, fim, tag)
             ESTADO.update(erro=None, msg=f'Concluido: {m["n_itens"]} itens em {m["n_validas"]} notas validas.')
         if origem == 'agenda':
-            _escrever(DIR / 'agenda.json', dict(ultima_ok=_agora().isoformat(timespec='seconds'), tentativa=_agora().isoformat(timespec='seconds')))
+            _escrever(DIR / 'agenda.json', dict(ultima_ok=_agora().isoformat(timespec='seconds'), tentativa=_agora().isoformat(timespec='seconds'), erro=False))
     except api.Cancelado:
         ESTADO.update(erro=None, msg='Busca cancelada.')
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         ESTADO.update(erro=str(e)[:600], msg='Falhou')
-        if origem == 'agenda':
-            _escrever(DIR / 'agenda.json', {**_ler_agenda(), 'tentativa': _agora().isoformat(timespec='seconds')})
+        if origem in ('agenda', 'historico_auto'):
+            _escrever(DIR / 'agenda.json', {**_ler_agenda(), 'tentativa': _agora().isoformat(timespec='seconds'), 'erro': True})
     finally:
         ESTADO['rodando'] = False
 
@@ -379,8 +401,8 @@ def _ler_agenda() -> dict:
 
 def proxima_atualizacao() -> str:
     """Texto para a tela: a atualizacao automatica roda a cada N minutos (so com o servidor ligado e historico carregado)."""
-    if not meses_armazenados():
-        return 'automatica desligada (carregue o historico primeiro)'
+    if meses_pendentes():
+        return f'carregando o historico sozinho ({len(meses_pendentes())} mes(es) faltando)'
     ag = _ler_agenda().get('tentativa')
     try:
         prox = datetime.fromisoformat(ag) + timedelta(minutes=intervalo_min()) if ag else _agora()
@@ -389,19 +411,31 @@ def proxima_atualizacao() -> str:
     return f'a cada {intervalo_min()} min (proxima ~{max(prox, _agora()):%H:%M})'
 
 
-def _tick() -> None:
-    if not configurado() or ESTADO['rodando'] or not meses_armazenados():
+def tentar_automatico() -> None:
+    """Chamado pelo agendador (a cada 30 s) e quando alguem abre o BI: completa o historico sozinho e, depois, mantem os meses recentes em dia."""
+    if not configurado() or ESTADO['rodando']:
         return
-    ag = _ler_agenda().get('tentativa')
-    if ag:
+    ag = _ler_agenda()
+    tent = ag.get('tentativa')
+    if tent:
         try:
-            if (_agora() - datetime.fromisoformat(ag)).total_seconds() < intervalo_min() * 60:
+            espera = 1800 if ag.get('erro') else intervalo_min() * 60       # falhou: espera 30 min; senao o intervalo normal
+            if (_agora() - datetime.fromisoformat(tent)).total_seconds() < espera and not meses_pendentes():
+                return
+            if ag.get('erro') and (_agora() - datetime.fromisoformat(tent)).total_seconds() < 1800:
                 return
         except ValueError:
             pass
+    if meses_pendentes():
+        iniciar(date.today(), date.today(), 'base', 'historico_auto')
+        return
     hoje = _agora().date()
     ini = (hoje.replace(day=1) - timedelta(days=1)).replace(day=1)       # mes anterior (pega notas lancadas com atraso)
     iniciar(ini, hoje, 'base', 'agenda')
+
+
+def _tick() -> None:
+    tentar_automatico()
 
 
 def iniciar_agendador() -> None:
