@@ -207,7 +207,7 @@
     th.appendChild(h2); t.appendChild(th);
     var tb = ui.el('tbody');
     function linhaTr(l, ehTotal) {
-      var r = ui.el('tr', ehTotal ? 'sl-total' : null); r.appendChild(ui.el('td', 'sl-rot', l.rotulo));
+      var r = ui.el('tr', ehTotal ? 'sl-total' : null); r.appendChild(ui.el('td', 'sl-rot', l.rotulo === 'SUCATA PAPELAO' ? 'SUCATA PAPELÃO' : l.rotulo));
       ['mes', 'acum'].forEach(function (k, gi) {
         var x = l[k], ini = gi ? ' sl-ini' : '';
         var a1 = ui.el('td', 'cme-num' + ini, x.ant ? fmt(x.ant) : '–'); r.appendChild(a1);
@@ -217,7 +217,7 @@
       });
       return r;
     }
-    linhas.forEach(function (l) { if (mostrarZeros || !zero(l)) tb.appendChild(linhaTr(l, false)); });
+    linhas.forEach(function (l) { if (mostrarZeros || !zero(l) || l.rotulo === 'SUCATA PAPELAO') tb.appendChild(linhaTr(l, false)); });
     if (total) tb.appendChild(linhaTr(total, true));
     t.appendChild(tb); c.appendChild(w); return c;
   }
