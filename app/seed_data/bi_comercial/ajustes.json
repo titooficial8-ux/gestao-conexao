@@ -49,5 +49,18 @@
       "FACÇÃO",
       "FACÇÃO AUT"
     ]
+  },
+  "segmento_por_nome_artigo": {
+    "_leia-me": "Se o nome do artigo contem o texto, vale este segmento (conferido: 99,6% de acerto contra o Relatorio 150 da planilha).",
+    "SEGUNDA QUALID": "SEGUNDA QUALIDADE",
+    "SEGUNDAQUALID": "SEGUNDA QUALIDADE"
+  },
+  "segmento_vazio_por_operacao": {
+    "_leia-me": "Quando o TOTVS nao devolve segmento (produto sem referencia), usa o segmento padrao da operacao: ativo imobilizado, complemento de preco e fio de revenda.",
+    "508": "PAT",
+    "1508": "PAT",
+    "564": "PAT",
+    "569": "COMPL PRECO",
+    "500": "PES"
   }
 }

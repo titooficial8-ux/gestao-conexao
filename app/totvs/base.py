@@ -92,6 +92,15 @@ def derivar(r: dict) -> dict:
     tipo = 'DEV' if 'DEV' in desc else 'VDA'                 # A: =IFERROR(MID(Q,FIND("DEV",Q),3),"VDA")
     d = _data(r.get('DATA'))
     seg_raw = r.get('SEGMENTO')
+    nome_art = str(r.get('ARTIGO') or '').upper()
+    for trecho, destino in ((k, v) for k, v in (ajustes().get('segmento_por_nome_artigo') or {}).items() if not k.startswith('_')):
+        if trecho in nome_art:
+            seg_raw = destino
+            break
+    else:
+        if not str(seg_raw or '').strip():
+            vazio = {k: v for k, v in (ajustes().get('segmento_vazio_por_operacao') or {}).items() if not k.startswith('_')}
+            seg_raw = vazio.get(str(r.get('OPER')), seg_raw)
     por_op = {k: v for k, v in (ajustes().get('segmento_por_operacao') or {}).items() if not k.startswith('_')}
     if por_op.get(str(r.get('OPER'))) and _k(seg_raw) in ('', 'colchao mi'):
         seg_raw = por_op[str(r.get('OPER'))]
