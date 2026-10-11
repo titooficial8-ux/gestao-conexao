@@ -255,10 +255,20 @@ def _nomes_rep_salvos() -> dict:
     return out
 
 
+def inicio_historico() -> date:
+    """Primeiro mes do historico: BI_HISTORICO_DESDE=AAAA-MM no .env, ou janeiro do ano passado (o que o slide precisa para comparar)."""
+    txt = os.getenv('BI_HISTORICO_DESDE', '').strip()
+    try:
+        a, m = txt.split('-')[:2]
+        return date(int(a), int(m), 1)
+    except (ValueError, TypeError):
+        return date(_agora().year - 1, 1, 1)
+
+
 def meses_pendentes() -> list:
     """Meses (de janeiro do ano passado ate o mes anterior) ainda sem carga ou com carga de versao antiga."""
     hoje = _agora().date()
-    ini = date(hoje.year - 1, 1, 1)
+    ini = inicio_historico()
     fim = hoje.replace(day=1) - timedelta(days=1)
     return [ym for ym, _, _ in _meses(ini, fim) if not _bloco_atual(ym)]
 

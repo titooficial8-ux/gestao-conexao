@@ -80,7 +80,7 @@ def gerar():
         ini = (date.today().replace(day=1) - timedelta(days=1)).replace(day=1)
         iniciou = servico.iniciar(ini, date.today(), 'base', 'botao')
     elif modo == 'historico':  # carga inicial: de janeiro do ano passado ate hoje (pula meses ja carregados)
-        iniciou = servico.iniciar(date(date.today().year - 1, 1, 1), date.today(), 'base', 'historico')
+        iniciou = servico.iniciar(servico.inicio_historico(), date.today(), 'base', 'historico')
     else:
         iniciou = servico.iniciar(ini, fim, 'custom', 'botao')
     return _json(dict(ok=iniciou, erro=None if iniciou else 'Ja existe uma geracao em andamento.'))
