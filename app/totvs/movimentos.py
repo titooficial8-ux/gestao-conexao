@@ -16,7 +16,6 @@ from datetime import date, datetime, timedelta
 from . import api
 
 BASE_URL = api.BASE_URL
-BATCH_URL = f'{BASE_URL}/api/totvsmoda/product/v2/batch/search'
 OPS_URL = f'{BASE_URL}/api/totvsmoda/production-order/v2/orders/search'
 MOV_URL = f'{BASE_URL}/api/totvsmoda/production/v2/movements'
 EMPRESA = 1
@@ -67,31 +66,6 @@ def calcular(movs: list, op, metro_padrao):
         lista.append(dict(item=len(lista) + 1, data=str(m.get('movementDate'))[:10], sequencia=m.get('sequence'), acerto=round(acerto, 3),
                           metros=round(metro_padrao + acerto, 3) if metro_padrao else None))
     return lista, saiu
-
-
-def finalizacoes(movs: list, op) -> list:
-    """Pecas finalizadas (todas as finalizacoes, inclusive 2a qualidade: o lote do TOTVS tem todas), na ordem em que foram finalizadas."""
-    fins = [m for m in movs if str(m.get('productionOrder')) == str(op) and m.get('movementType') == 'FinalizationMovement' and not m.get('isReversed')]
-    fins.sort(key=lambda m: (str(m.get('movementDate')), m.get('sequence') or 0))
-    return [dict(item=i + 1, data=str(m.get('movementDate'))[:10], sequencia=m.get('sequence'), metros=_num(m.get('totalQuantity'))) for i, m in enumerate(fins)]
-
-
-def casar_lote(fins: list, lotes: list, usados: set):
-    """Acha o lote do TOTVS que e a finalizacao da OP: mesma quantidade de pecas e os mesmos metros, na mesma ordem.
-    Devolve (codigo do lote, itens do lote) ou (None, []). Lote ja usado por outra OP nao entra."""
-    mets = [f['metros'] for f in fins]
-    if not mets:
-        return None, []
-    achados = []
-    for b in lotes:
-        if b.get('batchCode') in usados:
-            continue
-        its = sorted(b.get('batchItem') or [], key=lambda i: i.get('batchItemSequential') or 0)
-        if len(its) == len(mets) and all(abs(_num(i.get('quantityItem')) - m) < 0.51 for i, m in zip(its, mets)):
-            achados.append((b['batchCode'], its))
-    if not achados:
-        return None, []
-    return max(achados, key=lambda a: a[0])                    # varios iguais: o lote mais novo
 
 
 def _no_local(o: dict) -> float:
@@ -167,7 +141,7 @@ def _metro_padrao(seq):
 def atualizar_todas(app) -> bool:
     """Busca no TOTVS as pesagens do local 23 de todas as OPs da Programacao e grava no banco."""
     from app import db
-    from app.models import PesagemAcabado, PesagemMalharia, PesagemResumo, Sequencia
+    from app.models import PesagemMalharia, PesagemResumo, Sequencia
     if not _trava_auto.acquire(blocking=False):
         return False
     t0 = time.time()
@@ -189,7 +163,7 @@ def atualizar_todas(app) -> bool:
                 info = {}
                 for i in range(0, len(ops), 100):
                     r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], orderCodeList=[int(o) for o in ops[i:i + 100]]),
-                                                expand='items,locations', pageSize=500, page=1))
+                                                expand='locations', pageSize=500, page=1))
                     if r.status_code != 200:
                         raise RuntimeError(f'OPs: HTTP {r.status_code} {r.text[:160]}')
                     for o in r.json().get('items') or []:
@@ -202,7 +176,7 @@ def atualizar_todas(app) -> bool:
                     ini = max(inicio, fim - timedelta(days=JANELA_DIAS))
                     r = cli.post(MOV_URL, dict(branchCodeList=[EMPRESA], cycleCodeList=[13], productionOrderCodeList=ops,
                                                movementStartDate=ini.isoformat(), movementEndDate=fim.isoformat(),
-                                               listNormalMovement=True, listFinalizationMovement=True, reversalType=2))
+                                               listNormalMovement=True, listFinalizationMovement=False, reversalType=2))
                     if r.status_code != 200:
                         raise RuntimeError(f'Movimentos: HTTP {r.status_code} {r.text[:160]}')
                     movs += r.json().get('items') or []
@@ -213,43 +187,21 @@ def atualizar_todas(app) -> bool:
             por_op = {}
             for m in movs:
                 por_op.setdefault(str(m.get('productionOrder')), []).append(m)
-
-            # pecas finalizadas + peso (kg) vindo do lote do TOTVS (product/batch/search)
-            fins_op = {op: finalizacoes(por_op.get(op, []), op) for op in ops}
-            produto_op = {op: ((info.get(op) or {}).get('items') or [{}])[0].get('productCode') for op in ops}
-            lotes_produto = {}
-            produtos = sorted({produto_op[op] for op in ops if fins_op[op] and produto_op[op]})
-            with _trava:
-                for i in range(0, len(produtos), 40):
-                    pag = 1
-                    while True:
-                        r = cli.post(BATCH_URL, dict(filter=dict(branchCode=EMPRESA, productCodeList=produtos[i:i + 40],
-                                                                 updatedDateStart=f'{inicio.isoformat()}T00:00:00', updatedDateEnd=f'{hoje.isoformat()}T23:59:59'),
-                                                     page=pag, pageSize=1000))
-                        if r.status_code != 200:
-                            raise RuntimeError(f'Lotes: HTTP {r.status_code} {r.text[:160]}')
-                        j = r.json()
-                        for b in j.get('items') or []:
-                            lotes_produto.setdefault(b.get('productCode'), []).append(b)
-                        if not j.get('hasNext'):
-                            break
-                        pag += 1
             agora = datetime.utcnow()
-            novas, resumos, total_pecas, acabadas, usados = [], [], 0, [], set()
+            # hora = quando o Gestao viu a peca (a API do TOTVS so tem a data). Guarda a de antes; pecas novas de OP ja conhecida ganham a hora de agora
+            antigas = {(a.op, a.item, a.data, a.sequencia, a.acerto): a.visto_em for a in PesagemMalharia.query.all()}
+            ops_conhecidas = {r.op for r in PesagemResumo.query.all()}
+            agora_local = datetime.now()
+            novas, resumos, total_pecas = [], [], 0
             for op in ops:
-                fins = fins_op[op]
-                lote, itens = casar_lote(fins, lotes_produto.get(produto_op[op], []), usados) if fins else (None, [])
-                if lote:
-                    usados.add(lote)
-                for f, it in zip(fins, itens or [None] * len(fins)):
-                    acabadas.append(PesagemAcabado(op=op, item=f['item'], data=_data(f['data']), sequencia=f['sequencia'], metros=f['metros'],
-                                                   peso=_num(it.get('quantityWeigth')) if it else None, lote=lote, synced_at=agora))
                 o = info.get(op)
                 lista, saiu = calcular(por_op.get(op, []), op, padroes[op])
                 total_pecas += len(lista)
                 for l in lista:
+                    chave = (op, l['item'], _data(l['data']), l['sequencia'], l['acerto'])
+                    visto = antigas.get(chave) if chave in antigas else (agora_local if op in ops_conhecidas else None)
                     novas.append(PesagemMalharia(op=op, ciclo=13, item=l['item'], data=_data(l['data']), sequencia=l['sequencia'],
-                                                 acerto=l['acerto'], metros=l['metros'], synced_at=agora))
+                                                 acerto=l['acerto'], metros=l['metros'], visto_em=visto, synced_at=agora))
                 resumos.append(PesagemResumo(op=op, ciclo=13, encontrada=bool(o), maquina=maquinas[op] if maquinas[op] is not None else (o or {}).get('machineCode'),
                                              metro_padrao=padroes[op], pecas=len(lista),
                                              metros=round(sum(l['metros'] or 0 for l in lista), 3) if padroes[op] else None,
@@ -258,8 +210,6 @@ def atualizar_todas(app) -> bool:
             try:
                 PesagemMalharia.query.delete()
                 PesagemResumo.query.delete()
-                PesagemAcabado.query.delete()
-                db.session.bulk_save_objects(acabadas)
                 db.session.bulk_save_objects(novas)
                 db.session.bulk_save_objects(resumos)
                 db.session.commit()

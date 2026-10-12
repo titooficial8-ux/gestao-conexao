@@ -103,11 +103,15 @@ def create_app():
         db.create_all()
         # colunas novas em bancos antigos (o create_all so cria tabelas que ainda nao existem)
         from sqlalchemy import inspect, text
-        colunas = {c['name'] for c in inspect(db.engine).get_columns('pedidos_relatorio')}
-        for nome, tipo in (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)')):
-            if nome not in colunas:
-                db.session.execute(text(f'ALTER TABLE pedidos_relatorio ADD COLUMN {nome} {tipo}'))
-                db.session.commit()
+        tabelas = set(inspect(db.engine).get_table_names())
+        for tabela, novas in (('pedidos_relatorio', (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)'))), ('pesagens_malharia', (('visto_em', 'DATETIME'),))):
+            if tabela not in tabelas:
+                continue
+            colunas = {c['name'] for c in inspect(db.engine).get_columns(tabela)}
+            for nome, tipo in novas:
+                if nome not in colunas:
+                    db.session.execute(text(f'ALTER TABLE {tabela} ADD COLUMN {nome} {tipo}'))
+                    db.session.commit()
         if first_run:
             from app.seed import seed_data
             seed_data()

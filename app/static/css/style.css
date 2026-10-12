@@ -2756,6 +2756,4 @@ textarea.ticket-input { resize: vertical; }
 .tab-centro tbody tr.op-fora td { background: #fdeeee; color: #a32121; font-weight: 600; }
 .op-modal-rodape { margin: 10px 0 0; text-align: center; font-size: .75rem; color: #7a889d; }
 .op-kpi-un { font-size: .6em; font-weight: 700; color: #5b6b85; }
-.op-abas { display: flex; gap: 8px; justify-content: center; margin: 6px 0 10px; }
-.op-aba { border: 1px solid #dde5f0; background: #f3f6fb; color: #3b4a63; padding: 7px 16px; border-radius: 20px; font-weight: 700; font-size: .78rem; cursor: pointer; }
-.op-aba-ativa { background: #0b4a9e; color: #fff; border-color: #0b4a9e; }
+.op-ultima { margin: 4px 0 10px; text-align: center; font-weight: 700; color: #17325c; }
