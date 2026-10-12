@@ -6,8 +6,15 @@
   <span class="machines-count">{{ total_geral }} {{ t('pedidos_meta') }}</span>
 </div>
 
+
+<div class="ped-status" id="pedStatus" data-ultima="" data-es="{{ '1' if lang != 'pt' else '' }}">
+  <span class="ped-dot" id="pedDot"></span>
+  <span id="pedTexto">{{ 'Conectando ao TOTVS...' if lang == 'pt' else 'Conectando con TOTVS...' }}</span>
+  <button type="button" class="btn-small" id="pedAtualizar">{{ 'Atualizar agora' if lang == 'pt' else 'Actualizar ahora' }}</button>
+</div>
+
 <form method="GET" class="prod-filters">
-  <input type="text" name="q" class="prod-search" placeholder="{{ t('pesquisar_pedidos_placeholder') }}" value="{{ busca }}">
+  <input type="text" name="q" class="prod-search" id="pedBusca" autocomplete="off" placeholder="{{ t('pesquisar_pedidos_placeholder') }}" value="{{ busca }}">
   <button type="submit" class="btn-small btn-primary">{{ t('pesquisar') }}</button>
   {% if busca %}
   <a href="{{ url_for('main.view_tab', slug='relatorio-pedidos') }}" class="btn-small">{{ t('limpar') }}</a>
@@ -16,7 +23,7 @@
 
 <div class="table-card">
   <div class="table-scroll">
-    <table class="data-table prod-table">
+    <table class="data-table prod-table tab-centro">
       <thead>
         <tr>
           <th>{{ t('pedido') }}</th>
@@ -43,7 +50,7 @@
         {% for p in pedidos %}
         <tr>
           <td>{{ p.cod_pedido }}</td>
-          <td>{{ p.nome_cliente }}</td>
+          <td>{{ p.nome_cliente }}{% if busca and p.unidade and p.unidade != p.nome_cliente %}<div class="ped-unidade">{{ p.unidade }}</div>{% endif %}</td>
           <td>{{ p.dt_pedido.strftime('%d/%m/%Y') if p.dt_pedido else '–' }}</td>
           <td>{{ p.dt_prevfaturamento.strftime('%d/%m/%Y') if p.dt_prevfaturamento else '–' }}</td>
           <td>{{ p.dt_chegada30.strftime('%d/%m/%Y') if p.dt_chegada30 else '–' }}</td>
@@ -63,15 +70,15 @@
           <td class="prod-table-produto">{{ p.ds_produto }}</td>
           <td>{{ p.cod_segmento or '–' }}</td>
           <td>{{ p.estrutura or '–' }}</td>
-          <td>{{ p.qt_solicitada | int }}</td>
-          <td>{{ p.qt_faturada | int }}</td>
-          <td>{{ p.qt_pendente | int }}</td>
+          <td>{{ p.qt_solicitada | qtd }}</td>
+          <td>{{ p.qt_faturada | qtd }}</td>
+          <td>{{ p.qt_pendente | qtd }}</td>
           <td>{{ p.nr_cicloop or '–' }}</td>
-          <td>{{ p.nr_op or '–' }}</td>
-          <td>{{ p.qt_finalizada | int }}</td>
-          <td>{{ p.qt_pendenteop | int }}</td>
-          <td>{{ p.qt_afaturar | int }}</td>
-          <td>{{ p.qt_saldo | int }}</td>
+          <td>{{ p.nr_op or '–' }}{% if p.ops_extra %}<div class="ped-unidade" title="Outras OPs abertas do mesmo cliente e artigo">+ {{ p.ops_extra }}</div>{% endif %}</td>
+          <td>{{ p.qt_finalizada | qtd }}</td>
+          <td>{{ p.qt_pendenteop | qtd }}</td>
+          <td>{{ p.qt_afaturar | qtd }}</td>
+          <td>{{ p.qt_saldo | qtd }}</td>
         </tr>
         {% else %}
         <tr>
@@ -95,4 +102,50 @@
   </div>
   {% endif %}
 </div>
+
+<script>
+(function () {
+  var ES = document.getElementById('pedStatus').dataset.es === '1', ultima = null, primeira = true;
+  var box = document.getElementById('pedStatus'), txt = document.getElementById('pedTexto'), btn = document.getElementById('pedAtualizar');
+  function hora(iso) {
+    if (!iso) return ''; var d = new Date(iso), h = d.toLocaleTimeString('pt-BR');
+    return d.toDateString() === new Date().toDateString() ? h : d.toLocaleDateString('pt-BR') + ' ' + h;
+  }
+  function ultimo(e) { return e.ultima ? (ES ? ' · última actualización de TOTVS: ' : ' · último horário puxado do TOTVS: ') + hora(e.ultima) : ''; }
+  function checar() {
+    fetch('/pedidos-totvs/status', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+      var e = j.estado; box.className = 'ped-status' + (e.rodando ? ' ped-rodando' : (e.erro ? ' ped-erro' : ''));
+      btn.disabled = e.rodando || !j.configurado;
+      if (!j.configurado) txt.textContent = ES ? 'TOTVS no configurado en el .env' : 'TOTVS não configurado no arquivo .env';
+      else if (e.rodando) txt.textContent = (ES ? 'Actualizando: ' : 'Atualizando: ') + (e.msg || '...') + ultimo(e);
+      else if (e.erro) txt.textContent = (ES ? 'Falló la actualización: ' : 'Falha ao atualizar: ') + e.erro + ultimo(e);
+      else if (e.ultima) txt.textContent = (ES ? 'Última hora obtenida de TOTVS: ' : 'Último horário puxado do TOTVS: ') + hora(e.ultima) + ' · ' + e.n + (ES ? ' ítems · se actualiza solo cada ' : ' itens · atualiza sozinho a cada ') + j.intervalo_min + ' min';
+      else txt.textContent = ES ? 'Esperando la primera actualización de TOTVS...' : 'Aguardando a primeira atualização do TOTVS...';
+      if (e.ultima && ultima && e.ultima !== ultima && !e.rodando && !document.activeElement.matches('input')) location.reload();   // dados novos: recarrega a tabela
+      if (e.ultima) ultima = e.ultima;
+    }).catch(function () {});
+  }
+  btn.addEventListener('click', function () {
+    btn.disabled = true; txt.textContent = ES ? 'Iniciando...' : 'Iniciando...';
+    fetch('/pedidos-totvs/atualizar', { method: 'POST', credentials: 'same-origin' }).then(function () { setTimeout(checar, 800); });
+  });
+  checar(); setInterval(checar, 10000);
+
+  // pesquisa enquanto digita: troca so a tabela, sem recarregar a pagina
+  (function () {
+    var campo = document.getElementById('pedBusca'), form = campo.form, espera = null, seq = 0;
+    function buscar() {
+      var q = campo.value.trim(), url = form.action.split('?')[0] + (q ? '?q=' + encodeURIComponent(q) : ''), meu = ++seq;
+      fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
+        if (meu !== seq) return;                                   // chegou uma busca mais nova; ignora esta
+        var doc = new DOMParser().parseFromString(html, 'text/html'), novo = doc.querySelector('.table-card'), atual = document.querySelector('.table-card');
+        if (novo && atual) atual.innerHTML = novo.innerHTML;
+        history.replaceState(null, '', url);
+      }).catch(function () {});
+    }
+    campo.addEventListener('input', function () { clearTimeout(espera); espera = setTimeout(buscar, 300); });
+    form.addEventListener('submit', function (ev) { ev.preventDefault(); clearTimeout(espera); buscar(); });
+  })();
+})();
+</script>
 {% endblock %}

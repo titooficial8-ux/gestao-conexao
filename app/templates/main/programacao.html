@@ -94,6 +94,16 @@
   {% include 'main/_programacao_maquinas.html' %}
 </div>
 
+<div class="modal-backdrop" id="modalHistorico" hidden>
+  <div class="modal-box hist-modal-box">
+    <div class="modal-head">
+      <h3>OPs — Histórico</h3>
+      <button type="button" class="modal-close" id="fecharModalHistorico">&times;</button>
+    </div>
+    <div id="histCorpo" class="vg-modal-body"></div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="modalNovoRegistro" hidden>
   <div class="modal-box">
     <div class="modal-head">
@@ -148,6 +158,25 @@
   </div>
 </div>
 
+<script>
+(function () {
+  var modalH = document.getElementById('modalHistorico'), corpoH = document.getElementById('histCorpo'), abrirH = document.getElementById('btnHistorico');
+  function carregarHistorico(tipo) {
+    corpoH.textContent = 'Carregando…';
+    fetch('{{ url_for("main.programacao_historico") }}?tipo=' + tipo, { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
+      corpoH.innerHTML = html;
+      corpoH.querySelectorAll('script').forEach(function (old) {            // innerHTML nao executa script: recria
+        var n = document.createElement('script'); n.textContent = old.textContent; old.replaceWith(n);
+      });
+      corpoH.querySelectorAll('.hist-aba').forEach(function (b) { b.addEventListener('click', function () { carregarHistorico(b.dataset.tipo); }); });
+    }).catch(function () { corpoH.textContent = 'Não foi possível carregar o histórico.'; });
+  }
+  if (abrirH && modalH) abrirH.addEventListener('click', function () { modalH.hidden = false; carregarHistorico('finalizadas'); });
+  var fecharH = document.getElementById('fecharModalHistorico');
+  if (fecharH && modalH) fecharH.addEventListener('click', function () { modalH.hidden = true; });
+  if (modalH) modalH.addEventListener('click', function (e) { if (e.target === modalH) modalH.hidden = true; });
+})();
+</script>
 <script>
 (function () {
   var modalNovo = document.getElementById('modalNovoRegistro');

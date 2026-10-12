@@ -22,6 +22,13 @@ LINKEDIN_TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken'
 LINKEDIN_USERINFO_URL = 'https://api.linkedin.com/v2/userinfo'
 
 
+def _fixar_ambiente_do_usuario(user):
+    """Quem nao e admin so entra no ambiente do proprio pais."""
+    if not user.is_admin:
+        session['login_pais'] = user.country
+        session['lang'] = 'es' if user.country == 'GT' else 'pt'
+
+
 def _pos_login_redirect():
     if session.get('acesso_tipo') == 'chamados':
         return redirect(url_for('chamados.home'))
@@ -107,6 +114,7 @@ def login():
             return redirect(url_for('auth.login'))
 
         login_user(user)
+        _fixar_ambiente_do_usuario(user)
         return _pos_login_redirect()
 
     return render_template(
@@ -322,4 +330,5 @@ def linkedin_callback():
         return redirect(url_for('auth.login'))
 
     login_user(user)
+    _fixar_ambiente_do_usuario(user)
     return _pos_login_redirect()

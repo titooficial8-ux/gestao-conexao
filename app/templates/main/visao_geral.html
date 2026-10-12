@@ -169,7 +169,7 @@
       <tbody>
         {% for e in ultimas_mudancas %}
         <tr>
-          <td>{{ e.changed_at.strftime('%d/%m/%Y %H:%M') if e.changed_at else '–' }}</td>
+          <td>{{ (e.changed_at|local).strftime('%d/%m/%Y %H:%M') if e.changed_at else '–' }}</td>
           <td>{{ e.machine or '–' }}</td>
           <td>{{ e.op or '–' }}</td>
           <td>{{ e.artigo or '–' }}</td>

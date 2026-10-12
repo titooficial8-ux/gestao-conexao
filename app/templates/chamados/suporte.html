@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block sidebar_nav %}{% include 'partials/chamados_sidebar.html' %}{% endblock %}
+{% block page_title %}{{ t(titulo_key) }}{% endblock %}
+{% block content %}
+<div class="ticket-toolbar">
+  <h2>{{ t(titulo_key) }}</h2>
+  <div class="ticket-toolbar-actions">
+    <a href="{{ url_for('chamados.novo_chamado', tipo='chamado') }}" class="btn-small btn-primary">+ {{ t('chamado_abrir') }}</a>
+    <a href="{{ url_for('chamados.novo_chamado', tipo='desenvolver') }}" class="btn-small ticket-btn-amber">&#128161; {{ t('chamado_desenvolver') }}</a>
+  </div>
+</div>
+
+<div class="ticket-kpis">
+  <div class="ticket-kpi"><span>{{ t('chamado_kpi_total') }}</span><strong>{{ kpis.total }}</strong></div>
+  <div class="ticket-kpi amber"><span>{{ t('chamado_kpi_abertos') }}</span><strong>{{ kpis.abertos }}</strong></div>
+  <div class="ticket-kpi blue"><span>{{ t('chamado_kpi_andamento') }}</span><strong>{{ kpis.andamento }}</strong></div>
+  <div class="ticket-kpi green"><span>{{ t('chamado_kpi_resolvidos') }}</span><strong>{{ kpis.resolvidos }}</strong></div>
+  <div class="ticket-kpi red"><span>{{ t('chamado_kpi_criticos') }}</span><strong>{{ kpis.criticos }}</strong></div>
+  <div class="ticket-kpi amber-dark"><span>{{ t('chamado_desenvolver') }}</span><strong>{{ kpis.desenvolver }}</strong></div>
+</div>
+
+<div class="table-card">
+  {% if tickets %}
+  <div class="table-scroll">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>{{ t('chamado_col_chamado') }}</th>
+        <th>{{ t('chamado_categoria') }}</th>
+        <th>{{ t('chamado_setor') }}</th>
+        <th>{{ t('chamado_col_solicitante') }}</th>
+        <th>{{ t('chamado_col_prioridade') }}</th>
+        <th>{{ t('status') }}</th>
+        <th>{{ t('chamado_col_aberto_em') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tk in tickets %}
+      <tr>
+        <td>{{ tk.id }}</td>
+        <td>
+          <strong>{{ tk.title }}</strong>
+          {% if tk.dev_service %}<div class="ticket-sub">&#128161; {{ tk.dev_service }}{% if tk.dev_request_type %} &middot; {{ tk.dev_request_type }}{% endif %}{% if tk.dev_target %} &middot; {{ tk.dev_target }}{% endif %}</div>{% endif %}
+          {% if tk.description %}<div class="ticket-sub">{{ tk.description|truncate(140) }}</div>{% endif %}
+          {% if tk.area %}<div class="ticket-sub">&#128205; {{ tk.area }}</div>{% endif %}
+          {% if tk.image_list %}
+          <div class="ticket-thumbs">
+            {% for img in tk.image_list %}
+            <a href="{{ url_for('chamados.anexo', ticket_id=tk.id, nome=img) }}" target="_blank" rel="noopener"><img src="{{ url_for('chamados.anexo', ticket_id=tk.id, nome=img) }}" alt="{{ t('chamado_anexo') }}"></a>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </td>
+        <td>{{ tk.category }}</td>
+        <td>{{ tk.sector or '—' }}</td>
+        <td>{{ tk.requester_name or tk.requester_email }}</td>
+        <td><span class="ticket-badge prio-{{ tk.priority|lower }}">{{ tk.priority }}</span></td>
+        <td><span class="ticket-badge status-{{ tk.status|lower }}">{{ tk.status|replace('_', ' ') }}</span></td>
+        <td>{{ tk.created_at|hora_local(tk.region) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="ticket-empty">{{ t('chamado_nenhum') }}</p>
+  {% endif %}
+</div>
+{% endblock %}

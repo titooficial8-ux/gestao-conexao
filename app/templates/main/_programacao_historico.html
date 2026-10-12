@@ -1,14 +1,21 @@
+<div class="hist-abas">
+  <button type="button" class="hist-aba {{ 'hist-aba-ativa' if tipo == 'finalizadas' else '' }}" data-tipo="finalizadas">Finalizadas</button>
+  <button type="button" class="hist-aba {{ 'hist-aba-ativa' if tipo == 'canceladas' else '' }}" data-tipo="canceladas">Canceladas</button>
+</div>
 <div class="hist-toolbar">
   <input type="text" id="histBusca" class="prod-search" placeholder="{{ t('pesquisar_placeholder') }}" value="{{ busca }}">
   <select id="histMes" class="status-select">
     <option value="">{{ t('prod_historico_todos_meses') }}</option>
     {% for m in meses_disponiveis %}<option value="{{ m }}" {{ 'selected' if m == mes else '' }}>{{ m }}</option>{% endfor %}
   </select>
+  {% if tipo == 'finalizadas' %}
   <a href="{{ url_for('main.programacao_historico_download') }}" class="btn-small btn-primary">&#11015; {{ t('prod_historico_baixar_excel') }}</a>
+  {% endif %}
 </div>
 <p class="hist-meta">Finalizadas este mês: <strong>{{ finalizados_mes_count }}</strong> &bull; Canceladas (total): <strong>{{ cancelados_count }}</strong></p>
 <div class="hist-table-wrap">
-  <table class="hist-table">
+  {% if tipo == 'finalizadas' %}
+  <table class="hist-table tab-centro">
     <thead>
       <tr>
         <th>Máquina</th><th>Artigo</th><th>DS.Metros</th><th>OP</th><th>Cliente</th>
@@ -17,14 +24,14 @@
     </thead>
     <tbody id="histTbody">
       {% for h in itens %}
-      <tr data-op="{{ (h.op or '')|lower }}" data-artigo="{{ (h.artigo or '')|lower }}" data-mes="{{ h.changed_at.strftime('%m/%Y') if h.changed_at else '' }}">
+      <tr data-op="{{ (h.op or '')|lower }}" data-artigo="{{ (h.artigo or '')|lower }}" data-mes="{{ (h.changed_at|local).strftime('%m/%Y') if h.changed_at else '' }}">
         <td>MÁQ {{ h.machine }}</td>
         <td>{{ h.artigo }}</td>
         <td>{{ h.ds_metros or '—' }}</td>
-        <td>{{ h.op }}</td>
+        <td><span class="seq-op">{{ h.op }}</span></td>
         <td>{{ h.cliente or '—' }}</td>
         <td>{{ h.quantity_pieces }}</td>
-        <td>{{ h.changed_at.strftime('%d/%m/%Y %H:%M') if h.changed_at else '—' }}</td>
+        <td>{{ (h.changed_at|local).strftime('%d/%m/%Y %H:%M') if h.changed_at else '—' }}</td>
         <td class="sd-muted">{{ h.reason or '' }}</td>
       </tr>
       {% else %}
@@ -32,6 +39,40 @@
       {% endfor %}
     </tbody>
   </table>
+  {% else %}
+  <table class="hist-table tab-centro">
+    <thead>
+      <tr>
+        <th>Máquina</th><th>Artigo</th><th>OP</th><th>Cliente</th><th>Qt solicitada</th><th>Cancelada em</th><th>Motivo do cancelamento</th>
+      </tr>
+    </thead>
+    <tbody id="histTbody">
+      {% for h in itens %}
+      <tr data-op="{{ (h.op or '')|lower }}" data-artigo="{{ (h.artigo or '')|lower }}" data-mes="{{ (h.changed_at|local).strftime('%m/%Y') if h.changed_at else '' }}" data-id="{{ h.id }}">
+        <td>MÁQ {{ h.machine }}</td>
+        <td>{{ h.artigo }}</td>
+        <td><span class="seq-op">{{ h.op }}</span></td>
+        <td>{{ h.cliente or '—' }}</td>
+        <td>{{ h.requested_quantity }}</td>
+        <td>{{ (h.changed_at|local).strftime('%d/%m/%Y %H:%M') if h.changed_at else '—' }}</td>
+        <td class="hist-motivo">
+          {% if h.motivo_cancelamento %}
+          <div class="hist-motivo-txt">{{ h.motivo_cancelamento }}</div>
+          <div class="sd-muted">{{ h.justificado_por }} &bull; {{ (h.justificado_em|local).strftime('%d/%m/%Y %H:%M') if h.justificado_em else '' }}</div>
+          {% elif not pode_justificar %}
+          <span class="sd-muted">Sem justificativa</span>
+          {% endif %}
+          {% if pode_justificar %}
+          <button type="button" class="btn-small hist-justificar" data-id="{{ h.id }}">{{ 'Editar motivo' if h.motivo_cancelamento else 'Justificar motivo do cancelamento' }}</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="sd-empty">Nenhuma OP cancelada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 </div>
 <script>
 (function () {
@@ -50,5 +91,32 @@
   }
   busca.addEventListener('input', apply);
   mes.addEventListener('change', apply);
+
+  document.querySelectorAll('.hist-justificar').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var cel = b.closest('td'), atual = cel.querySelector('.hist-motivo-txt');
+      var caixa = document.createElement('div'); caixa.className = 'hist-caixa';
+      var ta = document.createElement('textarea'); ta.rows = 3; ta.maxLength = 500; ta.placeholder = 'Motivo do cancelamento da OP'; ta.value = atual ? atual.textContent : '';
+      var salvar = document.createElement('button'); salvar.type = 'button'; salvar.className = 'btn-small btn-primary'; salvar.textContent = 'Salvar';
+      var cancelar = document.createElement('button'); cancelar.type = 'button'; cancelar.className = 'btn-small'; cancelar.textContent = 'Cancelar';
+      var erro = document.createElement('div'); erro.className = 'hist-erro';
+      caixa.appendChild(ta); caixa.appendChild(salvar); caixa.appendChild(cancelar); caixa.appendChild(erro);
+      b.hidden = true; cel.appendChild(caixa); ta.focus();
+      cancelar.addEventListener('click', function () { caixa.remove(); b.hidden = false; });
+      salvar.addEventListener('click', function () {
+        var fd = new FormData(); fd.append('motivo', ta.value);
+        fetch('/aba/programacao/historico/' + b.dataset.id + '/justificar', { method: 'POST', body: fd, credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!j.ok) { erro.textContent = j.erro || 'Não foi possível salvar.'; return; }
+            var t = cel.querySelector('.hist-motivo-txt');
+            if (!t) { t = document.createElement('div'); t.className = 'hist-motivo-txt'; cel.insertBefore(t, cel.firstChild); var sub = document.createElement('div'); sub.className = 'sd-muted hist-motivo-por'; cel.insertBefore(sub, t.nextSibling); }
+            t.textContent = j.motivo;
+            var por = cel.querySelector('.sd-muted'); if (por) por.textContent = j.por + ' \u2022 ' + j.em;
+            caixa.remove(); b.hidden = false; b.textContent = 'Editar motivo';
+          }).catch(function () { erro.textContent = 'Falha de conexão.'; });
+      });
+    });
+  });
 })();
 </script>

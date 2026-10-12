@@ -1,9 +1,13 @@
+import time
+import json
+import hashlib
+import gzip
 import re
 import unicodedata
 
-from flask import Blueprint, render_template, abort, redirect, url_for, request, flash, jsonify, Response
+from flask import Blueprint, render_template, abort, redirect, url_for, request, flash, jsonify, Response, session
 from flask_login import login_required, current_user
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app import db
 from app.models import (
@@ -37,6 +41,11 @@ def normalize_client_name(name):
     return name
 
 
+def _pedido_aberto():
+    """Filtro: pedidos que nao estao ATENDIDO nem CANCELADO (o relatorio mostra os dois, mas eles nao entram nas contas da programacao)."""
+    return db.or_(PedidoRelatorio.tp_situacao.is_(None), PedidoRelatorio.tp_situacao.notin_(['ATENDIDO', 'CANCELADO']))
+
+
 def _find_pedido_por_artigo(artigo):
     """Acha um Pedido cujo cod_produto OU ds_produto comece com o codigo do
     artigo — mesmo criterio de casamento usado no PCP Hub (o campo 'article'
@@ -47,6 +56,7 @@ def _find_pedido_por_artigo(artigo):
         return None
     cod = artigo.split()[0] if artigo.split() else artigo
     return PedidoRelatorio.query.filter(
+        _pedido_aberto(),
         db.or_(
             PedidoRelatorio.cod_produto == cod,
             PedidoRelatorio.cod_produto == artigo,
@@ -795,13 +805,13 @@ def view_tab(slug):
         machines = Machine.query.order_by(Machine.order.is_(None), Machine.order, Machine.number).all()
         total_maquinas_cadastradas = len(machines)
         maquinas_ativas = sum(1 for m in machines if m.esta_ativa)
-        total_sequencias = Sequencia.query.count()
+        total_sequencias = Sequencia.query.filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).count()
 
         busca = request.args.get('q', '').strip()
         filtro_cliente = request.args.get('cliente', '').strip()
         filtro_mes = request.args.get('mes', '').strip()
 
-        todas_sequencias = Sequencia.query.all()
+        todas_sequencias = Sequencia.query.filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).all()
         clientes_disponiveis = sorted({s.cliente for s in todas_sequencias if s.cliente})
         meses_disponiveis = sorted({mes_label(s) for s in todas_sequencias if mes_label(s)})
 
@@ -819,7 +829,7 @@ def view_tab(slug):
         if busca or filtro_cliente or filtro_mes:
             numeros_com_match = set()
             for m in machines:
-                for s in m.sequencias:
+                for s in (x for x in m.sequencias if x.status not in ('FINALIZADO', 'CANCELADO')):
                     if filtro_cliente and s.cliente != filtro_cliente:
                         continue
                     if filtro_mes and mes_label(s) != filtro_mes:
@@ -865,14 +875,20 @@ def view_tab(slug):
         pagina = request.args.get('pagina', 1, type=int)
 
         query = PedidoRelatorio.query
-        if busca:
-            like = f'%{busca}%'
+        for termo in busca.split():          # cada palavra precisa aparecer em alguma coluna (ex.: "flex 300036")
+            like = f'%{termo}%'
             query = query.filter(
                 db.or_(
                     PedidoRelatorio.cod_pedido.ilike(like),
                     PedidoRelatorio.nome_cliente.ilike(like),
+                    PedidoRelatorio.unidade.ilike(like),
+                    PedidoRelatorio.cod_produto.ilike(like),
                     PedidoRelatorio.ds_produto.ilike(like),
                     PedidoRelatorio.nr_op.ilike(like),
+                    PedidoRelatorio.ops_extra.ilike(like),
+                    PedidoRelatorio.cod_segmento.ilike(like),
+                    PedidoRelatorio.estrutura.ilike(like),
+                    PedidoRelatorio.tp_situacao.ilike(like),
                 )
             )
 
@@ -913,7 +929,7 @@ def view_tab(slug):
         fila_movida = FilaPreProgramacao.query.filter_by(status='MOVED').count()
 
         total_pedidos = PedidoRelatorio.query.count()
-        pedidos_pendentes = PedidoRelatorio.query.filter(PedidoRelatorio.qt_saldo > 0).count()
+        pedidos_pendentes = PedidoRelatorio.query.filter(PedidoRelatorio.qt_saldo > 0, _pedido_aberto()).count()
 
         ultimas_mudancas = (
             HistoricoProducao.query.order_by(HistoricoProducao.changed_at.desc()).limit(8).all()
@@ -1131,7 +1147,7 @@ def view_tab(slug):
 
         pedidos_op_na_fila = {i.op for i in FilaPreProgramacao.query.filter_by(status='WAITING').all() if i.op}
         pedidos_relatorio_itens = [
-            p for p in PedidoRelatorio.query.filter(PedidoRelatorio.qt_saldo > 0).order_by(
+            p for p in PedidoRelatorio.query.filter(PedidoRelatorio.qt_saldo > 0, _pedido_aberto()).order_by(
                 PedidoRelatorio.dt_prevfaturamento.is_(None), PedidoRelatorio.dt_prevfaturamento
             ).all()
             if normalize_client_name(p.nome_cliente) != 'ORTOBOM'
@@ -1159,7 +1175,7 @@ def view_tab(slug):
         return redirect(url_for('admin.users'))
 
     if slug == 'dashboard-comercial':
-        return render_template('main/dashboard_comercial.html', tab=tab, **DASHBOARD_COMERCIAL_MODELO)
+        return render_template('main/bi_comercial.html', tab=tab)
 
     if slug == 'dashboard-estoque':
         return render_template('main/dashboard_estoque.html', tab=tab, **DASHBOARD_ESTOQUE_MODELO)
@@ -1263,17 +1279,21 @@ def view_tab(slug):
         )
 
     if slug == 'pedidos-comercial-me':
+        from app.comercial_me import paineis
+        from app.comercial_me.dados import catalogo
+        from app.comercial_me.routes import ambiente_atual, idioma_atual
+        regiao = ambiente_atual()
         return render_template(
-            'main/pedidos_comercial.html', tab=tab, regiao='ME',
-            colunas=PEDIDOS_ME_COLUNAS, pedidos=PEDIDOS_ME_MODELO,
-            indicadores_clientes=INDICADORES_CLIENTES_ME, pedidos_por_pais=PEDIDOS_POR_PAIS_ME,
+            'main/comercial_me.html', tab=tab, regiao=regiao,
+            catalogo=catalogo(), paineis=paineis.disponiveis(idioma_atual()),
         )
 
     return render_template('main/tab.html', tab=tab)
 
 
-def _historico_finalizadas_query(busca='', mes=''):
-    query = HistoricoProducao.query.filter(HistoricoProducao.new_status == 'FINALIZADO')
+def _historico_query(tipo='finalizadas', busca='', mes=''):
+    status = 'CANCELADO' if tipo == 'canceladas' else 'FINALIZADO'
+    query = HistoricoProducao.query.filter(HistoricoProducao.new_status == status)
     if mes:
         query = query.filter(db.func.strftime('%m/%Y', HistoricoProducao.changed_at) == mes)
     if busca:
@@ -1282,22 +1302,35 @@ def _historico_finalizadas_query(busca='', mes=''):
     return query.order_by(HistoricoProducao.changed_at.desc())
 
 
+def _historico_finalizadas_query(busca='', mes=''):
+    return _historico_query('finalizadas', busca, mes)
+
+
+def _eh_pcp():
+    """So o PCP justifica cancelamentos: admin ou cargo que edita Planejamento (Planejamento/Vendas). Nao vale o setor: todos os usuarios estao em todos os setores."""
+    if current_user.is_admin:
+        return True
+    cat = Category.query.filter_by(slug='planejamento').first()
+    return bool(cat and current_user.can_edit_category(cat))
+
+
 @main_bp.route('/aba/programacao/historico')
 @login_required
 def programacao_historico():
-    """Dialog 'OPs Finalizadas — Histórico': OPs com status FINALIZADO no
-    historico, filtravel por mes/busca — mesma fonte (production_history) e
-    logica do botao Histórico do PCP Hub."""
+    """Dialog 'OPs Finalizadas / Canceladas — Histórico': OPs que a pesagem do cru terminou (FINALIZADO) ou que foram
+    canceladas no TOTVS (CANCELADO), filtravel por mes/busca — mesma fonte (production_history) do botao Histórico do PCP Hub."""
     busca = request.args.get('q', '').strip()
     mes = request.args.get('mes', '').strip()
+    tipo = 'canceladas' if request.args.get('tipo') == 'canceladas' else 'finalizadas'
+    status = 'CANCELADO' if tipo == 'canceladas' else 'FINALIZADO'
 
     meses_disponiveis = sorted({
-        h.changed_at.strftime('%m/%Y') for h in
-        HistoricoProducao.query.filter(HistoricoProducao.new_status == 'FINALIZADO').with_entities(HistoricoProducao.changed_at).all()
+        (h.changed_at - timedelta(hours=3)).strftime('%m/%Y') for h in
+        HistoricoProducao.query.filter(HistoricoProducao.new_status == status).with_entities(HistoricoProducao.changed_at).all()
         if h.changed_at
     }, reverse=True)
 
-    itens = _historico_finalizadas_query(busca, mes).limit(300).all()
+    itens = _historico_query(tipo, busca, mes).limit(300).all()
     for h in itens:
         h.ds_metros = resolve_metros_from_article(h.artigo)
 
@@ -1309,10 +1342,27 @@ def programacao_historico():
     cancelados_count = HistoricoProducao.query.filter(HistoricoProducao.new_status == 'CANCELADO').count()
 
     return render_template(
-        'main/_programacao_historico.html', itens=itens, busca=busca, mes=mes,
+        'main/_programacao_historico.html', itens=itens, busca=busca, mes=mes, tipo=tipo,
         meses_disponiveis=meses_disponiveis, finalizados_mes_count=finalizados_mes_count,
-        cancelados_count=cancelados_count,
+        cancelados_count=cancelados_count, pode_justificar=_eh_pcp(),
     )
+
+
+@main_bp.route('/aba/programacao/historico/<int:hid>/justificar', methods=['POST'])
+@login_required
+def programacao_historico_justificar(hid):
+    """Motivo do cancelamento de uma OP: so quem e do PCP."""
+    if not _eh_pcp():
+        abort(403)
+    h = HistoricoProducao.query.filter_by(id=hid, new_status='CANCELADO').first_or_404()
+    motivo = (request.form.get('motivo') or '').strip()
+    if len(motivo) < 3:
+        return jsonify(ok=False, erro='Escreva o motivo do cancelamento.'), 400
+    h.motivo_cancelamento = motivo[:500]
+    h.justificado_por = current_user.name
+    h.justificado_em = datetime.utcnow()
+    db.session.commit()
+    return jsonify(ok=True, motivo=h.motivo_cancelamento, por=h.justificado_por, em=(h.justificado_em - timedelta(hours=3)).strftime('%d/%m/%Y %H:%M'))
 
 
 @main_bp.route('/aba/programacao/historico/download')
@@ -1338,7 +1388,7 @@ def programacao_historico_download():
             f'MÁQ {h.machine}' if h.machine else '', h.artigo, resolve_metros_from_article(h.artigo), h.op,
             h.cliente, h.quantity_pieces, h.pieces_per_day,
             h.date.strftime('%d/%m/%Y') if h.date else '',
-            h.changed_at.strftime('%d/%m/%Y %H:%M') if h.changed_at else '',
+            (h.changed_at - timedelta(hours=3)).strftime('%d/%m/%Y %H:%M') if h.changed_at else '',
             h.reason or '',
         ])
     for col in ws.columns:
@@ -1887,12 +1937,19 @@ def _resolve_client_fast(cod_artigo, manual, especial, report):
     return None
 
 
-@main_bp.route('/api/malharia/movimentos')
-@login_required
-def api_malharia_movimentos():
-    """Todas as pesagens reais do Relatorio 32 (mesma fonte do Dashboard Tempo
-    Real e do Historico por Artigo), ja com o cliente resolvido por artigo —
-    fonte unica de dados da Gestao da Malharia, igual ao PCP Hub."""
+_MOV_CACHE = {'hub': None, 'resp': None}
+
+
+def _iso_utc(dt):
+    return dt.isoformat() + 'Z' if dt else None            # dt_real e guardado em UTC sem fuso: sem o Z o navegador le como horario local (3 h de erro)
+
+
+def _hub_movimentos_json():
+    """Pesagens antigas (Relatorio 32 do PCP Hub): sao ~32 mil linhas que nao mudam, entao ficam em cache (JSON pronto)."""
+    chave = (Report32Movement.query.count(), db.session.query(db.func.max(Report32Movement.id)).scalar())
+    quente = _MOV_CACHE['hub']
+    if quente and quente['chave'] == chave and time.time() - quente['t'] < 600:
+        return quente
     manual, especial, report = _build_client_maps()
     cache = {}
 
@@ -1902,15 +1959,97 @@ def api_malharia_movimentos():
         return cache[art]
 
     rows = Report32Movement.query.order_by(Report32Movement.dt_real.asc()).all()
-    return jsonify([
+    saida = [
         {
             'id': r.id, 'cod_maquina': r.cod_maquina, 'op': r.op, 'nr_item': r.nr_item,
             'cod_artigo': r.cod_artigo, 'qt_movimento': r.qt_movimento, 'qt_pesos': r.qt_pesos,
-            'dt_real': r.dt_real.isoformat() if r.dt_real else None, 'metro_padrao': r.metro_padrao,
+            'dt_real': _iso_utc(r.dt_real), 'metro_padrao': r.metro_padrao,
             'local_code': r.local_code, 'cliente': cliente_de(r.cod_artigo),
         }
         for r in rows
-    ])
+    ]
+    quente = dict(chave=chave, t=time.time(), texto=json.dumps(saida, ensure_ascii=False, separators=(',', ':'))[1:-1],
+                  vistos={(str(r['op']), str(r['nr_item'])) for r in saida}, cliente_de=cliente_de)
+    _MOV_CACHE['hub'] = quente
+    return quente
+
+
+def _api_movimentos(hub):
+    """Pecas pesadas no local 23 (MALHARIA PESAGEM) direto da API do TOTVS, atualizadas a cada 10 s.
+    A hora e a que o Gestao viu a pesagem (a API so tem a data); o peso e metros x gramatura x largura (confere com o Relatorio 32)."""
+    from app.models import PesagemMalharia, PesagemResumo
+    resumos = {r.op: r for r in PesagemResumo.query.all()}
+    clientes_op = {}
+    for sq in Sequencia.query.all():
+        clientes_op.setdefault(sq.op, sq.cliente)
+    saida = []
+    pecas = [p for p in PesagemMalharia.query.order_by(PesagemMalharia.data, PesagemMalharia.item).all()
+             if resumos.get(p.op) and p.metros is not None and (str(p.op), str(p.item)) not in hub['vistos']]
+    # hora de cada peca: baixa de fio (trx) > momento em que o Gestao viu > estimada entre as vizinhas da mesma OP
+    horas = {}
+    for p in pecas:
+        if p.hora_real and p.hora_origem == 'trx':
+            horas[p.id] = p.hora_real + timedelta(hours=3)            # hora da baixa de fio (horario do Brasil, UTC-3)
+        elif p.visto_em is not None:
+            v = p.visto_em.astimezone(timezone.utc).replace(tzinfo=None)
+            if abs((v - timedelta(hours=3)).date() - p.data) <= timedelta(days=1):    # visto na propria data (nao em carga historica)
+                horas[p.id] = v
+    por_op = {}
+    for p in pecas:
+        por_op.setdefault(p.op, []).append(p)
+    for lista in por_op.values():
+        lista.sort(key=lambda x: (x.data, x.item))
+        for i, p in enumerate(lista):
+            if p.id in horas:
+                continue
+            ant = next(((j, horas[lista[j].id]) for j in range(i - 1, -1, -1) if lista[j].id in horas), None)
+            prox = next(((j, horas[lista[j].id]) for j in range(i + 1, len(lista)) if lista[j].id in horas), None)
+            if ant and prox and prox[1] > ant[1]:
+                horas[p.id] = ant[1] + (prox[1] - ant[1]) * (i - ant[0]) / (prox[0] - ant[0])
+            elif ant:
+                horas[p.id] = ant[1] + timedelta(hours=2.7) * (i - ant[0])
+            elif prox:
+                horas[p.id] = prox[1] - timedelta(hours=2.7) * (prox[0] - i)
+            else:                                                       # sem nenhuma vizinha com hora: meio do dia da movimentacao
+                horas[p.id] = datetime.combine(p.data, datetime.min.time()) + timedelta(hours=15)
+    for p in pecas:
+        r = resumos[p.op]
+        dt_utc = horas[p.id]
+        desc = r.artigo_desc or ''
+        kg = 0                                                  # peso (gramatura x largura) fica fora por enquanto
+        saida.append({
+            'id': 1_000_000_000 + p.id, 'cod_maquina': str(r.maquina) if r.maquina is not None else None, 'op': p.op, 'nr_item': str(p.item),
+            'cod_artigo': desc, 'qt_movimento': p.metros, 'qt_pesos': kg,
+            'dt_real': _iso_utc(dt_utc), 'metro_padrao': r.metro_padrao,
+            'local_code': '23', 'cliente': hub['cliente_de'](desc) or clientes_op.get(p.op),
+        })
+    return json.dumps(saida, ensure_ascii=False, separators=(',', ':'))[1:-1]
+
+
+@main_bp.route('/api/malharia/movimentos')
+@login_required
+def api_malharia_movimentos():
+    """Pesagens do local 23 (Relatorio 32 do PCP Hub ate o corte + API do TOTVS depois dele), ja com o cliente resolvido por artigo.
+    Fonte unica da Gestao da Malharia, do Controle de Producao e do Dashboard Tempo Real. Como a tela relê a cada 15 s, a resposta
+    vai com ETag (304 quando nada mudou) e compactada (gzip): sao ~7 MB de JSON."""
+    hub = dict(_hub_movimentos_json(), texto='', vistos=set())      # historico so da API do TOTVS (sem Relatorio 32 do PCP Hub)
+    api_txt = _api_movimentos(hub)
+    etag = hashlib.md5(f"{hub['chave']}|{api_txt}".encode()).hexdigest()
+    if request.headers.get('If-None-Match', '').strip('"W/') == etag:
+        r = Response(status=304)
+    else:
+        resp = _MOV_CACHE['resp']
+        if not resp or resp['etag'] != etag:
+            corpo = ('[' + hub['texto'] + (',' if hub['texto'] and api_txt else '') + api_txt + ']').encode('utf-8')
+            resp = _MOV_CACHE['resp'] = dict(etag=etag, plano=corpo, gz=gzip.compress(corpo, 5))
+        usar_gz = 'gzip' in request.headers.get('Accept-Encoding', '')
+        r = Response(resp['gz'] if usar_gz else resp['plano'], mimetype='application/json')
+        if usar_gz:
+            r.headers['Content-Encoding'] = 'gzip'
+        r.headers['Vary'] = 'Accept-Encoding'
+    r.headers['ETag'] = f'"{etag}"'
+    r.headers['Cache-Control'] = 'no-cache'
+    return r
 
 
 @main_bp.route('/api/malharia/sequencia')
@@ -1939,10 +2078,13 @@ def api_malharia_sequencia():
 def api_malharia_status():
     """Data/hora da ultima sincronizacao do Relatorio 32 e total de registros,
     pra mostrar a barra de status no topo da Gestao da Malharia."""
-    total = Report32Movement.query.count()
-    ultimo = db.session.query(db.func.max(Report32Movement.synced_at)).scalar()
+    from app.models import PesagemMalharia, PesagemResumo
+    total = Report32Movement.query.count() + PesagemMalharia.query.filter(
+        db.or_(PesagemMalharia.visto_em.isnot(None), PesagemMalharia.hora_origem == 'trx')).count()
+    ultimo = max([x for x in (db.session.query(db.func.max(Report32Movement.synced_at)).scalar(),
+                              db.session.query(db.func.max(PesagemResumo.atualizado_em)).scalar()) if x] or [None]) if True else None
     return jsonify({
-        'last_sync': ultimo.isoformat() + 'Z' if ultimo else None,
+        'last_sync': ultimo.isoformat() + 'Z' if ultimo else None,       # ultima busca no TOTVS (a cada 10 s)
         'count': total,
     })
 
@@ -2091,6 +2233,7 @@ def maquina_detalhe(numero):
     machine = Machine.query.filter_by(number=numero).first_or_404()
     sequencias = (
         Sequencia.query.filter_by(machine_id=machine.id)
+        .filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO']))   # pesagem do cru concluida ou cancelada sai da fila (automatico pelo TOTVS)
         .order_by(Sequencia.sequence_order)
         .all()
     )

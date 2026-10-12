@@ -8,5 +8,5 @@
      data-settings-url="{{ url_for('main.api_controle_producao_settings') }}"
      data-reprovas-url="{{ url_for('main.api_controle_producao_reprovas') }}"
      data-is-admin="{{ '1' if current_user.is_admin else '0' }}"></div>
-<script type="module" src="{{ url_for('static', filename='dist/controle-producao.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='controle/controle-producao.js') }}"></script>
 {% endblock %}

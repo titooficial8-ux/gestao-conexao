@@ -14,22 +14,19 @@ export const SHIFT_META = {
   NOITE: { key: 'NOITE', label: '3º Turno', horario: '22:20 — 06:19', from: 22 * 60 + 20, to: 6 * 60 + 19 },
 };
 
+// Horario do Brasil = UTC-3 fixo (sem horario de verao). Conta feita na mao: toLocaleTimeString/toLocaleDateString com timeZone
+// criam um Intl.DateTimeFormat a cada chamada e, com 32 mil linhas, travavam a pagina por ~40 s.
+const BRT_MS = 3 * 60 * 60 * 1000;
+const DIA_PROD_MS = (6 * 60 + 20) * 60 * 1000;
+
 const brMinutes = (d) => {
-  const s = d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false });
-  const [h, m] = s.split(':').map(Number);
-  return h * 60 + m;
+  const x = new Date(d.getTime() - BRT_MS);
+  return x.getUTCHours() * 60 + x.getUTCMinutes();
 };
 
 export function productionDateOf(d) {
-  const mm = brMinutes(d);
-  const local = new Date(d);
-  const dateKey = local.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  if (mm < 6 * 60 + 20) {
-    const prev = new Date(`${dateKey}T12:00:00Z`);
-    prev.setUTCDate(prev.getUTCDate() - 1);
-    return prev.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  }
-  return dateKey;
+  const x = new Date(d.getTime() - BRT_MS - DIA_PROD_MS);       // o dia de producao comeca as 06:20
+  return `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}-${String(x.getUTCDate()).padStart(2, '0')}`;
 }
 
 export function getShift(d) {

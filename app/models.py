@@ -161,7 +161,8 @@ class Sequencia(db.Model):
     artigo = db.Column(db.String(30))
     cliente = db.Column(db.String(120))
     op = db.Column(db.String(30))
-    status = db.Column(db.String(30))  # PRODUZINDO, EM_SEQUENCIA, PCP
+    status = db.Column(db.String(30))  # PRODUZINDO, EM_SEQUENCIA, PCP (e FINALIZADO quando a pesagem do cru acaba)
+    situacao = db.Column(db.String(20))  # automatico pelo TOTVS: PRODUZINDO, MALHARIA, ESTOQUE, PCP (ou FINALIZADA)
     total_pcs = db.Column(db.Integer, default=0)
     pecas_produzidas = db.Column(db.Integer, default=0)
     qt_solicitada = db.Column(db.Integer, default=0)
@@ -189,6 +190,7 @@ class PedidoRelatorio(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     cod_pedido = db.Column(db.String(30))
     nome_cliente = db.Column(db.String(120))
+    unidade = db.Column(db.String(120))   # filial/unidade (ex.: Ortobom Olinda); so aparece/pesquisa no Relatorio Pedidos
     dt_pedido = db.Column(db.Date, nullable=True)
     dt_prevfaturamento = db.Column(db.Date, nullable=True)
     dt_chegada30 = db.Column(db.Date, nullable=True)
@@ -202,6 +204,7 @@ class PedidoRelatorio(db.Model):
     qt_pendente = db.Column(db.Float, default=0)
     nr_cicloop = db.Column(db.String(30))
     nr_op = db.Column(db.String(30))
+    ops_extra = db.Column(db.String(200))   # outras OPs abertas do mesmo cliente+artigo (so para pesquisar/mostrar no Relatorio Pedidos)
     qt_finalizada = db.Column(db.Float, default=0)
     qt_pendenteop = db.Column(db.Float, default=0)
     qt_afaturar = db.Column(db.Float, default=0)
@@ -283,6 +286,9 @@ class HistoricoProducao(db.Model):
     estimated_end_date = db.Column(db.Date, nullable=True)
     client_date = db.Column(db.Date, nullable=True)
     total_pcs = db.Column(db.Integer, nullable=True)
+    motivo_cancelamento = db.Column(db.String(500), nullable=True)   # justificativa (so o PCP preenche)
+    justificado_por = db.Column(db.String(120), nullable=True)
+    justificado_em = db.Column(db.DateTime, nullable=True)
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -468,3 +474,77 @@ class Tab(db.Model):
         allowed_ids = {s.id for s in self.sectors}
         user_sector_ids = {s.id for s in user.sectors}
         return bool(allowed_ids & user_sector_ids)
+
+
+class TechTicket(db.Model):
+    """Chamado do portal de Tecnologia e I.A (mesmos campos do PCP Hub)."""
+    __tablename__ = 'tech_tickets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    region = db.Column(db.String(2), nullable=False, default='BR')
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    requester_name = db.Column(db.String(150))
+    requester_email = db.Column(db.String(150))
+    notify_email = db.Column(db.String(150))
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(40), nullable=False, default='OUTROS')
+    sector = db.Column(db.String(60))
+    area = db.Column(db.String(150))
+    priority = db.Column(db.String(10), nullable=False, default='MEDIA')
+    status = db.Column(db.String(15), nullable=False, default='ABERTO')
+    assigned_to = db.Column(db.String(150))
+    resolution = db.Column(db.Text)
+    resolved_at = db.Column(db.DateTime)
+    # fluxo "Desenvolver"
+    dev_service = db.Column(db.String(60))
+    dev_request_type = db.Column(db.String(40))
+    dev_target = db.Column(db.String(150))
+    # nomes dos arquivos salvos em instance/uploads/chamados, separados por '|'
+    images = db.Column(db.Text, default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User')
+
+    @property
+    def image_list(self):
+        return [i for i in (self.images or '').split('|') if i]
+
+
+class PesagemMalharia(db.Model):
+    """Pecas pesadas no local 23 (MALHARIA PESAGEM) de cada OP, atualizadas sozinhas pela API do TOTVS."""
+    __tablename__ = 'pesagens_malharia'
+
+    id = db.Column(db.Integer, primary_key=True)
+    op = db.Column(db.String(30), index=True)
+    ciclo = db.Column(db.Integer, default=13)
+    item = db.Column(db.Integer)                 # numero da peca (ordem de pesagem)
+    data = db.Column(db.Date, nullable=True)
+    sequencia = db.Column(db.Integer)            # ordem do movimento no dia (TOTVS)
+    acerto = db.Column(db.Float)                 # metros acima/abaixo do metro padrao
+    metros = db.Column(db.Float, nullable=True)  # metro padrao + acerto
+    visto_em = db.Column(db.DateTime, nullable=True)   # quando o Gestao viu a pesagem no TOTVS (reserva, se nao houver a hora real)
+    hora_real = db.Column(db.DateTime, nullable=True)  # hora da baixa de fio da peca (transacao 2000 do TOTVS), horario do Brasil
+    hora_origem = db.Column(db.String(10), nullable=True)  # 'trx' = hora confiavel; 'tardia' = baixa feita em outro dia; 'sem' = nao achei
+    trx_codigo = db.Column(db.Integer, nullable=True)  # transacao 2000 ligada a peca
+    synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PesagemResumo(db.Model):
+    """Resumo por OP do local 23 (quanto ainda esta no local, quanto ja saiu) e quando foi atualizado."""
+    __tablename__ = 'pesagens_malharia_resumo'
+
+    id = db.Column(db.Integer, primary_key=True)
+    op = db.Column(db.String(30), unique=True, index=True)
+    ciclo = db.Column(db.Integer, default=13)
+    encontrada = db.Column(db.Boolean, default=True)
+    maquina = db.Column(db.Integer, nullable=True)
+    artigo_desc = db.Column(db.String(200), nullable=True)   # descricao completa do artigo no TOTVS (gramatura e largura saem daqui)
+    metro_padrao = db.Column(db.Float, nullable=True)
+    pecas = db.Column(db.Integer, default=0)
+    metros = db.Column(db.Float, nullable=True)
+    no_local = db.Column(db.Float, default=0)
+    saiu = db.Column(db.Float, default=0)
+    quantidade_op = db.Column(db.Float, default=0)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)
