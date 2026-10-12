@@ -107,16 +107,20 @@
 (function () {
   var ES = document.getElementById('pedStatus').dataset.es === '1', ultima = null, primeira = true;
   var box = document.getElementById('pedStatus'), txt = document.getElementById('pedTexto'), btn = document.getElementById('pedAtualizar');
-  function hora(iso) { return iso ? new Date(iso).toLocaleTimeString('pt-BR') : ''; }
+  function hora(iso) {
+    if (!iso) return ''; var d = new Date(iso), h = d.toLocaleTimeString('pt-BR');
+    return d.toDateString() === new Date().toDateString() ? h : d.toLocaleDateString('pt-BR') + ' ' + h;
+  }
+  function ultimo(e) { return e.ultima ? (ES ? ' · última actualización de TOTVS: ' : ' · último horário puxado do TOTVS: ') + hora(e.ultima) : ''; }
   function checar() {
     fetch('/pedidos-totvs/status', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
       var e = j.estado; box.className = 'ped-status' + (e.rodando ? ' ped-rodando' : (e.erro ? ' ped-erro' : ''));
       btn.disabled = e.rodando || !j.configurado;
       if (!j.configurado) txt.textContent = ES ? 'TOTVS no configurado en el .env' : 'TOTVS não configurado no arquivo .env';
-      else if (e.rodando) txt.textContent = (ES ? 'Actualizando: ' : 'Atualizando: ') + (e.msg || '...');
-      else if (e.erro) txt.textContent = (ES ? 'Falló la actualización: ' : 'Falha ao atualizar: ') + e.erro;
-      else if (e.ultima) txt.textContent = (ES ? 'Actualizado a las ' : 'Atualizado às ') + hora(e.ultima) + ' · ' + e.n + (ES ? ' ítems · se actualiza solo cada ' : ' itens · atualiza sozinho a cada ') + j.intervalo_min + ' min';
-      else txt.textContent = ES ? 'Esperando la primera actualización...' : 'Aguardando a primeira atualização...';
+      else if (e.rodando) txt.textContent = (ES ? 'Actualizando: ' : 'Atualizando: ') + (e.msg || '...') + ultimo(e);
+      else if (e.erro) txt.textContent = (ES ? 'Falló la actualización: ' : 'Falha ao atualizar: ') + e.erro + ultimo(e);
+      else if (e.ultima) txt.textContent = (ES ? 'Última hora obtenida de TOTVS: ' : 'Último horário puxado do TOTVS: ') + hora(e.ultima) + ' · ' + e.n + (ES ? ' ítems · se actualiza solo cada ' : ' itens · atualiza sozinho a cada ') + j.intervalo_min + ' min';
+      else txt.textContent = ES ? 'Esperando la primera actualización de TOTVS...' : 'Aguardando a primeira atualização do TOTVS...';
       if (e.ultima && ultima && e.ultima !== ultima && !e.rodando && !document.activeElement.matches('input')) location.reload();   // dados novos: recarrega a tabela
       if (e.ultima) ultima = e.ultima;
     }).catch(function () {});

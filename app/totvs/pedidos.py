@@ -9,6 +9,7 @@ Monta o relatorio assim (so consultas de leitura):
      A OP liga ao pedido por cliente + produto, usando a data (OP criada depois do pedido) e a quantidade
   6. contas: Chegada 30 = data do pedido + 30 dias; Qt. a faturar = finalizada de 1a - faturada
 """
+import json
 import os
 import threading
 import time
@@ -40,7 +41,18 @@ ROTULO_SITUACAO = {
     'Attended': 'ATENDIDO', 'Blocked': 'BLOQUEADO', 'Canceled': 'CANCELADO', 'InComposition': 'EM COMPOSIÇÃO', 'InAnalysis': 'EM ANÁLISE',
 }
 
-ESTADO = dict(rodando=False, ultima=None, msg='', erro=None, n=0, duracao=None)
+ARQUIVO = api.OUT_DIR / 'pedidos_ultima.json'              # guarda a ultima atualizacao para aparecer mesmo depois de reiniciar
+
+
+def _ler_ultima() -> dict:
+    try:
+        return json.loads(ARQUIVO.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+_ult = _ler_ultima()
+ESTADO = dict(rodando=False, ultima=_ult.get('ultima'), msg='', erro=None, n=_ult.get('n', 0), duracao=None)
 _trava = threading.Lock()
 
 
@@ -182,6 +194,11 @@ def atualizar(app) -> bool:
         with app.app_context():
             gravar(linhas)
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), n=len(linhas), msg=f'{len(linhas)} itens de pedido atualizados')
+        try:
+            ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
+            ARQUIVO.write_text(json.dumps(dict(ultima=ESTADO['ultima'], n=len(linhas))), encoding='utf-8')
+        except OSError:
+            pass
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         ESTADO.update(erro=str(e)[:300], msg='Falha ao atualizar - mantive os dados anteriores')
