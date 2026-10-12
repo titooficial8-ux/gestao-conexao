@@ -2,13 +2,15 @@
 from datetime import date, timedelta
 from functools import lru_cache
 
-from flask import Blueprint, abort, jsonify, request, send_from_directory
+import threading
+
+from flask import Blueprint, abort, current_app, jsonify, request, send_from_directory
 from flask_login import current_user, login_required
 
 from app.comercial_me.routes import idioma_atual
 from app.models import Tab
 
-from . import base, painel, servico, slide
+from . import base, painel, pedidos, servico, slide
 
 bi_bp = Blueprint('bi_comercial', __name__, url_prefix='/bi-comercial')
 SLUG = 'dashboard-comercial'
@@ -143,3 +145,35 @@ def slide_mensal():
     out = slide.montar(regs, mes, ano)
     out.update(vazio=False, anos=anos, meses=meses, gerado_em=max(r['gerado_em'] for r in idx.values()), plano_origem=base._ler('origem'))
     return _json(out)
+
+
+# ---------------------------------------------------------------------------
+# Relatorio Pedidos (aba "relatorio-pedidos"): atualizado pela API do TOTVS a cada 2 minutos
+# ---------------------------------------------------------------------------
+pedidos_bp = Blueprint('pedidos_totvs', __name__, url_prefix='/pedidos-totvs')
+
+
+def _autorizar_pedidos():
+    tab = Tab.query.filter_by(slug='relatorio-pedidos').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+
+
+@pedidos_bp.route('/status')
+@login_required
+def pedidos_status():
+    _autorizar_pedidos()
+    return _json(dict(estado=dict(pedidos.ESTADO), configurado=pedidos.configurado(), intervalo_min=pedidos.INTERVALO_MIN))
+
+
+@pedidos_bp.route('/atualizar', methods=['POST'])
+@login_required
+def pedidos_atualizar():
+    _autorizar_pedidos()
+    if not pedidos.configurado():
+        return _json(dict(ok=False, erro='Credenciais do TOTVS nao configuradas no arquivo .env (veja .env.example).')), 400
+    if pedidos.ESTADO['rodando']:
+        return _json(dict(ok=False, erro='Ja existe uma atualizacao em andamento.'))
+    app = current_app._get_current_object()
+    threading.Thread(target=pedidos.atualizar, args=(app,), daemon=True, name='totvs-pedidos-manual').start()
+    return _json(dict(ok=True))

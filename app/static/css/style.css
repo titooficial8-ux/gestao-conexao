@@ -2706,3 +2706,12 @@ textarea.ticket-input { resize: vertical; }
 .bi-overlay-tit { margin-top: 14px; font-weight: 800; font-size: 17px; letter-spacing: .02em; color: #0a2d54; line-height: 1.35; }
 .bi-overlay-msg { margin-top: 8px; font-size: 13px; color: var(--gray-500); min-height: 18px; }
 @media (prefers-reduced-motion: reduce) { .bi-engrenagem { animation-duration: 6s; } }
+
+/* Relatorio Pedidos: faixa de status da atualizacao pela API */
+.ped-status { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin: .5rem 0 1rem; padding: .55rem .9rem; border-radius: 10px; background: #eef5ff; border: 1px solid #d5e3fa; color: #17325c; font-size: .88rem; }
+.ped-status .btn-small { margin-left: auto; }
+.ped-dot { width: 9px; height: 9px; border-radius: 50%; background: #2aa55a; flex: none; }
+.ped-rodando .ped-dot { background: #e0932b; animation: pedPulso 1s ease-in-out infinite; }
+.ped-erro { background: #fdeeee; border-color: #f3caca; color: #7a1d1d; }
+.ped-erro .ped-dot { background: #d13b3b; }
+@keyframes pedPulso { 50% { opacity: .25; } }

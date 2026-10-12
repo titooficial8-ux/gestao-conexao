@@ -38,7 +38,7 @@ def create_app():
     from app.admin.routes import admin_bp
     from app.chamados.routes import chamados_bp
     from app.comercial_me.routes import comercial_me_bp
-    from app.totvs.routes import bi_bp
+    from app.totvs.routes import bi_bp, pedidos_bp
     app.register_blueprint(gateway_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -46,6 +46,7 @@ def create_app():
     app.register_blueprint(chamados_bp)
     app.register_blueprint(comercial_me_bp)
     app.register_blueprint(bi_bp)
+    app.register_blueprint(pedidos_bp)
 
     app.jinja_env.globals['tab_url'] = tab_url
 
@@ -118,5 +119,7 @@ def create_app():
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or os.environ.get('BI_AGENDADOR') == '1':
         from app.totvs.servico import iniciar_agendador
         iniciar_agendador()
+        from app.totvs.pedidos import iniciar_agendador as iniciar_pedidos
+        iniciar_pedidos(app)      # Relatorio Pedidos: a cada 2 min
 
     return app

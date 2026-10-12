@@ -109,3 +109,16 @@ Dados: guardados por mês em `instance/totvs/base/` (não vai para o Git). Botõ
 Com o servidor ligado e o histórico carregado, atualiza sozinho a cada 30 min (`BI_INTERVALO_MIN`).
 Credenciais da API: só no `.env` (veja `.env.example`), nunca no GitHub.
 Ajustes manuais da planilha ficam em `app/seed_data/bi_comercial/ajustes.json`.
+
+## Relatório Pedidos (API do TOTVS)
+
+A aba **Relatório Pedidos** é atualizada sozinha pela API do TOTVS Moda a cada 2 minutos (com o servidor ligado) e tem o botão **Atualizar agora**. Só usa consultas de leitura:
+
+1. pedidos de venda (`sales-order/orders/search`, últimos 180 dias, situações em aberto);
+2. nome fantasia do cliente (`person/legal-entities/search`; filiais Ortobom entram como ORTOBOM);
+3. segmento e estrutura do artigo (`product/products/search`, classificações CLAS SEG e CLAS ESTRUT.);
+4. saldo do estoque 1 – expedição (`product/balances/search`);
+5. ordens de produção do ciclo 13 (`production-order/orders/search`), ligadas ao pedido por cliente + produto + data + quantidade;
+6. contas: Chegada 30 = data do pedido + 30 dias; Qt. a faturar = finalizada de 1ª − faturada.
+
+Ajustes no `.env`: `PEDIDOS_INTERVALO_MIN`, `PEDIDOS_DIAS`, `PEDIDOS_CICLO` (veja `.env.example`). Se o TOTVS falhar, a aba mantém os dados anteriores e mostra o erro na faixa de status.

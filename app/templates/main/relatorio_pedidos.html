@@ -6,6 +6,13 @@
   <span class="machines-count">{{ total_geral }} {{ t('pedidos_meta') }}</span>
 </div>
 
+
+<div class="ped-status" id="pedStatus" data-ultima="" data-es="{{ '1' if lang != 'pt' else '' }}">
+  <span class="ped-dot" id="pedDot"></span>
+  <span id="pedTexto">{{ 'Conectando ao TOTVS...' if lang == 'pt' else 'Conectando con TOTVS...' }}</span>
+  <button type="button" class="btn-small" id="pedAtualizar">{{ 'Atualizar agora' if lang == 'pt' else 'Actualizar ahora' }}</button>
+</div>
+
 <form method="GET" class="prod-filters">
   <input type="text" name="q" class="prod-search" placeholder="{{ t('pesquisar_pedidos_placeholder') }}" value="{{ busca }}">
   <button type="submit" class="btn-small btn-primary">{{ t('pesquisar') }}</button>
@@ -95,4 +102,30 @@
   </div>
   {% endif %}
 </div>
+
+<script>
+(function () {
+  var ES = document.getElementById('pedStatus').dataset.es === '1', ultima = null, primeira = true;
+  var box = document.getElementById('pedStatus'), txt = document.getElementById('pedTexto'), btn = document.getElementById('pedAtualizar');
+  function hora(iso) { return iso ? new Date(iso).toLocaleTimeString('pt-BR') : ''; }
+  function checar() {
+    fetch('/pedidos-totvs/status', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+      var e = j.estado; box.className = 'ped-status' + (e.rodando ? ' ped-rodando' : (e.erro ? ' ped-erro' : ''));
+      btn.disabled = e.rodando || !j.configurado;
+      if (!j.configurado) txt.textContent = ES ? 'TOTVS no configurado en el .env' : 'TOTVS não configurado no arquivo .env';
+      else if (e.rodando) txt.textContent = (ES ? 'Actualizando: ' : 'Atualizando: ') + (e.msg || '...');
+      else if (e.erro) txt.textContent = (ES ? 'Falló la actualización: ' : 'Falha ao atualizar: ') + e.erro;
+      else if (e.ultima) txt.textContent = (ES ? 'Actualizado a las ' : 'Atualizado às ') + hora(e.ultima) + ' · ' + e.n + (ES ? ' ítems · se actualiza solo cada ' : ' itens · atualiza sozinho a cada ') + j.intervalo_min + ' min';
+      else txt.textContent = ES ? 'Esperando la primera actualización...' : 'Aguardando a primeira atualização...';
+      if (e.ultima && ultima && e.ultima !== ultima && !e.rodando && !document.activeElement.matches('input')) location.reload();   // dados novos: recarrega a tabela
+      if (e.ultima) ultima = e.ultima;
+    }).catch(function () {});
+  }
+  btn.addEventListener('click', function () {
+    btn.disabled = true; txt.textContent = ES ? 'Iniciando...' : 'Iniciando...';
+    fetch('/pedidos-totvs/atualizar', { method: 'POST', credentials: 'same-origin' }).then(function () { setTimeout(checar, 800); });
+  });
+  checar(); setInterval(checar, 10000);
+})();
+</script>
 {% endblock %}
