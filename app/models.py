@@ -189,6 +189,7 @@ class PedidoRelatorio(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     cod_pedido = db.Column(db.String(30))
     nome_cliente = db.Column(db.String(120))
+    unidade = db.Column(db.String(120))   # filial/unidade (ex.: Ortobom Olinda); so aparece/pesquisa no Relatorio Pedidos
     dt_pedido = db.Column(db.Date, nullable=True)
     dt_prevfaturamento = db.Column(db.Date, nullable=True)
     dt_chegada30 = db.Column(db.Date, nullable=True)

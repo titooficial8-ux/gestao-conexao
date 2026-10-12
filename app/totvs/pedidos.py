@@ -159,6 +159,7 @@ def buscar() -> list[dict]:
         prev = _data(it.get('billingForecastDate')) or _data(p.get('billingForecastDate'))
         linhas.append(dict(
             cod_pedido=str(p.get('orderCode')), nome_cliente=normalize_client_name(fantasia.get(p['customerCode']) or p.get('customerName')),
+            unidade=fantasia.get(p['customerCode']) or p.get('customerName'),
             dt_pedido=dt_pedido, dt_prevfaturamento=prev, dt_chegada30=(dt_pedido + timedelta(days=30)) if dt_pedido else None,
             tp_situacao=ROTULO_SITUACAO.get(p.get('statusOrder'), ''), cod_produto=str(pid), ds_produto=it.get('name'),
             cod_segmento=segmento.get(pid), estrutura=estrutura.get(pid),

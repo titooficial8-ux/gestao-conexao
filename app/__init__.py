@@ -91,6 +91,11 @@ def create_app():
         db_path = os.path.join(BASE_DIR, 'gestao_conexao.db')
         first_run = not os.path.exists(db_path)
         db.create_all()
+        # colunas novas em bancos antigos (o create_all so cria tabelas que ainda nao existem)
+        from sqlalchemy import inspect, text
+        if 'unidade' not in {c['name'] for c in inspect(db.engine).get_columns('pedidos_relatorio')}:
+            db.session.execute(text('ALTER TABLE pedidos_relatorio ADD COLUMN unidade VARCHAR(120)'))
+            db.session.commit()
         if first_run:
             from app.seed import seed_data
             seed_data()

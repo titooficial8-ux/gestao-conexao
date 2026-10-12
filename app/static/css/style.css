@@ -2715,3 +2715,5 @@ textarea.ticket-input { resize: vertical; }
 .ped-erro { background: #fdeeee; border-color: #f3caca; color: #7a1d1d; }
 .ped-erro .ped-dot { background: #d13b3b; }
 @keyframes pedPulso { 50% { opacity: .25; } }
+
+.ped-unidade { font-size: .78rem; color: #6b7a90; margin-top: 2px; }

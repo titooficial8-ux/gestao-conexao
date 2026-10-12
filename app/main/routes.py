@@ -877,6 +877,7 @@ def view_tab(slug):
                 db.or_(
                     PedidoRelatorio.cod_pedido.ilike(like),
                     PedidoRelatorio.nome_cliente.ilike(like),
+                    PedidoRelatorio.unidade.ilike(like),
                     PedidoRelatorio.ds_produto.ilike(like),
                     PedidoRelatorio.nr_op.ilike(like),
                 )
