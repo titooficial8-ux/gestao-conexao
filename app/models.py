@@ -286,6 +286,9 @@ class HistoricoProducao(db.Model):
     estimated_end_date = db.Column(db.Date, nullable=True)
     client_date = db.Column(db.Date, nullable=True)
     total_pcs = db.Column(db.Integer, nullable=True)
+    motivo_cancelamento = db.Column(db.String(500), nullable=True)   # justificativa (so o PCP preenche)
+    justificado_por = db.Column(db.String(120), nullable=True)
+    justificado_em = db.Column(db.DateTime, nullable=True)
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 

@@ -2757,3 +2757,14 @@ textarea.ticket-input { resize: vertical; }
 .op-modal-rodape { margin: 10px 0 0; text-align: center; font-size: .75rem; color: #7a889d; }
 .op-kpi-un { font-size: .6em; font-weight: 700; color: #5b6b85; }
 .op-ultima { margin: 4px 0 10px; text-align: center; font-weight: 700; color: #17325c; }
+
+/* Historico de OPs (Finalizadas / Canceladas) */
+.hist-modal-box { width: min(1100px, 95vw); max-width: 95vw; }
+.hist-abas { display: flex; gap: 8px; justify-content: center; margin: 4px 0 12px; }
+.hist-aba { border: 1px solid #dde5f0; background: #f3f6fb; color: #3b4a63; padding: 7px 18px; border-radius: 20px; font-weight: 700; font-size: .8rem; cursor: pointer; }
+.hist-aba-ativa { background: #0b4a9e; color: #fff; border-color: #0b4a9e; }
+.hist-motivo { min-width: 240px; }
+.hist-motivo-txt { font-weight: 600; color: #17325c; margin-bottom: 2px; }
+.hist-caixa { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.hist-caixa textarea { width: 100%; padding: 6px 8px; border: 1px solid #cfd8e6; border-radius: 8px; font: inherit; }
+.hist-erro { color: #a32121; font-size: .78rem; }

@@ -801,13 +801,13 @@ def view_tab(slug):
         machines = Machine.query.order_by(Machine.order.is_(None), Machine.order, Machine.number).all()
         total_maquinas_cadastradas = len(machines)
         maquinas_ativas = sum(1 for m in machines if m.esta_ativa)
-        total_sequencias = Sequencia.query.filter(Sequencia.status != 'FINALIZADO').count()
+        total_sequencias = Sequencia.query.filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).count()
 
         busca = request.args.get('q', '').strip()
         filtro_cliente = request.args.get('cliente', '').strip()
         filtro_mes = request.args.get('mes', '').strip()
 
-        todas_sequencias = Sequencia.query.filter(Sequencia.status != 'FINALIZADO').all()
+        todas_sequencias = Sequencia.query.filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).all()
         clientes_disponiveis = sorted({s.cliente for s in todas_sequencias if s.cliente})
         meses_disponiveis = sorted({mes_label(s) for s in todas_sequencias if mes_label(s)})
 
@@ -825,7 +825,7 @@ def view_tab(slug):
         if busca or filtro_cliente or filtro_mes:
             numeros_com_match = set()
             for m in machines:
-                for s in (x for x in m.sequencias if x.status != 'FINALIZADO'):
+                for s in (x for x in m.sequencias if x.status not in ('FINALIZADO', 'CANCELADO')):
                     if filtro_cliente and s.cliente != filtro_cliente:
                         continue
                     if filtro_mes and mes_label(s) != filtro_mes:
@@ -1287,8 +1287,9 @@ def view_tab(slug):
     return render_template('main/tab.html', tab=tab)
 
 
-def _historico_finalizadas_query(busca='', mes=''):
-    query = HistoricoProducao.query.filter(HistoricoProducao.new_status == 'FINALIZADO')
+def _historico_query(tipo='finalizadas', busca='', mes=''):
+    status = 'CANCELADO' if tipo == 'canceladas' else 'FINALIZADO'
+    query = HistoricoProducao.query.filter(HistoricoProducao.new_status == status)
     if mes:
         query = query.filter(db.func.strftime('%m/%Y', HistoricoProducao.changed_at) == mes)
     if busca:
@@ -1297,22 +1298,35 @@ def _historico_finalizadas_query(busca='', mes=''):
     return query.order_by(HistoricoProducao.changed_at.desc())
 
 
+def _historico_finalizadas_query(busca='', mes=''):
+    return _historico_query('finalizadas', busca, mes)
+
+
+def _eh_pcp():
+    """So o PCP justifica cancelamentos: admin ou cargo que edita Planejamento (Planejamento/Vendas). Nao vale o setor: todos os usuarios estao em todos os setores."""
+    if current_user.is_admin:
+        return True
+    cat = Category.query.filter_by(slug='planejamento').first()
+    return bool(cat and current_user.can_edit_category(cat))
+
+
 @main_bp.route('/aba/programacao/historico')
 @login_required
 def programacao_historico():
-    """Dialog 'OPs Finalizadas — Histórico': OPs com status FINALIZADO no
-    historico, filtravel por mes/busca — mesma fonte (production_history) e
-    logica do botao Histórico do PCP Hub."""
+    """Dialog 'OPs Finalizadas / Canceladas — Histórico': OPs que a pesagem do cru terminou (FINALIZADO) ou que foram
+    canceladas no TOTVS (CANCELADO), filtravel por mes/busca — mesma fonte (production_history) do botao Histórico do PCP Hub."""
     busca = request.args.get('q', '').strip()
     mes = request.args.get('mes', '').strip()
+    tipo = 'canceladas' if request.args.get('tipo') == 'canceladas' else 'finalizadas'
+    status = 'CANCELADO' if tipo == 'canceladas' else 'FINALIZADO'
 
     meses_disponiveis = sorted({
         h.changed_at.strftime('%m/%Y') for h in
-        HistoricoProducao.query.filter(HistoricoProducao.new_status == 'FINALIZADO').with_entities(HistoricoProducao.changed_at).all()
+        HistoricoProducao.query.filter(HistoricoProducao.new_status == status).with_entities(HistoricoProducao.changed_at).all()
         if h.changed_at
     }, reverse=True)
 
-    itens = _historico_finalizadas_query(busca, mes).limit(300).all()
+    itens = _historico_query(tipo, busca, mes).limit(300).all()
     for h in itens:
         h.ds_metros = resolve_metros_from_article(h.artigo)
 
@@ -1324,10 +1338,27 @@ def programacao_historico():
     cancelados_count = HistoricoProducao.query.filter(HistoricoProducao.new_status == 'CANCELADO').count()
 
     return render_template(
-        'main/_programacao_historico.html', itens=itens, busca=busca, mes=mes,
+        'main/_programacao_historico.html', itens=itens, busca=busca, mes=mes, tipo=tipo,
         meses_disponiveis=meses_disponiveis, finalizados_mes_count=finalizados_mes_count,
-        cancelados_count=cancelados_count,
+        cancelados_count=cancelados_count, pode_justificar=_eh_pcp(),
     )
+
+
+@main_bp.route('/aba/programacao/historico/<int:hid>/justificar', methods=['POST'])
+@login_required
+def programacao_historico_justificar(hid):
+    """Motivo do cancelamento de uma OP: so quem e do PCP."""
+    if not _eh_pcp():
+        abort(403)
+    h = HistoricoProducao.query.filter_by(id=hid, new_status='CANCELADO').first_or_404()
+    motivo = (request.form.get('motivo') or '').strip()
+    if len(motivo) < 3:
+        return jsonify(ok=False, erro='Escreva o motivo do cancelamento.'), 400
+    h.motivo_cancelamento = motivo[:500]
+    h.justificado_por = current_user.name
+    h.justificado_em = datetime.utcnow()
+    db.session.commit()
+    return jsonify(ok=True, motivo=h.motivo_cancelamento, por=h.justificado_por, em=h.justificado_em.strftime('%d/%m/%Y %H:%M'))
 
 
 @main_bp.route('/aba/programacao/historico/download')
@@ -2106,7 +2137,7 @@ def maquina_detalhe(numero):
     machine = Machine.query.filter_by(number=numero).first_or_404()
     sequencias = (
         Sequencia.query.filter_by(machine_id=machine.id)
-        .filter(Sequencia.status != 'FINALIZADO')            # OP com a pesagem do cru terminada sai da fila (troca automatica pelo TOTVS)
+        .filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO']))   # pesagem do cru concluida ou cancelada sai da fila (automatico pelo TOTVS)
         .order_by(Sequencia.sequence_order)
         .all()
     )

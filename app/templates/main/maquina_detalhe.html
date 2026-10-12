@@ -115,6 +115,8 @@
             <span class="badge-info">MALHARIA</span>
             {% elif sit == 'ESTOQUE' %}
             <span class="badge-warn">ESTOQUE</span>
+            {% elif sit == 'BLOQUEADA' %}
+            <span class="badge-danger">BLOQUEADA</span>
             {% else %}
             <span class="badge-neutral">{{ sit }}</span>
             {% endif %}
