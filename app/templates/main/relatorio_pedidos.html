@@ -70,15 +70,15 @@
           <td class="prod-table-produto">{{ p.ds_produto }}</td>
           <td>{{ p.cod_segmento or '–' }}</td>
           <td>{{ p.estrutura or '–' }}</td>
-          <td>{{ p.qt_solicitada | int }}</td>
-          <td>{{ p.qt_faturada | int }}</td>
-          <td>{{ p.qt_pendente | int }}</td>
+          <td>{{ p.qt_solicitada | qtd }}</td>
+          <td>{{ p.qt_faturada | qtd }}</td>
+          <td>{{ p.qt_pendente | qtd }}</td>
           <td>{{ p.nr_cicloop or '–' }}</td>
           <td>{{ p.nr_op or '–' }}</td>
-          <td>{{ p.qt_finalizada | int }}</td>
-          <td>{{ p.qt_pendenteop | int }}</td>
-          <td>{{ p.qt_afaturar | int }}</td>
-          <td>{{ p.qt_saldo | int }}</td>
+          <td>{{ p.qt_finalizada | qtd }}</td>
+          <td>{{ p.qt_pendenteop | qtd }}</td>
+          <td>{{ p.qt_afaturar | qtd }}</td>
+          <td>{{ p.qt_saldo | qtd }}</td>
         </tr>
         {% else %}
         <tr>

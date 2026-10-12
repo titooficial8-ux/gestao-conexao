@@ -87,6 +87,15 @@ def create_app():
     def not_found(_e):
         return render_template('errors/404.html'), 404
 
+    @app.template_filter('qtd')
+    def _filtro_qtd(v):
+        """Quantidade no padrao brasileiro, com ate 3 casas e sem zeros sobrando (686,52 / 1.250)."""
+        try:
+            txt = f'{float(v or 0):,.3f}'.rstrip('0').rstrip('.')
+        except (TypeError, ValueError):
+            return '0'
+        return txt.replace(',', '#').replace('.', ',').replace('#', '.')
+
     with app.app_context():
         db_path = os.path.join(BASE_DIR, 'gestao_conexao.db')
         first_run = not os.path.exists(db_path)
