@@ -1983,14 +1983,38 @@ def _api_movimentos(hub):
     for sq in Sequencia.query.all():
         clientes_op.setdefault(sq.op, sq.cliente)
     saida = []
-    for p in PesagemMalharia.query.filter(db.or_(PesagemMalharia.visto_em.isnot(None), PesagemMalharia.hora_origem == 'trx')).order_by(PesagemMalharia.data, PesagemMalharia.item).all():
-        r = resumos.get(p.op)
-        if not r or p.metros is None or (str(p.op), str(p.item)) in hub['vistos']:
-            continue
+    pecas = [p for p in PesagemMalharia.query.order_by(PesagemMalharia.data, PesagemMalharia.item).all()
+             if resumos.get(p.op) and p.metros is not None and (str(p.op), str(p.item)) not in hub['vistos']]
+    # hora de cada peca: baixa de fio (trx) > momento em que o Gestao viu > estimada entre as vizinhas da mesma OP
+    horas = {}
+    for p in pecas:
         if p.hora_real and p.hora_origem == 'trx':
-            dt_utc = p.hora_real + timedelta(hours=3)            # hora da baixa de fio (horario do Brasil, UTC-3)
-        else:
-            dt_utc = p.visto_em.astimezone(timezone.utc).replace(tzinfo=None)
+            horas[p.id] = p.hora_real + timedelta(hours=3)            # hora da baixa de fio (horario do Brasil, UTC-3)
+        elif p.visto_em is not None:
+            v = p.visto_em.astimezone(timezone.utc).replace(tzinfo=None)
+            if abs((v - timedelta(hours=3)).date() - p.data) <= timedelta(days=1):    # visto na propria data (nao em carga historica)
+                horas[p.id] = v
+    por_op = {}
+    for p in pecas:
+        por_op.setdefault(p.op, []).append(p)
+    for lista in por_op.values():
+        lista.sort(key=lambda x: (x.data, x.item))
+        for i, p in enumerate(lista):
+            if p.id in horas:
+                continue
+            ant = next(((j, horas[lista[j].id]) for j in range(i - 1, -1, -1) if lista[j].id in horas), None)
+            prox = next(((j, horas[lista[j].id]) for j in range(i + 1, len(lista)) if lista[j].id in horas), None)
+            if ant and prox and prox[1] > ant[1]:
+                horas[p.id] = ant[1] + (prox[1] - ant[1]) * (i - ant[0]) / (prox[0] - ant[0])
+            elif ant:
+                horas[p.id] = ant[1] + timedelta(hours=2.7) * (i - ant[0])
+            elif prox:
+                horas[p.id] = prox[1] - timedelta(hours=2.7) * (prox[0] - i)
+            else:                                                       # sem nenhuma vizinha com hora: meio do dia da movimentacao
+                horas[p.id] = datetime.combine(p.data, datetime.min.time()) + timedelta(hours=15)
+    for p in pecas:
+        r = resumos[p.op]
+        dt_utc = horas[p.id]
         desc = r.artigo_desc or ''
         g = re.search(r'(\d{2,3})\s*G\b', desc, re.I)
         l = re.search(r'(\d+[.,]\d+)\s*L\b', desc, re.I)
