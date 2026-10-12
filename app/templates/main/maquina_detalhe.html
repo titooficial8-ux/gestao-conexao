@@ -108,7 +108,7 @@
           <td><button type="button" class="seq-op seq-op-btn" data-op="{{ s.op }}" title="Ver pesagens na MALHARIA PESAGEM">{{ s.op }}</button></td>
           <td>{{ s.cod_segmento or '–' }}</td>
           <td>
-            {% set sit = s.situacao or ('PRODUZINDO' if s.status == 'PRODUZINDO' else ('PCP' if s.status == 'PCP' else 'MALHARIA')) %}
+            {% set sit = s.situacao or ('PRODUZINDO' if s.status == 'PRODUZINDO' else ('PCP - Fase¹' if s.status == 'PCP' else 'MALHARIA')) %}
             {% if sit == 'PRODUZINDO' %}
             <span class="badge-ok">PRODUZINDO</span>
             {% elif sit == 'MALHARIA' %}
@@ -116,7 +116,7 @@
             {% elif sit == 'ESTOQUE' %}
             <span class="badge-warn">ESTOQUE</span>
             {% else %}
-            <span class="badge-neutral">PCP</span>
+            <span class="badge-neutral">{{ sit }}</span>
             {% endif %}
           </td>
         </tr>
