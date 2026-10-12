@@ -185,6 +185,13 @@ def pedidos_atualizar():
 mov_bp = Blueprint('movimentos_op', __name__, url_prefix='/movimentos-op')
 
 
+def _quando(p):
+    """Data e hora da pesagem (horario do Brasil): a baixa de fio do TOTVS quando confiavel; senao a hora em que o Gestao viu a peca."""
+    if p.hora_real and p.hora_origem == 'trx':
+        return p.hora_real
+    return p.visto_em
+
+
 @mov_bp.route('/<op>')
 @login_required
 def movimentos_op(op):
@@ -213,7 +220,7 @@ def movimentos_op(op):
         maquina=seq.machine.number if seq and seq.machine else resumo.maquina, metro_padrao=resumo.metro_padrao,
         cliente=seq.cliente if seq else None, artigo=seq.artigo if seq else None,
         pecas=[dict(item=p.item, data=p.data.isoformat() if p.data else '', sequencia=p.sequencia, acerto=p.acerto, metros=p.metros,
-                    hora=p.visto_em.strftime('%H:%M:%S') if p.visto_em else None) for p in pecas],
+                    hora=_quando(p).strftime('%H:%M:%S') if _quando(p) else None, quando=_quando(p).isoformat() if _quando(p) else None) for p in pecas],
         resumo=dict(pecas=resumo.pecas, metros=resumo.metros, no_local=resumo.no_local, saiu=resumo.saiu, quantidade_op=resumo.quantidade_op,
                     atualizado_em=resumo.atualizado_em.isoformat(timespec='seconds') + 'Z'),
     ))

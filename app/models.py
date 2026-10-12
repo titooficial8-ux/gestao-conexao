@@ -524,7 +524,10 @@ class PesagemMalharia(db.Model):
     sequencia = db.Column(db.Integer)            # ordem do movimento no dia (TOTVS)
     acerto = db.Column(db.Float)                 # metros acima/abaixo do metro padrao
     metros = db.Column(db.Float, nullable=True)  # metro padrao + acerto
-    visto_em = db.Column(db.DateTime, nullable=True)   # quando o Gestao viu a pesagem no TOTVS (a API so traz a data, nao a hora)
+    visto_em = db.Column(db.DateTime, nullable=True)   # quando o Gestao viu a pesagem no TOTVS (reserva, se nao houver a hora real)
+    hora_real = db.Column(db.DateTime, nullable=True)  # hora da baixa de fio da peca (transacao 2000 do TOTVS), horario do Brasil
+    hora_origem = db.Column(db.String(10), nullable=True)  # 'trx' = hora confiavel; 'tardia' = baixa feita em outro dia; 'sem' = nao achei
+    trx_codigo = db.Column(db.Integer, nullable=True)  # transacao 2000 ligada a peca
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 

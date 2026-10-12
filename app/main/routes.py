@@ -1983,10 +1983,14 @@ def _api_movimentos(hub):
     for sq in Sequencia.query.all():
         clientes_op.setdefault(sq.op, sq.cliente)
     saida = []
-    for p in PesagemMalharia.query.filter(PesagemMalharia.visto_em.isnot(None)).order_by(PesagemMalharia.visto_em).all():
+    for p in PesagemMalharia.query.filter(db.or_(PesagemMalharia.visto_em.isnot(None), PesagemMalharia.hora_origem == 'trx')).order_by(PesagemMalharia.data, PesagemMalharia.item).all():
         r = resumos.get(p.op)
         if not r or p.metros is None or (str(p.op), str(p.item)) in hub['vistos']:
             continue
+        if p.hora_real and p.hora_origem == 'trx':
+            dt_utc = p.hora_real + timedelta(hours=3)            # hora da baixa de fio (horario do Brasil, UTC-3)
+        else:
+            dt_utc = p.visto_em.astimezone(timezone.utc).replace(tzinfo=None)
         desc = r.artigo_desc or ''
         g = re.search(r'(\d{2,3})\s*G\b', desc, re.I)
         l = re.search(r'(\d+[.,]\d+)\s*L\b', desc, re.I)
@@ -1994,7 +1998,7 @@ def _api_movimentos(hub):
         saida.append({
             'id': 1_000_000_000 + p.id, 'cod_maquina': str(r.maquina) if r.maquina is not None else None, 'op': p.op, 'nr_item': str(p.item),
             'cod_artigo': desc, 'qt_movimento': p.metros, 'qt_pesos': kg,
-            'dt_real': _iso_utc(p.visto_em.astimezone(timezone.utc).replace(tzinfo=None)), 'metro_padrao': r.metro_padrao,
+            'dt_real': _iso_utc(dt_utc), 'metro_padrao': r.metro_padrao,
             'local_code': '23', 'cliente': hub['cliente_de'](desc) or clientes_op.get(p.op),
         })
     return json.dumps(saida, ensure_ascii=False, separators=(',', ':'))[1:-1]

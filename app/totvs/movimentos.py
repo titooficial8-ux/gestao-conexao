@@ -10,13 +10,15 @@ A API nao tem o peso (kg) nem a hora da pesagem (so a data).
 """
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as hora_do_dia, timedelta
 
 from . import api
 
 BASE_URL = api.BASE_URL
 OPS_URL = f'{BASE_URL}/api/totvsmoda/production-order/v2/orders/search'
 MOV_URL = f'{BASE_URL}/api/totvsmoda/production/v2/movements'
+TRX_URL = f'{BASE_URL}/api/totvsmoda/general/v2/transactions/search'
+BAIXA_FIO = 2000                                              # operacao: baixa do fio consumido na peca (uma transacao por peca, com data e hora)
 EMPRESA = 1
 LOCAL = 23
 NOME_LOCAL = 'MALHARIA PESAGEM'
@@ -61,6 +63,90 @@ def calcular(movs: list, op, metro_padrao):
             lista.append(dict(item=len(lista) + 1, data=str(m.get('movementDate'))[:10], sequencia=m.get('sequence'),
                               acerto=round(q - metro_padrao, 3) if metro_padrao else 0.0, metros=round(q, 3)))
     return lista, saiu
+
+
+def _fator(desc: str):
+    """kg por metro da peca: gramatura (g/m2) x largura (m) / 1000, do nome do artigo (ex.: 240G 2,20L)."""
+    g = re.search(r'(\d{2,3})\s*G\b', desc or '', re.I)
+    l = re.search(r'(\d+[.,]\d+)\s*L\b', desc or '', re.I)
+    return int(g.group(1)) * float(l.group(1).replace(',', '.')) / 1000 if g and l else None
+
+
+def _dt(txt):
+    try:
+        return datetime.fromisoformat(str(txt)[:19]) if txt else None
+    except ValueError:
+        return None
+
+
+def buscar_baixas(cli, clientes: list, desde: date) -> dict:
+    """Transacoes 2000 (baixa de fio, uma por peca) dos clientes das OPs: {cliente: [dict(codigo, data, mudou, kg)]}."""
+    saida = {}
+    for i in range(0, len(clientes), 20):
+        pag = 1
+        while True:
+            r = cli.post(TRX_URL, dict(branchCodeList=[EMPRESA], operationCodeList=[BAIXA_FIO], customerCodeList=clientes[i:i + 20],
+                                       startChangeDate=f'{desde.isoformat()}T00:00:00', endChangeDate=f'{date.today().isoformat()}T23:59:59',
+                                       page=pag, pageSize=500))
+            if r.status_code != 200:
+                raise RuntimeError(f'Baixas de fio: HTTP {r.status_code} {r.text[:160]}')
+            j = r.json()
+            for t in j.get('items') or []:
+                kg = sum(_num(it.get('quantity')) for it in t.get('items') or [] if str(it.get('measuredUnit') or '').strip().upper() == 'KG')
+                saida.setdefault(t.get('customerCode'), []).append(dict(codigo=t.get('transactionCode'), data=_data(t.get('transactionDate')),
+                                                                         mudou=_dt(t.get('lastchangeDate')), kg=kg))
+            if not j.get('hasNext'):
+                break
+            pag += 1
+    return saida
+
+
+def _hora_confiavel(data_trx: date, mudou: datetime) -> bool:
+    """A baixa vale como hora da pesagem se foi feita dentro do dia de producao (06:20 do dia ate 06:19 do dia seguinte)."""
+    ini = datetime.combine(data_trx, hora_do_dia(6, 20))
+    return ini <= mudou < ini + timedelta(days=1)
+
+
+def casar_horas(pecas: list, baixas: list, fator, usadas: set) -> dict:
+    """Liga cada peca a sua baixa de fio. O peso da baixa e metros x kg/m, e o kg/m e o mesmo em todas as pecas do artigo
+    (ex.: 0,5291 = 240 g/m2 x 2,20 m). Acha esse kg/m (o valor que mais se repete entre pecas e baixas de dias proximos; se o nome do
+    artigo traz gramatura e largura, so vale perto do valor teorico) e liga cada peca a baixa de peso mais exato (tolerancia de 0,02%),
+    no mesmo dia de producao ou a 1 dia de diferenca. Devolve {item: baixa}."""
+    ts = [b for b in baixas if b['codigo'] not in usadas and b['data'] and b['mudou'] and b['kg'] > 0]
+    if not pecas or not ts:
+        return {}
+    por_data = {}
+    for b in ts:
+        por_data.setdefault(b['data'], []).append(b)
+
+    def vizinhas(dia):
+        return [b for d in (dia - timedelta(days=1), dia, dia + timedelta(days=1)) for b in por_data.get(d, [])]
+
+    cont, razoes = {}, []
+    for p in pecas:
+        if p['metros'] <= 0:
+            continue
+        for b in vizinhas(_data(p['data'])):
+            r = b['kg'] / p['metros']
+            if fator is None or abs(r / fator - 1) <= 0.05:
+                cont[round(r / 0.0005)] = cont.get(round(r / 0.0005), 0) + 1
+                razoes.append(r)
+    if not cont:
+        return {}
+    melhor = max(cont, key=lambda k: cont[k] + cont.get(k - 1, 0) + cont.get(k + 1, 0))
+    if cont[melhor] + cont.get(melhor - 1, 0) + cont.get(melhor + 1, 0) < max(2, 0.25 * len(pecas)):
+        return {}
+    perto = sorted(r for r in razoes if abs(r / 0.0005 - melhor) <= 1.5)
+    r_ok = perto[len(perto) // 2]                              # mediana: o kg/m exato (as baixas tem 3 casas, entao o erro e minimo)
+    achados, usadas_aqui = {}, set()
+    for p in sorted(pecas, key=lambda p: (str(p['data']), p.get('sequencia') or 0)):
+        esperado = p['metros'] * r_ok
+        cand = [b for b in vizinhas(_data(p['data'])) if b['codigo'] not in usadas_aqui and abs(b['kg'] - esperado) <= max(0.0002 * esperado, 0.004)]
+        if cand:
+            b = min(cand, key=lambda b: abs(b['kg'] - esperado))
+            achados[p['item']] = b
+            usadas_aqui.add(b['codigo'])
+    return achados
 
 
 def _no_local(o: dict) -> float:
@@ -114,12 +200,14 @@ def pecas(op: str, ciclo: int = 13, metro_padrao: float | None = None) -> dict:
 # Atualizacao automatica: todas as OPs da Programacao, de uma vez, a cada MOVIMENTOS_INTERVALO_SEG (padrao 10 s)
 # ---------------------------------------------------------------------------
 import os
+import re
 import traceback
 
 INTERVALO_SEG = float(os.getenv('MOVIMENTOS_INTERVALO_SEG', '10'))     # a busca leva ~3 s, entao 10 s e seguro
 DIAS_HISTORICO = int(os.getenv('MOVIMENTOS_DIAS', '150'))
 ESTADO = dict(rodando=False, ultima=None, erro=None, ops=0, pecas=0, duracao=None)
 _trava_auto = threading.Lock()
+_ULTIMA_BUSCA_ANTIGAS = 0.0
 
 
 def _metro_padrao(seq):
@@ -248,19 +336,61 @@ def atualizar_todas(app) -> bool:
                 por_op.setdefault(str(m.get('productionOrder')), []).append(m)
             agora = datetime.utcnow()
             # hora = quando o Gestao viu a peca (a API do TOTVS so tem a data). Guarda a de antes; pecas novas de OP ja conhecida ganham a hora de agora
-            antigas = {(a.op, a.item, a.data): a.visto_em for a in PesagemMalharia.query.all()}
+            antigas_db = PesagemMalharia.query.all()
+            antigas = {(a.op, a.item, a.data): a.visto_em for a in antigas_db}
+            horas_antigas = {(a.op, a.item, a.data): (a.hora_real, a.hora_origem, a.trx_codigo) for a in antigas_db}
+            trx_usadas = {a.trx_codigo for a in antigas_db if a.trx_codigo}
             ops_conhecidas = {r.op for r in PesagemResumo.query.all()}
             agora_local = datetime.now()
             novas, resumos, total_pecas = [], [], 0
+            listas = {op: calcular(por_op.get(op, []), op, padroes[op]) for op in ops}
+
+            # hora real da pesagem: baixa de fio (transacao 2000) de cada peca. So busca para pecas ainda sem hora decidida
+            pendentes = {}
+            for op in ops:
+                for l in listas[op][0]:
+                    if horas_antigas.get((op, l['item'], _data(l['data'])), (None, None, None))[1] is None:
+                        pendentes.setdefault(op, []).append(l)
+            horas, busca_ok, buscou_antigas = {}, False, False
+            global _ULTIMA_BUSCA_ANTIGAS
+            recentes = {op: [l for l in ls if (date.today() - _data(l['data'])).days <= 1] for op, ls in pendentes.items()}
+            recentes = {op: ls for op, ls in recentes.items() if ls}
+            antigas_pend = any((date.today() - _data(l['data'])).days > 1 for ls in pendentes.values() for l in ls)
+            if antigas_pend and time.time() - _ULTIMA_BUSCA_ANTIGAS > 600:
+                alvo, buscou_antigas = pendentes, True                # pecas mais velhas: tenta de novo so a cada 10 min (a busca e pesada)
+            else:
+                alvo = recentes                                        # pecas de hoje/ontem: toda rodada
+            if alvo:
+                try:
+                    clientes_op = {op: (info.get(op) or {}).get('customerCode') for op in alvo}
+                    desde = min(_data(l['data']) for ls in alvo.values() for l in ls) - timedelta(days=1)
+                    with _trava:
+                        baixas = buscar_baixas(cli, sorted({c for c in clientes_op.values() if c}), desde)
+                    for op, ls in alvo.items():
+                        achados = casar_horas(ls, baixas.get(clientes_op[op], []), _fator(((info.get(op) or {}).get('items') or [{}])[0].get('productName')), trx_usadas)
+                        for l in ls:
+                            b = achados.get(l['item'])
+                            if b:
+                                trx_usadas.add(b['codigo'])
+                                horas[(op, l['item'], _data(l['data']))] = (b['mudou'], 'trx' if _hora_confiavel(b['data'], b['mudou']) else 'tardia', b['codigo'])
+                    busca_ok = True
+                    if buscou_antigas:
+                        _ULTIMA_BUSCA_ANTIGAS = time.time()
+                except Exception:  # noqa: BLE001  - sem a hora real a peca continua aparecendo (com a hora em que o Gestao a viu)
+                    traceback.print_exc()
             for op in ops:
                 o = info.get(op)
-                lista, saiu = calcular(por_op.get(op, []), op, padroes[op])
+                lista, saiu = listas[op]
                 total_pecas += len(lista)
                 for l in lista:
                     chave = (op, l['item'], _data(l['data']))
                     visto = antigas.get(chave) if chave in antigas else (agora_local if op in ops_conhecidas else None)
+                    h_real, h_origem, h_trx = horas.get(chave) or horas_antigas.get(chave, (None, None, None))
+                    if h_origem is None and busca_ok and buscou_antigas and (date.today() - _data(l['data'])).days >= 2:
+                        h_origem = 'sem'                       # passou o prazo de a baixa aparecer: nao procura mais
                     novas.append(PesagemMalharia(op=op, ciclo=13, item=l['item'], data=_data(l['data']), sequencia=l['sequencia'],
-                                                 acerto=l['acerto'], metros=l['metros'], visto_em=visto, synced_at=agora))
+                                                 acerto=l['acerto'], metros=l['metros'], visto_em=visto, hora_real=h_real, hora_origem=h_origem,
+                                                 trx_codigo=h_trx, synced_at=agora))
                 resumos.append(PesagemResumo(op=op, ciclo=13, encontrada=bool(o), maquina=maquinas[op] if maquinas[op] is not None else (o or {}).get('machineCode'),
                                              artigo_desc=(((o or {}).get('items') or [{}])[0].get('productName') or '')[:200] or None,
                                              metro_padrao=padroes[op], pecas=len(lista),

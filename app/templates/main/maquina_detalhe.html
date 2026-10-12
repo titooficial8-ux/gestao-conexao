@@ -220,7 +220,8 @@
     kp.appendChild(kpi('Já saiu', nf(r.saiu, 0), 'seguiram para o próximo local', 'MT'));
     corpo.appendChild(kp);
     if (!d.pecas.length) { corpo.appendChild(el('p', 'prod-table-empty', 'Nenhuma peça pesada ainda nesta OP.')); return; }
-    var ult = d.pecas[d.pecas.length - 1]; corpo.appendChild(el('p', 'op-ultima', 'Última movimentação: ' + dia(ult.data) + (ult.hora ? ' às ' + ult.hora : '')));
+    var ult = d.pecas.slice().reverse().find(function (x) { return x.quando; }) || d.pecas[d.pecas.length - 1];
+    corpo.appendChild(el('p', 'op-ultima', 'Última movimentação: ' + (ult.quando ? dia(ult.quando.slice(0, 10)) + ' às ' + ult.hora : dia(ult.data) + (ult.hora ? ' às ' + ult.hora : ''))));
     var tb = el('table', 'data-table prod-table tab-centro'), th = el('thead'), tr = el('tr');
     ['Máquina', 'Item', 'Qt. Movim. (MT)', 'Local', 'Dt. Movimento', 'Hora'].forEach(function (h) { tr.appendChild(el('th', null, h)); });
     th.appendChild(tr); tb.appendChild(th);
@@ -235,7 +236,7 @@
     });
     tb.appendChild(body); var w = el('div', 'table-scroll'); w.appendChild(tb); corpo.appendChild(w);
     rodape.textContent = 'Última atualização do TOTVS: ' + new Date(r.atualizado_em).toLocaleTimeString('pt-BR') + ' · o Gestão busca no TOTVS a cada 10 s, mesmo sem ninguém olhando'
-      + ' · a hora é o momento em que o Gestão viu a pesagem no TOTVS (até ~10 s de diferença)' + (d.metro_padrao ? ' · metro padrão ' + nf(d.metro_padrao, 0) + ' m' : '');
+      + ' · a hora vem da baixa de fio de cada peça no TOTVS; quando não dá para ligar a baixa, é o momento em que o Gestão viu a peça' + (d.metro_padrao ? ' · metro padrão ' + nf(d.metro_padrao, 0) + ' m' : '');
   }
   function carregar() {
     if (!opAtual) return;
