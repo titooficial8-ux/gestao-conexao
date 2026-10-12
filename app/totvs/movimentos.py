@@ -4,9 +4,8 @@
   - production/v2/movements: historico de movimentos da OP. Datas obrigatorias e no maximo 30 dias por consulta,
     entao a OP e consultada em blocos de 29 dias, da criacao dela ate hoje.
 
-Cada peca pesada na malharia vira um movimento de "Acerto" no local 23 sobre o metro padrao do artigo:
-  entrada sem origem -> 23 (acerto positivo)  = metro padrao + acerto
-  saida 23 -> sem destino (acerto negativo)   = metro padrao - acerto
+A peca so aparece quando ja passou do local 23 para o 24 (movimento 23 -> 24, a mesma linha do Relatorio 0032);
+a quantidade desse movimento e o metro da peca. A hora (visto_em) e o momento em que o Gestao viu essa passagem.
 A API nao tem o peso (kg) nem a hora da pesagem (so a data).
 """
 import threading
@@ -49,22 +48,18 @@ def _num(v):
 
 
 def calcular(movs: list, op, metro_padrao):
-    """Pecas pesadas (na ordem) e metros que ja seguiram para o proximo local, a partir dos movimentos da OP."""
+    """Pecas que ja passaram do local 23 (MALHARIA PESAGEM) para o 24, na ordem em que passaram, e metros que ja seguiram.
+    A peca so aparece depois que o movimento 23 -> 24 existe (e a mesma linha do Relatorio 0032); a quantidade do movimento e o metro da peca."""
     movs = [m for m in movs if str(m.get('productionOrder')) == str(op) and not m.get('isReversed')]
     movs.sort(key=lambda m: (str(m.get('movementDate')), m.get('sequence') or 0))
     lista, saiu = [], 0.0
     for m in movs:
         origem, destino, q = m.get('originLocationCode'), m.get('destinationLocationCode'), _num(m.get('totalQuantity'))
-        if destino == LOCAL and origem is None:                    # peca pesada acima do metro padrao
-            acerto = q
-        elif origem == LOCAL and destino is None:                  # peca pesada abaixo do metro padrao
-            acerto = -q
-        else:
-            if origem == LOCAL and destino is not None:
-                saiu += q                                          # seguiu para o proximo local
-            continue
-        lista.append(dict(item=len(lista) + 1, data=str(m.get('movementDate'))[:10], sequencia=m.get('sequence'), acerto=round(acerto, 3),
-                          metros=round(metro_padrao + acerto, 3) if metro_padrao else None))
+        if origem == LOCAL and destino is not None:
+            saiu += q                                              # seguiu para o proximo local
+        if origem == LOCAL and destino == 24 and m.get('movementType') != 'FinalizationMovement':
+            lista.append(dict(item=len(lista) + 1, data=str(m.get('movementDate'))[:10], sequencia=m.get('sequence'),
+                              acerto=round(q - metro_padrao, 3) if metro_padrao else 0.0, metros=round(q, 3)))
     return lista, saiu
 
 
@@ -253,7 +248,7 @@ def atualizar_todas(app) -> bool:
                 por_op.setdefault(str(m.get('productionOrder')), []).append(m)
             agora = datetime.utcnow()
             # hora = quando o Gestao viu a peca (a API do TOTVS so tem a data). Guarda a de antes; pecas novas de OP ja conhecida ganham a hora de agora
-            antigas = {(a.op, a.item, a.data, a.sequencia, a.acerto): a.visto_em for a in PesagemMalharia.query.all()}
+            antigas = {(a.op, a.item, a.data): a.visto_em for a in PesagemMalharia.query.all()}
             ops_conhecidas = {r.op for r in PesagemResumo.query.all()}
             agora_local = datetime.now()
             novas, resumos, total_pecas = [], [], 0
@@ -262,7 +257,7 @@ def atualizar_todas(app) -> bool:
                 lista, saiu = calcular(por_op.get(op, []), op, padroes[op])
                 total_pecas += len(lista)
                 for l in lista:
-                    chave = (op, l['item'], _data(l['data']), l['sequencia'], l['acerto'])
+                    chave = (op, l['item'], _data(l['data']))
                     visto = antigas.get(chave) if chave in antigas else (agora_local if op in ops_conhecidas else None)
                     novas.append(PesagemMalharia(op=op, ciclo=13, item=l['item'], data=_data(l['data']), sequencia=l['sequencia'],
                                                  acerto=l['acerto'], metros=l['metros'], visto_em=visto, synced_at=agora))
