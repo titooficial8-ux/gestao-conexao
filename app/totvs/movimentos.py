@@ -116,12 +116,12 @@ def pecas(op: str, ciclo: int = 13, metro_padrao: float | None = None) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Atualizacao automatica: todas as OPs da Programacao, de uma vez, a cada MOVIMENTOS_INTERVALO_MIN (padrao 2)
+# Atualizacao automatica: todas as OPs da Programacao, de uma vez, a cada MOVIMENTOS_INTERVALO_SEG (padrao 10 s)
 # ---------------------------------------------------------------------------
 import os
 import traceback
 
-INTERVALO_MIN = float(os.getenv('MOVIMENTOS_INTERVALO_MIN', '2'))
+INTERVALO_SEG = float(os.getenv('MOVIMENTOS_INTERVALO_SEG', '10'))     # a busca leva ~3 s, entao 10 s e seguro
 DIAS_HISTORICO = int(os.getenv('MOVIMENTOS_DIAS', '150'))
 ESTADO = dict(rodando=False, ultima=None, erro=None, ops=0, pecas=0, duracao=None)
 _trava_auto = threading.Lock()
@@ -221,7 +221,7 @@ def atualizar_todas(app) -> bool:
 
 
 def iniciar_agendador(app) -> None:
-    """Thread: atualiza ao subir e depois a cada MOVIMENTOS_INTERVALO_MIN minutos, com ou sem alguem olhando a tela."""
+    """Thread: atualiza ao subir e depois a cada MOVIMENTOS_INTERVALO_SEG segundos, com ou sem alguem olhando a tela."""
     if not (os.getenv('TOTVS_CLIENT_ID') and os.getenv('TOTVS_CLIENT_SECRET')):
         return
 
@@ -232,5 +232,5 @@ def iniciar_agendador(app) -> None:
                 atualizar_todas(app)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
-            time.sleep(max(INTERVALO_MIN, 1) * 60)
+            time.sleep(max(INTERVALO_SEG, 5))
     threading.Thread(target=loop, daemon=True, name='totvs-movimentos').start()

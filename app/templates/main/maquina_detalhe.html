@@ -228,7 +228,7 @@
       l.appendChild(el('td', null, dia(p.data))); body.appendChild(l);
     });
     tb.appendChild(body); var w = el('div', 'table-scroll'); w.appendChild(tb); corpo.appendChild(w);
-    rodape.textContent = 'Última atualização do TOTVS: ' + new Date(r.atualizado_em).toLocaleTimeString('pt-BR') + ' · o Gestão busca sozinho a cada 2 min, mesmo sem ninguém olhando'
+    rodape.textContent = 'Última atualização do TOTVS: ' + new Date(r.atualizado_em).toLocaleTimeString('pt-BR') + ' · o Gestão busca no TOTVS a cada 10 s, mesmo sem ninguém olhando'
       + (d.metro_padrao ? ' · metro padrão ' + nf(d.metro_padrao, 0) + ' m' : '');
   }
   function carregar() {
@@ -241,7 +241,7 @@
     b.addEventListener('click', function () {
       opAtual = b.dataset.op; titulo.textContent = 'MALHARIA PESAGEM · OP ' + opAtual; rodape.textContent = '';
       corpo.textContent = ''; corpo.appendChild(el('p', 'prod-table-empty', 'Consultando o TOTVS…')); modal.hidden = false;
-      carregar(); clearInterval(timer); timer = setInterval(carregar, 20000);
+      carregar(); clearInterval(timer); timer = setInterval(carregar, 5000);
     });
   });
   document.getElementById('opModalFechar').addEventListener('click', fechar);
