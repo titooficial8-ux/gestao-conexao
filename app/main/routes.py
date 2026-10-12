@@ -871,15 +871,19 @@ def view_tab(slug):
         pagina = request.args.get('pagina', 1, type=int)
 
         query = PedidoRelatorio.query
-        if busca:
-            like = f'%{busca}%'
+        for termo in busca.split():          # cada palavra precisa aparecer em alguma coluna (ex.: "flex 300036")
+            like = f'%{termo}%'
             query = query.filter(
                 db.or_(
                     PedidoRelatorio.cod_pedido.ilike(like),
                     PedidoRelatorio.nome_cliente.ilike(like),
                     PedidoRelatorio.unidade.ilike(like),
+                    PedidoRelatorio.cod_produto.ilike(like),
                     PedidoRelatorio.ds_produto.ilike(like),
                     PedidoRelatorio.nr_op.ilike(like),
+                    PedidoRelatorio.cod_segmento.ilike(like),
+                    PedidoRelatorio.estrutura.ilike(like),
+                    PedidoRelatorio.tp_situacao.ilike(like),
                 )
             )
 
