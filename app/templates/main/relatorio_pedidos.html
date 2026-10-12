@@ -14,7 +14,7 @@
 </div>
 
 <form method="GET" class="prod-filters">
-  <input type="text" name="q" class="prod-search" placeholder="{{ t('pesquisar_pedidos_placeholder') }}" value="{{ busca }}">
+  <input type="text" name="q" class="prod-search" id="pedBusca" autocomplete="off" placeholder="{{ t('pesquisar_pedidos_placeholder') }}" value="{{ busca }}">
   <button type="submit" class="btn-small btn-primary">{{ t('pesquisar') }}</button>
   {% if busca %}
   <a href="{{ url_for('main.view_tab', slug='relatorio-pedidos') }}" class="btn-small">{{ t('limpar') }}</a>
@@ -130,6 +130,22 @@
     fetch('/pedidos-totvs/atualizar', { method: 'POST', credentials: 'same-origin' }).then(function () { setTimeout(checar, 800); });
   });
   checar(); setInterval(checar, 10000);
+
+  // pesquisa enquanto digita: troca so a tabela, sem recarregar a pagina
+  (function () {
+    var campo = document.getElementById('pedBusca'), form = campo.form, espera = null, seq = 0;
+    function buscar() {
+      var q = campo.value.trim(), url = form.action.split('?')[0] + (q ? '?q=' + encodeURIComponent(q) : ''), meu = ++seq;
+      fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
+        if (meu !== seq) return;                                   // chegou uma busca mais nova; ignora esta
+        var doc = new DOMParser().parseFromString(html, 'text/html'), novo = doc.querySelector('.table-card'), atual = document.querySelector('.table-card');
+        if (novo && atual) atual.innerHTML = novo.innerHTML;
+        history.replaceState(null, '', url);
+      }).catch(function () {});
+    }
+    campo.addEventListener('input', function () { clearTimeout(espera); espera = setTimeout(buscar, 300); });
+    form.addEventListener('submit', function (ev) { ev.preventDefault(); clearTimeout(espera); buscar(); });
+  })();
 })();
 </script>
 {% endblock %}
