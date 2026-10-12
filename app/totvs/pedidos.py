@@ -35,8 +35,8 @@ ESTOQUE = int(os.getenv('PEDIDOS_ESTOQUE', '1'))             # saldo de expedica
 DIAS = int(os.getenv('PEDIDOS_DIAS', '180'))                 # pedidos feitos nos ultimos N dias
 INTERVALO_MIN = float(os.getenv('PEDIDOS_INTERVALO_MIN', '2'))
 STATUS_PEDIDO = ['InProgress', 'BillingReleased', 'PartiallyAnswered', 'Blocked', 'InComposition', 'InAnalysis', 'Attended', 'Canceled']
-ENCERRADOS = ('Attended', 'Canceled')                        # aparecem no relatorio, mas nao entram em OP nem na pre-programacao
-STATUS_OP = [5, 10, 20]                                      # bloqueada, aguardando liberacao, em andamento
+ENCERRADOS = ('Attended', 'Canceled')                        # aparecem no relatorio, mas nao entram na pre-programacao
+STATUS_OP = [5, 10, 20, 30]                                  # bloqueada, aguardando liberacao, em andamento e finalizada
 ROTULO_SITUACAO = {
     'InProgress': 'EM ANDAMENTO', 'BillingReleased': 'LIBERADO P/ FATURAMENTO', 'PartiallyAnswered': 'PARCIALMENTE ATENDIDO',
     'Attended': 'ATENDIDO', 'Blocked': 'BLOQUEADO', 'Canceled': 'CANCELADO', 'InComposition': 'EM COMPOSIÇÃO', 'InAnalysis': 'EM ANÁLISE',
@@ -140,34 +140,41 @@ def buscar() -> list[dict]:
         lista.sort(key=lambda o: (str(o.get('insertDate') or ''), o.get('orderCode') or 0))
     usado = defaultdict(float)                                 # quantidade de cada OP ja destinada a pedidos
 
+    def alocar(p, pid, necessidade, dt_pedido):
+        """OPs que atendem o pedido: as do mesmo cliente+artigo criadas depois dele, em ordem de criacao.
+        Cada OP vai sendo consumida pela quantidade dos pedidos (do mais antigo ao mais novo); um pedido grande usa varias OPs."""
+        achadas = []
+        for o in por_chave.get((p['customerCode'], pid), []):
+            if (_data(o.get('insertDate')) or date.min) < (dt_pedido or date.min) or necessidade <= 0.5:
+                continue
+            sobra = _num(o.get('quantity')) - usado[o['orderCode']]
+            if sobra <= 0.5 or (sobra < necessidade * 0.1):     # sobra minima de OP nao vira vinculo
+                continue
+            usar = min(sobra, necessidade)
+            usado[o['orderCode']] += usar
+            necessidade -= usar
+            achadas.append(o)
+        return achadas
+
     from app.main.routes import normalize_client_name          # filiais Ortobom entram como ORTOBOM, como no PCP Hub
     linhas = []
     for p, it, solicitada, faturada, pendente in sorted(itens, key=lambda t: (str(t[0].get('orderDate')), t[0].get('orderCode') or 0)):
         pid = it.get('productCode')
         dt_pedido = _data(p.get('orderDate'))
-        op = None
-        encerrado = p.get('statusOrder') in ENCERRADOS
-        cands = [] if encerrado else [o for o in por_chave.get((p['customerCode'], pid), []) if (_data(o.get('insertDate')) or date.min) >= (dt_pedido or date.min)]
-        for o in cands:                                        # 1a OP com sobra para este pedido; senao a 1a depois dele
-            if _num(o.get('quantity')) - usado[o['orderCode']] >= pendente > 0:
-                op = o
-                break
-        op = op or (cands[0] if cands else None)
-        extras = [str(o['orderCode']) for o in cands if o is not op]
-        if op:
-            usado[op['orderCode']] += pendente
-        fin1 = _num((op.get('orderFinishedQuantitiesTypes') or {}).get('normalFinishedQuantity')) if op else 0.0
+        ops_pedido = [] if p.get('statusOrder') == 'Canceled' else alocar(p, pid, solicitada, dt_pedido)
         prev = _data(it.get('billingForecastDate')) or _data(p.get('billingForecastDate'))
-        linhas.append(dict(
-            cod_pedido=str(p.get('orderCode')), nome_cliente=normalize_client_name(fantasia.get(p['customerCode']) or p.get('customerName')),
-            unidade=fantasia.get(p['customerCode']) or p.get('customerName'),
-            dt_pedido=dt_pedido, dt_prevfaturamento=prev, dt_chegada30=(dt_pedido + timedelta(days=30)) if dt_pedido else None,
-            tp_situacao=ROTULO_SITUACAO.get(p.get('statusOrder'), ''), cod_produto=str(pid), ds_produto=it.get('name'),
-            cod_segmento=segmento.get(pid), estrutura=estrutura.get(pid),
-            qt_solicitada=solicitada, qt_faturada=faturada, qt_pendente=pendente,
-            nr_cicloop=str(op['cycleCode']) if op else '', nr_op=str(op['orderCode']) if op else '', ops_extra=', '.join(extras)[:200],
-            qt_finalizada=fin1, qt_pendenteop=_num(op.get('pendingQuantity')) if op else 0.0,
-            qt_afaturar=max(fin1 - faturada, 0.0) if op else 0.0, qt_saldo=saldo.get(pid, 0.0), region='BR'))
+        for op in ops_pedido or [None]:                        # uma linha por OP (ou uma so, sem OP)
+            fin1 = _num((op.get('orderFinishedQuantitiesTypes') or {}).get('normalFinishedQuantity')) if op else 0.0
+            linhas.append(dict(
+                cod_pedido=str(p.get('orderCode')), nome_cliente=normalize_client_name(fantasia.get(p['customerCode']) or p.get('customerName')),
+                unidade=fantasia.get(p['customerCode']) or p.get('customerName'),
+                dt_pedido=dt_pedido, dt_prevfaturamento=prev, dt_chegada30=(dt_pedido + timedelta(days=30)) if dt_pedido else None,
+                tp_situacao=ROTULO_SITUACAO.get(p.get('statusOrder'), ''), cod_produto=str(pid), ds_produto=it.get('name'),
+                cod_segmento=segmento.get(pid), estrutura=estrutura.get(pid),
+                qt_solicitada=solicitada, qt_faturada=faturada, qt_pendente=pendente,
+                nr_cicloop=str(op['cycleCode']) if op else '', nr_op=str(op['orderCode']) if op else '', ops_extra='',
+                qt_finalizada=fin1, qt_pendenteop=_num(op.get('pendingQuantity')) if op else 0.0,
+                qt_afaturar=max(fin1 - faturada, 0.0) if op else 0.0, qt_saldo=saldo.get(pid, 0.0), region='BR'))
     return linhas
 
 
