@@ -2016,9 +2016,7 @@ def _api_movimentos(hub):
         r = resumos[p.op]
         dt_utc = horas[p.id]
         desc = r.artigo_desc or ''
-        g = re.search(r'(\d{2,3})\s*G\b', desc, re.I)
-        l = re.search(r'(\d+[.,]\d+)\s*L\b', desc, re.I)
-        kg = round(p.metros * int(g.group(1)) * float(l.group(1).replace(',', '.')) / 1000, 2) if g and l else 0
+        kg = 0                                                  # peso (gramatura x largura) fica fora por enquanto
         saida.append({
             'id': 1_000_000_000 + p.id, 'cod_maquina': str(r.maquina) if r.maquina is not None else None, 'op': p.op, 'nr_item': str(p.item),
             'cod_artigo': desc, 'qt_movimento': p.metros, 'qt_pesos': kg,
@@ -2034,7 +2032,7 @@ def api_malharia_movimentos():
     """Pesagens do local 23 (Relatorio 32 do PCP Hub ate o corte + API do TOTVS depois dele), ja com o cliente resolvido por artigo.
     Fonte unica da Gestao da Malharia, do Controle de Producao e do Dashboard Tempo Real. Como a tela relê a cada 15 s, a resposta
     vai com ETag (304 quando nada mudou) e compactada (gzip): sao ~7 MB de JSON."""
-    hub = _hub_movimentos_json()
+    hub = dict(_hub_movimentos_json(), texto='', vistos=set())      # historico so da API do TOTVS (sem Relatorio 32 do PCP Hub)
     api_txt = _api_movimentos(hub)
     etag = hashlib.md5(f"{hub['chave']}|{api_txt}".encode()).hexdigest()
     if request.headers.get('If-None-Match', '').strip('"W/') == etag:
