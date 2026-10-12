@@ -2056,10 +2056,13 @@ def api_malharia_sequencia():
 def api_malharia_status():
     """Data/hora da ultima sincronizacao do Relatorio 32 e total de registros,
     pra mostrar a barra de status no topo da Gestao da Malharia."""
-    total = Report32Movement.query.count()
-    ultimo = db.session.query(db.func.max(Report32Movement.synced_at)).scalar()
+    from app.models import PesagemMalharia, PesagemResumo
+    total = Report32Movement.query.count() + PesagemMalharia.query.filter(
+        db.or_(PesagemMalharia.visto_em.isnot(None), PesagemMalharia.hora_origem == 'trx')).count()
+    ultimo = max([x for x in (db.session.query(db.func.max(Report32Movement.synced_at)).scalar(),
+                              db.session.query(db.func.max(PesagemResumo.atualizado_em)).scalar()) if x] or [None]) if True else None
     return jsonify({
-        'last_sync': ultimo.isoformat() + 'Z' if ultimo else None,
+        'last_sync': ultimo.isoformat() + 'Z' if ultimo else None,       # ultima busca no TOTVS (a cada 10 s)
         'count': total,
     })
 

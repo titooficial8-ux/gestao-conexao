@@ -74,7 +74,7 @@ export default function Malharia() {
   const { data: statusData } = useQuery({
     queryKey: ['malharia_status'],
     queryFn: () => fetch(URLS.status).then((r) => r.json()),
-    refetchInterval: 60_000,
+    refetchInterval: 15_000,
   });
 
   const { data: queryResult } = useQuery({
@@ -92,7 +92,8 @@ export default function Malharia() {
       }
       return { rows: out, duplicates: dups };
     },
-    staleTime: 60_000,
+    staleTime: 5_000,
+    refetchInterval: 15_000,                        // automatico 24 h: o Gestao busca as pesagens no TOTVS a cada 10 s
     refetchOnWindowFocus: false,
   });
   const rows = queryResult?.rows ?? [];
@@ -455,7 +456,7 @@ export default function Malharia() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-xl font-bold" style={{ color: 'var(--gc-foreground)' }}>Gestão da Malharia</h1>
-          <p className="text-xs" style={{ color: 'var(--gc-muted-foreground)' }}>Controle de produção em tempo real · Relatório 32 (LOCAL 23)</p>
+          <p className="text-xs" style={{ color: 'var(--gc-muted-foreground)' }}>Controle de produção em tempo real · API do TOTVS (LOCAL 23 · MALHARIA PESAGEM)</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={generatePdf}><Download className="w-3.5 h-3.5" /> Baixar PDF</Button>
@@ -469,13 +470,13 @@ export default function Malharia() {
           style={{ background: 'var(--gc-muted)', border: '1px solid var(--gc-border)', color: 'var(--gc-muted-foreground)' }}>
           <div className="flex items-center gap-2">
             <Database className="w-3.5 h-3.5" style={{ color: 'var(--gc-primary)' }} />
-            <span>Dados sincronizados por <strong style={{ color: 'var(--gc-foreground)' }}>Claude</strong></span>
+            <span>Dados atualizados sozinhos pela <strong style={{ color: 'var(--gc-foreground)' }}>API do TOTVS</strong> (a cada 10 s)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5" style={{ color: 'var(--gc-primary)' }} />
             <span>
               {statusData.last_sync
-                ? new Date(statusData.last_sync).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                ? new Date(statusData.last_sync).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
                 : '—'}
               {' · '}{(statusData.count ?? 0).toLocaleString('pt-BR')} registros
             </span>
