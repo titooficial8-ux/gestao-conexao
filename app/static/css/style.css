@@ -2717,3 +2717,26 @@ textarea.ticket-input { resize: vertical; }
 @keyframes pedPulso { 50% { opacity: .25; } }
 
 .ped-unidade { font-size: .78rem; color: #6b7a90; margin-top: 2px; }
+
+/* Tabelas centralizadas (Sequencias de Producao e Relatorio Pedidos) */
+.tab-centro { border-collapse: separate; border-spacing: 0; }
+.tab-centro th { text-align: center; vertical-align: middle; background: #f3f6fb; color: #3b4a63; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; padding: 12px 6px; border-bottom: 2px solid #dde5f0; position: sticky; top: 0; z-index: 1; line-height: 1.25; }
+.tab-centro td { text-align: center; vertical-align: middle; padding: 12px 6px; border-bottom: 1px solid #edf1f7; font-variant-numeric: tabular-nums; }
+.tab-centro tbody tr:nth-child(even) td { background: #fafcff; }
+.tab-centro tbody tr:hover td { background: #eef5ff; }
+.tab-centro .prod-table-produto { max-width: 280px; margin: 0 auto; }
+.tab-centro .ped-unidade { text-align: center; }
+.seq-table td { white-space: nowrap; }
+.seq-table .seq-cliente, .seq-table .seq-artigo { font-weight: 600; color: #17325c; }
+.seq-table .seq-cliente { white-space: normal; min-width: 120px; }
+.seq-num { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 6px; border-radius: 15px; background: #e8f0fc; color: #0b4a9e; font-weight: 700; }
+.seq-produzindo td { background: #f0faf3 !important; }
+.seq-produzindo td:first-child { box-shadow: inset 4px 0 0 #2aa55a; }
+.seq-produzindo .seq-num { background: #2aa55a; color: #fff; }
+.seq-op { display: inline-block; padding: 3px 9px; border-radius: 6px; background: #eef1f6; color: #17325c; font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.seq-falta { font-weight: 700; color: #b45309; }
+.seq-prog { min-width: 84px; }
+.seq-prog strong { display: block; margin-bottom: 4px; }
+.seq-barra { display: block; width: 64px; height: 5px; margin: 0 auto; border-radius: 3px; background: #dbe4f0; overflow: hidden; }
+.seq-barra > span { display: block; height: 100%; background: #2aa55a; }
+.seq-table td:nth-child(11), .seq-table td:nth-child(13) { white-space: normal; line-height: 1.25; }

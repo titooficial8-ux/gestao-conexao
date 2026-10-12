@@ -67,7 +67,7 @@
 <div class="table-card">
   <h3 class="section-subtitle">{{ t('sequencias_producao') }}</h3>
   <div class="table-scroll">
-    <table class="data-table prod-table">
+    <table class="data-table prod-table tab-centro seq-table">
       <thead>
         <tr>
           <th>{{ t('sequencia') }}</th>
@@ -88,19 +88,22 @@
       </thead>
       <tbody>
         {% for s in sequencias %}
-        <tr>
-          <td>{{ loop.index }}º</td>
-          <td>{{ s.pecas_produzidas }}</td>
+        <tr class="{{ 'seq-produzindo' if s.status == 'PRODUZINDO' else '' }}">
+          <td><span class="seq-num">{{ loop.index }}º</span></td>
+          <td class="seq-prog">
+            <strong>{{ s.pecas_produzidas }}</strong>
+            <span class="seq-barra"><span style="width: {{ ((s.pecas_produzidas or 0) / s.total_pcs * 100) | round | int if s.total_pcs else 0 }}%"></span></span>
+          </td>
           <td>{{ s.total_pcs }}</td>
-          <td>{{ s.pc_produzir }}</td>
+          <td class="seq-falta">{{ s.pc_produzir }}</td>
           <td>{{ s.qt_avulsa or '–' }}</td>
           <td>{{ s.qt_solicitada }}</td>
           <td>{{ s.termino_malharia.strftime('%d/%m/%Y') if s.termino_malharia else '–' }}</td>
           <td>{{ s.dt_cliente.strftime('%d/%m/%Y') if s.dt_cliente else (s.production_month.title() if s.production_month else '–') }}</td>
-          <td>{{ s.artigo }}</td>
-          <td>{{ s.cliente }}</td>
+          <td class="seq-artigo">{{ s.artigo }}</td>
+          <td class="seq-cliente">{{ s.cliente }}</td>
           <td>{{ s.estrutura or '–' }}</td>
-          <td>{{ s.op }}</td>
+          <td><span class="seq-op">{{ s.op }}</span></td>
           <td>{{ s.cod_segmento or '–' }}</td>
           <td>
             {% if s.status == 'PRODUZINDO' %}
