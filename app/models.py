@@ -161,7 +161,8 @@ class Sequencia(db.Model):
     artigo = db.Column(db.String(30))
     cliente = db.Column(db.String(120))
     op = db.Column(db.String(30))
-    status = db.Column(db.String(30))  # PRODUZINDO, EM_SEQUENCIA, PCP
+    status = db.Column(db.String(30))  # PRODUZINDO, EM_SEQUENCIA, PCP (e FINALIZADO quando a pesagem do cru acaba)
+    situacao = db.Column(db.String(20))  # automatico pelo TOTVS: PRODUZINDO, MALHARIA, ESTOQUE, PCP (ou FINALIZADA)
     total_pcs = db.Column(db.Integer, default=0)
     pecas_produzidas = db.Column(db.Integer, default=0)
     qt_solicitada = db.Column(db.Integer, default=0)

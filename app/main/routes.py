@@ -801,13 +801,13 @@ def view_tab(slug):
         machines = Machine.query.order_by(Machine.order.is_(None), Machine.order, Machine.number).all()
         total_maquinas_cadastradas = len(machines)
         maquinas_ativas = sum(1 for m in machines if m.esta_ativa)
-        total_sequencias = Sequencia.query.count()
+        total_sequencias = Sequencia.query.filter(Sequencia.status != 'FINALIZADO').count()
 
         busca = request.args.get('q', '').strip()
         filtro_cliente = request.args.get('cliente', '').strip()
         filtro_mes = request.args.get('mes', '').strip()
 
-        todas_sequencias = Sequencia.query.all()
+        todas_sequencias = Sequencia.query.filter(Sequencia.status != 'FINALIZADO').all()
         clientes_disponiveis = sorted({s.cliente for s in todas_sequencias if s.cliente})
         meses_disponiveis = sorted({mes_label(s) for s in todas_sequencias if mes_label(s)})
 
@@ -825,7 +825,7 @@ def view_tab(slug):
         if busca or filtro_cliente or filtro_mes:
             numeros_com_match = set()
             for m in machines:
-                for s in m.sequencias:
+                for s in (x for x in m.sequencias if x.status != 'FINALIZADO'):
                     if filtro_cliente and s.cliente != filtro_cliente:
                         continue
                     if filtro_mes and mes_label(s) != filtro_mes:
@@ -2106,6 +2106,7 @@ def maquina_detalhe(numero):
     machine = Machine.query.filter_by(number=numero).first_or_404()
     sequencias = (
         Sequencia.query.filter_by(machine_id=machine.id)
+        .filter(Sequencia.status != 'FINALIZADO')            # OP com a pesagem do cru terminada sai da fila (troca automatica pelo TOTVS)
         .order_by(Sequencia.sequence_order)
         .all()
     )

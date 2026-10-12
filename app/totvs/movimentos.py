@@ -138,6 +138,57 @@ def _metro_padrao(seq):
     return v or None
 
 
+# status interno (usado pelo resto do Gestao) de cada situacao automatica
+STATUS_INTERNO = {'PRODUZINDO': 'PRODUZINDO', 'MALHARIA': 'EM_SEQUENCIA', 'ESTOQUE': 'EM_SEQUENCIA', 'PCP': 'PCP', 'FINALIZADA': 'FINALIZADO'}
+
+
+def situacao_op(o: dict) -> str:
+    """Onde a OP esta no TOTVS: local 23 = MALHARIA, 34 = ESTOQUE, 22 ou ainda sem movimento = PCP.
+    Sem nada no 23 e com material nos locais seguintes (24, 29, 30, 31), ou OP finalizada/cancelada = pesagem do cru terminou."""
+    q = {}
+    for l in o.get('locations') or []:
+        q[l.get('locationCode')] = q.get(l.get('locationCode'), 0.0) + _num(l.get('quantity'))
+    if o.get('status') in (30, 40):
+        return 'FINALIZADA'
+    if q.get(23, 0) > 0.5:
+        return 'MALHARIA'
+    if q.get(34, 0) > 0.5:
+        return 'ESTOQUE'
+    if sum(q.get(c, 0) for c in (24, 29, 30, 31)) > 0.5:
+        return 'FINALIZADA'
+    return 'PCP'
+
+
+def atualizar_situacoes(info: dict, seqs: dict) -> None:
+    """Define a situacao de cada OP da Programacao pelo local dela no TOTVS e faz a troca automatica:
+    em cada maquina, a primeira OP da fila que esta na MALHARIA vira PRODUZINDO; quando a pesagem do cru dela termina, a proxima assume."""
+    from app import db
+    from app.models import HistoricoProducao, Sequencia
+    por_maquina = {}
+    for s in Sequencia.query.all():
+        por_maquina.setdefault(s.machine_id, []).append(s)
+    for lista in por_maquina.values():
+        lista.sort(key=lambda s: (s.sequence_order if s.sequence_order is not None else 10 ** 6, s.id))
+        produzindo = False
+        for s in lista:
+            o = info.get(str(s.op))
+            if not o:
+                continue                                           # OP que o TOTVS nao devolveu: nao mexe
+            sit = situacao_op(o)
+            if sit == 'MALHARIA' and not produzindo:
+                sit, produzindo = 'PRODUZINDO', True
+            novo = STATUS_INTERNO[sit]
+            if s.status != novo:                                   # historico das trocas (aparece em OPs Finalizadas etc.)
+                db.session.add(HistoricoProducao(
+                    machine=str(s.machine.number) if s.machine else None, date=date.today(), artigo=s.artigo, cliente=s.cliente, op=s.op,
+                    quantity_pieces=s.pecas_produzidas or 0, requested_quantity=s.qt_solicitada or 0, old_status=s.status, new_status=novo,
+                    changed_at=datetime.utcnow(), reason='Automatico pelo TOTVS (local da OP)', estimated_end_date=s.termino_malharia,
+                    client_date=s.dt_cliente, total_pcs=s.total_pcs))
+            if s.situacao != sit or s.status != novo:
+                s.situacao, s.status = sit, novo
+    db.session.commit()
+
+
 def atualizar_todas(app) -> bool:
     """Busca no TOTVS as pesagens do local 23 de todas as OPs da Programacao e grava no banco."""
     from app import db
@@ -216,6 +267,7 @@ def atualizar_todas(app) -> bool:
             except Exception:
                 db.session.rollback()
                 raise
+            atualizar_situacoes(info, seqs)
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), ops=len(ops), pecas=total_pecas)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
