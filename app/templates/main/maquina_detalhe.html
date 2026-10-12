@@ -90,9 +90,11 @@
         {% for s in sequencias %}
         <tr class="{{ 'seq-produzindo' if s.status == 'PRODUZINDO' else '' }}">
           <td><span class="seq-num">{{ loop.index }}º</span></td>
+          {% set pct = ((s.pecas_produzidas or 0) / s.total_pcs * 100) | round | int if s.total_pcs else 0 %}
           <td class="seq-prog">
             <strong>{{ s.pecas_produzidas }}</strong>
-            <span class="seq-barra"><span style="width: {{ ((s.pecas_produzidas or 0) / s.total_pcs * 100) | round | int if s.total_pcs else 0 }}%"></span></span>
+            <span class="seq-barra"><span style="width: {{ [pct, 100] | min }}%"></span></span>
+            <span class="seq-pct">{{ pct }}%</span>
           </td>
           <td>{{ s.total_pcs }}</td>
           <td class="seq-falta">{{ s.pc_produzir }}</td>

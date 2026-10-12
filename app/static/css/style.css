@@ -2740,3 +2740,5 @@ textarea.ticket-input { resize: vertical; }
 .seq-barra { display: block; width: 64px; height: 5px; margin: 0 auto; border-radius: 3px; background: #dbe4f0; overflow: hidden; }
 .seq-barra > span { display: block; height: 100%; background: #2aa55a; }
 .seq-table td:nth-child(11), .seq-table td:nth-child(13) { white-space: normal; line-height: 1.25; }
+.seq-pct { display: block; margin-top: 3px; font-size: .72rem; font-weight: 700; color: #2a7a4b; }
+.seq-prog strong { margin-bottom: 3px; }
