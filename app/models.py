@@ -506,3 +506,36 @@ class TechTicket(db.Model):
     @property
     def image_list(self):
         return [i for i in (self.images or '').split('|') if i]
+
+
+class PesagemMalharia(db.Model):
+    """Pecas pesadas no local 23 (MALHARIA PESAGEM) de cada OP, atualizadas sozinhas pela API do TOTVS."""
+    __tablename__ = 'pesagens_malharia'
+
+    id = db.Column(db.Integer, primary_key=True)
+    op = db.Column(db.String(30), index=True)
+    ciclo = db.Column(db.Integer, default=13)
+    item = db.Column(db.Integer)                 # numero da peca (ordem de pesagem)
+    data = db.Column(db.Date, nullable=True)
+    sequencia = db.Column(db.Integer)            # ordem do movimento no dia (TOTVS)
+    acerto = db.Column(db.Float)                 # metros acima/abaixo do metro padrao
+    metros = db.Column(db.Float, nullable=True)  # metro padrao + acerto
+    synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PesagemResumo(db.Model):
+    """Resumo por OP do local 23 (quanto ainda esta no local, quanto ja saiu) e quando foi atualizado."""
+    __tablename__ = 'pesagens_malharia_resumo'
+
+    id = db.Column(db.Integer, primary_key=True)
+    op = db.Column(db.String(30), unique=True, index=True)
+    ciclo = db.Column(db.Integer, default=13)
+    encontrada = db.Column(db.Boolean, default=True)
+    maquina = db.Column(db.Integer, nullable=True)
+    metro_padrao = db.Column(db.Float, nullable=True)
+    pecas = db.Column(db.Integer, default=0)
+    metros = db.Column(db.Float, nullable=True)
+    no_local = db.Column(db.Float, default=0)
+    saiu = db.Column(db.Float, default=0)
+    quantidade_op = db.Column(db.Float, default=0)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)

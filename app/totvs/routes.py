@@ -188,29 +188,31 @@ mov_bp = Blueprint('movimentos_op', __name__, url_prefix='/movimentos-op')
 @mov_bp.route('/<op>')
 @login_required
 def movimentos_op(op):
-    from app.main.routes import resolve_metros_from_article
-    from app.models import Sequencia
+    from app.models import PesagemMalharia, PesagemResumo, Sequencia
     tab = Tab.query.filter_by(slug='programacao').first_or_404()
     if not tab.visible_to(current_user):
         abort(403)
-    if not servico.configurado():
-        return _json(dict(ok=False, erro='Credenciais do TOTVS nao configuradas no arquivo .env (veja .env.example).')), 400
     if not op.isdigit():
         abort(404)
     seq = Sequencia.query.filter_by(op=op).first()
-    padrao = None
-    if seq:
+    resumo = PesagemResumo.query.filter_by(op=op).first()
+    if not resumo:                                   # ainda nao entrou na atualizacao automatica: consulta na hora
+        if not servico.configurado():
+            return _json(dict(ok=False, erro='Credenciais do TOTVS nao configuradas no arquivo .env (veja .env.example).')), 400
         try:
-            padrao = float(str(resolve_metros_from_article(seq.artigo) or '').replace(',', '.'))
-        except ValueError:
-            padrao = None
-        if not padrao and seq.total_pcs and seq.qt_solicitada:
-            padrao = round(seq.qt_solicitada / seq.total_pcs)           # 2096 m / 66 pecas = 32 m
-    try:
-        dados = movimentos.pecas(op, 13, padrao)
-    except Exception as e:  # noqa: BLE001
-        return _json(dict(ok=False, erro=str(e)[:300])), 502
-    if seq and seq.machine:
-        dados['maquina'] = seq.machine.number
-    dados.update(ok=True, cliente=seq.cliente if seq else None, artigo=seq.artigo if seq else None)
-    return _json(dados)
+            dados = movimentos.pecas(op, 13, movimentos._metro_padrao(seq) if seq else None)
+        except Exception as e:  # noqa: BLE001
+            return _json(dict(ok=False, erro=str(e)[:300])), 502
+        if seq and seq.machine:
+            dados['maquina'] = seq.machine.number
+        dados.update(ok=True, cliente=seq.cliente if seq else None, artigo=seq.artigo if seq else None, automatico=False)
+        return _json(dados)
+    pecas = PesagemMalharia.query.filter_by(op=op).order_by(PesagemMalharia.item).all()
+    return _json(dict(
+        ok=True, op=op, ciclo=resumo.ciclo, encontrada=resumo.encontrada, local=movimentos.NOME_LOCAL, automatico=True,
+        maquina=seq.machine.number if seq and seq.machine else resumo.maquina, metro_padrao=resumo.metro_padrao,
+        cliente=seq.cliente if seq else None, artigo=seq.artigo if seq else None,
+        pecas=[dict(item=p.item, data=p.data.isoformat() if p.data else '', sequencia=p.sequencia, acerto=p.acerto, metros=p.metros) for p in pecas],
+        resumo=dict(pecas=resumo.pecas, metros=resumo.metros, no_local=resumo.no_local, saiu=resumo.saiu, quantidade_op=resumo.quantidade_op,
+                    atualizado_em=resumo.atualizado_em.isoformat(timespec='seconds') + 'Z'),
+    ))

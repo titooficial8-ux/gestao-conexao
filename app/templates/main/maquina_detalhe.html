@@ -228,7 +228,7 @@
       l.appendChild(el('td', null, dia(p.data))); body.appendChild(l);
     });
     tb.appendChild(body); var w = el('div', 'table-scroll'); w.appendChild(tb); corpo.appendChild(w);
-    rodape.textContent = 'Atualizado às ' + new Date(r.atualizado_em).toLocaleTimeString('pt-BR') + ' · direto do TOTVS, atualiza sozinho a cada 20 s'
+    rodape.textContent = 'Última atualização do TOTVS: ' + new Date(r.atualizado_em).toLocaleTimeString('pt-BR') + ' · o Gestão busca sozinho a cada 2 min, mesmo sem ninguém olhando'
       + (d.metro_padrao ? ' · metro padrão ' + nf(d.metro_padrao, 0) + ' m' : '');
   }
   function carregar() {
