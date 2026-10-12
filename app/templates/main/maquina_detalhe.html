@@ -230,7 +230,7 @@
       var fora = d.metro_padrao && p.metros !== null && Math.abs(p.metros - d.metro_padrao) / d.metro_padrao > 0.3;
       var l = el('tr', fora ? 'op-fora' : ''); l.appendChild(el('td', null, d.maquina !== null && d.maquina !== undefined ? String(d.maquina) : '–'));
       l.appendChild(el('td', null, String(p.item)));
-      var m = el('td', null, nf(p.metros !== null ? p.metros : p.acerto, 2) + (fora ? ' ⚠' : '')); l.appendChild(m);
+      var m = el('td', null, nf(p.metros !== null ? p.metros : p.acerto, 3) + (fora ? ' ⚠' : '')); l.appendChild(m);
       var loc = el('td'); loc.appendChild(el('span', 'op-local', 'MALHARIA PESAGEM')); l.appendChild(loc);
       l.appendChild(el('td', null, dia(p.data))); l.appendChild(el('td', null, p.hora || '–')); body.appendChild(l);
     });
