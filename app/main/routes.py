@@ -1,3 +1,7 @@
+import time
+import json
+import hashlib
+import gzip
 import re
 import unicodedata
 
@@ -1933,12 +1937,19 @@ def _resolve_client_fast(cod_artigo, manual, especial, report):
     return None
 
 
-@main_bp.route('/api/malharia/movimentos')
-@login_required
-def api_malharia_movimentos():
-    """Todas as pesagens reais do Relatorio 32 (mesma fonte do Dashboard Tempo
-    Real e do Historico por Artigo), ja com o cliente resolvido por artigo —
-    fonte unica de dados da Gestao da Malharia, igual ao PCP Hub."""
+_MOV_CACHE = {'hub': None, 'resp': None}
+
+
+def _iso_utc(dt):
+    return dt.isoformat() + 'Z' if dt else None            # dt_real e guardado em UTC sem fuso: sem o Z o navegador le como horario local (3 h de erro)
+
+
+def _hub_movimentos_json():
+    """Pesagens antigas (Relatorio 32 do PCP Hub): sao ~32 mil linhas que nao mudam, entao ficam em cache (JSON pronto)."""
+    chave = (Report32Movement.query.count(), db.session.query(db.func.max(Report32Movement.id)).scalar())
+    quente = _MOV_CACHE['hub']
+    if quente and quente['chave'] == chave and time.time() - quente['t'] < 600:
+        return quente
     manual, especial, report = _build_client_maps()
     cache = {}
 
@@ -1947,31 +1958,34 @@ def api_malharia_movimentos():
             cache[art] = _resolve_client_fast(art, manual, especial, report)
         return cache[art]
 
-    def iso_utc(dt):
-        return dt.isoformat() + 'Z' if dt else None        # dt_real e guardado em UTC sem fuso: sem o Z o navegador le como horario local (3 h de erro)
-
     rows = Report32Movement.query.order_by(Report32Movement.dt_real.asc()).all()
     saida = [
         {
             'id': r.id, 'cod_maquina': r.cod_maquina, 'op': r.op, 'nr_item': r.nr_item,
             'cod_artigo': r.cod_artigo, 'qt_movimento': r.qt_movimento, 'qt_pesos': r.qt_pesos,
-            'dt_real': iso_utc(r.dt_real), 'metro_padrao': r.metro_padrao,
+            'dt_real': _iso_utc(r.dt_real), 'metro_padrao': r.metro_padrao,
             'local_code': r.local_code, 'cliente': cliente_de(r.cod_artigo),
         }
         for r in rows
     ]
+    quente = dict(chave=chave, t=time.time(), texto=json.dumps(saida, ensure_ascii=False, separators=(',', ':'))[1:-1],
+                  vistos={(str(r['op']), str(r['nr_item'])) for r in saida}, cliente_de=cliente_de)
+    _MOV_CACHE['hub'] = quente
+    return quente
 
-    # pecas pesadas no local 23 (MALHARIA PESAGEM) direto da API do TOTVS, atualizadas a cada 10 s.
-    # A hora e a que o Gestao viu a pesagem (a API so tem a data); o peso e metros x gramatura x largura (confere com o Relatorio 32).
+
+def _api_movimentos(hub):
+    """Pecas pesadas no local 23 (MALHARIA PESAGEM) direto da API do TOTVS, atualizadas a cada 10 s.
+    A hora e a que o Gestao viu a pesagem (a API so tem a data); o peso e metros x gramatura x largura (confere com o Relatorio 32)."""
     from app.models import PesagemMalharia, PesagemResumo
     resumos = {r.op: r for r in PesagemResumo.query.all()}
     clientes_op = {}
     for sq in Sequencia.query.all():
         clientes_op.setdefault(sq.op, sq.cliente)
-    ja_no_hub = {(str(r['op']), str(r['nr_item'])) for r in saida}
+    saida = []
     for p in PesagemMalharia.query.filter(PesagemMalharia.visto_em.isnot(None)).order_by(PesagemMalharia.visto_em).all():
         r = resumos.get(p.op)
-        if not r or p.metros is None or (str(p.op), str(p.item)) in ja_no_hub:
+        if not r or p.metros is None or (str(p.op), str(p.item)) in hub['vistos']:
             continue
         desc = r.artigo_desc or ''
         g = re.search(r'(\d{2,3})\s*G\b', desc, re.I)
@@ -1980,10 +1994,36 @@ def api_malharia_movimentos():
         saida.append({
             'id': 1_000_000_000 + p.id, 'cod_maquina': str(r.maquina) if r.maquina is not None else None, 'op': p.op, 'nr_item': str(p.item),
             'cod_artigo': desc, 'qt_movimento': p.metros, 'qt_pesos': kg,
-            'dt_real': p.visto_em.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + 'Z', 'metro_padrao': r.metro_padrao,
-            'local_code': '23', 'cliente': cliente_de(desc) or clientes_op.get(p.op),
+            'dt_real': _iso_utc(p.visto_em.astimezone(timezone.utc).replace(tzinfo=None)), 'metro_padrao': r.metro_padrao,
+            'local_code': '23', 'cliente': hub['cliente_de'](desc) or clientes_op.get(p.op),
         })
-    return jsonify(saida)
+    return json.dumps(saida, ensure_ascii=False, separators=(',', ':'))[1:-1]
+
+
+@main_bp.route('/api/malharia/movimentos')
+@login_required
+def api_malharia_movimentos():
+    """Pesagens do local 23 (Relatorio 32 do PCP Hub ate o corte + API do TOTVS depois dele), ja com o cliente resolvido por artigo.
+    Fonte unica da Gestao da Malharia, do Controle de Producao e do Dashboard Tempo Real. Como a tela relê a cada 15 s, a resposta
+    vai com ETag (304 quando nada mudou) e compactada (gzip): sao ~7 MB de JSON."""
+    hub = _hub_movimentos_json()
+    api_txt = _api_movimentos(hub)
+    etag = hashlib.md5(f"{hub['chave']}|{api_txt}".encode()).hexdigest()
+    if request.headers.get('If-None-Match', '').strip('"W/') == etag:
+        r = Response(status=304)
+    else:
+        resp = _MOV_CACHE['resp']
+        if not resp or resp['etag'] != etag:
+            corpo = ('[' + hub['texto'] + (',' if hub['texto'] and api_txt else '') + api_txt + ']').encode('utf-8')
+            resp = _MOV_CACHE['resp'] = dict(etag=etag, plano=corpo, gz=gzip.compress(corpo, 5))
+        usar_gz = 'gzip' in request.headers.get('Accept-Encoding', '')
+        r = Response(resp['gz'] if usar_gz else resp['plano'], mimetype='application/json')
+        if usar_gz:
+            r.headers['Content-Encoding'] = 'gzip'
+        r.headers['Vary'] = 'Accept-Encoding'
+    r.headers['ETag'] = f'"{etag}"'
+    r.headers['Cache-Control'] = 'no-cache'
+    return r
 
 
 @main_bp.route('/api/malharia/sequencia')
