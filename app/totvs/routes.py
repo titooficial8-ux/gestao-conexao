@@ -204,6 +204,49 @@ def movimentos_estado():
                       ops_fora_da_programacao=len(ops_db - prog)))
 
 
+@mov_bp.route('/diagnostico')
+@login_required
+def movimentos_diagnostico():
+    """Conta, direto na API, os movimentos que saem do local 23 num dia (?dia=2026-10-09), por destino/tipo/estorno,
+    para comparar com o Relatorio 32. Mostra tambem quantas OPs distintas e quantas fora da Programacao."""
+    from datetime import date as _d
+    from app.models import Sequencia
+    from app.totvs import movimentos
+    dia = _d.fromisoformat(request.args.get('dia') or _d.today().isoformat())
+    prog = {str(x.op) for x in Sequencia.query.all()}
+    saida = {}
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        for nome, kw in (('normais', dict(fin=False, rev=2)), ('com_finalizacao', dict(fin=True, rev=2)), ('com_estornados', dict(fin=True, rev=3))):
+            corpo_base = dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], movementStartDate=dia.isoformat(), movementEndDate=dia.isoformat(),
+                              listNormalMovement=True, listFinalizationMovement=kw['fin'], reversalType=kw['rev'], pageSize=500)
+            itens, pag = [], 1
+            while True:
+                r = cli.post(movimentos.MOV_URL, dict(corpo_base, page=pag))
+                if r.status_code != 200:
+                    saida[nome] = f'HTTP {r.status_code} {r.text[:200]}'
+                    break
+                j = r.json()
+                itens += j.get('items') or []
+                if not j.get('hasNext'):
+                    break
+                pag += 1
+            else:
+                continue
+            if nome in saida:
+                continue
+            de23 = [m for m in itens if m.get('originLocationCode') == 23]
+            cont = {}
+            for m in de23:
+                k = f"23->{m.get('destinationLocationCode')} | {m.get('movementType')} | estornado={m.get('isReversed')}"
+                cont[k] = cont.get(k, 0) + 1
+            p24 = [m for m in de23 if m.get('destinationLocationCode') == 24]
+            saida[nome] = dict(total_movimentos_do_dia=len(itens), saindo_do_23=cont, ops_23_para_24=len({m.get('productionOrder') for m in p24}),
+                               ops_23_para_24_fora_da_programacao=len({str(m.get('productionOrder')) for m in p24} - prog),
+                               metros_23_para_24=round(sum(m.get('totalQuantity') or 0 for m in p24), 1))
+    return _json(saida)
+
+
 @mov_bp.route('/<op>')
 @login_required
 def movimentos_op(op):

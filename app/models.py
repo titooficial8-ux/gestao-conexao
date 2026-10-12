@@ -528,6 +528,7 @@ class PesagemMalharia(db.Model):
     hora_real = db.Column(db.DateTime, nullable=True)  # hora da baixa de fio da peca (transacao 2000 do TOTVS), horario do Brasil
     hora_origem = db.Column(db.String(10), nullable=True)  # 'trx' = hora confiavel; 'tardia' = baixa feita em outro dia; 'sem' = nao achei
     trx_codigo = db.Column(db.Integer, nullable=True)  # transacao 2000 ligada a peca
+    peso_kg = db.Column(db.Float, nullable=True)  # kg da baixa de fio ligada a peca
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 

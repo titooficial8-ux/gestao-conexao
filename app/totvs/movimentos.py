@@ -379,7 +379,9 @@ def atualizar_todas(app) -> bool:
             for k, (h, o_, c) in list(horas_antigas.items()):         # regra da hora confiavel mudou: baixa a no maximo 1 dia do movimento vale
                 if h and o_ == 'tardia' and abs((h.date() - _data(k[1])).days) <= 1:
                     horas_antigas[k] = (h, 'trx', c)
-            trx_usadas = {a.trx_codigo for a in antigas_db if a.trx_codigo}
+            pesos_antigos = {ident_db(a): a.peso_kg for a in antigas_db}
+            pesos = {}
+            trx_usadas = {a.trx_codigo for a in antigas_db if a.trx_codigo and (a.peso_kg or a.hora_origem != 'trx')}     # 'trx' sem peso e refeita (peso entrou depois)
             ops_conhecidas = {r.op for r in PesagemResumo.query.all()}
             agora_local = datetime.now()
             novas, resumos, total_pecas = [], [], 0
@@ -389,7 +391,8 @@ def atualizar_todas(app) -> bool:
             pendentes = {}
             for op in ops:
                 for l in listas[op][0]:
-                    if horas_antigas.get((op, str(l['data']), l['sequencia'], round(l['metros'], 3)), (None, None, None))[1] is None:
+                    ch = (op, str(l['data']), l['sequencia'], round(l['metros'], 3))
+                    if horas_antigas.get(ch, (None, None, None))[1] is None or (horas_antigas[ch][1] == 'trx' and not pesos_antigos.get(ch)):
                         pendentes.setdefault(op, []).append(l)
             horas, busca_ok, buscou_antigas = {}, False, False
             global _ULTIMA_BUSCA_ANTIGAS
@@ -414,6 +417,7 @@ def atualizar_todas(app) -> bool:
                                 trx_usadas.add(b['codigo'])
                                 ok = abs((b['mudou'].date() - _data(l['data'])).days) <= 1      # baixa feita bem depois do movimento nao vale como hora da pesagem
                                 horas[(op, str(l['data']), l['sequencia'], round(l['metros'], 3))] = (b['mudou'], 'trx' if ok else 'tardia', b['codigo'])
+                                pesos[(op, str(l['data']), l['sequencia'], round(l['metros'], 3))] = b['kg']
                     busca_ok = True
                     if buscou_antigas:
                         _ULTIMA_BUSCA_ANTIGAS = time.time()
@@ -443,7 +447,8 @@ def atualizar_todas(app) -> bool:
                     l, visto, h_real, h_origem, h_trx = resolvidas[i]
                     novas.append(PesagemMalharia(op=op, ciclo=13, item=n, data=_data(l['data']), sequencia=l['sequencia'],
                                                  acerto=l['acerto'], metros=l['metros'], visto_em=visto, hora_real=h_real, hora_origem=h_origem,
-                                                 trx_codigo=h_trx, synced_at=agora))
+                                                 trx_codigo=h_trx, synced_at=agora,
+                                                 peso_kg=pesos.get((op, str(l['data']), l['sequencia'], round(l['metros'], 3))) or pesos_antigos.get((op, str(l['data']), l['sequencia'], round(l['metros'], 3)))))
                 resumos.append(PesagemResumo(op=op, ciclo=13, encontrada=bool(o), maquina=maquinas[op] if maquinas[op] is not None else (o or {}).get('machineCode'),
                                              artigo_desc=(((o or {}).get('items') or [{}])[0].get('productName') or '')[:200] or None,
                                              metro_padrao=padroes[op], pecas=len(lista),
