@@ -37,6 +37,11 @@ def normalize_client_name(name):
     return name
 
 
+def _pedido_aberto():
+    """Filtro: pedidos que nao estao ATENDIDO nem CANCELADO (o relatorio mostra os dois, mas eles nao entram nas contas da programacao)."""
+    return db.or_(PedidoRelatorio.tp_situacao.is_(None), PedidoRelatorio.tp_situacao.notin_(['ATENDIDO', 'CANCELADO']))
+
+
 def _find_pedido_por_artigo(artigo):
     """Acha um Pedido cujo cod_produto OU ds_produto comece com o codigo do
     artigo — mesmo criterio de casamento usado no PCP Hub (o campo 'article'
@@ -47,6 +52,7 @@ def _find_pedido_por_artigo(artigo):
         return None
     cod = artigo.split()[0] if artigo.split() else artigo
     return PedidoRelatorio.query.filter(
+        _pedido_aberto(),
         db.or_(
             PedidoRelatorio.cod_produto == cod,
             PedidoRelatorio.cod_produto == artigo,
@@ -913,7 +919,7 @@ def view_tab(slug):
         fila_movida = FilaPreProgramacao.query.filter_by(status='MOVED').count()
 
         total_pedidos = PedidoRelatorio.query.count()
-        pedidos_pendentes = PedidoRelatorio.query.filter(PedidoRelatorio.qt_saldo > 0).count()
+        pedidos_pendentes = PedidoRelatorio.query.filter(PedidoRelatorio.qt_saldo > 0, _pedido_aberto()).count()
 
         ultimas_mudancas = (
             HistoricoProducao.query.order_by(HistoricoProducao.changed_at.desc()).limit(8).all()
@@ -1131,7 +1137,7 @@ def view_tab(slug):
 
         pedidos_op_na_fila = {i.op for i in FilaPreProgramacao.query.filter_by(status='WAITING').all() if i.op}
         pedidos_relatorio_itens = [
-            p for p in PedidoRelatorio.query.filter(PedidoRelatorio.qt_saldo > 0).order_by(
+            p for p in PedidoRelatorio.query.filter(PedidoRelatorio.qt_saldo > 0, _pedido_aberto()).order_by(
                 PedidoRelatorio.dt_prevfaturamento.is_(None), PedidoRelatorio.dt_prevfaturamento
             ).all()
             if normalize_client_name(p.nome_cliente) != 'ORTOBOM'

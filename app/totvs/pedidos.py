@@ -34,7 +34,8 @@ CICLO = int(os.getenv('PEDIDOS_CICLO', '13'))
 ESTOQUE = int(os.getenv('PEDIDOS_ESTOQUE', '1'))             # saldo de expedicao
 DIAS = int(os.getenv('PEDIDOS_DIAS', '180'))                 # pedidos feitos nos ultimos N dias
 INTERVALO_MIN = float(os.getenv('PEDIDOS_INTERVALO_MIN', '2'))
-STATUS_PEDIDO = ['InProgress', 'BillingReleased', 'PartiallyAnswered', 'Blocked', 'InComposition', 'InAnalysis']
+STATUS_PEDIDO = ['InProgress', 'BillingReleased', 'PartiallyAnswered', 'Blocked', 'InComposition', 'InAnalysis', 'Attended', 'Canceled']
+ENCERRADOS = ('Attended', 'Canceled')                        # aparecem no relatorio, mas nao entram em OP nem na pre-programacao
 STATUS_OP = [5, 10, 20]                                      # bloqueada, aguardando liberacao, em andamento
 ROTULO_SITUACAO = {
     'InProgress': 'EM ANDAMENTO', 'BillingReleased': 'LIBERADO P/ FATURAMENTO', 'PartiallyAnswered': 'PARCIALMENTE ATENDIDO',
@@ -103,8 +104,6 @@ def buscar() -> list[dict]:
     for p in pedidos:
         for it in p.get('items') or []:
             solicitada, faturada, pendente = _num(it.get('quantity')), _num(it.get('settledQuantity')), _num(it.get('pendingQuantity'))
-            if pendente <= 0 and faturada <= 0:
-                continue                                       # item todo cancelado
             itens.append((p, it, solicitada, faturada, pendente))
     clientes = {p['customerCode'] for p, *_ in itens}
     produtos = {it.get('productCode') for _, it, *_ in itens}
@@ -147,7 +146,8 @@ def buscar() -> list[dict]:
         pid = it.get('productCode')
         dt_pedido = _data(p.get('orderDate'))
         op = None
-        cands = [o for o in por_chave.get((p['customerCode'], pid), []) if (_data(o.get('insertDate')) or date.min) >= (dt_pedido or date.min)]
+        encerrado = p.get('statusOrder') in ENCERRADOS
+        cands = [] if encerrado else [o for o in por_chave.get((p['customerCode'], pid), []) if (_data(o.get('insertDate')) or date.min) >= (dt_pedido or date.min)]
         for o in cands:                                        # 1a OP com sobra para este pedido; senao a 1a depois dele
             if _num(o.get('quantity')) - usado[o['orderCode']] >= pendente > 0:
                 op = o
