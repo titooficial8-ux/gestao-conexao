@@ -2016,7 +2016,7 @@ def _api_movimentos(hub):
         r = resumos[p.op]
         dt_utc = horas[p.id]
         desc = r.artigo_desc or ''
-        kg = 0                                                  # peso (gramatura x largura) fica fora por enquanto
+        kg = round(p.peso_kg, 2) if p.peso_kg else 0             # kg da baixa de fio ligada a peca (API do TOTVS)
         saida.append({
             'id': 1_000_000_000 + p.id, 'cod_maquina': str(r.maquina) if r.maquina is not None else None, 'op': p.op, 'nr_item': str(p.item),
             'cod_artigo': desc, 'qt_movimento': p.metros, 'qt_pesos': kg,
