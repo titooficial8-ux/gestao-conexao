@@ -105,7 +105,7 @@
           <td class="seq-artigo">{{ s.artigo }}</td>
           <td class="seq-cliente">{{ s.cliente }}</td>
           <td>{{ s.estrutura or '–' }}</td>
-          <td><span class="seq-op">{{ s.op }}</span></td>
+          <td><button type="button" class="seq-op seq-op-btn" data-op="{{ s.op }}" title="Ver pesagens na MALHARIA PESAGEM">{{ s.op }}</button></td>
           <td>{{ s.cod_segmento or '–' }}</td>
           <td>
             {% if s.status == 'PRODUZINDO' %}
@@ -181,6 +181,72 @@
   if (abrir && modal) abrir.addEventListener('click', function () { modal.hidden = false; });
   if (fechar && modal) fechar.addEventListener('click', function () { modal.hidden = true; });
   if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
+})();
+</script>
+
+<div class="modal-backdrop" id="opModal" hidden>
+  <div class="modal-box op-modal-box">
+    <div class="modal-head">
+      <h3 id="opModalTitulo">MALHARIA PESAGEM</h3>
+      <button type="button" class="modal-close" id="opModalFechar">&times;</button>
+    </div>
+    <div id="opModalCorpo" class="vg-modal-body"></div>
+    <p class="op-modal-rodape" id="opModalRodape"></p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('opModal'), corpo = document.getElementById('opModalCorpo'), titulo = document.getElementById('opModalTitulo'),
+      rodape = document.getElementById('opModalRodape'), opAtual = null, timer = null;
+  function nf(v, d) { return v === null || v === undefined ? '–' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function dia(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+  function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
+  function kpi(rot, val, sub) { var k = el('div', 'op-kpi'); k.appendChild(el('span', 'op-kpi-rot', rot)); k.appendChild(el('strong', 'op-kpi-val', val)); if (sub) k.appendChild(el('span', 'op-kpi-sub', sub)); return k; }
+  function desenhar(d) {
+    corpo.textContent = '';
+    if (!d.ok) { corpo.appendChild(el('p', 'prod-table-empty', d.erro || 'Não foi possível consultar o TOTVS.')); return; }
+    if (!d.encontrada) { corpo.appendChild(el('p', 'prod-table-empty', 'OP não encontrada no TOTVS (ciclo ' + d.ciclo + ').')); return; }
+    titulo.textContent = 'MALHARIA PESAGEM · OP ' + d.op + (d.cliente ? ' · ' + d.cliente : '');
+    var r = d.resumo, kp = el('div', 'op-kpis');
+    kp.appendChild(kpi('Peças', String(r.pecas)));
+    kp.appendChild(kpi('Qt. movim. (m)', nf(r.metros, 2)));
+    kp.appendChild(kpi('Saldo no local', nf(r.no_local, 0), 'm ainda em MALHARIA PESAGEM'));
+    kp.appendChild(kpi('Já saiu', nf(r.saiu, 0), 'm que seguiram para o próximo local'));
+    corpo.appendChild(kp);
+    if (!d.pecas.length) { corpo.appendChild(el('p', 'prod-table-empty', 'Nenhuma peça pesada ainda nesta OP.')); return; }
+    var tb = el('table', 'data-table prod-table tab-centro'), th = el('thead'), tr = el('tr');
+    ['Máquina', 'Item', 'Qt. Movim. (m)', 'Local', 'Data'].forEach(function (h) { tr.appendChild(el('th', null, h)); });
+    th.appendChild(tr); tb.appendChild(th);
+    var body = el('tbody');
+    d.pecas.slice().reverse().forEach(function (p) {                       // mais recente em cima
+      var fora = d.metro_padrao && p.metros !== null && Math.abs(p.metros - d.metro_padrao) / d.metro_padrao > 0.3;
+      var l = el('tr', fora ? 'op-fora' : ''); l.appendChild(el('td', null, d.maquina !== null && d.maquina !== undefined ? String(d.maquina) : '–'));
+      l.appendChild(el('td', null, String(p.item)));
+      var m = el('td', null, nf(p.metros !== null ? p.metros : p.acerto, 2) + (fora ? ' ⚠' : '')); l.appendChild(m);
+      var loc = el('td'); loc.appendChild(el('span', 'op-local', 'MALHARIA PESAGEM')); l.appendChild(loc);
+      l.appendChild(el('td', null, dia(p.data))); body.appendChild(l);
+    });
+    tb.appendChild(body); var w = el('div', 'table-scroll'); w.appendChild(tb); corpo.appendChild(w);
+    rodape.textContent = 'Atualizado às ' + new Date(r.atualizado_em).toLocaleTimeString('pt-BR') + ' · direto do TOTVS, atualiza sozinho a cada 20 s'
+      + (d.metro_padrao ? ' · metro padrão ' + nf(d.metro_padrao, 0) + ' m' : '');
+  }
+  function carregar() {
+    if (!opAtual) return;
+    fetch('/movimentos-op/' + encodeURIComponent(opAtual), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { if (opAtual) desenhar(d); })
+      .catch(function () { corpo.textContent = ''; corpo.appendChild(el('p', 'prod-table-empty', 'Falha ao consultar o TOTVS.')); });
+  }
+  function fechar() { modal.hidden = true; opAtual = null; clearInterval(timer); }
+  document.querySelectorAll('.seq-op-btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      opAtual = b.dataset.op; titulo.textContent = 'MALHARIA PESAGEM · OP ' + opAtual; rodape.textContent = '';
+      corpo.textContent = ''; corpo.appendChild(el('p', 'prod-table-empty', 'Consultando o TOTVS…')); modal.hidden = false;
+      carregar(); clearInterval(timer); timer = setInterval(carregar, 20000);
+    });
+  });
+  document.getElementById('opModalFechar').addEventListener('click', fechar);
+  modal.addEventListener('click', function (e) { if (e.target === modal) fechar(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fechar(); });
 })();
 </script>
 {% endblock %}

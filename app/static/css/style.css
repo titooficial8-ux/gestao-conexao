@@ -2742,3 +2742,16 @@ textarea.ticket-input { resize: vertical; }
 .seq-table td:nth-child(11), .seq-table td:nth-child(13) { white-space: normal; line-height: 1.25; }
 .seq-pct { display: block; margin-top: 3px; font-size: .72rem; font-weight: 700; color: #2a7a4b; }
 .seq-prog strong { margin-bottom: 3px; }
+
+/* Janela MALHARIA PESAGEM (clique na OP) */
+.seq-op-btn { border: 0; cursor: pointer; transition: background .15s, color .15s; }
+.seq-op-btn:hover { background: #0b4a9e; color: #fff; }
+.op-modal-box { width: min(900px, 94vw); max-width: 94vw; }
+.op-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 8px 0 14px; }
+.op-kpi { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 8px; border: 1px solid #dde5f0; border-radius: 12px; background: #f7f9fd; text-align: center; }
+.op-kpi-rot { font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #5b6b85; }
+.op-kpi-val { font-size: 1.35rem; color: #17325c; }
+.op-kpi-sub { font-size: .72rem; color: #7a889d; }
+.op-local { display: inline-block; padding: 3px 10px; border-radius: 12px; background: #e3f6ea; color: #1f7a45; font-weight: 700; font-size: .75rem; }
+.tab-centro tbody tr.op-fora td { background: #fdeeee; color: #a32121; font-weight: 600; }
+.op-modal-rodape { margin: 10px 0 0; text-align: center; font-size: .75rem; color: #7a889d; }

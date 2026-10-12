@@ -38,7 +38,7 @@ def create_app():
     from app.admin.routes import admin_bp
     from app.chamados.routes import chamados_bp
     from app.comercial_me.routes import comercial_me_bp
-    from app.totvs.routes import bi_bp, pedidos_bp
+    from app.totvs.routes import bi_bp, mov_bp, pedidos_bp
     app.register_blueprint(gateway_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -47,6 +47,7 @@ def create_app():
     app.register_blueprint(comercial_me_bp)
     app.register_blueprint(bi_bp)
     app.register_blueprint(pedidos_bp)
+    app.register_blueprint(mov_bp)
 
     app.jinja_env.globals['tab_url'] = tab_url
 

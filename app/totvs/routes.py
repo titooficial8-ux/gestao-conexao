@@ -10,7 +10,7 @@ from flask_login import current_user, login_required
 from app.comercial_me.routes import idioma_atual
 from app.models import Tab
 
-from . import base, painel, pedidos, servico, slide
+from . import base, movimentos, painel, pedidos, servico, slide
 
 bi_bp = Blueprint('bi_comercial', __name__, url_prefix='/bi-comercial')
 SLUG = 'dashboard-comercial'
@@ -177,3 +177,40 @@ def pedidos_atualizar():
     app = current_app._get_current_object()
     threading.Thread(target=pedidos.atualizar, args=(app,), daemon=True, name='totvs-pedidos-manual').start()
     return _json(dict(ok=True))
+
+
+# ---------------------------------------------------------------------------
+# Programacao: ao clicar na OP, pecas pesadas no local 23 (MALHARIA PESAGEM) direto do TOTVS
+# ---------------------------------------------------------------------------
+mov_bp = Blueprint('movimentos_op', __name__, url_prefix='/movimentos-op')
+
+
+@mov_bp.route('/<op>')
+@login_required
+def movimentos_op(op):
+    from app.main.routes import resolve_metros_from_article
+    from app.models import Sequencia
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+    if not servico.configurado():
+        return _json(dict(ok=False, erro='Credenciais do TOTVS nao configuradas no arquivo .env (veja .env.example).')), 400
+    if not op.isdigit():
+        abort(404)
+    seq = Sequencia.query.filter_by(op=op).first()
+    padrao = None
+    if seq:
+        try:
+            padrao = float(str(resolve_metros_from_article(seq.artigo) or '').replace(',', '.'))
+        except ValueError:
+            padrao = None
+        if not padrao and seq.total_pcs and seq.qt_solicitada:
+            padrao = round(seq.qt_solicitada / seq.total_pcs)           # 2096 m / 66 pecas = 32 m
+    try:
+        dados = movimentos.pecas(op, 13, padrao)
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(ok=False, erro=str(e)[:300])), 502
+    if seq and seq.machine:
+        dados['maquina'] = seq.machine.number
+    dados.update(ok=True, cliente=seq.cliente if seq else None, artigo=seq.artigo if seq else None)
+    return _json(dados)
