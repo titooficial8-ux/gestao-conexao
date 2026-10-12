@@ -539,3 +539,18 @@ class PesagemResumo(db.Model):
     saiu = db.Column(db.Float, default=0)
     quantidade_op = db.Column(db.Float, default=0)
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PesagemAcabado(db.Model):
+    """Pecas finalizadas (local 30, PESAGEM ACABADO) de cada OP, com o peso (kg) vindo do lote do TOTVS."""
+    __tablename__ = 'pesagens_acabado'
+
+    id = db.Column(db.Integer, primary_key=True)
+    op = db.Column(db.String(30), index=True)
+    item = db.Column(db.Integer)                 # numero da peca (ordem de finalizacao)
+    data = db.Column(db.Date, nullable=True)
+    sequencia = db.Column(db.Integer)
+    metros = db.Column(db.Float)
+    peso = db.Column(db.Float, nullable=True)    # kg da peca (BatchItem.quantityWeigth); vazio se o lote nao foi identificado
+    lote = db.Column(db.Integer, nullable=True)
+    synced_at = db.Column(db.DateTime, default=datetime.utcnow)

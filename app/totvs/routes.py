@@ -188,7 +188,7 @@ mov_bp = Blueprint('movimentos_op', __name__, url_prefix='/movimentos-op')
 @mov_bp.route('/<op>')
 @login_required
 def movimentos_op(op):
-    from app.models import PesagemMalharia, PesagemResumo, Sequencia
+    from app.models import PesagemAcabado, PesagemMalharia, PesagemResumo, Sequencia
     tab = Tab.query.filter_by(slug='programacao').first_or_404()
     if not tab.visible_to(current_user):
         abort(403)
@@ -208,11 +208,16 @@ def movimentos_op(op):
         dados.update(ok=True, cliente=seq.cliente if seq else None, artigo=seq.artigo if seq else None, automatico=False)
         return _json(dados)
     pecas = PesagemMalharia.query.filter_by(op=op).order_by(PesagemMalharia.item).all()
+    acab = PesagemAcabado.query.filter_by(op=op).order_by(PesagemAcabado.item).all()
     return _json(dict(
         ok=True, op=op, ciclo=resumo.ciclo, encontrada=resumo.encontrada, local=movimentos.NOME_LOCAL, automatico=True,
         maquina=seq.machine.number if seq and seq.machine else resumo.maquina, metro_padrao=resumo.metro_padrao,
         cliente=seq.cliente if seq else None, artigo=seq.artigo if seq else None,
         pecas=[dict(item=p.item, data=p.data.isoformat() if p.data else '', sequencia=p.sequencia, acerto=p.acerto, metros=p.metros) for p in pecas],
+        acabado=dict(
+            pecas=[dict(item=a.item, data=a.data.isoformat() if a.data else '', metros=a.metros, peso=a.peso, lote=a.lote) for a in acab],
+            resumo=dict(pecas=len(acab), metros=round(sum(a.metros or 0 for a in acab), 3), peso=round(sum(a.peso or 0 for a in acab), 2),
+                        com_peso=sum(1 for a in acab if a.peso))),
         resumo=dict(pecas=resumo.pecas, metros=resumo.metros, no_local=resumo.no_local, saiu=resumo.saiu, quantidade_op=resumo.quantidade_op,
                     atualizado_em=resumo.atualizado_em.isoformat(timespec='seconds') + 'Z'),
     ))

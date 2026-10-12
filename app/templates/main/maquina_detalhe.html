@@ -190,6 +190,10 @@
       <h3 id="opModalTitulo">MALHARIA PESAGEM</h3>
       <button type="button" class="modal-close" id="opModalFechar">&times;</button>
     </div>
+    <div class="op-abas" id="opAbas">
+      <button type="button" class="op-aba op-aba-ativa" data-aba="malharia">MALHARIA PESAGEM</button>
+      <button type="button" class="op-aba" data-aba="acabado">PESAGEM ACABADO</button>
+    </div>
     <div id="opModalCorpo" class="vg-modal-body"></div>
     <p class="op-modal-rodape" id="opModalRodape"></p>
   </div>
@@ -198,16 +202,40 @@
 <script>
 (function () {
   var modal = document.getElementById('opModal'), corpo = document.getElementById('opModalCorpo'), titulo = document.getElementById('opModalTitulo'),
-      rodape = document.getElementById('opModalRodape'), opAtual = null, timer = null;
+      rodape = document.getElementById('opModalRodape'), opAtual = null, timer = null, aba = 'malharia', ultimo = null;
   function nf(v, d) { return v === null || v === undefined ? '–' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function dia(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
   function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
   function kpi(rot, val, sub, un) { var k = el('div', 'op-kpi'); k.appendChild(el('span', 'op-kpi-rot', rot)); var v = el('strong', 'op-kpi-val', val); if (un) v.appendChild(el('small', 'op-kpi-un', ' ' + un)); k.appendChild(v); if (sub) k.appendChild(el('span', 'op-kpi-sub', sub)); return k; }
+  function desenharAcabado(d) {
+    var a = d.acabado;
+    if (!a) { corpo.appendChild(el('p', 'prod-table-empty', 'Disponível depois da primeira atualização automática do TOTVS.')); return; }
+    var r = a.resumo, kp = el('div', 'op-kpis');
+    kp.appendChild(kpi('Peças finalizadas', String(r.pecas)));
+    kp.appendChild(kpi('Qt. movim.', nf(r.metros, 2), '', 'MT'));
+    kp.appendChild(kpi('Qt. pesos', nf(r.peso, 2), r.pecas && r.com_peso < r.pecas ? r.com_peso + ' de ' + r.pecas + ' com peso' : '', 'KG'));
+    corpo.appendChild(kp);
+    if (!a.pecas.length) { corpo.appendChild(el('p', 'prod-table-empty', 'Nenhuma peça finalizada ainda nesta OP.')); return; }
+    var tb = el('table', 'data-table prod-table tab-centro'), th = el('thead'), tr = el('tr');
+    ['Máquina', 'Item', 'Qt. Movim. (MT)', 'Qt. Pesos (KG)', 'Local', 'Lote', 'Data'].forEach(function (h) { tr.appendChild(el('th', null, h)); });
+    th.appendChild(tr); tb.appendChild(th);
+    var body = el('tbody');
+    a.pecas.slice().reverse().forEach(function (p) {
+      var l = el('tr'); l.appendChild(el('td', null, d.maquina !== null && d.maquina !== undefined ? String(d.maquina) : '–'));
+      l.appendChild(el('td', null, String(p.item))); l.appendChild(el('td', null, nf(p.metros, 2)));
+      l.appendChild(el('td', null, p.peso ? nf(p.peso, 2) : '–'));
+      var loc = el('td'); loc.appendChild(el('span', 'op-local', 'PESAGEM ACABADO')); l.appendChild(loc);
+      l.appendChild(el('td', null, p.lote ? String(p.lote) : '–')); l.appendChild(el('td', null, dia(p.data))); body.appendChild(l);
+    });
+    tb.appendChild(body); var w = el('div', 'table-scroll'); w.appendChild(tb); corpo.appendChild(w);
+  }
   function desenhar(d) {
+    ultimo = d;
     corpo.textContent = '';
     if (!d.ok) { corpo.appendChild(el('p', 'prod-table-empty', d.erro || 'Não foi possível consultar o TOTVS.')); return; }
     if (!d.encontrada) { corpo.appendChild(el('p', 'prod-table-empty', 'OP não encontrada no TOTVS (ciclo ' + d.ciclo + ').')); return; }
     titulo.textContent = 'MALHARIA PESAGEM · OP ' + d.op + (d.cliente ? ' · ' + d.cliente : '');
+    if (aba === 'acabado') { desenharAcabado(d); rodape.textContent = d.resumo ? 'Última atualização do TOTVS: ' + new Date(d.resumo.atualizado_em).toLocaleTimeString('pt-BR') + ' · peso (kg) vem do lote do TOTVS; atualiza sozinho' : ''; return; }
     var r = d.resumo, kp = el('div', 'op-kpis');
     kp.appendChild(kpi('Peças', String(r.pecas)));
     kp.appendChild(kpi('Qt. movim.', nf(r.metros, 2), '', 'MT'));
@@ -236,10 +264,16 @@
     fetch('/movimentos-op/' + encodeURIComponent(opAtual), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { if (opAtual) desenhar(d); })
       .catch(function () { corpo.textContent = ''; corpo.appendChild(el('p', 'prod-table-empty', 'Falha ao consultar o TOTVS.')); });
   }
+  document.querySelectorAll('.op-aba').forEach(function (b) {
+    b.addEventListener('click', function () {
+      aba = b.dataset.aba; document.querySelectorAll('.op-aba').forEach(function (x) { x.classList.toggle('op-aba-ativa', x === b); });
+      if (ultimo) desenhar(ultimo);
+    });
+  });
   function fechar() { modal.hidden = true; opAtual = null; clearInterval(timer); }
   document.querySelectorAll('.seq-op-btn').forEach(function (b) {
     b.addEventListener('click', function () {
-      opAtual = b.dataset.op; titulo.textContent = 'MALHARIA PESAGEM · OP ' + opAtual; rodape.textContent = '';
+      opAtual = b.dataset.op; aba = 'malharia'; document.querySelectorAll('.op-aba').forEach(function (x) { x.classList.toggle('op-aba-ativa', x.dataset.aba === 'malharia'); }); titulo.textContent = 'MALHARIA PESAGEM · OP ' + opAtual; rodape.textContent = '';
       corpo.textContent = ''; corpo.appendChild(el('p', 'prod-table-empty', 'Consultando o TOTVS…')); modal.hidden = false;
       carregar(); clearInterval(timer); timer = setInterval(carregar, 5000);
     });
