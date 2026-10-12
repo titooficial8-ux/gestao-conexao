@@ -219,7 +219,7 @@ def movimentos_op(op):
         ok=True, op=op, ciclo=resumo.ciclo, encontrada=resumo.encontrada, local=movimentos.NOME_LOCAL, automatico=True,
         maquina=seq.machine.number if seq and seq.machine else resumo.maquina, metro_padrao=resumo.metro_padrao,
         cliente=seq.cliente if seq else None, artigo=seq.artigo if seq else None,
-        pecas=[dict(item=p.item, data=p.data.isoformat() if p.data else '', sequencia=p.sequencia, acerto=p.acerto, metros=p.metros,
+        pecas=[dict(item=p.item, data=_quando(p).date().isoformat() if _quando(p) else (p.data.isoformat() if p.data else ''), sequencia=p.sequencia, acerto=p.acerto, metros=p.metros,
                     hora=_quando(p).strftime('%H:%M:%S') if _quando(p) else None, quando=_quando(p).isoformat() if _quando(p) else None) for p in pecas],
         resumo=dict(pecas=resumo.pecas, metros=resumo.metros, no_local=resumo.no_local, saiu=resumo.saiu, quantidade_op=resumo.quantidade_op,
                     atualizado_em=resumo.atualizado_em.isoformat(timespec='seconds') + 'Z'),

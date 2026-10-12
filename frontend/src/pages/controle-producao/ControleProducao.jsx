@@ -239,8 +239,7 @@ export default function ControleProducao() {
     let lastTs = null;
     inWindow.forEach((r) => {
       const d = new Date(r.dt_real);
-      const localHourStr = d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false });
-      const hourIdx = (parseInt(localHourStr, 10) - 6 + 24) % 24;
+      const hourIdx = (new Date(d.getTime() - 3 * 3600 * 1000).getUTCHours() - 6 + 24) % 24;   // hora do Brasil (UTC-3) sem Intl
       const m = Number(r.metro_padrao) || 0;
       hourBuckets[hourIdx].metros += m;
       hourBuckets[hourIdx].pecas += 1;

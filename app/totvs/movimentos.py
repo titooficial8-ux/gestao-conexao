@@ -337,8 +337,13 @@ def atualizar_todas(app) -> bool:
             agora = datetime.utcnow()
             # hora = quando o Gestao viu a peca (a API do TOTVS so tem a data). Guarda a de antes; pecas novas de OP ja conhecida ganham a hora de agora
             antigas_db = PesagemMalharia.query.all()
-            antigas = {(a.op, a.item, a.data): a.visto_em for a in antigas_db}
-            horas_antigas = {(a.op, a.item, a.data): (a.hora_real, a.hora_origem, a.trx_codigo) for a in antigas_db}
+            # cada peca e identificada pelo proprio movimento (OP, data, sequencia, metros): o numero do item muda quando a ordem e refeita pela hora
+            ident_db = lambda a: (a.op, a.data.isoformat() if a.data else '', a.sequencia, round(a.metros or 0, 3))
+            antigas = {ident_db(a): a.visto_em for a in antigas_db}
+            horas_antigas = {ident_db(a): (a.hora_real, a.hora_origem, a.trx_codigo) for a in antigas_db}
+            for k, (h, o_, c) in list(horas_antigas.items()):         # regra da hora confiavel mudou: baixa a no maximo 1 dia do movimento vale
+                if h and o_ == 'tardia' and abs((h.date() - _data(k[1])).days) <= 1:
+                    horas_antigas[k] = (h, 'trx', c)
             trx_usadas = {a.trx_codigo for a in antigas_db if a.trx_codigo}
             ops_conhecidas = {r.op for r in PesagemResumo.query.all()}
             agora_local = datetime.now()
@@ -349,7 +354,7 @@ def atualizar_todas(app) -> bool:
             pendentes = {}
             for op in ops:
                 for l in listas[op][0]:
-                    if horas_antigas.get((op, l['item'], _data(l['data'])), (None, None, None))[1] is None:
+                    if horas_antigas.get((op, str(l['data']), l['sequencia'], round(l['metros'], 3)), (None, None, None))[1] is None:
                         pendentes.setdefault(op, []).append(l)
             horas, busca_ok, buscou_antigas = {}, False, False
             global _ULTIMA_BUSCA_ANTIGAS
@@ -372,7 +377,8 @@ def atualizar_todas(app) -> bool:
                             b = achados.get(l['item'])
                             if b:
                                 trx_usadas.add(b['codigo'])
-                                horas[(op, l['item'], _data(l['data']))] = (b['mudou'], 'trx' if _hora_confiavel(b['data'], b['mudou']) else 'tardia', b['codigo'])
+                                ok = abs((b['mudou'].date() - _data(l['data'])).days) <= 1      # baixa feita bem depois do movimento nao vale como hora da pesagem
+                                horas[(op, str(l['data']), l['sequencia'], round(l['metros'], 3))] = (b['mudou'], 'trx' if ok else 'tardia', b['codigo'])
                     busca_ok = True
                     if buscou_antigas:
                         _ULTIMA_BUSCA_ANTIGAS = time.time()
@@ -382,13 +388,25 @@ def atualizar_todas(app) -> bool:
                 o = info.get(op)
                 lista, saiu = listas[op]
                 total_pecas += len(lista)
+                resolvidas = []
                 for l in lista:
-                    chave = (op, l['item'], _data(l['data']))
+                    chave = (op, str(l['data']), l['sequencia'], round(l['metros'], 3))
                     visto = antigas.get(chave) if chave in antigas else (agora_local if op in ops_conhecidas else None)
                     h_real, h_origem, h_trx = horas.get(chave) or horas_antigas.get(chave, (None, None, None))
                     if h_origem is None and busca_ok and buscou_antigas and (date.today() - _data(l['data'])).days >= 2:
                         h_origem = 'sem'                       # passou o prazo de a baixa aparecer: nao procura mais
-                    novas.append(PesagemMalharia(op=op, ciclo=13, item=l['item'], data=_data(l['data']), sequencia=l['sequencia'],
+                    resolvidas.append((l, visto, h_real, h_origem, h_trx))
+                # numero do item = ordem da pesagem (como o Relatorio 0032): pela hora real; peca sem hora fica logo depois da anterior na ordem do movimento
+                tempos, ultimo = [], None
+                for l, visto, h_real, h_origem, h_trx in resolvidas:
+                    if h_real and h_origem == 'trx':
+                        ultimo = h_real
+                    tempos.append(ultimo)
+                primeiro = next((t for t in tempos if t), datetime.min)
+                ordem = sorted(range(len(resolvidas)), key=lambda i: ((tempos[i] or primeiro), i))
+                for n, i in enumerate(ordem, 1):
+                    l, visto, h_real, h_origem, h_trx = resolvidas[i]
+                    novas.append(PesagemMalharia(op=op, ciclo=13, item=n, data=_data(l['data']), sequencia=l['sequencia'],
                                                  acerto=l['acerto'], metros=l['metros'], visto_em=visto, hora_real=h_real, hora_origem=h_origem,
                                                  trx_codigo=h_trx, synced_at=agora))
                 resumos.append(PesagemResumo(op=op, ciclo=13, encontrada=bool(o), maquina=maquinas[op] if maquinas[op] is not None else (o or {}).get('machineCode'),
