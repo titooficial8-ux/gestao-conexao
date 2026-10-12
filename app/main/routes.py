@@ -1321,7 +1321,7 @@ def programacao_historico():
     status = 'CANCELADO' if tipo == 'canceladas' else 'FINALIZADO'
 
     meses_disponiveis = sorted({
-        h.changed_at.strftime('%m/%Y') for h in
+        (h.changed_at - timedelta(hours=3)).strftime('%m/%Y') for h in
         HistoricoProducao.query.filter(HistoricoProducao.new_status == status).with_entities(HistoricoProducao.changed_at).all()
         if h.changed_at
     }, reverse=True)
@@ -1358,7 +1358,7 @@ def programacao_historico_justificar(hid):
     h.justificado_por = current_user.name
     h.justificado_em = datetime.utcnow()
     db.session.commit()
-    return jsonify(ok=True, motivo=h.motivo_cancelamento, por=h.justificado_por, em=h.justificado_em.strftime('%d/%m/%Y %H:%M'))
+    return jsonify(ok=True, motivo=h.motivo_cancelamento, por=h.justificado_por, em=(h.justificado_em - timedelta(hours=3)).strftime('%d/%m/%Y %H:%M'))
 
 
 @main_bp.route('/aba/programacao/historico/download')
@@ -1384,7 +1384,7 @@ def programacao_historico_download():
             f'MÁQ {h.machine}' if h.machine else '', h.artigo, resolve_metros_from_article(h.artigo), h.op,
             h.cliente, h.quantity_pieces, h.pieces_per_day,
             h.date.strftime('%d/%m/%Y') if h.date else '',
-            h.changed_at.strftime('%d/%m/%Y %H:%M') if h.changed_at else '',
+            (h.changed_at - timedelta(hours=3)).strftime('%d/%m/%Y %H:%M') if h.changed_at else '',
             h.reason or '',
         ])
     for col in ws.columns:

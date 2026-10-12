@@ -24,14 +24,14 @@
     </thead>
     <tbody id="histTbody">
       {% for h in itens %}
-      <tr data-op="{{ (h.op or '')|lower }}" data-artigo="{{ (h.artigo or '')|lower }}" data-mes="{{ h.changed_at.strftime('%m/%Y') if h.changed_at else '' }}">
+      <tr data-op="{{ (h.op or '')|lower }}" data-artigo="{{ (h.artigo or '')|lower }}" data-mes="{{ (h.changed_at|local).strftime('%m/%Y') if h.changed_at else '' }}">
         <td>MÁQ {{ h.machine }}</td>
         <td>{{ h.artigo }}</td>
         <td>{{ h.ds_metros or '—' }}</td>
         <td><span class="seq-op">{{ h.op }}</span></td>
         <td>{{ h.cliente or '—' }}</td>
         <td>{{ h.quantity_pieces }}</td>
-        <td>{{ h.changed_at.strftime('%d/%m/%Y %H:%M') if h.changed_at else '—' }}</td>
+        <td>{{ (h.changed_at|local).strftime('%d/%m/%Y %H:%M') if h.changed_at else '—' }}</td>
         <td class="sd-muted">{{ h.reason or '' }}</td>
       </tr>
       {% else %}
@@ -48,17 +48,17 @@
     </thead>
     <tbody id="histTbody">
       {% for h in itens %}
-      <tr data-op="{{ (h.op or '')|lower }}" data-artigo="{{ (h.artigo or '')|lower }}" data-mes="{{ h.changed_at.strftime('%m/%Y') if h.changed_at else '' }}" data-id="{{ h.id }}">
+      <tr data-op="{{ (h.op or '')|lower }}" data-artigo="{{ (h.artigo or '')|lower }}" data-mes="{{ (h.changed_at|local).strftime('%m/%Y') if h.changed_at else '' }}" data-id="{{ h.id }}">
         <td>MÁQ {{ h.machine }}</td>
         <td>{{ h.artigo }}</td>
         <td><span class="seq-op">{{ h.op }}</span></td>
         <td>{{ h.cliente or '—' }}</td>
         <td>{{ h.requested_quantity }}</td>
-        <td>{{ h.changed_at.strftime('%d/%m/%Y %H:%M') if h.changed_at else '—' }}</td>
+        <td>{{ (h.changed_at|local).strftime('%d/%m/%Y %H:%M') if h.changed_at else '—' }}</td>
         <td class="hist-motivo">
           {% if h.motivo_cancelamento %}
           <div class="hist-motivo-txt">{{ h.motivo_cancelamento }}</div>
-          <div class="sd-muted">{{ h.justificado_por }} &bull; {{ h.justificado_em.strftime('%d/%m/%Y %H:%M') if h.justificado_em else '' }}</div>
+          <div class="sd-muted">{{ h.justificado_por }} &bull; {{ (h.justificado_em|local).strftime('%d/%m/%Y %H:%M') if h.justificado_em else '' }}</div>
           {% elif not pode_justificar %}
           <span class="sd-muted">Sem justificativa</span>
           {% endif %}

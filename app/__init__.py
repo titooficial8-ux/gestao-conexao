@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import timedelta, datetime
 
 from flask import Flask, session, render_template, url_for, request
 from flask_sqlalchemy import SQLAlchemy
@@ -87,6 +87,14 @@ def create_app():
     @app.errorhandler(404)
     def not_found(_e):
         return render_template('errors/404.html'), 404
+
+    @app.template_filter('local')
+    def _filtro_local(dt):
+        """Datas guardadas em UTC (utcnow / PCP Hub) -> horario do ambiente do usuario (Brasil -3, Guatemala -6)."""
+        from app.chamados.routes import FUSO_HORAS
+        if not dt:
+            return dt
+        return dt + timedelta(hours=FUSO_HORAS.get(session.get('login_pais', 'BR'), -3))
 
     @app.template_filter('qtd')
     def _filtro_qtd(v):
