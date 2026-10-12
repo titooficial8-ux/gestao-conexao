@@ -192,6 +192,18 @@ def _quando(p):
     return p.visto_em
 
 
+@mov_bp.route('/estado')
+@login_required
+def movimentos_estado():
+    """Diagnostico da busca automatica de movimentos (ultima rodada, erro, OPs achadas fora da Programacao)."""
+    from app.models import PesagemMalharia, Sequencia
+    from app.totvs import movimentos
+    prog = {str(x.op) for x in Sequencia.query.all()}
+    ops_db = {p.op for p in PesagemMalharia.query.all()}
+    return _json(dict(estado=dict(movimentos.ESTADO), pecas_no_banco=PesagemMalharia.query.count(), ops_no_banco=len(ops_db),
+                      ops_fora_da_programacao=len(ops_db - prog)))
+
+
 @mov_bp.route('/<op>')
 @login_required
 def movimentos_op(op):

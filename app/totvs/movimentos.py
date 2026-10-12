@@ -356,6 +356,8 @@ def atualizar_todas(app) -> bool:
                     fim = ini - timedelta(days=1)
                 novas_ops = sorted({str(m.get('productionOrder')) for m in extras_movs
                                     if m.get('originLocationCode') == LOCAL and m.get('destinationLocationCode') == 24 and str(m.get('productionOrder')).isdigit()}, key=int)
+                ESTADO.update(descoberta=dict(movs_sem_filtro=len(extras_movs), ops_novas=len(novas_ops), dias=DIAS_DESCOBERTA, movs_programacao=len(movs)))
+                print(f'[movimentos] descoberta: {len(extras_movs)} movs de OPs fora da Programacao, {len(novas_ops)} OPs novas no local 23', flush=True)
                 if novas_ops:
                     buscar_info(novas_ops)
                     novas_ops = [o for o in novas_ops if o in info]
