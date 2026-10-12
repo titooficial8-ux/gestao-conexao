@@ -153,6 +153,7 @@ def buscar() -> list[dict]:
                 op = o
                 break
         op = op or (cands[0] if cands else None)
+        extras = [str(o['orderCode']) for o in cands if o is not op]
         if op:
             usado[op['orderCode']] += pendente
         fin1 = _num((op.get('orderFinishedQuantitiesTypes') or {}).get('normalFinishedQuantity')) if op else 0.0
@@ -164,7 +165,7 @@ def buscar() -> list[dict]:
             tp_situacao=ROTULO_SITUACAO.get(p.get('statusOrder'), ''), cod_produto=str(pid), ds_produto=it.get('name'),
             cod_segmento=segmento.get(pid), estrutura=estrutura.get(pid),
             qt_solicitada=solicitada, qt_faturada=faturada, qt_pendente=pendente,
-            nr_cicloop=str(op['cycleCode']) if op else '', nr_op=str(op['orderCode']) if op else '',
+            nr_cicloop=str(op['cycleCode']) if op else '', nr_op=str(op['orderCode']) if op else '', ops_extra=', '.join(extras)[:200],
             qt_finalizada=fin1, qt_pendenteop=_num(op.get('pendingQuantity')) if op else 0.0,
             qt_afaturar=max(fin1 - faturada, 0.0) if op else 0.0, qt_saldo=saldo.get(pid, 0.0), region='BR'))
     return linhas

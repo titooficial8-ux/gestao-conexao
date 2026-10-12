@@ -881,6 +881,7 @@ def view_tab(slug):
                     PedidoRelatorio.cod_produto.ilike(like),
                     PedidoRelatorio.ds_produto.ilike(like),
                     PedidoRelatorio.nr_op.ilike(like),
+                    PedidoRelatorio.ops_extra.ilike(like),
                     PedidoRelatorio.cod_segmento.ilike(like),
                     PedidoRelatorio.estrutura.ilike(like),
                     PedidoRelatorio.tp_situacao.ilike(like),

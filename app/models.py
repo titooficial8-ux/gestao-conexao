@@ -203,6 +203,7 @@ class PedidoRelatorio(db.Model):
     qt_pendente = db.Column(db.Float, default=0)
     nr_cicloop = db.Column(db.String(30))
     nr_op = db.Column(db.String(30))
+    ops_extra = db.Column(db.String(200))   # outras OPs abertas do mesmo cliente+artigo (so para pesquisar/mostrar no Relatorio Pedidos)
     qt_finalizada = db.Column(db.Float, default=0)
     qt_pendenteop = db.Column(db.Float, default=0)
     qt_afaturar = db.Column(db.Float, default=0)

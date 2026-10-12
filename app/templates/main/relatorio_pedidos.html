@@ -74,7 +74,7 @@
           <td>{{ p.qt_faturada | qtd }}</td>
           <td>{{ p.qt_pendente | qtd }}</td>
           <td>{{ p.nr_cicloop or '–' }}</td>
-          <td>{{ p.nr_op or '–' }}</td>
+          <td>{{ p.nr_op or '–' }}{% if p.ops_extra %}<div class="ped-unidade" title="Outras OPs abertas do mesmo cliente e artigo">+ {{ p.ops_extra }}</div>{% endif %}</td>
           <td>{{ p.qt_finalizada | qtd }}</td>
           <td>{{ p.qt_pendenteop | qtd }}</td>
           <td>{{ p.qt_afaturar | qtd }}</td>
