@@ -174,8 +174,8 @@ export default function ControleProducao() {
   const { data: rows = [], isFetching, refetch } = useQuery({
     queryKey: ['controle_producao_movimentos'],
     queryFn: () => fetch(URLS.movimentos).then((r) => r.json()),
-    staleTime: 60_000,
-    refetchInterval: heOn ? 20_000 : 120_000,
+    staleTime: 5_000,
+    refetchInterval: 15_000,                       // automatico 24 h: o Gestao busca as pesagens no TOTVS a cada 10 s
   });
 
   const { data: settings } = useQuery({
@@ -201,7 +201,7 @@ export default function ControleProducao() {
 
   const hardRefresh = () => {
     refetch();
-    toast({ title: 'Atualizando...', description: 'Buscando dados mais recentes do Relatório 32.' });
+    toast({ title: 'Atualizando...', description: 'Buscando as pesagens mais recentes no TOTVS.' });
   };
 
   const dayRows = useMemo(() => rows.filter((r) => r.dt_real && !isSample(r.cod_artigo) && productionDateOf(new Date(r.dt_real)) === date), [rows, date]);
@@ -287,7 +287,7 @@ export default function ControleProducao() {
           <div>
             <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--gc-muted-foreground)' }}>PCP Conexão / Malharia / Painel Executivo</p>
             <h1 className="font-heading text-xl font-bold" style={{ color: 'var(--gc-foreground)' }}>Dados Malharia</h1>
-            <p className="text-xs" style={{ color: 'var(--gc-muted-foreground)' }}>Controle de produção por turno · Atualização diária 07:25</p>
+            <p className="text-xs" style={{ color: 'var(--gc-muted-foreground)' }}>Controle de produção por turno · Atualização automática 24 h pela API do TOTVS (a cada 15 s)</p>
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-2">

@@ -3,7 +3,7 @@ import unicodedata
 
 from flask import Blueprint, render_template, abort, redirect, url_for, request, flash, jsonify, Response, session
 from flask_login import login_required, current_user
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app import db
 from app.models import (
@@ -1947,16 +1947,43 @@ def api_malharia_movimentos():
             cache[art] = _resolve_client_fast(art, manual, especial, report)
         return cache[art]
 
+    def iso_utc(dt):
+        return dt.isoformat() + 'Z' if dt else None        # dt_real e guardado em UTC sem fuso: sem o Z o navegador le como horario local (3 h de erro)
+
     rows = Report32Movement.query.order_by(Report32Movement.dt_real.asc()).all()
-    return jsonify([
+    saida = [
         {
             'id': r.id, 'cod_maquina': r.cod_maquina, 'op': r.op, 'nr_item': r.nr_item,
             'cod_artigo': r.cod_artigo, 'qt_movimento': r.qt_movimento, 'qt_pesos': r.qt_pesos,
-            'dt_real': r.dt_real.isoformat() if r.dt_real else None, 'metro_padrao': r.metro_padrao,
+            'dt_real': iso_utc(r.dt_real), 'metro_padrao': r.metro_padrao,
             'local_code': r.local_code, 'cliente': cliente_de(r.cod_artigo),
         }
         for r in rows
-    ])
+    ]
+
+    # pecas pesadas no local 23 (MALHARIA PESAGEM) direto da API do TOTVS, atualizadas a cada 10 s.
+    # A hora e a que o Gestao viu a pesagem (a API so tem a data); o peso e metros x gramatura x largura (confere com o Relatorio 32).
+    from app.models import PesagemMalharia, PesagemResumo
+    resumos = {r.op: r for r in PesagemResumo.query.all()}
+    clientes_op = {}
+    for sq in Sequencia.query.all():
+        clientes_op.setdefault(sq.op, sq.cliente)
+    ja_no_hub = {(str(r['op']), str(r['nr_item'])) for r in saida}
+    for p in PesagemMalharia.query.filter(PesagemMalharia.visto_em.isnot(None)).order_by(PesagemMalharia.visto_em).all():
+        r = resumos.get(p.op)
+        if not r or p.metros is None or (str(p.op), str(p.item)) in ja_no_hub:
+            continue
+        desc = r.artigo_desc or ''
+        g = re.search(r'(\d{2,3})\s*G\b', desc, re.I)
+        l = re.search(r'(\d+[.,]\d+)\s*L\b', desc, re.I)
+        kg = round(p.metros * int(g.group(1)) * float(l.group(1).replace(',', '.')) / 1000, 2) if g and l else 0
+        saida.append({
+            'id': 1_000_000_000 + p.id, 'cod_maquina': str(r.maquina) if r.maquina is not None else None, 'op': p.op, 'nr_item': str(p.item),
+            'cod_artigo': desc, 'qt_movimento': p.metros, 'qt_pesos': kg,
+            'dt_real': p.visto_em.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + 'Z', 'metro_padrao': r.metro_padrao,
+            'local_code': '23', 'cliente': cliente_de(desc) or clientes_op.get(p.op),
+        })
+    return jsonify(saida)
 
 
 @main_bp.route('/api/malharia/sequencia')

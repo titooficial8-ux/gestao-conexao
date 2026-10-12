@@ -537,6 +537,7 @@ class PesagemResumo(db.Model):
     ciclo = db.Column(db.Integer, default=13)
     encontrada = db.Column(db.Boolean, default=True)
     maquina = db.Column(db.Integer, nullable=True)
+    artigo_desc = db.Column(db.String(200), nullable=True)   # descricao completa do artigo no TOTVS (gramatura e largura saem daqui)
     metro_padrao = db.Column(db.Float, nullable=True)
     pecas = db.Column(db.Integer, default=0)
     metros = db.Column(db.Float, nullable=True)

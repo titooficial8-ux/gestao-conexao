@@ -227,7 +227,7 @@ def atualizar_todas(app) -> bool:
                 info = {}
                 for i in range(0, len(ops), 100):
                     r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], orderCodeList=[int(o) for o in ops[i:i + 100]]),
-                                                expand='locations', pageSize=500, page=1))
+                                                expand='items,locations', pageSize=500, page=1))
                     if r.status_code != 200:
                         raise RuntimeError(f'OPs: HTTP {r.status_code} {r.text[:160]}')
                     for o in r.json().get('items') or []:
@@ -267,6 +267,7 @@ def atualizar_todas(app) -> bool:
                     novas.append(PesagemMalharia(op=op, ciclo=13, item=l['item'], data=_data(l['data']), sequencia=l['sequencia'],
                                                  acerto=l['acerto'], metros=l['metros'], visto_em=visto, synced_at=agora))
                 resumos.append(PesagemResumo(op=op, ciclo=13, encontrada=bool(o), maquina=maquinas[op] if maquinas[op] is not None else (o or {}).get('machineCode'),
+                                             artigo_desc=(((o or {}).get('items') or [{}])[0].get('productName') or '')[:200] or None,
                                              metro_padrao=padroes[op], pecas=len(lista),
                                              metros=round(sum(l['metros'] or 0 for l in lista), 3) if padroes[op] else None,
                                              no_local=round(_no_local(o), 3) if o else 0.0, saiu=round(saiu, 3),
