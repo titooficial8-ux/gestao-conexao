@@ -4,13 +4,15 @@ pedidos, fila de pre-programacao, historico, dias sem producao) e Producao (pesa
 do relatorio 32 da Malharia e ciclos diarios por artigo).
 
 Uso (na pasta do projeto, com a venv ativa):
-    python importar_pcp_hub.py
+    python importar_pcp_hub.py               (tudo)
+    python importar_pcp_hub.py programacao   (so a aba Programacao)
 
 Os dados importados antes sao substituidos pelos da fotografia. Usuarios, chamados,
 permissoes e o resto do banco nao sao mexidos.
 """
 import json
 import os
+import sys
 from datetime import datetime, date, timezone
 
 from dotenv import load_dotenv
@@ -73,6 +75,39 @@ def _substituir(modelo, objetos, rotulo):
     print(f'  {rotulo}: {len(objetos)}')
 
 
+def importar_programacao(agora=None):
+    """So a aba Programacao (maquinas + sequencias): troca as sequencias pelas do pcp_hub_snapshot.json.
+    Relatorio Pedidos, fila, historico e producao nao sao mexidos."""
+    agora = agora or datetime.utcnow()
+    # a estrutura da sequencia vem do mapeamento/pedidos que acabaram de entrar
+    from app.main.routes import resolve_estrutura_from_article
+
+    maquinas = {m.number: m for m in Machine.query.all()}
+    sequencias = []
+    for r in _ler('pcp_hub_snapshot.json'):
+        try:
+            numero = int(str(r.get('machine')).strip())
+        except (TypeError, ValueError):
+            continue
+        maquina = maquinas.get(numero)
+        if not maquina:
+            maquina = Machine(number=numero)
+            db.session.add(maquina)
+            db.session.flush()
+            maquinas[numero] = maquina
+        sequencias.append(Sequencia(
+            machine_id=maquina.id, sequence_order=r.get('sequence_order'),
+            artigo=r.get('article'), cliente=r.get('client'), op=r.get('op'), status=r.get('status'),
+            total_pcs=_num(r.get('total_pcs'), int), pecas_produzidas=_num(r.get('quantity_pieces'), int),
+            qt_solicitada=_num(r.get('requested_quantity'), int), qt_avulsa=_num(r.get('qt_avulsa'), int),
+            cod_segmento=r.get('cod_segmento'), dt_cliente=_data(r.get('client_date')),
+            production_month=r.get('production_month'), termino_malharia=_data(r.get('estimated_end_date')),
+            estrutura=resolve_estrutura_from_article(r.get('article')),
+            region=r.get('region') or 'BR', synced_at=agora,
+        ))
+    _substituir(Sequencia, sequencias, 'Programacao por maquina (sequencias)')
+
+
 def importar():
     agora = datetime.utcnow()
     print('Importando dados do PCP Hub...')
@@ -104,33 +139,7 @@ def importar():
         ) for r in _ler('pcp_hub_pedidos.json')
     ], 'Relatorio de pedidos')
 
-    # a estrutura da sequencia vem do mapeamento/pedidos que acabaram de entrar
-    from app.main.routes import resolve_estrutura_from_article
-
-    maquinas = {m.number: m for m in Machine.query.all()}
-    sequencias = []
-    for r in _ler('pcp_hub_snapshot.json'):
-        try:
-            numero = int(str(r.get('machine')).strip())
-        except (TypeError, ValueError):
-            continue
-        maquina = maquinas.get(numero)
-        if not maquina:
-            maquina = Machine(number=numero)
-            db.session.add(maquina)
-            db.session.flush()
-            maquinas[numero] = maquina
-        sequencias.append(Sequencia(
-            machine_id=maquina.id, sequence_order=r.get('sequence_order'),
-            artigo=r.get('article'), cliente=r.get('client'), op=r.get('op'), status=r.get('status'),
-            total_pcs=_num(r.get('total_pcs'), int), pecas_produzidas=_num(r.get('quantity_pieces'), int),
-            qt_solicitada=_num(r.get('requested_quantity'), int), qt_avulsa=_num(r.get('qt_avulsa'), int),
-            cod_segmento=r.get('cod_segmento'), dt_cliente=_data(r.get('client_date')),
-            production_month=r.get('production_month'), termino_malharia=_data(r.get('estimated_end_date')),
-            estrutura=resolve_estrutura_from_article(r.get('article')),
-            region=r.get('region') or 'BR', synced_at=agora,
-        ))
-    _substituir(Sequencia, sequencias, 'Programacao por maquina (sequencias)')
+    importar_programacao(agora)
 
     _substituir(FilaPreProgramacao, [
         FilaPreProgramacao(
@@ -193,4 +202,8 @@ def importar():
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
-        importar()
+        if 'programacao' in sys.argv[1:]:
+            print('Atualizando so a aba Programacao com o PCP Hub...')
+            importar_programacao()
+        else:
+            importar()
