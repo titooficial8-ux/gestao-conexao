@@ -202,7 +202,7 @@
   function nf(v, d) { return v === null || v === undefined ? '–' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function dia(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
   function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
-  function kpi(rot, val, sub) { var k = el('div', 'op-kpi'); k.appendChild(el('span', 'op-kpi-rot', rot)); k.appendChild(el('strong', 'op-kpi-val', val)); if (sub) k.appendChild(el('span', 'op-kpi-sub', sub)); return k; }
+  function kpi(rot, val, sub, un) { var k = el('div', 'op-kpi'); k.appendChild(el('span', 'op-kpi-rot', rot)); var v = el('strong', 'op-kpi-val', val); if (un) v.appendChild(el('small', 'op-kpi-un', ' ' + un)); k.appendChild(v); if (sub) k.appendChild(el('span', 'op-kpi-sub', sub)); return k; }
   function desenhar(d) {
     corpo.textContent = '';
     if (!d.ok) { corpo.appendChild(el('p', 'prod-table-empty', d.erro || 'Não foi possível consultar o TOTVS.')); return; }
@@ -210,9 +210,9 @@
     titulo.textContent = 'MALHARIA PESAGEM · OP ' + d.op + (d.cliente ? ' · ' + d.cliente : '');
     var r = d.resumo, kp = el('div', 'op-kpis');
     kp.appendChild(kpi('Peças', String(r.pecas)));
-    kp.appendChild(kpi('Qt. movim. (m)', nf(r.metros, 2)));
-    kp.appendChild(kpi('Saldo no local', nf(r.no_local, 0), 'm ainda em MALHARIA PESAGEM'));
-    kp.appendChild(kpi('Já saiu', nf(r.saiu, 0), 'm que seguiram para o próximo local'));
+    kp.appendChild(kpi('Qt. movim.', nf(r.metros, 2), '', 'MT'));
+    kp.appendChild(kpi('Saldo no local', nf(r.no_local, 0), 'ainda em MALHARIA PESAGEM', 'MT'));
+    kp.appendChild(kpi('Já saiu', nf(r.saiu, 0), 'seguiram para o próximo local', 'MT'));
     corpo.appendChild(kp);
     if (!d.pecas.length) { corpo.appendChild(el('p', 'prod-table-empty', 'Nenhuma peça pesada ainda nesta OP.')); return; }
     var tb = el('table', 'data-table prod-table tab-centro'), th = el('thead'), tr = el('tr');

@@ -2755,3 +2755,4 @@ textarea.ticket-input { resize: vertical; }
 .op-local { display: inline-block; padding: 3px 10px; border-radius: 12px; background: #e3f6ea; color: #1f7a45; font-weight: 700; font-size: .75rem; }
 .tab-centro tbody tr.op-fora td { background: #fdeeee; color: #a32121; font-weight: 600; }
 .op-modal-rodape { margin: 10px 0 0; text-align: center; font-size: .75rem; color: #7a889d; }
+.op-kpi-un { font-size: .6em; font-weight: 700; color: #5b6b85; }
