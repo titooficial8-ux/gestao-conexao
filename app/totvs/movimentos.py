@@ -101,6 +101,24 @@ def buscar_baixas(cli, clientes: list, desde: date) -> dict:
     return saida
 
 
+def _buscar_movs(cli, ini: date, fim: date, ops=None) -> list:
+    """Movimentos normais do ciclo 13 entre duas datas (paginado). Sem `ops`, traz as OPs de todos."""
+    saida, pag = [], 1
+    while True:
+        corpo = dict(branchCodeList=[EMPRESA], cycleCodeList=[13], movementStartDate=ini.isoformat(), movementEndDate=fim.isoformat(),
+                     listNormalMovement=True, listFinalizationMovement=False, reversalType=2, page=pag, pageSize=500)
+        if ops:
+            corpo['productionOrderCodeList'] = ops
+        r = cli.post(MOV_URL, corpo)
+        if r.status_code != 200:
+            raise RuntimeError(f'Movimentos: HTTP {r.status_code} {r.text[:160]}')
+        j = r.json()
+        saida += j.get('items') or []
+        if not j.get('hasNext') or pag >= 400:
+            return saida
+        pag += 1
+
+
 def _hora_confiavel(data_trx: date, mudou: datetime) -> bool:
     """A baixa vale como hora da pesagem se foi feita dentro do dia de producao (06:20 do dia ate 06:19 do dia seguinte)."""
     ini = datetime.combine(data_trx, hora_do_dia(6, 20))
@@ -205,6 +223,7 @@ import traceback
 
 INTERVALO_SEG = float(os.getenv('MOVIMENTOS_INTERVALO_SEG', '10'))     # a busca leva ~3 s, entao 10 s e seguro
 DIAS_HISTORICO = int(os.getenv('MOVIMENTOS_DIAS', '150'))
+DIAS_DESCOBERTA = int(os.getenv('MOVIMENTOS_DIAS_DESCOBERTA', '60'))   # historico (dias) para achar OPs fora da Programacao
 ESTADO = dict(rodando=False, ultima=None, erro=None, ops=0, pecas=0, duracao=None)
 _trava_auto = threading.Lock()
 _ULTIMA_BUSCA_ANTIGAS = 0.0
@@ -308,28 +327,42 @@ def atualizar_todas(app) -> bool:
             with _trava:
                 cli = _cliente()
                 info = {}
-                for i in range(0, len(ops), 100):
-                    r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], orderCodeList=[int(o) for o in ops[i:i + 100]]),
-                                                expand='items,locations', pageSize=500, page=1))
-                    if r.status_code != 200:
-                        raise RuntimeError(f'OPs: HTTP {r.status_code} {r.text[:160]}')
-                    for o in r.json().get('items') or []:
-                        info[str(o.get('orderCode'))] = o
+
+                def buscar_info(lista_ops):
+                    for i in range(0, len(lista_ops), 100):
+                        r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], orderCodeList=[int(o) for o in lista_ops[i:i + 100]]),
+                                                    expand='items,locations', pageSize=500, page=1))
+                        if r.status_code != 200:
+                            raise RuntimeError(f'OPs: HTTP {r.status_code} {r.text[:160]}')
+                        for o in r.json().get('items') or []:
+                            info[str(o.get('orderCode'))] = o
+                buscar_info(ops)
                 hoje = date.today()
                 inicio = min([_data(o.get('insertDate')) for o in info.values() if _data(o.get('insertDate'))] or [hoje - timedelta(days=60)])
                 inicio = max(inicio, hoje - timedelta(days=DIAS_HISTORICO))
                 movs, fim = [], hoje
                 while True:
                     ini = max(inicio, fim - timedelta(days=JANELA_DIAS))
-                    r = cli.post(MOV_URL, dict(branchCodeList=[EMPRESA], cycleCodeList=[13], productionOrderCodeList=ops,
-                                               movementStartDate=ini.isoformat(), movementEndDate=fim.isoformat(),
-                                               listNormalMovement=True, listFinalizationMovement=False, reversalType=2))
-                    if r.status_code != 200:
-                        raise RuntimeError(f'Movimentos: HTTP {r.status_code} {r.text[:160]}')
-                    movs += r.json().get('items') or []
+                    movs += _buscar_movs(cli, ini, fim, ops)
                     if ini <= inicio:
                         break
                     fim = ini - timedelta(days=1)
+                # OPs que pesaram no local 23 mas nao estao (mais) na Programacao (ex.: ja finalizadas): descobertas pelos movimentos de todas as OPs
+                extras_movs, fim = [], hoje
+                limite = hoje - timedelta(days=DIAS_DESCOBERTA)
+                while fim >= limite:
+                    ini = max(limite, fim - timedelta(days=JANELA_DIAS))
+                    extras_movs += [m for m in _buscar_movs(cli, ini, fim) if str(m.get('productionOrder')) not in seqs]
+                    fim = ini - timedelta(days=1)
+                novas_ops = sorted({str(m.get('productionOrder')) for m in extras_movs
+                                    if m.get('originLocationCode') == LOCAL and m.get('destinationLocationCode') == 24 and str(m.get('productionOrder')).isdigit()}, key=int)
+                if novas_ops:
+                    buscar_info(novas_ops)
+                    novas_ops = [o for o in novas_ops if o in info]
+                    movs += [m for m in extras_movs if str(m.get('productionOrder')) in novas_ops]
+                    for o in novas_ops:
+                        padroes[o], maquinas[o] = None, (info[o].get('machineCode'))
+                    ops = sorted(set(ops) | set(novas_ops), key=int)
 
             por_op = {}
             for m in movs:
