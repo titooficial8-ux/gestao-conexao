@@ -267,29 +267,29 @@
     t.appendChild(tb); c.appendChild(w); return c;
   }
 
-  var GRAF_RECEITA = null;
+  var GRAFS = {};
   // valores em milhares de reais, sem decimais e com ponto de milhar: 1.149.887 -> 1.150 mil
   function milN(v) { return ui.nf(Math.round(v / 1000), { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
   function mi(v) { return milN(v) + ' mil'; }
-  function graficoReceita(d) {
+  function graficoSerie(d, C) {
     var card = ui.el('div', 'table-card sl-grafico');
     var topo = ui.el('div', 'sl-g-topo');
-    var tit = ui.el('div'); tit.appendChild(ui.el('h3', null, (ES ? 'Receita neta por mes' : 'Receita líquida por mês') + ' — ' + d.ano));
-    tit.appendChild(ui.el('p', 'cme-meta', (ES ? 'Miles de R$ (R$ mil) · línea verde = plan · línea gris = ' : 'Milhares de R$ (R$ mil) · linha verde = plano · linha cinza = ') + d.ano_ant)); topo.appendChild(tit);
-    var tot = d.receita_total.acum, chips = ui.el('div', 'sl-chips');
+    var tit = ui.el('div'); tit.appendChild(ui.el('h3', null, C.titulo + ' — ' + d.ano));
+    tit.appendChild(ui.el('p', 'cme-meta', C.sub + d.ano_ant)); topo.appendChild(tit);
+    var tot = C.tot, chips = ui.el('div', 'sl-chips');
     function chip(rot, val, cls) { var c = ui.el('div', 'sl-chip ' + (cls || '')); c.appendChild(ui.el('span', null, rot)); c.appendChild(ui.el('strong', null, val)); chips.appendChild(c); }
-    chip(ES ? 'Acumulado real' : 'Acumulado realizado', 'R$ ' + mi(tot.real));
-    chip(ES ? 'Plan acumulado' : 'Plano acumulado', 'R$ ' + mi(tot.plano));
+    chip(ES ? 'Acumulado real' : 'Acumulado realizado', C.txt(tot.real));
+    chip(ES ? 'Plan acumulado' : 'Plano acumulado', C.txt(tot.plano));
     chip(ES ? '% del plan' : '% do plano', tot.plano ? ui.nf(tot.real / tot.plano * 100, { maximumFractionDigits: 0 }) + '%' : '–', tot.real >= tot.plano ? 'ok' : 'baixo');
     chip('vs ' + d.ano_ant, (tot.v_ant >= 0 ? '+' : '') + ui.nf(tot.v_ant * 100, { maximumFractionDigits: 1 }) + '%', tot.v_ant >= 0 ? 'ok' : 'baixo');
     topo.appendChild(chips); card.appendChild(topo);
     var caixa = ui.el('div', 'sl-g-canvas'), cv = document.createElement('canvas'); caixa.appendChild(cv); card.appendChild(caixa);
-    var S = d.serie_mensal, labels = S.map(function (x) { return MESES[x.mes - 1].slice(0, 3); });
+    var S = C.S, labels = S.map(function (x) { return MESES[x.mes - 1].slice(0, 3); });
     var real = S.map(function (x) { return x.real ? Math.round(x.real) : null; });
-    if (GRAF_RECEITA) { try { GRAF_RECEITA.destroy(); } catch (e) {} }
+    if (GRAFS[C.id]) { try { GRAFS[C.id].destroy(); } catch (e) {} }
     var rotulos = { id: 'rotulosReceita', afterDatasetsDraw: function (ch) {
       var ctx = ch.ctx; ctx.save(); ctx.font = '700 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ch.getDatasetMeta(0).data.forEach(function (el, i) { var v = real[i]; if (!v) return; var h = el.base - el.y; ctx.fillStyle = h > 24 ? '#fff' : '#10263F'; ctx.fillText(milN(v), el.x, h > 24 ? el.base - 8 : el.y - 6); });
+      ch.getDatasetMeta(0).data.forEach(function (el, i) { var v = real[i]; if (!v) return; var h = el.base - el.y; ctx.fillStyle = h > 24 ? '#fff' : '#10263F'; ctx.fillText(C.n(v), el.x, h > 24 ? el.base - 8 : el.y - 6); });
       // rotulos das linhas: plano (verde, acima do ponto) e ano anterior (cinza, abaixo), com fundo claro para ler sobre as barras
       function etiqueta(txt, x, y, cor) {
         ctx.font = '700 10.5px sans-serif'; var w = ctx.measureText(txt).width + 10, h = 17;
@@ -299,10 +299,10 @@
       }
       [[1, '#11703c', -17, S.map(function (x) { return x.plano; })], [2, '#6b7686', 19, S.map(function (x) { return x.ant; })]].forEach(function (cfg) {
         ch.getDatasetMeta(cfg[0]).data.forEach(function (el, i) { var v = cfg[3][i]; if (!v) return;
-          etiqueta(milN(v), el.x, Math.min(Math.max(el.y + cfg[2], 12), ch.chartArea.bottom - 28), cfg[1]); });
+          etiqueta(C.n(v), el.x, Math.min(Math.max(el.y + cfg[2], 12), ch.chartArea.bottom - 28), cfg[1]); });
       });
       ctx.restore(); } };
-    GRAF_RECEITA = new Chart(cv, { data: { labels: labels, datasets: [
+    GRAFS[C.id] = new Chart(cv, { data: { labels: labels, datasets: [
       { type: 'bar', label: String(d.ano), data: real, order: 3, borderRadius: 6, maxBarThickness: 46,
         backgroundColor: S.map(function (x) { return x.mes === d.mes ? '#0a3d8f' : 'rgba(47,127,224,0.88)'; }) },
       { type: 'line', label: ES ? 'Plan' : 'Plano', data: S.map(function (x) { return Math.round(x.plano); }), order: 1, borderColor: '#1f9d55', backgroundColor: '#1f9d55', borderWidth: 2.5, borderDash: [7, 5], pointRadius: 4, pointBackgroundColor: '#fff', pointBorderWidth: 2, tension: 0.25 },
@@ -311,14 +311,24 @@
         plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 9, padding: 18 } },
           tooltip: { backgroundColor: 'rgba(10,45,84,0.95)', padding: 12, titleFont: { size: 13 }, callbacks: {
             title: function (it) { return MESES[it[0].dataIndex] + ' / ' + d.ano; },
-            label: function (c) { return ' ' + c.dataset.label + ': R$ ' + mi(c.parsed.y); },
+            label: function (c) { return ' ' + c.dataset.label + ': ' + C.txt(c.parsed.y); },
             afterBody: function (it) { var x = S[it[0].dataIndex], o = []; if (x.real && x.plano) o.push((ES ? 'vs plan: ' : 'vs plano: ') + ui.nf((x.real / x.plano - 1) * 100, { maximumFractionDigits: 1 }) + '%'); if (x.real && x.ant) o.push('vs ' + d.ano_ant + ': ' + ui.nf((x.real / x.ant - 1) * 100, { maximumFractionDigits: 1 }) + '%'); return o; } } } },
         scales: { x: { grid: { display: false }, ticks: { font: { weight: '600' } } },
-          y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return milN(v); } } } } },
+          y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return C.n(v); } } } } },
       plugins: [rotulos] });
     return card;
   }
 
+
+  function graficoReceita(d) {
+    return graficoSerie(d, { id: 'receita', S: d.serie_mensal, tot: d.receita_total.acum, titulo: ES ? 'Receita neta por mes' : 'Receita líquida por mês',
+      sub: ES ? 'Miles de R$ (R$ mil) · línea verde = plan · línea gris = ' : 'Milhares de R$ (R$ mil) · linha verde = plano · linha cinza = ', n: milN, txt: function (v) { return 'R$ ' + mi(v); } });
+  }
+  function graficoMetros(d) {
+    function n(v) { return ui.nf(Math.round(v), { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+    return graficoSerie(d, { id: 'metros', S: d.serie_metros, tot: d.metros_total.acum, titulo: ES ? 'Volumen en metros por mes' : 'Volume em metros por mês',
+      sub: ES ? 'Metros (m) · línea verde = plan · línea gris = ' : 'Metros (m) · linha verde = plano · linha cinza = ', n: n, txt: function (v) { return n(v) + ' m'; } });
+  }
 
   function progressoCard(titulo, d, linhas, per) {
     var c = ui.el('div', 'table-card sl-prog'), topo = ui.el('div', 'sl-prog-topo'); topo.appendChild(ui.el('h3', null, titulo));
@@ -383,6 +393,7 @@
     corpo.appendChild(kp);
 
     corpo.appendChild(graficoReceita(d));
+    if (d.serie_metros) corpo.appendChild(graficoMetros(d));
     var gr = ui.el('div', 'cme-graficos');
     var tSeg = ES ? 'Receta por segmento' : 'Receita por segmento', tInt = ES ? 'Receita mercado externo - por país' : 'Receita mercado externo - por país';
     gr.appendChild(progressoCard(tSeg, d, d.receita, 'mes'));

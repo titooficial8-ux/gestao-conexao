@@ -186,6 +186,16 @@ def _grafico_area(s, p, x, y, w, h):
     real.data_labels.position = XL_LABEL_POSITION.OUTSIDE_END
 
 
+def _grafico_pag(prs, p):
+    s = _base_conteudo(prs, p['secao'], p['titulo'], p.get('nota'))
+    for i, (rot, val) in enumerate(p.get('extra') or []):
+        x = 0.35 + i * 3.17
+        _retangulo(s, x, 1.15, 3.05, 0.5, 'EAF2FB', MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.2
+        _texto(s, x + 0.12, 1.19, 1.3, 0.42, rot, 8, '6B7280', negrito=True, ancora=MSO_ANCHOR.MIDDLE)
+        _texto(s, x + 1.3, 1.19, 1.65, 0.42, val, 13, AZUL_ESCURO, negrito=True, alinhar=PP_ALIGN.RIGHT, ancora=MSO_ANCHOR.MIDDLE)
+    _grafico_area(s, p, 0.35, 1.85, 12.6, 5.05)
+
+
 def _cor_pct(v):
     return '1F9D55' if v >= 1 else ('D9922E' if v >= 0.8 else 'E04A4F')
 
@@ -226,7 +236,7 @@ def gerar(paginas: list[dict], gerado_em: str = '') -> bytes:
     prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
     CTX.update(gerado=gerado_em, pag=0, total=len(paginas))
     for p in paginas:
-        {'capa': _capa, 'resumo': _resumo, 'tabela': _tabela, 'intl': _intl}[p['tipo']](prs, p)
+        {'capa': _capa, 'resumo': _resumo, 'tabela': _tabela, 'intl': _intl, 'grafico': _grafico_pag}[p['tipo']](prs, p)
     buf = io.BytesIO()
     prs.save(buf)
     return buf.getvalue()
