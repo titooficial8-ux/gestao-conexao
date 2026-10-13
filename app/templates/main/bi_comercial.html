@@ -6,7 +6,9 @@
 /* Impressao / "Salvar como PDF": cabecalho (logo + titulo) e rodape (site + data/hora) proprios em toda pagina, sem o localhost do navegador.
    A tabela do cabecalho/rodape so existe na impressao (na tela os elementos ficam em bloco, sem efeito). */
 .pr-topo, .pr-rodape, .pr-titulo { display: none; }
-table.pr-wrap, table.pr-wrap > thead, table.pr-wrap > tbody, table.pr-wrap > tfoot, table.pr-wrap tr, table.pr-wrap td { display: block; padding: 0; border: 0; }
+table.pr-wrap, table.pr-wrap > thead, table.pr-wrap > tbody, table.pr-wrap > tfoot,
+table.pr-wrap > thead > tr, table.pr-wrap > tbody > tr, table.pr-wrap > tfoot > tr,
+table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap > tfoot > tr > td { display: block; padding: 0; border: 0; }
 @media print {
   @page { size: A4 landscape; margin: 0; }
   .pr-topo { display: flex; position: fixed; top: 0; left: 0; right: 0; height: 20mm; padding: 0 10mm; align-items: center; justify-content: flex-end; z-index: 50; }
@@ -18,8 +20,8 @@ table.pr-wrap, table.pr-wrap > thead, table.pr-wrap > tbody, table.pr-wrap > tfo
   table.pr-wrap > thead { display: table-header-group; }
   table.pr-wrap > tbody { display: table-row-group; }
   table.pr-wrap > tfoot { display: table-footer-group; }
-  table.pr-wrap tr { display: table-row; }
-  table.pr-wrap td { display: table-cell; }
+  table.pr-wrap > thead > tr, table.pr-wrap > tbody > tr, table.pr-wrap > tfoot > tr { display: table-row; }
+  table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap > tfoot > tr > td { display: table-cell; }
   .pr-cab { height: 21mm; }
   .pr-pe { height: 12mm; }
   .pr-wrap .cme { padding: 0 9mm; }
