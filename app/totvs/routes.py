@@ -365,6 +365,33 @@ def movimentos_dia():
     return Response('\n'.join(out), mimetype='text/plain')
 
 
+@mov_bp.route('/lote')
+@login_required
+def movimentos_lote():
+    """Lotes do TOTVS de um produto (?produto=1082&dia=2026-10-08): mostra os campos crus de 2 lotes (3 itens de cada)
+    para ver se o lote traz peso, data/hora e OP de cada peca pesada."""
+    from datetime import date as _d, timedelta as _t
+    from app.totvs import movimentos
+    dia = _d.fromisoformat(request.args.get('dia') or _d.today().isoformat())
+    produto = int(request.args.get('produto', '1082'))
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        r = cli.post(movimentos.BATCH_URL, dict(filter=dict(branchCode=movimentos.EMPRESA, productCodeList=[produto],
+                                                            updatedDateStart=f'{(dia - _t(days=10)).isoformat()}T00:00:00', updatedDateEnd=f'{(dia + _t(days=2)).isoformat()}T23:59:59'),
+                                                page=1, pageSize=50))
+    if r.status_code != 200:
+        return _json(dict(status=r.status_code, erro=r.text[:400]))
+    lotes = r.json().get('items') or []
+    amostra = []
+    for b in lotes[-2:]:
+        b = dict(b)
+        its = b.get('batchItem') or []
+        b['batchItem'] = its[:3]
+        b['total_itens_do_lote'] = len(its)
+        amostra.append(b)
+    return _json(dict(total_lotes=len(lotes), amostra=amostra))
+
+
 @mov_bp.route('/diagnostico')
 @login_required
 def movimentos_diagnostico():

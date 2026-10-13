@@ -18,6 +18,7 @@ BASE_URL = api.BASE_URL
 OPS_URL = f'{BASE_URL}/api/totvsmoda/production-order/v2/orders/search'
 MOV_URL = f'{BASE_URL}/api/totvsmoda/production/v2/movements'
 TRX_URL = f'{BASE_URL}/api/totvsmoda/general/v2/transactions/search'
+BATCH_URL = f'{BASE_URL}/api/totvsmoda/product/v2/batch/search'
 BAIXA_FIO = 2000                                              # operacao: baixa do fio consumido na peca (uma transacao por peca, com data e hora)
 EMPRESA = 1
 LOCAL = 23
