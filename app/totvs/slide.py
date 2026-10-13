@@ -193,8 +193,15 @@ def montar(regs: list[dict], mes: int, ano: int) -> dict:
                      real=sum(soma('quant', mes=m, ano=ano, seg=sg, esp='MT') for sg in SEGMENTOS_MT),
                      plano=sum(P['seg'].get((base._k(sg), m), {}).get('mt', 0) for sg in SEGMENTOS_MT)) for m in range(1, 13)]
 
+    # ---- cartoes do volume em metros do mes: total, devolvido, liquido da devolucao e quanto falta para o plano
+    liq_mt = tot_mt['mes']['real']
+    dev_mt = -sum(soma('quant', mes=mes, ano=ano, seg=sg, esp='MT', tipo='DEV') for sg in SEGMENTOS_MT)
+    plano_mt = tot_mt['mes']['plano']
+    cab_mt = dict(totais=liq_mt + dev_mt, devolvidos=dev_mt, liquido=liq_mt, plano=plano_mt, falta=plano_mt - liq_mt,
+                  pct_dev=(dev_mt / (liq_mt + dev_mt)) if (liq_mt + dev_mt) else 0, pct_plano=(liq_mt / plano_mt) if plano_mt else 0)
+
     visivel = lambda l: [x for x in l if base._k(x['rotulo']) not in ocultos]
     rs, mt, kg = visivel(rs), visivel(mt), visivel(kg)
-    return dict(serie_mensal=serie, serie_metros=serie_mt, mes=mes, ano=ano, ano_ant=ant, cabecalho=cab, receita=rs, receita_total=tot_rs, metros=mt, metros_total=tot_mt, quilos=kg, quilos_total=tot_kg,
+    return dict(serie_mensal=serie, serie_metros=serie_mt, cabecalho_metros=cab_mt, mes=mes, ano=ano, ano_ant=ant, cabecalho=cab, receita=rs, receita_total=tot_rs, metros=mt, metros_total=tot_mt, quilos=kg, quilos_total=tot_kg,
                 preco_medio=pm, representantes=reps, representantes_total=tot_reps, ortobom=orto, ortobom_total=orto_tot, ortobom_plano=orto_plano,
                 internacional=intl, internacional_total=it)
