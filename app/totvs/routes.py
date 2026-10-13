@@ -244,6 +244,8 @@ def movimentos_diagnostico():
             saida[nome] = dict(total_movimentos_do_dia=len(itens), saindo_do_23=cont, ops_23_para_24=len({m.get('productionOrder') for m in p24}),
                                ops_23_para_24_fora_da_programacao=len({str(m.get('productionOrder')) for m in p24} - prog),
                                metros_23_para_24=round(sum(m.get('totalQuantity') or 0 for m in p24), 1),
+                               metros_23_sem_destino=round(sum(m.get('totalQuantity') or 0 for m in de23 if m.get('destinationLocationCode') is None), 1),
+                               amostra_23_sem_destino=[m for m in de23 if m.get('destinationLocationCode') is None][:6],
                                pecas_23_para_24_por_data={d: sum(1 for m in p24 if str(m.get('movementDate'))[:10] == d) for d in sorted({str(m.get('movementDate'))[:10] for m in p24})})
     from app.models import PesagemMalharia
     saida['gestao_no_banco'] = {str(d): PesagemMalharia.query.filter_by(data=d).count() for d in (dia, dia + __import__('datetime').timedelta(days=1))}
