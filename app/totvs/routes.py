@@ -265,6 +265,21 @@ def movimentos_baixas():
     return Response('\n'.join(linhas), mimetype='text/plain')
 
 
+@mov_bp.route('/baixa-amostra')
+@login_required
+def movimentos_baixa_amostra():
+    """Mostra 3 baixas de fio cruas (todos os campos que a API devolve) para ver o que liga a baixa a OP/maquina/artigo."""
+    from datetime import date as _d, timedelta as _t
+    from app.totvs import movimentos
+    dia = _d.fromisoformat(request.args.get('dia') or _d.today().isoformat())
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        r = cli.post(movimentos.TRX_URL, dict(branchCodeList=[movimentos.EMPRESA], operationCodeList=[movimentos.BAIXA_FIO],
+                                              startChangeDate=f'{dia.isoformat()}T00:00:00', endChangeDate=f'{(dia + _t(days=1)).isoformat()}T00:00:00',
+                                              expand='items', page=1, pageSize=3))
+    return _json(dict(status=r.status_code, amostra=(r.json().get('items') if r.status_code == 200 else r.text[:400])))
+
+
 @mov_bp.route('/diagnostico')
 @login_required
 def movimentos_diagnostico():
