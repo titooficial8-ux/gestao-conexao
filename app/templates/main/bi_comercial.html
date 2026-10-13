@@ -105,8 +105,9 @@
         if (!cu.arquivos[a[0]]) return; var l = ui.el('a', 'btn-small ticket-btn-outline', '⬇ ' + a[1]); l.href = URL_DL.replace('__T__', 'custom').replace('__K__', a[0]); gb.appendChild(l); gb.appendChild(document.createTextNode(' '));
       });
       if (cu.problemas && cu.problemas.length) gb.appendChild(ui.el('div', 'bi-aviso', cu.problemas.join(' · ')));
-    } else if (st.estado && st.estado.erro && !st.estado.rodando) {
-      gb.appendChild(ui.el('div', 'bi-aviso', (ES ? 'No se pudo generar: ' : 'Não foi possível gerar: ') + st.estado.erro));
+    }
+    if (st.estado && st.estado.erro && !st.estado.rodando) {
+      gb.appendChild(ui.el('div', 'bi-aviso', (ES ? 'Error en la última generación: ' : 'Falha na última geração: ') + st.estado.erro));
     }
     var dl = $('biDownloads'); dl.textContent = '';
     var mm = fonte === 'custom' ? st.custom : st.padrao;
