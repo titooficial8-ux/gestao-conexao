@@ -299,6 +299,28 @@ def movimentos_baixas_sem_op():
     return Response('\n'.join(linhas), mimetype='text/plain')
 
 
+@mov_bp.route('/produto')
+@login_required
+def movimentos_produto():
+    """Mostra o produto (artigo) cru do TOTVS de uma OP (?op=2687) para ver se traz gramatura/largura/peso."""
+    from app.totvs import movimentos
+    op = request.args.get('op', '')
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        r = cli.post(movimentos.OPS_URL, dict(filter=dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], orderCodeList=[int(op)]), expand='items', pageSize=1, page=1))
+        itens = (r.json().get('items') or [{}])[0].get('items') or [] if r.status_code == 200 else []
+        cod = itens[0].get('productCode') if itens else None
+        out = dict(op=op, item_da_op=itens[:1])
+        if cod:
+            for nome, exp in (('sem_expand', None), ('classifications', 'classifications')):
+                corpo = dict(filter=dict(productCodeList=[cod]), option=dict(branchInfoCode=movimentos.EMPRESA), page=1, pageSize=1)
+                if exp:
+                    corpo['expand'] = exp
+                rp = cli.post(movimentos.BASE_URL + '/api/totvsmoda/product/v2/products/search', corpo)
+                out[nome] = (rp.json().get('items') or [None])[0] if rp.status_code == 200 else f'HTTP {rp.status_code} {rp.text[:200]}'
+    return _json(out)
+
+
 @mov_bp.route('/diagnostico')
 @login_required
 def movimentos_diagnostico():

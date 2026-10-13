@@ -1974,6 +1974,16 @@ def _hub_movimentos_json():
     return quente
 
 
+def _peso_peca(desc, metros, kg_baixa):
+    """qt. pesos da peca como no Relatorio 32: metros x gramatura (g/m2) x largura (m) / 1000, lidas do nome do artigo (ex.: 240G 2,20L).
+    A baixa de fio e so o fio consumido (parte do peso), entao ela entra apenas quando o nome do artigo nao traz gramatura e largura."""
+    g = re.search(r'(\d{2,3})\s*G\b', desc or '', re.I)
+    l = re.search(r'(\d+[.,]\d+)\s*L\b', desc or '', re.I)
+    if g and l and metros:
+        return round(metros * int(g.group(1)) * float(l.group(1).replace(',', '.')) / 1000, 2)
+    return round(kg_baixa or 0, 2)
+
+
 def _api_baixas(hub):
     """Pecas do local 23 = baixas de fio do TOTVS (uma por peca pesada, com hora e kg exatos). Metros e artigo vem do movimento 23->24 ligado."""
     from app.models import BaixaFio
@@ -1982,7 +1992,7 @@ def _api_baixas(hub):
         desc = b.artigo_desc or ''
         saida.append({
             'id': 2_000_000_000 + b.id, 'cod_maquina': str(b.maquina) if b.maquina is not None else None, 'op': b.op, 'nr_item': str(b.codigo),
-            'cod_artigo': desc, 'qt_movimento': b.metros, 'qt_pesos': round(b.kg or 0, 2),
+            'cod_artigo': desc, 'qt_movimento': b.metros, 'qt_pesos': _peso_peca(desc, b.metros, b.kg),
             'dt_real': _iso_utc(b.mudou + timedelta(hours=3)),                       # mudou esta no horario do Brasil
             'metro_padrao': b.metro_padrao or b.metros or 0, 'local_code': '23',
             'cliente': hub['cliente_de'](desc) if desc else b.cliente_nome,
