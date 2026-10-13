@@ -1,4 +1,4 @@
-"""Botao 'Relatorio de Faturamento' (PowerPoint e PDF): so aparece e so funciona para quem esta na lista (padrao: Christian e Edmar)."""
+"""Botao 'Relatorio de Faturamento' (PowerPoint e PDF): so aparece e so funciona para quem esta na lista (padrao: Christian, Edmar e Luciano)."""
 from __future__ import annotations
 
 import os
@@ -24,7 +24,7 @@ def pode_gerar(user) -> bool:
     """Nome ou e-mail do usuario contem um dos nomes de RELATORIO_FAT_USUARIOS (padrao: christian,edmar)."""
     if not getattr(user, 'is_authenticated', False):
         return False
-    nomes = [_norm(n).strip() for n in os.getenv('RELATORIO_FAT_USUARIOS', 'christian,edmar').split(',') if n.strip()]
+    nomes = [_norm(n).strip() for n in os.getenv('RELATORIO_FAT_USUARIOS', 'christian,edmar,luciano').split(',') if n.strip()]
     alvo = _norm(f'{user.name} {user.email}')
     return any(n in alvo for n in nomes)
 
@@ -46,7 +46,7 @@ def _montar(formato, ano, mes):
 @login_required
 def quem():
     """Texto: com que usuario voce esta logado, se ele ve os botoes do relatorio e quem esta na lista."""
-    lista = os.getenv('RELATORIO_FAT_USUARIOS', 'christian,edmar')
+    lista = os.getenv('RELATORIO_FAT_USUARIOS', 'christian,edmar,luciano')
     return Response(f'Usuario logado: {current_user.name} <{current_user.email}>\n'
                     f'Ve os botoes do Relatorio de Faturamento: {"SIM" if pode_gerar(current_user) else "NAO"}\n'
                     f'Lista atual (RELATORIO_FAT_USUARIOS): {lista}\n'
