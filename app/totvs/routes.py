@@ -351,6 +351,9 @@ def movimentos_dia():
     out = [f'dia de producao {dia} ({ini:%d/%m %H:%M} ate {(ini + _t(days=1)):%d/%m %H:%M})', 'turno | pecas | metros (padrao) | kg | pecas sem OP']
     out += [f'{n} | {v[0]} | {v[1]:.0f} | {v[2]:.1f} | {v[3]}' for n, v in turnos.items()]
     out.append(f'TOTAL | {tot[0]} | {tot[1]:.0f} | {tot[2]:.1f} | {tot[3]}')
+    from app.models import PesagemMalharia
+    sem = PesagemMalharia.query.filter(PesagemMalharia.trx_codigo.is_(None), PesagemMalharia.data >= dia - _t(days=1), PesagemMalharia.data <= dia + _t(days=1)).count()
+    out.append(f'pecas 23->24 (datas {dia - _t(days=1):%d/%m} a {dia + _t(days=1):%d/%m}) ainda sem baixa ligada: {sem}')
     return Response('\n'.join(out), mimetype='text/plain')
 
 
