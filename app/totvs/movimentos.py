@@ -197,6 +197,12 @@ def sincronizar_baixas(cli) -> int:
     return novas
 
 
+def _penal_dia(p, b) -> float:
+    """Quanto a baixa foge do dia esperado da peca: a baixa costuma ser do dia do movimento ou do dia seguinte (0); fora disso pesa 1."""
+    d = (b.mudou.date() - p.data).days
+    return 0.0 if d in (0, 1) else 1.0
+
+
 def casar_globalmente() -> int:
     """Segunda passada: liga as pecas 23->24 que ainda nao tem baixa a baixas livres, pelos fios (composicao) e pelo peso.
     A data do movimento no TOTVS pode ser de 1-2 dias antes da baixa, entao a baixa vale de 1 dia antes ate 2 dias depois.
@@ -245,7 +251,7 @@ def casar_globalmente() -> int:
             esperado = p.metros * r_ok
             cand = [b for b in janela(p) if b.composicao == comp and b.codigo not in usados and abs(b.kg - esperado) <= max(0.0002 * esperado, 0.004)]
             if cand:
-                b = min(cand, key=lambda b: abs(b.kg - esperado))
+                b = min(cand, key=lambda b: abs(b.kg - esperado) / esperado / 0.0002 + _penal_dia(p, b))
                 usados.add(b.codigo)
                 p.trx_codigo, p.hora_real, p.hora_origem, p.peso_kg = b.codigo, b.mudou, 'trx', b.kg
                 novos += 1
@@ -266,7 +272,7 @@ def casar_globalmente() -> int:
             r = b.kg / p.metros
             erro = min(abs(r - k) / k for k in ratios[b.composicao])
             if erro <= 0.0005:
-                pares.append((erro, p.id, b.codigo, p, b))
+                pares.append((erro + 0.0003 * _penal_dia(p, b), p.id, b.codigo, p, b))
     pares.sort(key=lambda x: x[0])
     feitos = set()
     for erro, pid, cod, p, b in pares:
@@ -292,7 +298,7 @@ def casar_globalmente() -> int:
                 continue
             erro = abs(b.kg / p.metros - ratio_op[p.op]) / ratio_op[p.op]
             if erro <= 0.005:
-                pares.append((erro, p.id, b.codigo, p, b))
+                pares.append((erro + 0.002 * _penal_dia(p, b), p.id, b.codigo, p, b))
     pares.sort(key=lambda x: x[0])
     feitos = set()
     for erro, pid, cod, p, b in pares:
