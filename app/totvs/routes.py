@@ -130,6 +130,21 @@ def _derivados(chave, anos):
     return out
 
 
+def dados_do_slide(ano=None, mes=None):
+    """Dados do slide mensal (o mesmo da tela) para um mes/ano; None se ainda nao ha notas carregadas."""
+    idx = servico._indice()
+    if not idx:
+        return None
+    anos = sorted({int(ym[:4]) for ym in idx})
+    ano = ano or anos[-1]
+    meses = sorted(int(ym[5:]) for ym in idx if ym.startswith(f'{ano}-'))
+    if not meses:
+        ano = anos[-1]
+        meses = sorted(int(ym[5:]) for ym in idx if ym.startswith(f'{ano}-'))
+    mes = mes or meses[-1]
+    return slide.montar(_derivados(servico._chave_blocos(), (ano, ano - 1)), mes, ano)
+
+
 @bi_bp.route('/slide')
 @login_required
 def slide_mensal():

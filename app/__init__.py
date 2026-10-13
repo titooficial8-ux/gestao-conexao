@@ -48,6 +48,8 @@ def create_app():
     app.register_blueprint(bi_bp)
     app.register_blueprint(pedidos_bp)
     app.register_blueprint(mov_bp)
+    from app.relatorio_fat.routes import rel_fat_bp
+    app.register_blueprint(rel_fat_bp)
 
     app.jinja_env.globals['tab_url'] = tab_url
 

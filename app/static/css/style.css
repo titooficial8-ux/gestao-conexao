@@ -2599,6 +2599,7 @@ textarea.ticket-input { resize: vertical; }
 .bi-btn { padding: 9px 18px; font-weight: 700; }
 .bi-progresso { margin-top: 12px; padding: 10px 14px; background: var(--blue-50); border-radius: 8px; font-weight: 600; color: var(--blue-900); }
 .bi-gerado { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bi-relatorio { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
 .bi-downloads { margin-left: auto; display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .bi .cme-grupos { align-items: center; }
 /* Slide mensal (BI Comercial) */
