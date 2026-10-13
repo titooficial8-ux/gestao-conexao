@@ -392,6 +392,29 @@ def movimentos_lote():
     return _json(dict(total_lotes=len(lotes), amostra=amostra))
 
 
+@mov_bp.route('/endpoints')
+@login_required
+def movimentos_endpoints():
+    """Lista os endpoints da API do TOTVS de um servico (?servico=production | production-order | general | product | ...),
+    lendo o swagger dele: metodo, caminho e descricao. Serve para achar uma consulta que traga cada peca pesada com OP e hora."""
+    from flask import Response
+    from app.totvs import movimentos
+    servico = request.args.get('servico', 'production')
+    versao = request.args.get('versao', 'v2')
+    url = f'{movimentos.BASE_URL}/api/totvsmoda/{servico}/{versao}/swagger/v1/swagger.json'
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        r = cli.session.get(url, timeout=120)
+    if r.status_code != 200:
+        return Response(f'{url}\nHTTP {r.status_code} {r.text[:300]}', mimetype='text/plain')
+    linhas = [url]
+    for caminho, ops in sorted((r.json().get('paths') or {}).items()):
+        for metodo, d in ops.items():
+            if isinstance(d, dict):
+                linhas.append(f"{metodo.upper()} {caminho} - {(d.get('summary') or d.get('description') or '')[:140]}")
+    return Response('\n'.join(linhas), mimetype='text/plain')
+
+
 @mov_bp.route('/diagnostico')
 @login_required
 def movimentos_diagnostico():
