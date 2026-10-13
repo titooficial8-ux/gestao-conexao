@@ -920,7 +920,9 @@ def view_tab(slug):
         maquinas_sem_programacao = sum(1 for m in machines if m.status == Machine.STATUS_SEM_PROGRAMACAO)
         maquinas_inoperante = sum(1 for m in machines if m.status == Machine.STATUS_INOPERANTE)
 
-        total_sequencias = Sequencia.query.count()
+        # so as OPs que estao na Programacao (finalizada = pesagem do cru concluida, cancelada = saiu da fila), igual as listas da aba
+        ativas_q = Sequencia.query.filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO']))
+        total_sequencias = ativas_q.count()
         seq_produzindo = Sequencia.query.filter_by(status='PRODUZINDO').count()
         seq_em_sequencia = Sequencia.query.filter_by(status='EM_SEQUENCIA').count()
         seq_pcp = Sequencia.query.filter_by(status='PCP').count()
@@ -935,7 +937,9 @@ def view_tab(slug):
             HistoricoProducao.query.order_by(HistoricoProducao.changed_at.desc()).limit(8).all()
         )
 
-        todas_sequencias = Sequencia.query.all()
+        todas_sequencias = ativas_q.all()
+        from app.models import PesagemResumo
+        metros_reais = {r.op: r.metros for r in PesagemResumo.query.all() if r.metros}     # metros ja pesados no local 23 (API do TOTVS)
         seqs_produzindo = [s for s in todas_sequencias if s.status == 'PRODUZINDO']
         total_pcs_produzindo = sum(s.total_pcs or 0 for s in seqs_produzindo)
         # Metragem Total (KPI): soma de Qt.Solicitada (metros) das OPs em PRODUZINDO + PCP,
@@ -984,11 +988,13 @@ def view_tab(slug):
                 info['pecas_produzidas'] += s.pecas_produzidas or 0
                 info['total_pcs'] += s.total_pcs or 0
                 info['metragem_programada'] += s.qt_solicitada or 0
+                info['metragem_real'] = info.get('metragem_real', 0) + (metros_reais.get(str(s.op)) or 0)
             for info in por_maquina.values():
-                # Metros produzidos estimados: proporcao de pecas ja produzidas sobre o
-                # total de pecas da OP, aplicada sobre a metragem programada (nao temos
-                # a pesagem real do LOCAL 23 localmente, so a contagem de pecas).
-                if info['total_pcs']:
+                # Metros produzidos: os metros reais ja pesados no local 23 (API do TOTVS); sem pesagem,
+                # estima pela proporcao de pecas produzidas sobre o total de pecas da OP.
+                if info.get('metragem_real'):
+                    info['metragem_produzida'] = round(info['metragem_real'])
+                elif info['total_pcs']:
                     info['metragem_produzida'] = round(
                         info['metragem_programada'] * info['pecas_produzidas'] / info['total_pcs']
                     )
@@ -1022,8 +1028,10 @@ def view_tab(slug):
                 info['pecas_produzidas'] += s.pecas_produzidas or 0
                 info['total_pcs'] += s.total_pcs or 0
                 info['metragem_programada'] += s.qt_solicitada or 0
+                info['metragem_real'] = info.get('metragem_real', 0) + (metros_reais.get(str(s.op)) or 0)
             for info in por_maquina_e.values():
                 info['metragem_produzida'] = (
+                    round(info['metragem_real']) if info.get('metragem_real') else
                     round(info['metragem_programada'] * info['pecas_produzidas'] / info['total_pcs'])
                     if info['total_pcs'] else 0
                 )
