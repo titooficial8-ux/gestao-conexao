@@ -14,7 +14,8 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   .pr-topo { display: flex; position: fixed; top: 0; left: 0; right: 0; height: 20mm; padding: 0 10mm; align-items: center; justify-content: flex-end; z-index: 50; }
   .pr-topo img { height: 11mm; width: auto; }
   /* titulo no canto esquerdo, na mesma linha da logo, so na pagina 1 (puxado para dentro do espaco reservado do cabecalho) */
-  .pr-titulo { display: block; text-align: left; font-size: 22px; font-weight: 800; color: #1F4E79; letter-spacing: .03em; margin: -16mm 0 0; height: 16mm; line-height: 10mm; padding: 0 9mm; }
+  .pr-titulo { display: block; text-align: left; font-size: 22px; font-weight: 800; color: #1F4E79; letter-spacing: .03em; margin: -16mm 0 0; height: 19mm; line-height: 10mm; padding: 0 9mm; }
+  .pr-titulo small { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0; color: #6b7686; line-height: 5mm; }
   .pr-rodape { display: flex; position: fixed; bottom: 0; left: 0; right: 0; height: 9mm; padding: 0 10mm; align-items: center; justify-content: space-between; background: #008EC9; color: #fff; font-size: 11px; z-index: 50; }
   table.pr-wrap { display: table; width: 100%; border-collapse: collapse; }
   table.pr-wrap > thead { display: table-header-group; }
@@ -33,7 +34,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
 </style>
 <div class="pr-topo"><img src="{{ url_for('static', filename='img/logo_conexao.png') }}" alt="Conexão"></div>
 <div class="pr-rodape"><span>www.gestaoconexao.com.br</span><span>Relatório de Faturamento · Gerado em <span id="prGerado"></span></span></div>
-<table class="pr-wrap"><thead><tr><td><div class="pr-cab"></div></td></tr></thead><tbody><tr><td><div class="pr-titulo">Relatório de Faturamento</div>
+<table class="pr-wrap"><thead><tr><td><div class="pr-cab"></div></td></tr></thead><tbody><tr><td><div class="pr-titulo">Relatório de Faturamento<small id="prGeradoSub"></small></div>
 <div class="cme bi">
   <div class="chamados-hero cme-hero">
     <div>
@@ -484,7 +485,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   // ao imprimir / salvar em PDF: titulo "Relatorio de Faturamento" no lugar do titulo do site e data/hora da geracao no rodape
   var tituloOriginal = document.title;
   function dataHoraAgora() { var d = new Date(), z = function (n) { return ('0' + n).slice(-2); }; return z(d.getDate()) + '/' + z(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
-  window.addEventListener('beforeprint', function () { var g = dataHoraAgora(); document.title = 'Relatório de Faturamento'; $('prGerado').textContent = g; });
+  window.addEventListener('beforeprint', function () { var g = dataHoraAgora(); document.title = 'Relatório de Faturamento'; $('prGerado').textContent = g; $('prGeradoSub').textContent = 'Gerado em ' + g; });
   // impressao: os quadros "Receita mercado externo - por pais" (mes e acumulado) ficam na mesma pagina da tabela "Mercado internacional"
   var juntos = null;
   function juntarIntl() {
