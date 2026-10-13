@@ -23,6 +23,7 @@
       <button type="button" class="btn-small ticket-btn-outline" id="biAtualizar">{{ 'Actualizar ahora' if es else 'Atualizar agora' }}</button>
       <button type="button" class="btn-small ticket-btn-outline" id="biHistorico" title="{{ 'Carga inicial: desde enero del año pasado hasta hoy' if es else 'Carga inicial: de janeiro do ano passado até hoje (pula meses já carregados)' }}">{{ 'Cargar histórico' if es else 'Carregar histórico' }}</button>
     </div>
+    <div class="bi-gerado" id="biGerado"></div>
     <div class="bi-progresso" id="biProgresso" hidden><span id="biProgTxt"></span> <button type="button" class="btn-small ticket-btn-outline" id="biParar">{{ 'Detener búsqueda' if es else 'Parar busca' }}</button></div>
   </div>
 
@@ -95,6 +96,18 @@
     $('biGerar').disabled = $('biAtualizar').disabled = e.rodando || !st.configurado;
     var sb = $('biSlideAtualizar');
     if (sb) { sb.disabled = e.rodando || !st.configurado; sb.textContent = e.rodando ? (ES ? '⏳ Actualizando…' : '⏳ Atualizando…') : (ES ? '⟳ Actualizar' : '⟳ Atualizar'); if (!st.configurado) sb.title = ES ? 'TOTVS no configurado (.env)' : 'TOTVS não configurado (.env)'; }
+    // links do ultimo relatorio gerado logo abaixo do botao (aparecem em qualquer visao)
+    var gb = $('biGerado'); gb.textContent = '';
+    var cu = st.custom;
+    if (cu && cu.arquivos && Object.keys(cu.arquivos).length) {
+      gb.appendChild(ui.el('span', 'cme-meta', (ES ? 'Último informe generado' : 'Último relatório gerado') + (cu.inicio ? ' (' + dataBR(cu.inicio) + ' → ' + dataBR(cu.fim) + ')' : '') + (cu.gerado_em ? ' · ' + dhBR(cu.gerado_em) : '') + ': '));
+      [['xlsx150', 'Relatório 150 (Excel)'], ['csv150', 'CSV TOTVS'], ['xlsx', 'Excel completo']].forEach(function (a) {
+        if (!cu.arquivos[a[0]]) return; var l = ui.el('a', 'btn-small ticket-btn-outline', '⬇ ' + a[1]); l.href = URL_DL.replace('__T__', 'custom').replace('__K__', a[0]); gb.appendChild(l); gb.appendChild(document.createTextNode(' '));
+      });
+      if (cu.problemas && cu.problemas.length) gb.appendChild(ui.el('div', 'bi-aviso', cu.problemas.join(' · ')));
+    } else if (st.estado && st.estado.erro && !st.estado.rodando) {
+      gb.appendChild(ui.el('div', 'bi-aviso', (ES ? 'No se pudo generar: ' : 'Não foi possível gerar: ') + st.estado.erro));
+    }
     var dl = $('biDownloads'); dl.textContent = '';
     var mm = fonte === 'custom' ? st.custom : st.padrao;
     if (mm && mm.arquivos) [['xlsx150', 'Relatório 150 (Excel)'], ['csv150', 'CSV TOTVS'], ['xlsx', ES ? 'Excel completo' : 'Excel completo']].forEach(function (a) {
