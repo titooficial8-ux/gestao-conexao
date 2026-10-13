@@ -276,6 +276,20 @@ def movimentos_diagnostico():
             variantes[nome] = dict(pecas_23_para_24=len(p24), metros=round(sum(m.get('totalQuantity') or 0 for m in p24), 1), por_grupo=cont)
     saida['variantes'] = variantes
     from app.models import PesagemMalharia
+    dist = {}
+    for q in PesagemMalharia.query.filter(PesagemMalharia.data >= dia - __import__('datetime').timedelta(days=2)).all():
+        d = dist.setdefault(str(q.data), dict(pecas=0, hora_baixa=0, tardia=0, sem_hora=0, hora_em_outro_dia=0, metros=0.0))
+        d['pecas'] += 1
+        d['metros'] = round(d['metros'] + (q.metros or 0), 1)
+        if q.hora_origem == 'trx':
+            d['hora_baixa'] += 1
+        elif q.hora_origem == 'tardia':
+            d['tardia'] += 1
+        else:
+            d['sem_hora'] += 1
+        if q.hora_real and q.hora_origem in ('trx', 'tardia') and q.hora_real.date() != q.data:
+            d['hora_em_outro_dia'] += 1
+    saida['gestao_por_data_do_movimento'] = dict(sorted(dist.items()))
     saida['gestao_no_banco'] = {str(d): PesagemMalharia.query.filter_by(data=d).count() for d in (dia, dia + __import__('datetime').timedelta(days=1))}
     return _json(saida)
 
