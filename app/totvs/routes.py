@@ -4,7 +4,7 @@ from functools import lru_cache
 
 import threading
 
-from flask import Blueprint, abort, current_app, jsonify, request, send_from_directory
+from flask import Blueprint, Response, abort, current_app, jsonify, request, send_from_directory
 from flask_login import current_user, login_required
 
 from app.comercial_me.routes import idioma_atual
@@ -96,6 +96,9 @@ def download(tag, tipo):
     nome = (m or {}).get('arquivos', {}).get(tipo)
     if not nome:
         abort(404)
+    if not (servico.DIR / nome).is_file():
+        return Response('O arquivo deste relatório não está mais no computador (foi apagado ou a geração não terminou). '
+                        'Volte à tela e clique em "Gerar relatório" de novo.', status=404, mimetype='text/plain; charset=utf-8')
     return send_from_directory(servico.DIR, nome, as_attachment=True)
 
 

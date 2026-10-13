@@ -273,12 +273,6 @@ def gerar_dados(inicio: date, fim: date, tag: str) -> dict:
         _log(f'Relatorio 150 incompleto: {e}')
 
     _log('Salvando Excel / CSV...')
-    # apaga arquivos antigos desta fonte (mantem so a ultima geracao)
-    for velho in DIR.glob(f'{tag}_*'):
-        try:
-            velho.unlink()
-        except OSError:
-            pass
     arquivos = {}
     x_all = DIR / f'{tag}_faturamento_{suf}.xlsx'
     api.salvar_excel(x_all, {'Relatório 150': api.df_150_com_total(df150), 'Notas': df_notas,
@@ -289,6 +283,15 @@ def gerar_dados(inicio: date, fim: date, tag: str) -> dict:
         api.salvar_xlsx_150(df150, x150)
         api.salvar_csv_150(df150, c150)
         arquivos['xlsx150'], arquivos['csv150'] = x150.name, c150.name
+
+    # os arquivos novos ja estao salvos: agora apaga os antigos desta fonte (mantem so a ultima geracao)
+    for velho in DIR.glob(f'{tag}_*'):
+        if velho.name in arquivos.values() or velho == caminho_dados(tag):
+            continue
+        try:
+            velho.unlink()
+        except OSError:
+            pass
 
     validas = df_notas[df_notas['Válida p/ Faturamento'] == 'Sim'] if not df_notas.empty else df_notas
     cols = list(df150.columns)
