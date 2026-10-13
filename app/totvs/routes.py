@@ -407,8 +407,33 @@ def movimentos_endpoints():
         r = cli.session.get(url, timeout=120)
     if r.status_code != 200:
         return Response(f'{url}\nHTTP {r.status_code} {r.text[:300]}', mimetype='text/plain')
+    doc = r.json()
+    if request.args.get('caminho'):                            # detalhe de um endpoint: campos do pedido e da resposta
+        def resolver(sch, prof=0):
+            if not isinstance(sch, dict) or prof > 4:
+                return str(sch)[:60]
+            if '$ref' in sch:
+                nome = sch['$ref'].split('/')[-1]
+                alvo = doc
+                for parte in sch['$ref'].lstrip('#/').split('/'):
+                    alvo = alvo.get(parte, {}) if isinstance(alvo, dict) else {}
+                return {nome: resolver(alvo, prof + 1)}
+            if sch.get('type') == 'array':
+                return [resolver(sch.get('items', {}), prof + 1)]
+            if 'properties' in sch:
+                return {k: resolver(v, prof + 1) if (isinstance(v, dict) and ('$ref' in v or v.get('type') in ('array', 'object'))) else (v.get('type', '') + (' - ' + v['description'][:80] if v.get('description') else '')) for k, v in sch['properties'].items()}
+            return sch.get('type', '')
+        det = (doc.get('paths') or {}).get(request.args['caminho'], {})
+        saida = {}
+        for metodo, d in det.items():
+            if not isinstance(d, dict):
+                continue
+            corpo = ((d.get('requestBody') or {}).get('content') or {}).get('application/json', {}).get('schema', {})
+            resp = (((d.get('responses') or {}).get('200') or {}).get('content') or {}).get('application/json', {}).get('schema', {})
+            saida[metodo] = dict(descricao=d.get('description') or d.get('summary'), parametros=[x.get('name') for x in d.get('parameters') or []], pedido=resolver(corpo), resposta=resolver(resp))
+        return _json(saida)
     linhas = [url]
-    for caminho, ops in sorted((r.json().get('paths') or {}).items()):
+    for caminho, ops in sorted((doc.get('paths') or {}).items()):
         for metodo, d in ops.items():
             if isinstance(d, dict):
                 linhas.append(f"{metodo.upper()} {caminho} - {(d.get('summary') or d.get('description') or '')[:140]}")
