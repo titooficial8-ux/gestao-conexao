@@ -91,15 +91,15 @@ def montar_paginas(d: dict) -> list[dict]:
         tm_ = d['metros_total']['acum']
         cm_ = d['cabecalho_metros']
         paginas.append(dict(
-            tipo='grafico', secao='VOLUME', titulo=f'Volume em metros por mês — {ano}', cats=ABREV,
+            tipo='grafico', secao='VOLUME', titulo=f'Volume em mts por mês — {ano}', cats=ABREV,
             series=[(str(ant), [round(x['ant']) for x in sm], '9AA6BC'), ('Plano', [round(x['plano']) for x in sm], '1F9D55'),
                     (str(ano), [round(x['real']) if x['real'] else None for x in sm], '2E75B6')],
-            cards=[('METROS TOTAIS', f'{n0(cm_["totais"])} m', None, 'azul'),
-                   ('METROS DEVOLVIDOS', f'{n0(cm_["devolvidos"])} m', f'{cm_["pct_dev"] * 100:.1f}% do total'.replace('.', ','), 'vermelho'),
-                   ('METROS LÍQUIDO DA DEVOLUÇÃO', f'{n0(cm_["liquido"])} m', f'vs plano: {pct(cm_["liquido"] / cm_["plano"] - 1 if cm_["plano"] else 0)[0]}', 'verde'),
-                   ('META DE METROS DO MÊS SUPERADA' if cm_['falta'] <= 0 else 'FALTA PARA BATER O PLANO DO MÊS (METROS)', f'{n0(abs(cm_["falta"]))} m',
-                    f'plano: {n0(cm_["plano"])} m · {cm_["pct_plano"] * 100:.1f}% atingido'.replace('.', ','), 'verde' if cm_['falta'] <= 0 else 'vermelho')],
-            extra=[('ACUMULADO REALIZADO', f'{n0(tm_["real"])} m'), ('PLANO ACUMULADO', f'{n0(tm_["plano"])} m'),
+            cards=[('MTS TOTAIS', f'{n0(cm_["totais"])} mts', None, 'azul'),
+                   ('DEVOLUÇÕES', f'{n0(cm_["devolvidos"])} mts', f'{cm_["pct_dev"] * 100:.1f}% do total'.replace('.', ','), 'vermelho'),
+                   ('LÍQUIDO DA DEVOLUÇÃO', f'{n0(cm_["liquido"])} mts', f'vs plano: {pct(cm_["liquido"] / cm_["plano"] - 1 if cm_["plano"] else 0)[0]}', 'verde'),
+                   ('META DE MTS DO MÊS SUPERADA' if cm_['falta'] <= 0 else 'FALTA PARA BATER O PLANO DO MÊS (MTS)', f'{n0(abs(cm_["falta"]))} mts',
+                    f'plano: {n0(cm_["plano"])} mts · {cm_["pct_plano"] * 100:.1f}% atingido'.replace('.', ','), 'verde' if cm_['falta'] <= 0 else 'vermelho')],
+            extra=[('ACUMULADO REALIZADO', f'{n0(tm_["real"])} mts'), ('PLANO ACUMULADO', f'{n0(tm_["plano"])} mts'),
                    ('% DO PLANO', f'{(tm_["real"] / tm_["plano"] * 100 if tm_["plano"] else 0):.0f}%'), (f'VS {ant}', pct(tm_['v_ant'])[0])],
             nota='Volume em metros por mês (colchão, automotivo, calçado, colchão M.E. e moveleiro). Fonte: Relatório 150 do TOTVS e planilha de planos.'))
     paginas.append(_tabela_8('VOLUME', f'Volume em metros — Plano x Realizado por Segmento ({ref})', d['metros'], d['metros_total'], d, '(metros)', n0,
