@@ -342,6 +342,17 @@
 
   if (closeBtn) closeBtn.addEventListener('click', function () { modal.hidden = true; });
   if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
+
+  // Atualizacao automatica: o Gestao busca no TOTVS sozinho; a tela recarrega a cada 30 s (so se a aba esta visivel e nenhuma janela esta aberta)
+  setInterval(function () {
+    if (document.hidden || (modal && !modal.hidden)) return;
+    try { sessionStorage.setItem('vgScroll', String(window.scrollY)); } catch (e) {}
+    location.reload();
+  }, 30000);
+  try {
+    var y = sessionStorage.getItem('vgScroll');
+    if (y) { window.scrollTo(0, parseInt(y, 10) || 0); sessionStorage.removeItem('vgScroll'); }
+  } catch (e) {}
 })();
 </script>
 {% endblock %}
