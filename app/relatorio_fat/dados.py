@@ -86,6 +86,16 @@ def montar_paginas(d: dict) -> list[dict]:
     paginas.append(_tabela_8('FATURAMENTO', f'Receita líquida — Plano x Realizado por Segmento ({ref})', d['receita'], d['receita_total'], d, '(R$ mil)', mil,
                              'Receita líquida em R$ mil. Fonte: Relatório 150 do TOTVS (realizado) e planilha de planos (BPLANO).'))
 
+    sm = d.get('serie_metros')
+    if sm:
+        tm_ = d['metros_total']['acum']
+        paginas.append(dict(
+            tipo='grafico', secao='VOLUME', titulo=f'Volume em metros por mês — {ano}', cats=ABREV,
+            series=[(str(ant), [round(x['ant']) for x in sm], '9AA6BC'), ('Plano', [round(x['plano']) for x in sm], '1F9D55'),
+                    (str(ano), [round(x['real']) if x['real'] else None for x in sm], '2E75B6')],
+            extra=[('ACUMULADO REALIZADO', f'{n0(tm_["real"])} m'), ('PLANO ACUMULADO', f'{n0(tm_["plano"])} m'),
+                   ('% DO PLANO', f'{(tm_["real"] / tm_["plano"] * 100 if tm_["plano"] else 0):.0f}%'), (f'VS {ant}', pct(tm_['v_ant'])[0])],
+            nota='Volume em metros por mês (colchão, automotivo, calçado, colchão M.E. e moveleiro). Fonte: Relatório 150 do TOTVS e planilha de planos.'))
     paginas.append(_tabela_8('VOLUME', f'Volume em metros — Plano x Realizado por Segmento ({ref})', d['metros'], d['metros_total'], d, '(metros)', n0,
                              'Volume em metros. Fonte: Relatório 150 do TOTVS e planilha de planos.'))
     if any(_tem(l, 'ant', 'plano', 'real') for l in d['quilos']):

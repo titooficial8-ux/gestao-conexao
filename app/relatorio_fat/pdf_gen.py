@@ -210,6 +210,16 @@ def _resumo(c, p):
     _grafico_area(c, p, 1.05, 3.3, 11.9, 2.75)
 
 
+def _grafico_pag(c, p):
+    _base(c, p['secao'], p['titulo'], p.get('nota'))
+    for i, (rot, val) in enumerate(p.get('extra') or []):
+        x = 0.35 + i * 3.17
+        _card(c, x, 1.15, 3.05, 0.5, '#EAF2FB', None, 8)
+        _txt(c, x + 0.12, 1.29, rot, 8, '#6B7280', FONTE_B)
+        _txt(c, x + 1.3, 1.28, val, 13, AZUL_ESCURO, FONTE_B, 'r', 1.65)
+    _grafico_area(c, p, 1.05, 2.0, 11.9, 4.1)
+
+
 def _cor_pct(v):
     return '#1F9D55' if v >= 1 else ('#D9922E' if v >= 0.8 else '#E04A4F')
 
@@ -251,7 +261,7 @@ def gerar(paginas: list[dict], gerado_em: str = '') -> bytes:
     c.setTitle('Relatório de Faturamento')
     CTX.update(gerado=gerado_em, pag=0, total=len(paginas))
     for p in paginas:
-        {'capa': _capa, 'resumo': _resumo, 'tabela': _tabela, 'intl': _intl}[p['tipo']](c, p)
+        {'capa': _capa, 'resumo': _resumo, 'tabela': _tabela, 'intl': _intl, 'grafico': _grafico_pag}[p['tipo']](c, p)
         c.showPage()
     c.save()
     return buf.getvalue()
