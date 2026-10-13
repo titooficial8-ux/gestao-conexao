@@ -41,6 +41,13 @@
     </div>
   </div>
   <div id="biSlide">
+    {% if pode_relatorio %}
+    <div class="bi-relatorio" id="biRelatorio">
+      <span class="cme-meta">{{ 'Informe de Facturación (modelo Conexão):' if es else 'Relatório de Faturamento (modelo Conexão):' }}</span>
+      <a class="btn-primary bi-btn" id="biRelPptx" href="#" download>⬇ {{ 'Presentación (PowerPoint)' if es else 'Apresentação (PowerPoint)' }}</a>
+      <a class="btn-small ticket-btn-outline" id="biRelPdf" href="#" download>⬇ PDF</a>
+    </div>
+    {% endif %}
     <div class="cme-filtros" id="biSlideFiltros"></div>
     <div id="biSlideCorpo"></div>
   </div>
@@ -66,6 +73,7 @@
   var ES = {{ es|tojson }};
   var LOCALE = ES ? 'es-GT' : 'pt-BR';
   var URL_DADOS = {{ url_for('bi_comercial.dados')|tojson }}, URL_STATUS = {{ url_for('bi_comercial.status')|tojson }}, URL_GERAR = {{ url_for('bi_comercial.gerar')|tojson }}, URL_CANCELAR = {{ url_for('bi_comercial.cancelar')|tojson }}, URL_SLIDE = {{ url_for('bi_comercial.slide_mensal')|tojson }};
+  var URL_REL = {{ url_for('relatorio_faturamento.gerar')|tojson }};
   var URL_DL = {{ url_for('bi_comercial.download', tag='__T__', tipo='__K__')|tojson }};
   var TXT = { dias: ES ? 'días' : 'dias', ver_todas: ES ? 'Ver todas' : 'Ver todas', ver_menos: ES ? 'Ver menos' : 'Ver menos', nenhum: ES ? 'Sin datos' : 'Sem dados', sem_dados: ES ? 'Sin datos para este filtro.' : 'Sem dados para este filtro.' };
   var $ = function (id) { return document.getElementById(id); };
@@ -343,6 +351,7 @@
     var corpo = $('biSlideCorpo'); ui.limpar(); corpo.textContent = '';
     if (d.vazio) { corpo.appendChild(ui.el('div', 'table-card', ES ? 'Aún no hay datos. Use "Cargar histórico" (arriba) para traer las notas del TOTVS.' : 'Ainda não há dados. Use "Carregar histórico" (acima) para trazer as notas do TOTVS.')); $('biSlideFiltros').textContent = ''; return; }
     var f = $('biSlideFiltros'); f.textContent = '';
+    if ($('biRelPptx')) { var q = '?mes=' + d.mes + '&ano=' + d.ano + '&formato='; $('biRelPptx').href = URL_REL + q + 'pptx'; $('biRelPdf').href = URL_REL + q + 'pdf'; }
     function sel(rot, ops, val, ch) { var l = ui.el('label', 'cme-filtro'); l.appendChild(ui.el('span', null, rot)); var s = ui.el('select', 'ticket-input');
       ops.forEach(function (o) { var op = ui.el('option', null, o[1]); op.value = o[0]; if (String(o[0]) === String(val)) op.selected = true; s.appendChild(op); });
       s.addEventListener('change', function () { slideSel[ch] = s.value; if (ch === 'ano') delete slideSel.mes; carregarSlide(); }); l.appendChild(s); f.appendChild(l); }

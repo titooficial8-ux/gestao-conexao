@@ -1183,7 +1183,8 @@ def view_tab(slug):
         return redirect(url_for('admin.users'))
 
     if slug == 'dashboard-comercial':
-        return render_template('main/bi_comercial.html', tab=tab)
+        from app.relatorio_fat.routes import pode_gerar
+        return render_template('main/bi_comercial.html', tab=tab, pode_relatorio=pode_gerar(current_user))
 
     if slug == 'dashboard-estoque':
         return render_template('main/dashboard_estoque.html', tab=tab, **DASHBOARD_ESTOQUE_MODELO)
