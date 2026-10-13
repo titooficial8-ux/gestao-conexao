@@ -77,15 +77,18 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   <div id="biSlide">
     {% if pode_relatorio %}
     <div class="bi-relatorio" id="biRelatorio">
-      <span class="cme-meta">{{ 'Informe de Facturación (modelo Conexão):' if es else 'Relatório de Faturamento (modelo Conexão):' }}</span>
-      <a class="btn-primary bi-btn" id="biRelPptx" href="#" download>⬇ {{ 'Presentación (PowerPoint)' if es else 'Apresentação (PowerPoint)' }}</a>
-      <a class="btn-small ticket-btn-outline" id="biRelPdf" href="#" download>⬇ PDF</a>
-      <span class="bi-rel-email">
-        <input type="text" id="biRelPara" class="ticket-input" placeholder="{{ 'E-mail(s) del destinatario' if es else 'E-mail(s) do destinatário (separe por vírgula)' }}" autocomplete="email" style="min-width:260px">
+      <div class="bi-rel-linha">
+        <span class="cme-meta"><strong>{{ 'Informe de Facturación (modelo Conexão)' if es else 'Relatório de Faturamento (modelo Conexão)' }}</strong></span>
+        <a class="btn-primary bi-btn" id="biRelPptx" href="#" download>⬇ {{ 'Presentación (PowerPoint)' if es else 'Apresentação (PowerPoint)' }}</a>
+        <a class="btn-small ticket-btn-outline" id="biRelPdf" href="#" download>⬇ PDF</a>
+      </div>
+      <div class="bi-rel-linha bi-rel-email">
+        <span class="cme-meta">{{ 'Enviar por e-mail para:' if es else 'Enviar por e-mail para:' }}</span>
+        <input type="text" id="biRelPara" class="ticket-input" value="edmar.santos@conexaomalhas.com.br, christian.yarzon@conexaomalhas.com.br" placeholder="{{ 'E-mail(s) del destinatario' if es else 'E-mail(s) do destinatário (separe por vírgula)' }}" autocomplete="off" style="min-width:420px">
         <select id="biRelFmt" class="ticket-input"><option value="pdf">PDF</option><option value="pptx">PowerPoint</option><option value="ambos">PDF + PowerPoint</option></select>
-        <button type="button" class="btn-small ticket-btn-outline" id="biRelEnviar">✉ {{ 'Enviar por e-mail' if es else 'Enviar por e-mail' }}</button>
-      </span>
-      <span class="cme-meta" id="biRelMsg"></span>
+        <button type="button" class="btn-primary bi-btn" id="biRelEnviar">✉ {{ 'Enviar' if es else 'Enviar' }}</button>
+        <span class="cme-meta" id="biRelMsg"></span>
+      </div>
     </div>
     {% endif %}
     <div class="cme-filtros" id="biSlideFiltros"></div>
@@ -492,7 +495,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
 
   // enviar o relatorio por e-mail (so Christian e Edmar)
   if ($('biRelEnviar')) {
-    try { $('biRelPara').value = localStorage.getItem('relFatPara') || ''; } catch (e) {}
+    try { var guardado = localStorage.getItem('relFatPara'); if (guardado) $('biRelPara').value = guardado; } catch (e) {}
     $('biRelEnviar').addEventListener('click', function () {
       var msg = $('biRelMsg'), btn = $('biRelEnviar'), d = relSel;
       if (!d) { msg.textContent = 'Aguarde o slide carregar.'; return; }
