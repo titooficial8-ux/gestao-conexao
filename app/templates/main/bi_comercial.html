@@ -260,13 +260,14 @@
   }
 
   var GRAF_RECEITA = null;
-  // valor cheio em reais: sem decimais (abaixo de mil nao tem virgula) e com ponto como separador de milhar (R$ 1.150.000)
-  function mi(v) { return ui.nf(Math.round(v), { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+  // valores em milhares de reais, sem decimais e com ponto de milhar: 1.149.887 -> 1.150 mil
+  function milN(v) { return ui.nf(Math.round(v / 1000), { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+  function mi(v) { return milN(v) + ' mil'; }
   function graficoReceita(d) {
     var card = ui.el('div', 'table-card sl-grafico');
     var topo = ui.el('div', 'sl-g-topo');
     var tit = ui.el('div'); tit.appendChild(ui.el('h3', null, (ES ? 'Receita neta por mes' : 'Receita líquida por mês') + ' — ' + d.ano));
-    tit.appendChild(ui.el('p', 'cme-meta', (ES ? 'Barras = realizado · línea verde = plan · línea gris = ' : 'Barras = realizado · linha verde = plano · linha cinza = ') + d.ano_ant)); topo.appendChild(tit);
+    tit.appendChild(ui.el('p', 'cme-meta', (ES ? 'Miles de R$ (R$ mil) · línea verde = plan · línea gris = ' : 'Milhares de R$ (R$ mil) · linha verde = plano · linha cinza = ') + d.ano_ant)); topo.appendChild(tit);
     var tot = d.receita_total.acum, chips = ui.el('div', 'sl-chips');
     function chip(rot, val, cls) { var c = ui.el('div', 'sl-chip ' + (cls || '')); c.appendChild(ui.el('span', null, rot)); c.appendChild(ui.el('strong', null, val)); chips.appendChild(c); }
     chip(ES ? 'Acumulado real' : 'Acumulado realizado', 'R$ ' + mi(tot.real));
@@ -280,7 +281,7 @@
     if (GRAF_RECEITA) { try { GRAF_RECEITA.destroy(); } catch (e) {} }
     var rotulos = { id: 'rotulosReceita', afterDatasetsDraw: function (ch) {
       var ctx = ch.ctx; ctx.save(); ctx.font = '700 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ch.getDatasetMeta(0).data.forEach(function (el, i) { var v = real[i]; if (!v) return; var h = el.base - el.y; ctx.fillStyle = h > 24 ? '#fff' : '#10263F'; ctx.fillText(ui.nf(v / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'MI', el.x, h > 24 ? el.base - 8 : el.y - 6); });
+      ch.getDatasetMeta(0).data.forEach(function (el, i) { var v = real[i]; if (!v) return; var h = el.base - el.y; ctx.fillStyle = h > 24 ? '#fff' : '#10263F'; ctx.fillText(milN(v), el.x, h > 24 ? el.base - 8 : el.y - 6); });
       // rotulos das linhas: plano (verde, acima do ponto) e ano anterior (cinza, abaixo), com fundo claro para ler sobre as barras
       function etiqueta(txt, x, y, cor) {
         ctx.font = '700 10.5px sans-serif'; var w = ctx.measureText(txt).width + 10, h = 17;
@@ -290,7 +291,7 @@
       }
       [[1, '#11703c', -17, S.map(function (x) { return x.plano; })], [2, '#6b7686', 19, S.map(function (x) { return x.ant; })]].forEach(function (cfg) {
         ch.getDatasetMeta(cfg[0]).data.forEach(function (el, i) { var v = cfg[3][i]; if (!v) return;
-          etiqueta(ui.nf(v / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'MI', el.x, Math.min(Math.max(el.y + cfg[2], 12), ch.chartArea.bottom - 28), cfg[1]); });
+          etiqueta(milN(v), el.x, Math.min(Math.max(el.y + cfg[2], 12), ch.chartArea.bottom - 28), cfg[1]); });
       });
       ctx.restore(); } };
     GRAF_RECEITA = new Chart(cv, { data: { labels: labels, datasets: [
@@ -305,7 +306,7 @@
             label: function (c) { return ' ' + c.dataset.label + ': R$ ' + mi(c.parsed.y); },
             afterBody: function (it) { var x = S[it[0].dataIndex], o = []; if (x.real && x.plano) o.push((ES ? 'vs plan: ' : 'vs plano: ') + ui.nf((x.real / x.plano - 1) * 100, { maximumFractionDigits: 1 }) + '%'); if (x.real && x.ant) o.push('vs ' + d.ano_ant + ': ' + ui.nf((x.real / x.ant - 1) * 100, { maximumFractionDigits: 1 }) + '%'); return o; } } } },
         scales: { x: { grid: { display: false }, ticks: { font: { weight: '600' } } },
-          y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return ui.nf(v / 1e6, { maximumFractionDigits: 0 }) + ' mi'; } } } } },
+          y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return milN(v); } } } } },
       plugins: [rotulos] });
     return card;
   }
