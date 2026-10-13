@@ -229,6 +229,33 @@ def casar_globalmente() -> int:
                 usados.add(b.codigo)
                 p.trx_codigo, p.hora_real, p.hora_origem, p.peso_kg = b.codigo, b.mudou, 'trx', b.kg
                 novos += 1
+    # terceira passada: o que sobrou, pelos kg/m que ja se conhecem de cada composicao de fios (pares ja ligados), com tolerancia de 0,05%
+    ratios = {}
+    cods = {b.codigo: b for b in BaixaFio.query.filter(BaixaFio.mudou >= datetime.combine(menor, hora_do_dia(0, 0))).all()}
+    for p in PesagemMalharia.query.filter(PesagemMalharia.trx_codigo.isnot(None), PesagemMalharia.metros > 0).all():
+        b = cods.get(p.trx_codigo)
+        if b and b.composicao and b.kg:
+            ratios.setdefault(b.composicao, []).append(b.kg / p.metros)
+    ratios = {c: sorted({round(r, 4) for r in rs}) for c, rs in ratios.items()}
+    restantes = [p for p in pend if p.trx_codigo is None]
+    pares = []
+    for p in restantes:
+        for b in janela(p):
+            if b.codigo in usados or b.composicao not in ratios:
+                continue
+            r = b.kg / p.metros
+            erro = min(abs(r - k) / k for k in ratios[b.composicao])
+            if erro <= 0.0005:
+                pares.append((erro, p.id, b.codigo, p, b))
+    pares.sort(key=lambda x: x[0])
+    feitos = set()
+    for erro, pid, cod, p, b in pares:
+        if pid in feitos or cod in usados:
+            continue
+        feitos.add(pid)
+        usados.add(cod)
+        p.trx_codigo, p.hora_real, p.hora_origem, p.peso_kg = b.codigo, b.mudou, 'trx', b.kg
+        novos += 1
     db.session.commit()
     return novos
 
