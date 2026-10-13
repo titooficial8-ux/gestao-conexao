@@ -2,6 +2,27 @@
 {% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
 {% block content %}
 {% set es = lang == 'es' %}
+<style>
+/* Impressao / "Salvar como PDF": cabecalho e rodape proprios (titulo, site e data/hora), sem o localhost do navegador */
+.pr-topo, .pr-rodape { display: none; }
+@media print {
+  @page { size: A4 landscape; margin: 0; }
+  .pr-topo { display: flex; position: fixed; top: 0; left: 0; right: 0; height: 14mm; padding: 0 10mm; align-items: center; justify-content: space-between; background: #fff; z-index: 50; }
+  .pr-topo strong { font-size: 18px; color: #1F4E79; letter-spacing: .02em; }
+  .pr-topo span { font-size: 11px; color: #6b7686; }
+  .pr-rodape { display: flex; position: fixed; bottom: 0; left: 0; right: 0; height: 9mm; padding: 0 10mm; align-items: center; justify-content: space-between; background: #008EC9; color: #fff; font-size: 11px; z-index: 50; }
+  .pr-wrap { display: table; width: 100%; }
+  .pr-cab { display: table-header-group; }
+  .pr-cab > div { height: 17mm; }
+  .pr-corpo { display: table-row-group; }
+  .pr-corpo > .cme { padding: 0 9mm; }
+  .pr-pe { display: table-footer-group; }
+  .pr-pe > div { height: 12mm; }
+}
+</style>
+<div class="pr-topo"><strong>Relatório de Faturamento</strong><span id="prGeradoTopo"></span></div>
+<div class="pr-rodape"><span>www.gestaoconexao.com.br</span><span>Relatório de Faturamento · Gerado em <span id="prGerado"></span></span></div>
+<div class="pr-wrap"><div class="pr-cab"><div></div></div><div class="pr-corpo">
 <div class="cme bi">
   <div class="chamados-hero cme-hero">
     <div>
@@ -65,6 +86,7 @@
   </div>
 </div>
 
+</div><div class="pr-pe"><div></div></div></div>
 <div class="cme-modal" id="cmeModal" hidden><div class="cme-modal-box"><button type="button" class="cme-modal-fechar" id="cmeModalX" aria-label="×">&times;</button><h3 id="cmeModalTit"></h3><div id="cmeModalCorpo"></div></div></div>
 <script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
 <script src="{{ url_for('static', filename='js/painel_widgets.js') }}"></script>
@@ -432,6 +454,12 @@
   }
   Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.addEventListener('click', function () { mudarVisao(b.dataset.visao); }); });
   $('biHistorico').addEventListener('click', function () { if (confirm(ES ? 'Esto trae todas las notas desde enero del año pasado y puede tardar varios minutos. ¿Continuar?' : 'Isso busca todas as notas desde janeiro do ano passado e pode demorar vários minutos. Continuar?')) gerar(hoje(), hoje(), 'historico'); });
+
+  // ao imprimir / salvar em PDF: titulo "Relatorio de Faturamento" no lugar do titulo do site e data/hora da geracao no rodape
+  var tituloOriginal = document.title;
+  function dataHoraAgora() { var d = new Date(), z = function (n) { return ('0' + n).slice(-2); }; return z(d.getDate()) + '/' + z(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
+  window.addEventListener('beforeprint', function () { var g = dataHoraAgora(); document.title = 'Relatório de Faturamento'; $('prGerado').textContent = g; $('prGeradoTopo').textContent = 'Gerado em ' + g; });
+  window.addEventListener('afterprint', function () { document.title = tituloOriginal; });
 
   consultarStatus(function () { carregarSlide(); });
 })();
