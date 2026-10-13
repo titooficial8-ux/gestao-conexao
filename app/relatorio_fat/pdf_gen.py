@@ -78,6 +78,7 @@ def _capa(c, p):
     c.setFillColor(white)
     c.setFont(FONTE_B, 44)
     c.drawString(0.4 * 72, _y(1.32) - 36, t, charSpace=3) if False else None
+    c.saveState()
     to = c.beginText(0.4 * 72, _y(1.32) - 40)
     to.setFont(FONTE_B, 44)
     to.setCharSpace(3)
@@ -91,6 +92,7 @@ def _capa(c, p):
     to.setCharSpace(1.5)
     to.textLine(p['sub'].upper())
     c.drawText(to)
+    c.restoreState()
     _txt(c, 0.4, 3.15, f'Gerado em {CTX["gerado"]}', 16, '#C9D6E8')
     _rodape(c, None)
 
@@ -251,9 +253,9 @@ def _intl(c, p):
         _card(c, x0 + w - 1.65, y + 0.1, 1.5, 0.28, '#DCEBFA' if k == 0 else AZUL_ESCURO, None, 7)
         _txt(c, x0 + w - 1.65, y + 0.17, chip, 9, AZUL_ESCURO if k == 0 else '#FFFFFF', FONTE_B, 'c', 1.5)
         n = max(len(itens), 1)
-        lh = min(0.3, (h - 0.6) / n)
+        lh = min(0.3, (h - 0.9) / n)
         for i, (pais, real, plano) in enumerate(itens):
-            yy = y + 0.55 + i * lh
+            yy = y + 0.5 + i * lh
             _txt(c, x0 + 0.2, yy + lh / 2 - 0.07, pais, 9, AZUL_ESCURO, FONTE_B)
             tx, tw = x0 + 1.35, 2.2
             _card(c, tx, yy + lh / 2 - 0.05, tw, 0.1, '#E8ECF2', None, 3)
