@@ -177,6 +177,62 @@ def sincronizar_baixas(cli) -> int:
     return novas
 
 
+def casar_globalmente() -> int:
+    """Segunda passada: liga as pecas 23->24 que ainda nao tem baixa a baixas livres, pelos fios (composicao) e pelo peso.
+    A data do movimento no TOTVS pode ser de 1-2 dias antes da baixa, entao a baixa vale de 1 dia antes ate 2 dias depois.
+    Para cada OP acha o par (fios, kg por metro) que mais pecas explicam e liga cada peca a baixa de peso mais exato (0,02%)."""
+    from app import db
+    from app.models import BaixaFio, PesagemMalharia
+    hoje = date.today()
+    pend = [p for p in PesagemMalharia.query.filter(PesagemMalharia.trx_codigo.is_(None)).all()
+            if p.data and p.metros and p.metros > 0 and (hoje - p.data).days <= 30]
+    if not pend:
+        return 0
+    usados = {c for (c,) in db.session.query(PesagemMalharia.trx_codigo).filter(PesagemMalharia.trx_codigo.isnot(None)).all()}
+    menor = min(p.data for p in pend) - timedelta(days=1)
+    livres = [b for b in BaixaFio.query.filter(BaixaFio.mudou >= datetime.combine(menor, hora_do_dia(0, 0))).all()
+              if b.codigo not in usados and b.kg and b.kg > 0 and b.composicao and b.mudou]
+    por_dia = {}
+    for b in livres:
+        por_dia.setdefault(b.mudou.date(), []).append(b)
+
+    def janela(p):
+        return [b for d in range(-1, 3) for b in por_dia.get(p.data + timedelta(days=d), [])]
+
+    por_op = {}
+    for p in pend:
+        por_op.setdefault(p.op, []).append(p)
+    escolhas = []
+    for op, ps in por_op.items():
+        cont, razoes = {}, {}
+        for p in ps:
+            for b in janela(p):
+                r = b.kg / p.metros
+                k = (b.composicao, round(r / 0.0005))
+                cont[k] = cont.get(k, 0) + 1
+                razoes.setdefault(k, []).append(r)
+        if not cont:
+            continue
+        pont = lambda k: cont[k] + cont.get((k[0], k[1] - 1), 0) + cont.get((k[0], k[1] + 1), 0)
+        melhor = max(cont, key=pont)
+        if pont(melhor) < max(2, 0.4 * len(ps)):
+            continue
+        perto = sorted(r for k2 in ((melhor[0], melhor[1] - 1), melhor, (melhor[0], melhor[1] + 1)) for r in razoes.get(k2, []))
+        escolhas.append((pont(melhor) / len(ps), op, melhor[0], perto[len(perto) // 2]))
+    novos = 0
+    for _, op, comp, r_ok in sorted(escolhas, reverse=True):
+        for p in sorted(por_op[op], key=lambda p: (p.data, p.sequencia or 0)):
+            esperado = p.metros * r_ok
+            cand = [b for b in janela(p) if b.composicao == comp and b.codigo not in usados and abs(b.kg - esperado) <= max(0.0002 * esperado, 0.004)]
+            if cand:
+                b = min(cand, key=lambda b: abs(b.kg - esperado))
+                usados.add(b.codigo)
+                p.trx_codigo, p.hora_real, p.hora_origem, p.peso_kg = b.codigo, b.mudou, 'trx', b.kg
+                novos += 1
+    db.session.commit()
+    return novos
+
+
 def ligar_baixas() -> None:
     """Liga cada baixa ao movimento 23->24 que ja casou com ela (OP, maquina, metros) e estima o artigo das demais pela composicao de fios."""
     from collections import Counter
@@ -566,6 +622,7 @@ def atualizar_todas(app) -> bool:
             try:                                                   # pecas = baixas de fio (uma por peca pesada, com hora e kg exatos)
                 with _trava:
                     novas_baixas = sincronizar_baixas(cli)
+                ESTADO.update(casadas_pela_composicao=casar_globalmente())
                 ligar_baixas()
                 ESTADO.update(baixas_novas=novas_baixas, erro_baixas=None)
             except Exception as e_baixas:  # noqa: BLE001
