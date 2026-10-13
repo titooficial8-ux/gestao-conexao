@@ -1985,6 +1985,13 @@ def _api_movimentos(hub):
     saida = []
     pecas = [p for p in PesagemMalharia.query.order_by(PesagemMalharia.data, PesagemMalharia.item).all()
              if resumos.get(p.op) and p.metros is not None and (str(p.op), str(p.item)) not in hub['vistos']]
+    unicas, chaves = [], set()
+    for p in pecas:                                                 # nunca conta a mesma peca duas vezes (mesma OP, data, sequencia e metros)
+        k = (p.op, p.data, p.sequencia, round(p.metros, 3))
+        if k not in chaves:
+            chaves.add(k)
+            unicas.append(p)
+    pecas = unicas
     # hora de cada peca: baixa de fio (trx) > momento em que o Gestao viu > estimada entre as vizinhas da mesma OP
     horas = {}
     for p in pecas:

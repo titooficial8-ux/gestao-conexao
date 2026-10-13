@@ -53,6 +53,13 @@ def calcular(movs: list, op, metro_padrao):
     """Pecas que ja passaram do local 23 (MALHARIA PESAGEM) para o 24, na ordem em que passaram, e metros que ja seguiram.
     A peca so aparece depois que o movimento 23 -> 24 existe (e a mesma linha do Relatorio 0032); a quantidade do movimento e o metro da peca."""
     movs = [m for m in movs if str(m.get('productionOrder')) == str(op) and not m.get('isReversed')]
+    vistos, unicos = set(), []
+    for m in movs:                                                 # o mesmo movimento pode vir em duas janelas/consultas: conta uma vez so
+        k = (m.get('movementDate'), m.get('sequence'), m.get('originLocationCode'), m.get('destinationLocationCode'), m.get('totalQuantity'), m.get('component'))
+        if k not in vistos:
+            vistos.add(k)
+            unicos.append(m)
+    movs = unicos
     movs.sort(key=lambda m: (str(m.get('movementDate')), m.get('sequence') or 0))
     lista, saiu = [], 0.0
     for m in movs:
