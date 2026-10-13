@@ -106,7 +106,7 @@ A aba **BI COMERCIAL** tem duas visões:
 Dados: guardados por mês em `instance/totvs/base/` (não vai para o Git). Botões na tela:
 **Carregar histórico** (carga inicial: janeiro do ano passado até hoje, mês a mês, pode parar com *Parar busca*),
 **Atualizar agora** (mês anterior + atual) e **Gerar relatório** (período livre → Relatório 150 em Excel/CSV).
-Com o servidor ligado e o histórico carregado, atualiza sozinho a cada 15 min (`BI_INTERVALO_MIN`).
+Com o servidor ligado e o histórico carregado, atualiza sozinho a cada 2 min (`BI_INTERVALO_MIN`).
 Credenciais da API: só no `.env` (veja `.env.example`), nunca no GitHub.
 Ajustes manuais da planilha ficam em `app/seed_data/bi_comercial/ajustes.json`.
 

@@ -479,9 +479,9 @@ def cancelar() -> bool:
 # ------------------------------------------------------------------ agenda 08:00
 def intervalo_min() -> int:
     try:
-        return max(5, int(os.getenv('BI_INTERVALO_MIN', '15')))
+        return max(1, int(os.getenv('BI_INTERVALO_MIN', '2')))
     except ValueError:
-        return 15
+        return 2
 
 
 def _ler_agenda() -> dict:
@@ -531,7 +531,7 @@ def _tick() -> None:
 
 
 def iniciar_agendador() -> None:
-    """Thread leve: a cada 30 s confere se ja passou o intervalo (15 min) desde a ultima atualizacao automatica."""
+    """Thread leve: a cada 30 s confere se ja passou o intervalo (2 min) desde a ultima atualizacao automatica."""
     def loop():
         import time
         time.sleep(20)
