@@ -337,11 +337,16 @@ def movimentos_dia():
     linhas = _j.loads('[' + _api_baixas(dict(_hub_movimentos_json())) + ']')
     turnos = {'1o turno (06:20-14:19)': [0, 0.0, 0.0, 0], '2o turno (14:20-22:19)': [0, 0.0, 0.0, 0], '3o turno (22:20-06:19)': [0, 0.0, 0.0, 0]}
     tot = [0, 0.0, 0.0, 0]
+    por_op = {}
     for r in linhas:
         h = _dt.fromisoformat(r['dt_real'].replace('Z', '')) - _t(hours=3)
         if not (ini <= h < ini + _t(days=1)) or (r.get('cod_artigo') and 'amostra' in r['cod_artigo'].lower()):
             continue
         k = int((h - ini).total_seconds() // 28800)
+        po = por_op.setdefault(r.get('op') or 'SEM-OP', [0, 0.0, 0.0])
+        po[0] += 1
+        po[1] += r.get('metro_padrao') or 0
+        po[2] += r.get('qt_pesos') or 0
         nome = list(turnos)[min(k, 2)]
         for alvo in (turnos[nome], tot):
             alvo[0] += 1
@@ -351,6 +356,9 @@ def movimentos_dia():
     out = [f'dia de producao {dia} ({ini:%d/%m %H:%M} ate {(ini + _t(days=1)):%d/%m %H:%M})', 'turno | pecas | metros (padrao) | kg | pecas sem OP']
     out += [f'{n} | {v[0]} | {v[1]:.0f} | {v[2]:.1f} | {v[3]}' for n, v in turnos.items()]
     out.append(f'TOTAL | {tot[0]} | {tot[1]:.0f} | {tot[2]:.1f} | {tot[3]}')
+    out.append('')
+    out.append('op | pecas | metros (padrao) | kg')
+    out += [f'{o} | {v[0]} | {v[1]:.0f} | {v[2]:.1f}' for o, v in sorted(por_op.items(), key=lambda x: (not x[0].isdigit(), int(x[0]) if x[0].isdigit() else 0))]
     from app.models import PesagemMalharia
     sem = PesagemMalharia.query.filter(PesagemMalharia.trx_codigo.is_(None), PesagemMalharia.data >= dia - _t(days=1), PesagemMalharia.data <= dia + _t(days=1)).count()
     out.append(f'pecas 23->24 (datas {dia - _t(days=1):%d/%m} a {dia + _t(days=1):%d/%m}) ainda sem baixa ligada: {sem}')
