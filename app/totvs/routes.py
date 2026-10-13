@@ -204,6 +204,29 @@ def movimentos_estado():
                       ops_fora_da_programacao=len(ops_db - prog)))
 
 
+@mov_bp.route('/resumo')
+@login_required
+def movimentos_resumo():
+    """Texto curto (cabe numa tela): pecas do Gestao por data do movimento, ultimos 8 dias, e de onde veio a hora de cada uma."""
+    from datetime import date as _d, timedelta as _t
+    from flask import Response
+    from app.models import PesagemMalharia
+    ini = _d.today() - _t(days=8)
+    linhas = ['versao: sem-duplicadas-v12', 'data | pecas | metros | hora da baixa | sem hora | tardia | hora em outro dia']
+    dist = {}
+    for q in PesagemMalharia.query.filter(PesagemMalharia.data >= ini).all():
+        d = dist.setdefault(q.data, [0, 0.0, 0, 0, 0, 0])
+        d[0] += 1
+        d[1] += q.metros or 0
+        d[2] += q.hora_origem == 'trx'
+        d[3] += q.hora_origem not in ('trx', 'tardia')
+        d[4] += q.hora_origem == 'tardia'
+        d[5] += bool(q.hora_real and q.hora_origem in ('trx', 'tardia') and q.hora_real.date() != q.data)
+    for dia, d in sorted(dist.items()):
+        linhas.append(f'{dia} | {d[0]} | {d[1]:.1f} | {d[2]} | {d[3]} | {d[4]} | {d[5]}')
+    return Response('\n'.join(linhas), mimetype='text/plain')
+
+
 @mov_bp.route('/diagnostico')
 @login_required
 def movimentos_diagnostico():
