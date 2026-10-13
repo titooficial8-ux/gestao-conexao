@@ -42,6 +42,19 @@ def _montar(formato, ano, mes):
     return corpo, f'{nome}.{formato}', d['mes'], d['ano']
 
 
+@rel_fat_bp.route('/quem')
+@login_required
+def quem():
+    """Texto: com que usuario voce esta logado, se ele ve os botoes do relatorio e quem esta na lista."""
+    lista = os.getenv('RELATORIO_FAT_USUARIOS', 'christian,edmar')
+    return Response(f'Usuario logado: {current_user.name} <{current_user.email}>\n'
+                    f'Ve os botoes do Relatorio de Faturamento: {"SIM" if pode_gerar(current_user) else "NAO"}\n'
+                    f'Lista atual (RELATORIO_FAT_USUARIOS): {lista}\n'
+                    f'Regra: o nome ou o e-mail do usuario precisa conter um dos nomes da lista.\n'
+                    f'E-mail de saida configurado (SMTP): {"SIM" if envio.configurado() else "NAO - faltam " + ", ".join(envio.faltando())}',
+                    mimetype='text/plain; charset=utf-8')
+
+
 @rel_fat_bp.route('/enviar', methods=['POST'])
 @login_required
 def enviar():
