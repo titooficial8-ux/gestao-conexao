@@ -276,6 +276,32 @@ def casar_globalmente() -> int:
         usados.add(cod)
         p.trx_codigo, p.hora_real, p.hora_origem, p.peso_kg = b.codigo, b.mudou, 'trx', b.kg
         novos += 1
+    # quarta passada: o que ainda sobrou, pelo kg/m da propria OP (mediana das pecas dela ja ligadas), tolerancia de 0,5%
+    por_op_ratio = {}
+    for p in PesagemMalharia.query.filter(PesagemMalharia.trx_codigo.isnot(None), PesagemMalharia.metros > 0).all():
+        b = cods.get(p.trx_codigo)
+        if b and b.kg:
+            por_op_ratio.setdefault(p.op, []).append(b.kg / p.metros)
+    ratio_op = {op: sorted(rs)[len(rs) // 2] for op, rs in por_op_ratio.items() if len(rs) >= 2}
+    pares = []
+    for p in pend:
+        if p.trx_codigo is not None or p.op not in ratio_op:
+            continue
+        for b in janela(p):
+            if b.codigo in usados:
+                continue
+            erro = abs(b.kg / p.metros - ratio_op[p.op]) / ratio_op[p.op]
+            if erro <= 0.005:
+                pares.append((erro, p.id, b.codigo, p, b))
+    pares.sort(key=lambda x: x[0])
+    feitos = set()
+    for erro, pid, cod, p, b in pares:
+        if pid in feitos or cod in usados:
+            continue
+        feitos.add(pid)
+        usados.add(cod)
+        p.trx_codigo, p.hora_real, p.hora_origem, p.peso_kg = b.codigo, b.mudou, 'trx', b.kg
+        novos += 1
     db.session.commit()
     return novos
 
