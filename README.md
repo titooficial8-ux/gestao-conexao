@@ -122,3 +122,9 @@ A aba **Relatório Pedidos** é atualizada sozinha pela API do TOTVS Moda a cada
 6. contas: Chegada 30 = data do pedido + 30 dias; Qt. a faturar = finalizada de 1ª − faturada.
 
 Ajustes no `.env`: `PEDIDOS_INTERVALO_MIN`, `PEDIDOS_DIAS`, `PEDIDOS_CICLO` (veja `.env.example`). Se o TOTVS falhar, a aba mantém os dados anteriores e mostra o erro na faixa de status.
+
+## Relatório de Faturamento (PowerPoint, PDF e e-mail)
+
+- Botões no Dashboard Comercial (visão Slide mensal), só para Christian e Edmar (`RELATORIO_FAT_USUARIOS`): baixar em PowerPoint ou PDF e enviar por e-mail.
+- Envio automático: todo dia às 08:30 o Gestão manda o PDF para `edmar.santos@conexaomalhas.com.br` e `christian.yarzon@conexaomalhas.com.br`
+  (precisa do `SMTP_HOST`, `SMTP_USER` e `SMTP_PASSWORD` no `.env`; horário, dias, formato e destinatários em `.env.example`).
