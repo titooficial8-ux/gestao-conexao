@@ -22,7 +22,7 @@ BAIXA_FIO = 2000                                              # operacao: baixa 
 EMPRESA = 1
 LOCAL = 23
 NOME_LOCAL = 'MALHARIA PESAGEM'
-JANELA_DIAS = 29
+JANELA_DIAS = 28                                              # a data final da API nao inclui o proprio dia (vale 00:00), por isso busca ate fim + 1 dia
 MAX_JANELAS = 8                                               # ~8 meses de historico por OP
 
 _cli = None
@@ -105,7 +105,7 @@ def _buscar_movs(cli, ini: date, fim: date, ops=None) -> list:
     """Movimentos normais do ciclo 13 entre duas datas (paginado). Sem `ops`, traz as OPs de todos."""
     saida, pag = [], 1
     while True:
-        corpo = dict(branchCodeList=[EMPRESA], cycleCodeList=[13], movementStartDate=ini.isoformat(), movementEndDate=fim.isoformat(),
+        corpo = dict(branchCodeList=[EMPRESA], cycleCodeList=[13], movementStartDate=ini.isoformat(), movementEndDate=(fim + timedelta(days=1)).isoformat(),
                      listNormalMovement=True, listFinalizationMovement=False, reversalType=2, page=pag, pageSize=500)
         if ops:
             corpo['productionOrderCodeList'] = ops
@@ -193,7 +193,7 @@ def pecas(op: str, ciclo: int = 13, metro_padrao: float | None = None) -> dict:
         for _ in range(MAX_JANELAS):
             ini = max(inicio, fim - timedelta(days=JANELA_DIAS))
             r = cli.post(MOV_URL, dict(branchCodeList=[EMPRESA], cycleCodeList=[ciclo], productionOrderCodeList=[str(op)],
-                                       movementStartDate=ini.isoformat(), movementEndDate=fim.isoformat(),
+                                       movementStartDate=ini.isoformat(), movementEndDate=(fim + timedelta(days=1)).isoformat(),
                                        listNormalMovement=True, listFinalizationMovement=False, reversalType=2))
             if r.status_code != 200:
                 raise RuntimeError(f'Movimentos da OP {op}: HTTP {r.status_code} {r.text[:160]}')
