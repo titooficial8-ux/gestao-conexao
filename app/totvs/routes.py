@@ -282,6 +282,23 @@ def movimentos_baixa_amostra():
     return _json(dict(status=r.status_code, amostra=(r.json().get('items') if r.status_code == 200 else r.text[:400])))
 
 
+@mov_bp.route('/baixas-sem-op')
+@login_required
+def movimentos_baixas_sem_op():
+    """Texto: baixas de fio do dia de producao (?dia=2026-10-09) que nao ligaram a nenhuma peca 23->24 (sem OP): hora, cliente e kg,
+    para achar a mesma linha na planilha do TOTVS e ver a OP dela."""
+    from datetime import date as _d, datetime as _dt, timedelta as _t
+    from flask import Response
+    from app.models import BaixaFio
+    dia = _d.fromisoformat(request.args.get('dia') or _d.today().isoformat())
+    ini = _dt.combine(dia, _dt.min.time()) + _t(hours=6, minutes=20)
+    bx = BaixaFio.query.filter(BaixaFio.mudou >= ini, BaixaFio.mudou < ini + _t(days=1)).order_by(BaixaFio.mudou).all()
+    com, sem = [b for b in bx if b.casada], [b for b in bx if not b.casada]
+    linhas = [f'dia de producao {dia}: {len(bx)} baixas | com OP: {len(com)} | sem OP: {len(sem)}', '', 'hora | cliente | kg | fios']
+    linhas += [f'{b.mudou:%d/%m %H:%M} | {b.cliente_cod} | {b.kg:.3f} | {b.composicao}' for b in sem[:80]]
+    return Response('\n'.join(linhas), mimetype='text/plain')
+
+
 @mov_bp.route('/diagnostico')
 @login_required
 def movimentos_diagnostico():
