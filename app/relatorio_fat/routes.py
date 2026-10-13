@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 import unicodedata
+from datetime import datetime
 
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, request
 from flask_login import current_user, login_required, login_user
@@ -123,7 +124,7 @@ def enviar():
         ref = f'{dados.MESES[r[2] - 1]}/{r[3]}'
     try:
         envio.enviar(destinos, f'Relatório de Faturamento — {ref}',
-                     f'Olá,\n\nSegue o Relatório de Faturamento de {ref}, gerado pelo Gestão Conexão.\n\nwww.gestaoconexao.com.br', anexos)
+                     envio.corpo_padrao(ref, datetime.now().strftime('%d/%m/%Y %H:%M')), anexos)
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=f'Não foi possível enviar: {e}'), 502
     return jsonify(ok=True, enviado_para=destinos, anexos=[a[0] for a in anexos])

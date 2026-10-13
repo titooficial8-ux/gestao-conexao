@@ -76,8 +76,7 @@ def enviar_agora(app) -> dict:
             anexos.append((r[1], r[0], MIME[f]))
             ref = f'{dados.MESES[r[2] - 1]}/{r[3]}'
     envio.enviar(destinos, f'Relatório de Faturamento — {ref}',
-                 f'Olá,\n\nSegue o Relatório de Faturamento de {ref}, enviado automaticamente pelo Gestão Conexão em '
-                 f'{datetime.now():%d/%m/%Y %H:%M}.\n\nwww.gestaoconexao.com.br', anexos)
+                 envio.corpo_padrao(ref, f'{datetime.now():%d/%m/%Y %H:%M}', True), anexos)
     return dict(ok=True, enviado_para=destinos)
 
 
