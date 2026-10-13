@@ -245,8 +245,36 @@ def movimentos_diagnostico():
                                ops_23_para_24_fora_da_programacao=len({str(m.get('productionOrder')) for m in p24} - prog),
                                metros_23_para_24=round(sum(m.get('totalQuantity') or 0 for m in p24), 1),
                                metros_23_sem_destino=round(sum(m.get('totalQuantity') or 0 for m in de23 if m.get('destinationLocationCode') is None), 1),
-                               amostra_23_sem_destino=[m for m in de23 if m.get('destinationLocationCode') is None][:6],
+                               amostra_23_sem_destino=[dict(op=m.get('productionOrder'), qtd=m.get('totalQuantity'), historico=m.get('movementHistory')) for m in de23 if m.get('destinationLocationCode') is None][:6],
                                pecas_23_para_24_por_data={d: sum(1 for m in p24 if str(m.get('movementDate'))[:10] == d) for d in sorted({str(m.get('movementDate'))[:10] for m in p24})})
+    # variacoes de filtro: o que mais a API tem saindo do local 23 para o 24 neste dia (outras filiais, ciclos ou tipos de OP)
+    variantes = {}
+    base = dict(movementStartDate=dia.isoformat(), movementEndDate=(dia + __import__('datetime').timedelta(days=1)).isoformat(),
+                listNormalMovement=True, listFinalizationMovement=True, reversalType=3, pageSize=500)
+    with movimentos._trava:
+        for nome, extra in (('so_filial_1_ciclo_13', dict(branchCodeList=[1], cycleCodeList=[13])), ('filial_1_todos_ciclos', dict(branchCodeList=[1])),
+                            ('todas_filiais_ciclo_13', dict(cycleCodeList=[13])), ('filiais_1_a_6_todos_ciclos', dict(branchCodeList=[1, 2, 3, 4, 5, 6]))):
+            itens, pag, erro = [], 1, None
+            while True:
+                r = cli.post(movimentos.MOV_URL, dict(base, **extra, page=pag))
+                if r.status_code != 200:
+                    erro = f'HTTP {r.status_code} {r.text[:200]}'
+                    break
+                j = r.json()
+                itens += j.get('items') or []
+                if not j.get('hasNext') or pag >= 60:
+                    break
+                pag += 1
+            if erro:
+                variantes[nome] = erro
+                continue
+            p24 = [m for m in itens if m.get('originLocationCode') == 23 and m.get('destinationLocationCode') == 24]
+            cont = {}
+            for m in p24:
+                k = f"filial={m.get('branchCode')} ciclo={m.get('cycle')} tipoOP={m.get('productionOrderType')} historico={m.get('movementHistory')}"
+                cont[k] = cont.get(k, 0) + 1
+            variantes[nome] = dict(pecas_23_para_24=len(p24), metros=round(sum(m.get('totalQuantity') or 0 for m in p24), 1), por_grupo=cont)
+    saida['variantes'] = variantes
     from app.models import PesagemMalharia
     saida['gestao_no_banco'] = {str(d): PesagemMalharia.query.filter_by(data=d).count() for d in (dia, dia + __import__('datetime').timedelta(days=1))}
     return _json(saida)
