@@ -218,7 +218,7 @@ def movimentos_diagnostico():
     with movimentos._trava:
         cli = movimentos._cliente()
         for nome, kw in (('normais', dict(fin=False, rev=2)), ('com_finalizacao', dict(fin=True, rev=2)), ('com_estornados', dict(fin=True, rev=3))):
-            corpo_base = dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], movementStartDate=dia.isoformat(), movementEndDate=dia.isoformat(),
+            corpo_base = dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], movementStartDate=dia.isoformat(), movementEndDate=(dia + __import__('datetime').timedelta(days=1)).isoformat(),
                               listNormalMovement=True, listFinalizationMovement=kw['fin'], reversalType=kw['rev'], pageSize=500)
             itens, pag = [], 1
             while True:
@@ -243,7 +243,10 @@ def movimentos_diagnostico():
             p24 = [m for m in de23 if m.get('destinationLocationCode') == 24]
             saida[nome] = dict(total_movimentos_do_dia=len(itens), saindo_do_23=cont, ops_23_para_24=len({m.get('productionOrder') for m in p24}),
                                ops_23_para_24_fora_da_programacao=len({str(m.get('productionOrder')) for m in p24} - prog),
-                               metros_23_para_24=round(sum(m.get('totalQuantity') or 0 for m in p24), 1))
+                               metros_23_para_24=round(sum(m.get('totalQuantity') or 0 for m in p24), 1),
+                               pecas_23_para_24_por_data={d: sum(1 for m in p24 if str(m.get('movementDate'))[:10] == d) for d in sorted({str(m.get('movementDate'))[:10] for m in p24})})
+    from app.models import PesagemMalharia
+    saida['gestao_no_banco'] = {str(d): PesagemMalharia.query.filter_by(data=d).count() for d in (dia, dia + __import__('datetime').timedelta(days=1))}
     return _json(saida)
 
 
