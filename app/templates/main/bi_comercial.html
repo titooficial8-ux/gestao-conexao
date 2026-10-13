@@ -28,6 +28,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   .pr-pe { height: 12mm; }
   .pr-wrap .cme { padding: 0 9mm; }
   .sl-card, .sl-grafico, .sl-prog, .table-card, .cme-kpigrid { break-inside: avoid; page-break-inside: avoid; }
+  .bi-relatorio { display: none !important; }
   .pr-juntos { break-inside: avoid; page-break-inside: avoid; }
   .pr-barras { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; margin-bottom: 5mm; }
   .pr-barras .sl-prog { margin: 0; }
@@ -234,6 +235,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   // ---------------------------------------------------------------- slide mensal (replica da aba 2 - SLIDE_LIQ)
   var MESES = ES ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] : ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   var slideSel = {}, mostrarZeros = false;
+  try { var _qs = new URLSearchParams(location.search); ['ano', 'mes'].forEach(function (k) { if (_qs.get(k)) slideSel[k] = _qs.get(k); }); } catch (e) {}   // ?ano=&mes= (usado pelo PDF automatico)
   function brl(v) { return ui.nf(v, { maximumFractionDigits: 0 }); }
   function mil(v) { var d = Math.abs(v) > 0 && Math.abs(v) < 10000 ? 1 : 0; return 'R$ ' + ui.nf(v / 1000, { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function num2(v) { return 'R$ ' + ui.nf(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
