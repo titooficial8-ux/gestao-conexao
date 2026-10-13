@@ -1974,9 +1974,11 @@ def _hub_movimentos_json():
     return quente
 
 
-def _peso_peca(desc, metros, kg_baixa):
+def _peso_peca(desc, metros, kg_baixa, gramatura=None, largura=None):
     """qt. pesos da peca como no Relatorio 32: metros x gramatura (g/m2) x largura (m) / 1000, lidas do nome do artigo (ex.: 240G 2,20L).
     A baixa de fio e so o fio consumido (parte do peso), entao ela entra apenas quando o nome do artigo nao traz gramatura e largura."""
+    if gramatura and largura and metros:                           # campos do produto da OP no TOTVS (GRAMATURA M2 e LARGURA PADRAO)
+        return round(metros * gramatura * largura / 1000, 2)
     g = re.search(r'(\d{2,3})\s*G\b', desc or '', re.I)
     l = re.search(r'(\d+[.,]\d+)\s*L\b', desc or '', re.I)
     if g and l and metros:
@@ -1992,7 +1994,7 @@ def _api_baixas(hub):
         desc = b.artigo_desc or ''
         saida.append({
             'id': 2_000_000_000 + b.id, 'cod_maquina': str(b.maquina) if b.maquina is not None else None, 'op': b.op, 'nr_item': str(b.codigo),
-            'cod_artigo': desc, 'qt_movimento': b.metros, 'qt_pesos': _peso_peca(desc, b.metros, b.kg),
+            'cod_artigo': desc, 'qt_movimento': b.metros, 'qt_pesos': _peso_peca(desc, b.metros, b.kg, b.gramatura, b.largura),
             'dt_real': _iso_utc(b.mudou + timedelta(hours=3)),                       # mudou esta no horario do Brasil
             'metro_padrao': b.metro_padrao or b.metros or 0, 'local_code': '23',
             'cliente': hub['cliente_de'](desc) if desc else b.cliente_nome,

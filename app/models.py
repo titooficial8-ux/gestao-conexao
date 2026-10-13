@@ -550,6 +550,8 @@ class BaixaFio(db.Model):
     artigo_desc = db.Column(db.String(200), nullable=True)
     maquina = db.Column(db.Integer, nullable=True)
     cliente_nome = db.Column(db.String(120), nullable=True)
+    gramatura = db.Column(db.Float, nullable=True)               # GRAMATURA M2 do artigo (campo adicional do produto no TOTVS)
+    largura = db.Column(db.Float, nullable=True)                 # LARGURA PADRAO
 
 
 class PesagemResumo(db.Model):
@@ -562,6 +564,9 @@ class PesagemResumo(db.Model):
     encontrada = db.Column(db.Boolean, default=True)
     maquina = db.Column(db.Integer, nullable=True)
     artigo_desc = db.Column(db.String(200), nullable=True)   # descricao completa do artigo no TOTVS (gramatura e largura saem daqui)
+    gramatura = db.Column(db.Float, nullable=True)           # GRAMATURA M2 (campo adicional do produto na OP do TOTVS)
+    largura = db.Column(db.Float, nullable=True)             # LARGURA PADRAO
+    metro_ideal = db.Column(db.Float, nullable=True)         # METRO IDEAL LOTE = metro padrao do PCP Hub
     metro_padrao = db.Column(db.Float, nullable=True)
     pecas = db.Column(db.Integer, default=0)
     metros = db.Column(db.Float, nullable=True)
