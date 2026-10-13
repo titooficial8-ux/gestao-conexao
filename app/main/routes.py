@@ -2020,7 +2020,7 @@ def _api_movimentos(hub):
         saida.append({
             'id': 1_000_000_000 + p.id, 'cod_maquina': str(r.maquina) if r.maquina is not None else None, 'op': p.op, 'nr_item': str(p.item),
             'cod_artigo': desc, 'qt_movimento': p.metros, 'qt_pesos': kg,
-            'dt_real': _iso_utc(dt_utc), 'metro_padrao': r.metro_padrao or p.metros,
+            'dt_real': _iso_utc(dt_utc), 'metro_padrao': p.metros,
             'local_code': '23', 'cliente': hub['cliente_de'](desc) or clientes_op.get(p.op),
         })
     return json.dumps(saida, ensure_ascii=False, separators=(',', ':'))[1:-1]
