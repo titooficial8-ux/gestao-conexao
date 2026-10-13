@@ -42,7 +42,8 @@ def gerar():
         return Response('Ainda não há dados de faturamento carregados do TOTVS. Abra o Dashboard Comercial e aguarde a primeira atualização.',
                         status=404, mimetype='text/plain; charset=utf-8')
     paginas = dados.montar_paginas(d)
-    corpo = (pptx_gen if formato == 'pptx' else pdf_gen).gerar(paginas)
+    from datetime import datetime
+    corpo = (pptx_gen if formato == 'pptx' else pdf_gen).gerar(paginas, datetime.now().strftime('%d/%m/%Y %H:%M'))
     nome = re.sub(r'[^A-Za-z0-9_]+', '_', f'Relatorio_de_Faturamento_{_norm(dados.MESES[d["mes"] - 1])}_{d["ano"]}')
     r = Response(corpo, mimetype=MIME[formato])
     r.headers['Content-Disposition'] = f'attachment; filename="{nome}.{formato}"'

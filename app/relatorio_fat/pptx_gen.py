@@ -15,6 +15,7 @@ from pptx.util import Emu, Inches, Pt
 ASSETS = Path(__file__).parent / 'assets'
 AZUL_ESCURO, AZUL_MEDIO, AZUL_CLARO, CINZA_LINHA, CINZA_TEXTO = '1F4E79', '2E75B6', '008EC9', 'F4F6F8', '454C52'
 TONS_TXT = {'pos': '1B7F3B', 'neg': 'C62828', 'zero': '6B7280'}
+CTX = {'gerado': '', 'pag': 0, 'total': 0}
 TONS_CARD = {'azul': '1F4E79', 'laranja': 'B7791F', 'vermelho': 'C62828', 'verde': '1B7F3B'}
 
 
@@ -53,14 +54,21 @@ def _retangulo(slide, x, y, w, h, cor, forma=MSO_SHAPE.RECTANGLE, borda=None):
     return s
 
 
+def _rodape(s):
+    """Faixa azul com o site e, a direita, o titulo do relatorio, a data/hora em que foi gerado e a pagina."""
+    _retangulo(s, 0, 7.29, 13.333, 0.21, AZUL_CLARO)
+    _texto(s, 0.4, 7.32, 4.0, 0.15, 'www.gestaoconexao.com.br', 9, 'FFFFFF')
+    _texto(s, 5.4, 7.32, 7.55, 0.15, f'Relatório de Faturamento  ·  Gerado em {CTX["gerado"]}  ·  {CTX["pag"]}/{CTX["total"]}', 9, 'FFFFFF', alinhar=PP_ALIGN.RIGHT)
+
+
 def _base_conteudo(prs, secao, titulo, nota):
     s = prs.slides.add_slide(prs.slide_layouts[6])
+    CTX['pag'] += 1
     s.shapes.add_picture(str(ASSETS / 'conteudo_fundo.jpg'), 0, 0, prs.slide_width, prs.slide_height)
     s.shapes.add_picture(str(ASSETS / 'logo_colorida.png'), Inches(10.55), Inches(0.18), Inches(1.88), Inches(0.68))      # logo da Conexao em toda pagina
     _texto(s, 0.5, 0.22, 9.5, 0.25, secao, 13, AZUL_CLARO, negrito=True)
     _texto(s, 0.5, 0.5, 9.9, 0.45, titulo, 23 if len(titulo) <= 52 else (20 if len(titulo) <= 60 else 18), AZUL_ESCURO, negrito=True)
-    _retangulo(s, 0, 7.29, 13.333, 0.21, AZUL_CLARO)
-    _texto(s, 0.4, 7.32, 6.0, 0.15, 'www.conexaomalhas.com.br', 9, 'FFFFFF')
+    _rodape(s)
     if nota:
         _texto(s, 0.35, 6.98, 12.6, 0.2, nota, 9, '6B7280', italico=True)
     return s
@@ -75,7 +83,8 @@ def _capa(prs, p):
     ln.line.color.rgb = _rgb(AZUL_CLARO)
     ln.line.width = Pt(1.5)
     _texto(s, 0.4, 2.5, 11.5, 0.5, p['sub'].upper(), 24, 'FFFFFF', negrito=True, espaco=150)
-    _retangulo(s, 0, 7.29, 13.333, 0.21, AZUL_CLARO)
+    CTX['pag'] += 1
+    _rodape(s)
 
 
 def _celula(cel, valor, tam, cor, fundo, negrito=False, alinhar=PP_ALIGN.RIGHT):
@@ -95,13 +104,14 @@ def _celula(cel, valor, tam, cor, fundo, negrito=False, alinhar=PP_ALIGN.RIGHT):
     r.font.color.rgb = _rgb(TONS_TXT[tom] if tom and fundo not in (AZUL_ESCURO, AZUL_MEDIO) else cor)
 
 
-def _tabela(prs, p):
-    s = _base_conteudo(prs, p['secao'], p['titulo'], p.get('nota'))
+def _tabela(prs, p, s=None):
+    if s is None:
+        s = _base_conteudo(prs, p['secao'], p['titulo'], p.get('nota'))
     linhas, total, grupos, cab, larg = p['linhas'], p.get('total'), p['grupos'], p['cab'], p['larguras']
     n_lin = 2 + len(linhas) + (1 if total else 0)
     disponivel = 5.65
     alt = min(0.5, disponivel / n_lin)
-    tam = 12 if alt >= 0.38 else (11 if alt >= 0.33 else 10)
+    tam = p.get('tam') or (12 if alt >= 0.38 else (11 if alt >= 0.33 else 10))
     gf = s.shapes.add_table(n_lin, len(cab), Inches(0.35), Inches(1.15), Inches(sum(larg)), Inches(alt * n_lin))
     t = gf.table
     for i, w in enumerate(larg):
@@ -127,43 +137,44 @@ def _tabela(prs, p):
             _celula(t.cell(n_lin - 1, j), txt, tam, 'FFFFFF', AZUL_ESCURO, True, PP_ALIGN.LEFT if j == 0 else PP_ALIGN.RIGHT)
 
 
-def _kpis(prs, p):
-    s = _base_conteudo(prs, p['secao'], p['titulo'], None)
-    w, h, gap, x0, y0 = 3.95, 2.05, 0.3, 0.5, 1.3
-    for i, (rot, val, nota, tom) in enumerate(p['cards']):
-        x, y = x0 + (i % 3) * (w + gap), y0 + (i // 3) * (h + gap)
-        _retangulo(s, x, y, w, h, 'FFFFFF', MSO_SHAPE.ROUNDED_RECTANGLE, borda='D6DEE8').adjustments[0] = 0.06
-        _texto(s, x + 0.25, y + 0.2, w - 0.5, 0.5, rot, 11, '6B7280', negrito=True)
-        _texto(s, x + 0.25, y + 0.78, w - 0.5, 0.6, val, 30, TONS_CARD[tom], negrito=True)
-        if nota:
-            _texto(s, x + 0.25, y + 1.5, w - 0.5, 0.35, nota, 11, '6B7280')
-    for i, (rot, val) in enumerate(p.get('extra') or []):
-        x = x0 + i * 3.1
-        _retangulo(s, x, 5.85, 2.9, 0.95, 'EAF2FB', MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.12
-        _texto(s, x + 0.2, 5.95, 2.5, 0.25, rot, 10, '6B7280', negrito=True)
-        _texto(s, x + 0.2, 6.25, 2.5, 0.45, val, 20, AZUL_ESCURO, negrito=True)
-
-
-def _grafico(prs, p):
+def _resumo(prs, p):
     s = _base_conteudo(prs, p['secao'], p['titulo'], p.get('nota'))
+    n = len(p['cards'])
+    w, h, gap, x0, y0 = 2.0, 1.3, 0.12, 0.35, 1.15
+    for i, (rot, val, nota, tom) in enumerate(p['cards']):
+        x = x0 + i * (w + gap)
+        _retangulo(s, x, y0, w, h, 'FFFFFF', MSO_SHAPE.ROUNDED_RECTANGLE, borda='D6DEE8').adjustments[0] = 0.08
+        _texto(s, x + 0.12, y0 + 0.1, w - 0.24, 0.34, rot, 8, '6B7280', negrito=True)
+        _texto(s, x + 0.12, y0 + 0.5, w - 0.24, 0.35, val, 17, TONS_CARD[tom], negrito=True)
+        if nota:
+            _texto(s, x + 0.12, y0 + 0.92, w - 0.24, 0.3, nota, 8, '6B7280')
+    for i, (rot, val) in enumerate(p.get('extra') or []):
+        x = x0 + i * 3.17
+        _retangulo(s, x, 2.62, 3.05, 0.5, 'EAF2FB', MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.2
+        _texto(s, x + 0.15, 2.66, 1.6, 0.42, rot, 9, '6B7280', negrito=True, ancora=MSO_ANCHOR.MIDDLE)
+        _texto(s, x + 1.6, 2.66, 1.3, 0.42, val, 14, AZUL_ESCURO, negrito=True, alinhar=PP_ALIGN.RIGHT, ancora=MSO_ANCHOR.MIDDLE)
+    _grafico_area(s, p, 0.35, 3.25, 12.6, 3.65)
+
+
+def _grafico_area(s, p, x, y, w, h):
     cd = CategoryChartData()
     cd.categories = p['cats']
     for nome, vals, _ in p['series']:
         cd.add_series(nome, vals)
-    gf = s.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(0.5), Inches(1.2), Inches(12.3), Inches(5.6), cd)
+    gf = s.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(x), Inches(y), Inches(w), Inches(h), cd)
     ch = gf.chart
     ch.has_legend = True
     ch.legend.position = XL_LEGEND_POSITION.BOTTOM
     ch.legend.include_in_layout = False
-    ch.legend.font.size, ch.legend.font.name = Pt(12), 'Calibri'
-    ch.font.name, ch.font.size = 'Calibri', Pt(11)
+    ch.legend.font.size, ch.legend.font.name = Pt(11), 'Calibri'
+    ch.font.name, ch.font.size = 'Calibri', Pt(10)
     va = ch.value_axis
     va.has_major_gridlines = True
     va.major_gridlines.format.line.color.rgb = _rgb('E3E8EF')
     va.format.line.fill.background()
     va.tick_labels.number_format, va.tick_labels.number_format_is_linked = '#,##0', False
-    va.tick_labels.font.size = Pt(11)
-    ch.category_axis.tick_labels.font.size = Pt(12)
+    va.tick_labels.font.size = Pt(10)
+    ch.category_axis.tick_labels.font.size = Pt(11)
     ch.plots[0].gap_width, ch.plots[0].overlap = 60, -5
     for ser, (_, _, cor) in zip(ch.plots[0].series, p['series']):
         ser.format.fill.solid()
@@ -171,15 +182,51 @@ def _grafico(prs, p):
     real = ch.plots[0].series[-1]                                 # rotulos so na serie do ano atual
     real.data_labels.show_value = True
     real.data_labels.number_format, real.data_labels.number_format_is_linked = '#,##0', False
-    real.data_labels.font.size, real.data_labels.font.bold = Pt(10), True
+    real.data_labels.font.size, real.data_labels.font.bold = Pt(9), True
     real.data_labels.position = XL_LABEL_POSITION.OUTSIDE_END
 
 
-def gerar(paginas: list[dict]) -> bytes:
+def _cor_pct(v):
+    return '1F9D55' if v >= 1 else ('D9922E' if v >= 0.8 else 'E04A4F')
+
+
+def _intl(prs, p):
+    """Tabela por pais (esquerda) e, junto, as barras de realizado x plano do mes e do acumulado (direita)."""
+    s = _base_conteudo(prs, p['secao'], p['titulo'], p.get('nota'))
+    tab = dict(p)
+    _tabela(prs, tab, s)
+    x0, w, h = 7.45, 5.5, 2.75
+    for k, (chip, itens) in enumerate(p['barras']):
+        y = 1.15 + k * (h + 0.15)
+        _retangulo(s, x0, y, w, h, 'FFFFFF', MSO_SHAPE.ROUNDED_RECTANGLE, borda='D6DEE8').adjustments[0] = 0.04
+        _texto(s, x0 + 0.2, y + 0.14, 3.4, 0.25, 'Receita mercado externo — por país', 11, AZUL_ESCURO, negrito=True)
+        _retangulo(s, x0 + w - 1.65, y + 0.1, 1.5, 0.28, 'DCEBFA' if k == 0 else AZUL_ESCURO, MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.5
+        _texto(s, x0 + w - 1.65, y + 0.1, 1.5, 0.28, chip, 9, AZUL_ESCURO if k == 0 else 'FFFFFF', negrito=True, alinhar=PP_ALIGN.CENTER, ancora=MSO_ANCHOR.MIDDLE)
+        n = max(len(itens), 1)
+        lh = min(0.3, (h - 0.6) / n)
+        for i, (pais, real, plano) in enumerate(itens):
+            yy = y + 0.55 + i * lh
+            _texto(s, x0 + 0.2, yy, 1.1, lh, pais, 9, AZUL_ESCURO, negrito=True, ancora=MSO_ANCHOR.MIDDLE)
+            tx, tw = x0 + 1.35, 2.2
+            _retangulo(s, tx, yy + lh / 2 - 0.05, tw, 0.1, 'E8ECF2', MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.5
+            frac = (real / plano) if plano else 0
+            if plano:
+                f = max(min(frac, 1.2) / 1.2, 0.012)
+                _retangulo(s, tx, yy + lh / 2 - 0.05, tw * f, 0.1, _cor_pct(frac), MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.5
+                _retangulo(s, tx + tw / 1.2, yy + lh / 2 - 0.1, 0.02, 0.2, '10263F')
+            else:
+                _retangulo(s, tx, yy + lh / 2 - 0.05, 0.03, 0.1, 'C3CAD6')
+            _texto(s, x0 + 3.65, yy, 1.1, lh, f'R$ {real / 1000:,.0f} mil'.replace(',', '.'), 9, AZUL_ESCURO, negrito=True, alinhar=PP_ALIGN.RIGHT, ancora=MSO_ANCHOR.MIDDLE)
+            _texto(s, x0 + 4.5, yy, 0.8, lh, (f'{frac * 100:.0f}%' if plano else '–'), 10, _cor_pct(frac) if plano else '6B7280', negrito=True, alinhar=PP_ALIGN.RIGHT, ancora=MSO_ANCHOR.MIDDLE)
+        _texto(s, x0 + 0.2, y + h - 0.22, w - 0.4, 0.15, '● ≥100% do plano   ● 80–99%   ● <80%   ┃ = plano', 7, '6B7280')
+
+
+def gerar(paginas: list[dict], gerado_em: str = '') -> bytes:
     prs = Presentation()
     prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    CTX.update(gerado=gerado_em, pag=0, total=len(paginas))
     for p in paginas:
-        {'capa': _capa, 'kpis': _kpis, 'tabela': _tabela, 'grafico': _grafico}[p['tipo']](prs, p)
+        {'capa': _capa, 'resumo': _resumo, 'tabela': _tabela, 'intl': _intl}[p['tipo']](prs, p)
     buf = io.BytesIO()
     prs.save(buf)
     return buf.getvalue()

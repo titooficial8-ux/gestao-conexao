@@ -67,7 +67,7 @@ def montar_paginas(d: dict) -> list[dict]:
     falta = plano_mes - tm['real']
     pct_dev = (c['devolucao_bruta'] / c['receita_bruta_sem_dev'] * 100) if c['receita_bruta_sem_dev'] else 0
     paginas.append(dict(
-        tipo='kpis', secao='FATURAMENTO', titulo=f'Resumo do mês — {nome_mes}/{ano} (R$ mil)',
+        tipo='resumo', secao='RELATÓRIO DE FATURAMENTO', titulo=f'Resumo do mês — {nome_mes}/{ano} (R$ mil)',
         cards=[
             ('RECEITA BRUTA', f'R$ {mil(c["receita_bruta_sem_dev"])}', None, 'azul'),
             ('RECEITA BRUTA (MENOS DEVOLUÇÃO)', f'R$ {mil(c["receita_bruta"])}', None, 'azul'),
@@ -78,17 +78,13 @@ def montar_paginas(d: dict) -> list[dict]:
              f'plano: R$ {mil(plano_mes)} · {atingido:.1f}% atingido'.replace('.', ','), 'verde' if falta <= 0 else 'vermelho'),
         ],
         extra=[('ACUMULADO REALIZADO', f'R$ {mil(ta["real"])}'), ('PLANO ACUMULADO', f'R$ {mil(ta["plano"])}'),
-               ('% DO PLANO', f'{(ta["real"] / ta["plano"] * 100 if ta["plano"] else 0):.0f}%'), (f'VS {ant}', pct(ta['v_ant'])[0])]))
+               ('% DO PLANO', f'{(ta["real"] / ta["plano"] * 100 if ta["plano"] else 0):.0f}%'), (f'VS {ant}', pct(ta['v_ant'])[0])],
+        cats=ABREV, series=[(str(ant), [round(x['ant'] / 1000) for x in d['serie_mensal']], '9AA6BC'), ('Plano', [round(x['plano'] / 1000) for x in d['serie_mensal']], '1F9D55'),
+                            (str(ano), [round(x['real'] / 1000) if x['real'] else None for x in d['serie_mensal']], '2E75B6')],
+        nota='Valores em milhares de R$ (R$ mil). Fonte: Relatório 150 do TOTVS (realizado) e planilha de planos. Barras do ano atual só até o último mês com notas emitidas.'))
 
     paginas.append(_tabela_8('FATURAMENTO', f'Receita líquida — Plano x Realizado por Segmento ({ref})', d['receita'], d['receita_total'], d, '(R$ mil)', mil,
                              'Receita líquida em R$ mil. Fonte: Relatório 150 do TOTVS (realizado) e planilha de planos (BPLANO).'))
-
-    serie = d['serie_mensal']
-    paginas.append(dict(
-        tipo='grafico', secao='FATURAMENTO', titulo=f'Receita líquida por mês — {ant} x {ano} (R$ mil)', cats=ABREV,
-        series=[(str(ant), [round(x['ant'] / 1000) for x in serie], '9AA6BC'), ('Plano', [round(x['plano'] / 1000) for x in serie], '1F9D55'),
-                (str(ano), [round(x['real'] / 1000) if x['real'] else None for x in serie], '2E75B6')],
-        nota='Em milhares de R$ (R$ mil). Barras do ano atual só até o último mês com notas emitidas.'))
 
     paginas.append(_tabela_8('VOLUME', f'Volume em metros — Plano x Realizado por Segmento ({ref})', d['metros'], d['metros_total'], d, '(metros)', n0,
                              'Volume em metros. Fonte: Relatório 150 do TOTVS e planilha de planos.'))
@@ -113,8 +109,13 @@ def montar_paginas(d: dict) -> list[dict]:
     it = d['internacional_total']
     lin = [[l['rotulo']] + [c for b in ('mes', 'acum') for c in (mil(l[b]['plano']), mil(l[b]['real']), pct(l[b]['var']))] for l in d['internacional'] if _tem(l, 'plano', 'real')]
     tot_i = ['TOTAL R$'] + [c for b in ('mes', 'acum') for c in (mil(it[b]['plano']), mil(it[b]['real']), pct(it[b]['var']))]
-    paginas.append(dict(tipo='tabela', secao='MERCADO INTERNACIONAL', titulo=f'Mercado internacional — Receita líquida por país ({ref})',
+
+    def barras(b):
+        itens = [(l['rotulo'], l[b]['real'] or 0, l[b]['plano'] or 0) for l in d['internacional'] if _tem(l, 'plano', 'real') and (l[b]['plano'] or l[b]['real'])]
+        return sorted(itens, key=lambda x: (-x[2], -x[1]))
+    paginas.append(dict(tipo='intl', secao='MERCADO INTERNACIONAL', titulo=f'Mercado internacional — Receita líquida por país ({ref})',
                         grupos=[(f'{nome_mes.upper()}/{ano}  (R$ mil)', 3), (f'ACUMULADO {ano}  (R$ mil)', 3)],
-                        cab=['País'] + ['Plano', 'Realizado', 'Var.'] * 2, linhas=lin, total=tot_i, larguras=[3.2] + [1.35, 1.45, 1.0] * 2,
-                        nota='Receita líquida em R$ mil por país de destino, contra o plano.'))
+                        cab=['País'] + ['Plano', 'Realizado', 'Var.'] * 2, linhas=lin, total=tot_i, larguras=[1.45] + [0.9, 1.05, 0.8] * 2, tam=11,
+                        barras=[(f'{nome_mes} / {ano}', barras('mes')), (f'Acumulado {ano}', barras('acum'))],
+                        nota='Receita líquida em R$ mil por país de destino, contra o plano. Barra = realizado ÷ plano; a marca vertical é 100% do plano.'))
     return paginas

@@ -14,6 +14,7 @@ W, H = 13.333 * 72, 7.5 * 72
 AZUL_ESCURO, AZUL_MEDIO, AZUL_CLARO, CINZA_LINHA, CINZA_TEXTO = '#1F4E79', '#2E75B6', '#008EC9', '#F4F6F8', '#454C52'
 TONS_TXT = {'pos': '#1B7F3B', 'neg': '#C62828', 'zero': '#6B7280'}
 TONS_CARD = {'azul': '#1F4E79', 'laranja': '#B7791F', 'vermelho': '#C62828', 'verde': '#1B7F3B'}
+CTX = {'gerado': '', 'pag': 0, 'total': 0}
 FONTE, FONTE_B, FONTE_I = 'Helvetica', 'Helvetica-Bold', 'Helvetica-Oblique'
 
 
@@ -51,9 +52,12 @@ def _quebrar(txt, fonte, tam, largura_pt):
 
 
 def _rodape(c, nota):
+    """Faixa azul com o site e, a direita, o titulo do relatorio, a data/hora em que foi gerado e a pagina."""
+    CTX['pag'] += 1
     c.setFillColor(HexColor(AZUL_CLARO))
     c.rect(0, 0, W, 0.21 * 72, stroke=0, fill=1)
-    _txt(c, 0.4, 7.32, 'www.conexaomalhas.com.br', 9, '#FFFFFF')
+    _txt(c, 0.4, 7.32, 'www.gestaoconexao.com.br', 9, '#FFFFFF')
+    _txt(c, 5.4, 7.32, f'Relatório de Faturamento  ·  Gerado em {CTX["gerado"]}  ·  {CTX["pag"]}/{CTX["total"]}', 9, '#FFFFFF', FONTE, 'r', 7.55)
     if nota:
         _txt(c, 0.35, 6.98, nota, 9, '#6B7280', FONTE_I)
 
@@ -87,8 +91,7 @@ def _capa(c, p):
     to.setCharSpace(1.5)
     to.textLine(p['sub'].upper())
     c.drawText(to)
-    c.setFillColor(HexColor(AZUL_CLARO))
-    c.rect(0, 0, W, 0.21 * 72, stroke=0, fill=1)
+    _rodape(c, None)
 
 
 def _cel(c, x, y, w, h, valor, tam, cor, fundo, negrito=False, alinhar='r'):
@@ -112,12 +115,13 @@ def _cel(c, x, y, w, h, valor, tam, cor, fundo, negrito=False, alinhar='r'):
         c.drawRightString((x + w) * 72 - 5, py, str(txt))
 
 
-def _tabela(c, p):
-    _base(c, p['secao'], p['titulo'], p.get('nota'))
+def _tabela(c, p, base=True):
+    if base:
+        _base(c, p['secao'], p['titulo'], p.get('nota'))
     linhas, total, grupos, cab, larg = p['linhas'], p.get('total'), p['grupos'], p['cab'], p['larguras']
     n_lin = 2 + len(linhas) + (1 if total else 0)
     alt = min(0.5, 5.65 / n_lin)
-    tam = 12 if alt >= 0.38 else (11 if alt >= 0.33 else 10)
+    tam = p.get('tam') or (12 if alt >= 0.38 else (11 if alt >= 0.33 else 10))
     x0, y0 = 0.35, 1.15
     xs = [x0]
     for w in larg:
@@ -146,28 +150,8 @@ def _card(c, x, y, w, h, fundo, borda=None, raio=10):
     c.roundRect(x * 72, _y(y + h), w * 72, h * 72, raio, stroke=1 if borda else 0, fill=1)
 
 
-def _kpis(c, p):
-    _base(c, p['secao'], p['titulo'], None)
-    w, h, gap, x0, y0 = 3.95, 2.05, 0.3, 0.5, 1.3
-    for i, (rot, val, nota, tom) in enumerate(p['cards']):
-        x, y = x0 + (i % 3) * (w + gap), y0 + (i // 3) * (h + gap)
-        _card(c, x, y, w, h, '#FFFFFF', '#D6DEE8')
-        for k, linha in enumerate(_quebrar(rot, FONTE_B, 11, (w - 0.5) * 72)[:2]):
-            _txt(c, x + 0.25, y + 0.2 + k * 0.2, linha, 11, '#6B7280', FONTE_B)
-        _txt(c, x + 0.25, y + 0.78, val, 30, TONS_CARD[tom], FONTE_B)
-        if nota:
-            _txt(c, x + 0.25, y + 1.5, nota, 11, '#6B7280')
-    for i, (rot, val) in enumerate(p.get('extra') or []):
-        x = x0 + i * 3.1
-        _card(c, x, 5.85, 2.9, 0.95, '#EAF2FB', None, 8)
-        _txt(c, x + 0.2, 5.95, rot, 10, '#6B7280', FONTE_B)
-        _txt(c, x + 0.2, 6.25, val, 20, AZUL_ESCURO, FONTE_B)
-
-
-def _grafico(c, p):
-    _base(c, p['secao'], p['titulo'], p.get('nota'))
+def _grafico_area(c, p, x0, y0, w, h):
     cats, series = p['cats'], p['series']
-    x0, y0, w, h = 1.1, 1.45, 11.7, 4.7                                  # area do grafico (pol)
     maximo = max([v or 0 for _, vals, _ in series for v in vals] + [1])
     passo = 1
     for mult in (1, 10, 100, 1000, 10000, 100000, 1000000):                # passo "redondo" do eixo (1.000, 2.000, 2.500...)
@@ -183,7 +167,7 @@ def _grafico(c, p):
         c.setStrokeColor(HexColor('#E3E8EF'))
         c.setLineWidth(0.5)
         c.line(x0 * 72, _y(yy), (x0 + w) * 72, _y(yy))
-        _txt(c, 0.35, yy - 0.08, f'{v:,.0f}'.replace(',', '.'), 10, '#6B7280', FONTE, 'r', 0.65)
+        _txt(c, x0 - 0.75, yy - 0.07, f'{v:,.0f}'.replace(',', '.'), 9, '#6B7280', FONTE, 'r', 0.65)
     gw = w / len(cats)
     bw = gw * 0.78 / len(series)
     for i, cat in enumerate(cats):
@@ -196,22 +180,78 @@ def _grafico(c, p):
             c.setFillColor(HexColor('#' + cor))
             c.rect(bx * 72, _y(y0 + h), bw * 72, bh * 72, stroke=0, fill=1)
             if k == len(series) - 1:
-                _txt(c, bx - 0.15, y0 + h - bh - 0.2, f'{v:,.0f}'.replace(',', '.'), 8, '#10263F', FONTE_B, 'c', bw + 0.3)
-        _txt(c, x0 + i * gw, y0 + h + 0.1, cat, 12, CINZA_TEXTO, FONTE, 'c', gw)
-    lx = 4.3
+                _txt(c, bx - 0.15, y0 + h - bh - 0.18, f'{v:,.0f}'.replace(',', '.'), 8, '#10263F', FONTE_B, 'c', bw + 0.3)
+        _txt(c, x0 + i * gw, y0 + h + 0.08, cat, 11, CINZA_TEXTO, FONTE, 'c', gw)
+    lx = x0 + w / 2 - 2.4
     for nome, _, cor in series:
         c.setFillColor(HexColor('#' + cor))
-        c.rect(lx * 72, _y(6.62) - 8, 8, 8, stroke=0, fill=1)
-        _txt(c, lx + 0.18, 6.52, nome, 12, CINZA_TEXTO)
+        c.rect(lx * 72, _y(y0 + h + 0.5) - 8, 8, 8, stroke=0, fill=1)
+        _txt(c, lx + 0.18, y0 + h + 0.38, nome, 11, CINZA_TEXTO)
         lx += 1.7
 
 
-def gerar(paginas: list[dict]) -> bytes:
+def _resumo(c, p):
+    _base(c, p['secao'], p['titulo'], p.get('nota'))
+    w, h, gap, x0, y0 = 2.0, 1.3, 0.12, 0.35, 1.15
+    for i, (rot, val, nota, tom) in enumerate(p['cards']):
+        x = x0 + i * (w + gap)
+        _card(c, x, y0, w, h, '#FFFFFF', '#D6DEE8', 8)
+        for k, linha in enumerate(_quebrar(rot, FONTE_B, 8, (w - 0.24) * 72)[:2]):
+            _txt(c, x + 0.12, y0 + 0.1 + k * 0.15, linha, 8, '#6B7280', FONTE_B)
+        _txt(c, x + 0.12, y0 + 0.5, val, 17, TONS_CARD[tom], FONTE_B)
+        if nota:
+            for k, linha in enumerate(_quebrar(nota, FONTE, 8, (w - 0.24) * 72)[:2]):
+                _txt(c, x + 0.12, y0 + 0.92 + k * 0.14, linha, 8, '#6B7280')
+    for i, (rot, val) in enumerate(p.get('extra') or []):
+        x = x0 + i * 3.17
+        _card(c, x, 2.62, 3.05, 0.5, '#EAF2FB', None, 8)
+        _txt(c, x + 0.15, 2.76, rot, 9, '#6B7280', FONTE_B)
+        _txt(c, x + 1.6, 2.74, val, 14, AZUL_ESCURO, FONTE_B, 'r', 1.3)
+    _grafico_area(c, p, 1.05, 3.3, 11.9, 2.75)
+
+
+def _cor_pct(v):
+    return '#1F9D55' if v >= 1 else ('#D9922E' if v >= 0.8 else '#E04A4F')
+
+
+def _intl(c, p):
+    """Tabela por pais (esquerda) e, junto, as barras de realizado x plano do mes e do acumulado (direita)."""
+    _base(c, p['secao'], p['titulo'], p.get('nota'))
+    _tabela(c, p, base=False)
+    x0, w, h = 7.45, 5.5, 2.75
+    for k, (chip, itens) in enumerate(p['barras']):
+        y = 1.15 + k * (h + 0.15)
+        _card(c, x0, y, w, h, '#FFFFFF', '#D6DEE8', 8)
+        _txt(c, x0 + 0.2, y + 0.14, 'Receita mercado externo — por país', 11, AZUL_ESCURO, FONTE_B)
+        _card(c, x0 + w - 1.65, y + 0.1, 1.5, 0.28, '#DCEBFA' if k == 0 else AZUL_ESCURO, None, 7)
+        _txt(c, x0 + w - 1.65, y + 0.17, chip, 9, AZUL_ESCURO if k == 0 else '#FFFFFF', FONTE_B, 'c', 1.5)
+        n = max(len(itens), 1)
+        lh = min(0.3, (h - 0.6) / n)
+        for i, (pais, real, plano) in enumerate(itens):
+            yy = y + 0.55 + i * lh
+            _txt(c, x0 + 0.2, yy + lh / 2 - 0.07, pais, 9, AZUL_ESCURO, FONTE_B)
+            tx, tw = x0 + 1.35, 2.2
+            _card(c, tx, yy + lh / 2 - 0.05, tw, 0.1, '#E8ECF2', None, 3)
+            frac = (real / plano) if plano else 0
+            if plano:
+                f = max(min(frac, 1.2) / 1.2, 0.012)
+                _card(c, tx, yy + lh / 2 - 0.05, tw * f, 0.1, _cor_pct(frac), None, 3)
+                c.setFillColor(HexColor('#10263F'))
+                c.rect((tx + tw / 1.2) * 72, _y(yy + lh / 2 + 0.1), 1.5, 0.2 * 72, stroke=0, fill=1)
+            else:
+                _card(c, tx, yy + lh / 2 - 0.05, 0.03, 0.1, '#C3CAD6', None, 1)
+            _txt(c, x0 + 3.65, yy + lh / 2 - 0.07, f'R$ {real / 1000:,.0f} mil'.replace(',', '.'), 9, AZUL_ESCURO, FONTE_B, 'r', 1.1)
+            _txt(c, x0 + 4.5, yy + lh / 2 - 0.07, (f'{frac * 100:.0f}%' if plano else '–'), 10, _cor_pct(frac) if plano else '#6B7280', FONTE_B, 'r', 0.8)
+        _txt(c, x0 + 0.2, y + h - 0.22, '>=100% do plano   80-99%   <80%   | = plano', 7, '#6B7280')
+
+
+def gerar(paginas: list[dict], gerado_em: str = '') -> bytes:
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(W, H))
     c.setTitle('Relatório de Faturamento')
+    CTX.update(gerado=gerado_em, pag=0, total=len(paginas))
     for p in paginas:
-        {'capa': _capa, 'kpis': _kpis, 'tabela': _tabela, 'grafico': _grafico}[p['tipo']](c, p)
+        {'capa': _capa, 'resumo': _resumo, 'tabela': _tabela, 'intl': _intl}[p['tipo']](c, p)
         c.showPage()
     c.save()
     return buf.getvalue()
