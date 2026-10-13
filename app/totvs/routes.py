@@ -227,6 +227,44 @@ def movimentos_resumo():
     return Response('\n'.join(linhas), mimetype='text/plain')
 
 
+@mov_bp.route('/baixas')
+@login_required
+def movimentos_baixas():
+    """Texto curto: quantas baixas de fio (operacao 2000, uma por peca pesada) o TOTVS tem no dia de producao (?dia=2026-10-09,
+    de 06:20 ate 06:19 do dia seguinte), para comparar com as 242 pecas da planilha."""
+    from datetime import date as _d, datetime as _dt, timedelta as _t
+    from flask import Response
+    from app.totvs import movimentos
+    dia = _d.fromisoformat(request.args.get('dia') or _d.today().isoformat())
+    ini, fim = _dt.combine(dia, _dt.min.time()) + _t(hours=6, minutes=20), _dt.combine(dia, _dt.min.time()) + _t(days=1, hours=6, minutes=20)
+    linhas, itens, pag = [f'dia de producao {dia}: {ini:%d/%m %H:%M} ate {fim:%d/%m %H:%M} (exclusive)'], [], 1
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        while True:
+            r = cli.post(movimentos.TRX_URL, dict(branchCodeList=[movimentos.EMPRESA], operationCodeList=[movimentos.BAIXA_FIO],
+                                                  startChangeDate=f'{dia.isoformat()}T00:00:00', endChangeDate=f'{(dia + _t(days=2)).isoformat()}T00:00:00',
+                                                  page=pag, pageSize=500))
+            if r.status_code != 200:
+                return Response('\n'.join(linhas + [f'erro HTTP {r.status_code}: {r.text[:300]}']), mimetype='text/plain')
+            j = r.json()
+            itens += j.get('items') or []
+            if not j.get('hasNext') or pag >= 60:
+                break
+            pag += 1
+    dentro, kg = [], 0.0
+    for t in itens:
+        h = movimentos._dt(t.get('lastchangeDate'))
+        if h and ini <= h < fim:
+            dentro.append(t)
+            kg += sum(movimentos._num(i.get('quantity')) for i in t.get('items') or [] if str(i.get('measuredUnit') or '').strip().upper() == 'KG')
+    clientes = {}
+    for t in dentro:
+        clientes[t.get('customerCode')] = clientes.get(t.get('customerCode'), 0) + 1
+    linhas += [f'baixas de fio buscadas (2 dias): {len(itens)}', f'baixas dentro do dia de producao: {len(dentro)}  (kg: {kg:.1f})',
+               'por cliente: ' + ', '.join(f'{c}={n}' for c, n in sorted(clientes.items(), key=lambda x: -x[1])[:15])]
+    return Response('\n'.join(linhas), mimetype='text/plain')
+
+
 @mov_bp.route('/diagnostico')
 @login_required
 def movimentos_diagnostico():
