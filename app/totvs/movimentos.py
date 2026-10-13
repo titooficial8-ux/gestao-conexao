@@ -538,6 +538,30 @@ def atualizar_situacoes(info: dict, pecas_por_op: dict) -> None:
     db.session.commit()
 
 
+LIGACAO_VERSAO = '5'                                          # sobe quando a regra de ligar peca a baixa muda: as ligacoes recentes sao refeitas
+
+
+def _refazer_ligacoes(app) -> None:
+    """Quando a regra de ligacao muda, limpa as ligacoes peca-baixa dos ultimos 30 dias (uma vez) para serem refeitas pela regra nova."""
+    import os
+    from app import db
+    from app.models import PesagemMalharia
+    caminho = os.path.join(app.instance_path, 'ligacao_versao.txt')
+    try:
+        atual = open(caminho).read().strip()
+    except OSError:
+        atual = ''
+    if atual == LIGACAO_VERSAO:
+        return
+    db.session.query(PesagemMalharia).filter(PesagemMalharia.data >= date.today() - timedelta(days=30)).update(
+        dict(trx_codigo=None, hora_real=None, hora_origem=None, peso_kg=None), synchronize_session=False)
+    db.session.commit()
+    os.makedirs(app.instance_path, exist_ok=True)
+    with open(caminho, 'w') as f:
+        f.write(LIGACAO_VERSAO)
+    print('[movimentos] ligacoes peca-baixa dos ultimos 30 dias refeitas pela regra nova', flush=True)
+
+
 def atualizar_todas(app) -> bool:
     """Busca no TOTVS as pesagens do local 23 de todas as OPs da Programacao e grava no banco."""
     from app import db
@@ -548,6 +572,7 @@ def atualizar_todas(app) -> bool:
     ESTADO.update(rodando=True, erro=None)
     try:
         with app.app_context():
+            _refazer_ligacoes(app)
             seqs = {}
             for s in Sequencia.query.all():
                 if s.op and str(s.op).isdigit():
