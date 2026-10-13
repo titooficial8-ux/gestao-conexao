@@ -72,6 +72,26 @@ def calcular(movs: list, op, metro_padrao):
     return lista, saiu
 
 
+def _campos_artigo(o: dict) -> dict:
+    """Campos adicionais do produto da OP no TOTVS: GRAMATURA M2, LARGURA PADRAO e METRO IDEAL LOTE (= metro padrao do PCP Hub)."""
+    def num(v):
+        try:
+            return float(str(v).replace(',', '.'))
+        except (TypeError, ValueError):
+            return None
+    saida = {}
+    for it in ((o or {}).get('items') or [])[:1]:
+        for f in it.get('productAdditionalField') or []:
+            nome = str(f.get('name') or '').upper()
+            if nome.startswith('GRAMATURA'):
+                saida['gramatura'] = num(f.get('value'))
+            elif nome.startswith('LARGURA'):
+                saida['largura'] = num(f.get('value'))
+            elif nome.startswith('METRO IDEAL'):
+                saida['metro_ideal'] = num(f.get('value'))
+    return saida
+
+
 def _fator(desc: str):
     """kg por metro da peca: gramatura (g/m2) x largura (m) / 1000, do nome do artigo (ex.: 240G 2,20L)."""
     g = re.search(r'(\d{2,3})\s*G\b', desc or '', re.I)
@@ -277,6 +297,7 @@ def ligar_baixas() -> None:
         if p and resumos.get(p.op):
             r = resumos[p.op]
             b.casada, b.op, b.metros, b.metro_padrao, b.artigo_desc, b.maquina = True, p.op, p.metros, r.metro_padrao or p.metros, r.artigo_desc, r.maquina
+            b.gramatura, b.largura = r.gramatura, r.largura
             b.cliente_nome = clientes.get(p.op)
             comp_padrao.setdefault(b.composicao, Counter())[round(b.metro_padrao or 0)] += 1
             comp_desc.setdefault(b.composicao, Counter())[(b.artigo_desc, b.cliente_nome)] += 1
@@ -638,7 +659,9 @@ def atualizar_todas(app) -> bool:
                                                  peso_kg=pesos.get((op, str(l['data']), l['sequencia'], round(l['metros'], 3))) or pesos_antigos.get((op, str(l['data']), l['sequencia'], round(l['metros'], 3)))))
                 resumos.append(PesagemResumo(op=op, ciclo=13, encontrada=bool(o), maquina=maquinas[op] if maquinas[op] is not None else (o or {}).get('machineCode'),
                                              artigo_desc=(((o or {}).get('items') or [{}])[0].get('productName') or '')[:200] or None,
-                                             metro_padrao=padroes[op], pecas=len(lista),
+                                             gramatura=_campos_artigo(o).get('gramatura'), largura=_campos_artigo(o).get('largura'),
+                                             metro_ideal=_campos_artigo(o).get('metro_ideal'),
+                                             metro_padrao=_campos_artigo(o).get('metro_ideal') or padroes[op], pecas=len(lista),
                                              metros=round(sum(l['metros'] or 0 for l in lista), 3) if padroes[op] else None,
                                              no_local=round(_no_local(o), 3) if o else 0.0, saiu=round(saiu, 3),
                                              quantidade_op=_num((o or {}).get('quantity')), atualizado_em=agora))
