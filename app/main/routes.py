@@ -1974,6 +1974,22 @@ def _hub_movimentos_json():
     return quente
 
 
+def _api_baixas(hub):
+    """Pecas do local 23 = baixas de fio do TOTVS (uma por peca pesada, com hora e kg exatos). Metros e artigo vem do movimento 23->24 ligado."""
+    from app.models import BaixaFio
+    saida = []
+    for b in BaixaFio.query.order_by(BaixaFio.mudou).all():
+        desc = b.artigo_desc or ''
+        saida.append({
+            'id': 2_000_000_000 + b.id, 'cod_maquina': str(b.maquina) if b.maquina is not None else None, 'op': b.op, 'nr_item': str(b.codigo),
+            'cod_artigo': desc, 'qt_movimento': b.metros, 'qt_pesos': round(b.kg or 0, 2),
+            'dt_real': _iso_utc(b.mudou + timedelta(hours=3)),                       # mudou esta no horario do Brasil
+            'metro_padrao': b.metro_padrao or b.metros or 0, 'local_code': '23',
+            'cliente': hub['cliente_de'](desc) if desc else b.cliente_nome,
+        })
+    return json.dumps(saida, ensure_ascii=False, separators=(',', ':'))[1:-1]
+
+
 def _api_movimentos(hub):
     """Pecas pesadas no local 23 (MALHARIA PESAGEM) direto da API do TOTVS, atualizadas a cada 10 s.
     A hora e a que o Gestao viu a pesagem (a API so tem a data); o peso e metros x gramatura x largura (confere com o Relatorio 32)."""
@@ -2042,7 +2058,8 @@ def api_malharia_movimentos():
     Fonte unica da Gestao da Malharia, do Controle de Producao e do Dashboard Tempo Real. Como a tela relê a cada 15 s, a resposta
     vai com ETag (304 quando nada mudou) e compactada (gzip): sao ~7 MB de JSON."""
     hub = dict(_hub_movimentos_json(), texto='', vistos=set())      # historico so da API do TOTVS (sem Relatorio 32 do PCP Hub)
-    api_txt = _api_movimentos(hub)
+    from app.models import BaixaFio
+    api_txt = _api_baixas(hub) if BaixaFio.query.first() else _api_movimentos(hub)
     etag = hashlib.md5(f"{hub['chave']}|{api_txt}".encode()).hexdigest()
     if request.headers.get('If-None-Match', '').strip('"W/') == etag:
         r = Response(status=304)

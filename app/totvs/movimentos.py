@@ -126,6 +126,87 @@ def _buscar_movs(cli, ini: date, fim: date, ops=None) -> list:
         pag += 1
 
 
+def sincronizar_baixas(cli) -> int:
+    """Guarda no banco todas as baixas de fio (uma por peca pesada) do TOTVS: a primeira vez desde DIAS_HISTORICO, depois so as novas."""
+    from sqlalchemy import func
+    from app import db
+    from app.models import BaixaFio
+    ultimo = db.session.query(func.max(BaixaFio.mudou)).scalar()
+    hoje = date.today()
+    desde = (ultimo.date() - timedelta(days=2)) if ultimo else hoje - timedelta(days=DIAS_HISTORICO)
+    existentes = {b.codigo: b for b in BaixaFio.query.filter(BaixaFio.mudou >= datetime.combine(desde, hora_do_dia(0, 0))).all()}
+    novas = 0
+    ini = desde
+    while ini <= hoje:
+        fim = min(ini + timedelta(days=14), hoje)
+        pag = 1
+        while True:
+            r = cli.post(TRX_URL, dict(branchCodeList=[EMPRESA], operationCodeList=[BAIXA_FIO], startChangeDate=f'{ini.isoformat()}T00:00:00',
+                                       endChangeDate=f'{(fim + timedelta(days=1)).isoformat()}T00:00:00', page=pag, pageSize=500))
+            if r.status_code != 200:
+                raise RuntimeError(f'Baixas de fio: HTTP {r.status_code} {r.text[:160]}')
+            j = r.json()
+            for t in j.get('items') or []:
+                cod, mudou = t.get('transactionCode'), _dt(t.get('lastchangeDate'))
+                if cod is None or not mudou:
+                    continue
+                its = t.get('items') or []
+                kg = round(sum(_num(i.get('quantity')) for i in its if str(i.get('measuredUnit') or '').strip().upper() == 'KG'), 3)
+                comp = ','.join(sorted({str(i.get('productCode')) for i in its}))[:200]
+                b = existentes.get(cod)
+                if b is None:
+                    b = existentes[cod] = BaixaFio(codigo=cod)
+                    db.session.add(b)
+                    novas += 1
+                b.data, b.mudou, b.cliente_cod, b.kg, b.composicao = _data(t.get('transactionDate')), mudou, t.get('customerCode'), kg, comp
+            if not j.get('hasNext') or pag >= 80:
+                break
+            pag += 1
+        ini = fim + timedelta(days=1)
+    db.session.commit()
+    return novas
+
+
+def ligar_baixas() -> None:
+    """Liga cada baixa ao movimento 23->24 que ja casou com ela (OP, maquina, metros) e estima o artigo das demais pela composicao de fios."""
+    from collections import Counter
+    from app import db
+    from app.models import BaixaFio, PesagemMalharia, PesagemResumo, Sequencia
+    resumos = {r.op: r for r in PesagemResumo.query.all()}
+    clientes = {}
+    for sq in Sequencia.query.all():
+        clientes.setdefault(str(sq.op), sq.cliente)
+    por_cod = {p.trx_codigo: p for p in PesagemMalharia.query.filter(PesagemMalharia.trx_codigo.isnot(None)).all()}
+    baixas = BaixaFio.query.all()
+    comp_padrao, comp_desc, cli_nome = {}, {}, {}
+    for b in baixas:
+        p = por_cod.get(b.codigo)
+        if p and resumos.get(p.op):
+            r = resumos[p.op]
+            b.casada, b.op, b.metros, b.metro_padrao, b.artigo_desc, b.maquina = True, p.op, p.metros, r.metro_padrao or p.metros, r.artigo_desc, r.maquina
+            b.cliente_nome = clientes.get(p.op)
+            comp_padrao.setdefault(b.composicao, Counter())[round(b.metro_padrao or 0)] += 1
+            comp_desc.setdefault(b.composicao, Counter())[(b.artigo_desc, b.cliente_nome)] += 1
+            if b.cliente_nome:
+                cli_nome.setdefault(b.cliente_cod, Counter())[b.cliente_nome] += 1
+        else:
+            b.casada = False
+    todos = sorted(v for c in comp_padrao.values() for v in c.elements() if v)
+    mediana = todos[len(todos) // 2] if todos else None
+    for b in baixas:
+        if b.casada:
+            continue
+        # sem movimento ligado: o artigo e o metro padrao saem das outras pecas com os mesmos fios
+        b.op, b.maquina = None, None
+        c = comp_padrao.get(b.composicao)
+        b.metro_padrao = b.metros = (c.most_common(1)[0][0] if c else mediana) or mediana
+        d = comp_desc.get(b.composicao)
+        b.artigo_desc, b.cliente_nome = d.most_common(1)[0][0] if d else (None, None)
+        if not b.cliente_nome and b.cliente_cod in cli_nome:
+            b.cliente_nome = cli_nome[b.cliente_cod].most_common(1)[0][0]
+    db.session.commit()
+
+
 def _hora_confiavel(data_trx: date, mudou: datetime) -> bool:
     """A baixa vale como hora da pesagem se foi feita dentro do dia de producao (06:20 do dia ate 06:19 do dia seguinte)."""
     ini = datetime.combine(data_trx, hora_do_dia(6, 20))
@@ -472,6 +553,14 @@ def atualizar_todas(app) -> bool:
                 db.session.rollback()
                 raise
             atualizar_situacoes(info, {r.op: r.pecas for r in resumos})
+            try:                                                   # pecas = baixas de fio (uma por peca pesada, com hora e kg exatos)
+                with _trava:
+                    novas_baixas = sincronizar_baixas(cli)
+                ligar_baixas()
+                ESTADO.update(baixas_novas=novas_baixas)
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+                db.session.rollback()
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), ops=len(ops), pecas=total_pecas)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()

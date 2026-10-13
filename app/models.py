@@ -532,6 +532,26 @@ class PesagemMalharia(db.Model):
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class BaixaFio(db.Model):
+    """Baixa de fio (transacao 2000 do TOTVS): uma por peca pesada no local 23, com a hora exata e o kg. E a fonte das pecas do Controle de Producao."""
+    __tablename__ = 'baixas_fio'
+
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.Integer, unique=True, index=True)      # transactionCode
+    data = db.Column(db.Date, nullable=True)                     # transactionDate
+    mudou = db.Column(db.DateTime, index=True)                   # lastchangeDate (horario do Brasil): hora da pesagem
+    cliente_cod = db.Column(db.Integer, nullable=True)
+    kg = db.Column(db.Float, default=0.0)
+    composicao = db.Column(db.String(200), nullable=True)        # codigos dos fios da baixa (identifica o artigo)
+    casada = db.Column(db.Boolean, default=False)                # ligada a um movimento 23->24 (OP e metros conhecidos)
+    op = db.Column(db.String(30), nullable=True)
+    metros = db.Column(db.Float, nullable=True)
+    metro_padrao = db.Column(db.Float, nullable=True)
+    artigo_desc = db.Column(db.String(200), nullable=True)
+    maquina = db.Column(db.Integer, nullable=True)
+    cliente_nome = db.Column(db.String(120), nullable=True)
+
+
 class PesagemResumo(db.Model):
     """Resumo por OP do local 23 (quanto ainda esta no local, quanto ja saiu) e quando foi atualizado."""
     __tablename__ = 'pesagens_malharia_resumo'
