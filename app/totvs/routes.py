@@ -212,7 +212,9 @@ def movimentos_resumo():
     from flask import Response
     from app.models import PesagemMalharia
     ini = _d.today() - _t(days=8)
-    linhas = ['versao: sem-duplicadas-v12', 'data | pecas | metros | hora da baixa | sem hora | tardia | hora em outro dia']
+    from app.models import BaixaFio
+    from app.totvs import movimentos as _mv
+    linhas = ['versao: baixas-v16', f'baixas de fio no banco: {BaixaFio.query.count()} | estado: ' + str({k: v for k, v in _mv.ESTADO.items() if k.startswith(('baixas', 'erro', 'ultima'))}), 'data | pecas | metros | hora da baixa | sem hora | tardia | hora em outro dia']
     dist = {}
     for q in PesagemMalharia.query.filter(PesagemMalharia.data >= ini).all():
         d = dist.setdefault(q.data, [0, 0.0, 0, 0, 0, 0])

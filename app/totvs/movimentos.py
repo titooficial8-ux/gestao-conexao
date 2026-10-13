@@ -126,44 +126,54 @@ def _buscar_movs(cli, ini: date, fim: date, ops=None) -> list:
         pag += 1
 
 
+def _baixar_janela(cli, ini: date, fim: date) -> int:
+    """Baixas de fio com lastchangeDate entre duas datas (inclusive): grava as novas e atualiza as que ja existem. Devolve quantas eram novas."""
+    from app import db
+    from app.models import BaixaFio
+    existentes = {b.codigo: b for b in BaixaFio.query.filter(BaixaFio.mudou >= datetime.combine(ini - timedelta(days=1), hora_do_dia(0, 0)),
+                                                              BaixaFio.mudou < datetime.combine(fim + timedelta(days=2), hora_do_dia(0, 0))).all()}
+    novas, pag = 0, 1
+    while True:
+        r = cli.post(TRX_URL, dict(branchCodeList=[EMPRESA], operationCodeList=[BAIXA_FIO], startChangeDate=f'{ini.isoformat()}T00:00:00',
+                                   endChangeDate=f'{(fim + timedelta(days=1)).isoformat()}T00:00:00', page=pag, pageSize=500))
+        if r.status_code != 200:
+            raise RuntimeError(f'Baixas de fio: HTTP {r.status_code} {r.text[:160]}')
+        j = r.json()
+        for t in j.get('items') or []:
+            cod, mudou = t.get('transactionCode'), _dt(t.get('lastchangeDate'))
+            if cod is None or not mudou:
+                continue
+            its = t.get('items') or []
+            kg = round(sum(_num(i.get('quantity')) for i in its if str(i.get('measuredUnit') or '').strip().upper() == 'KG'), 3)
+            comp = ','.join(sorted({str(i.get('productCode')) for i in its}))[:200]
+            b = existentes.get(cod)
+            if b is None:
+                b = existentes[cod] = BaixaFio(codigo=cod)
+                db.session.add(b)
+                novas += 1
+            b.data, b.mudou, b.cliente_cod, b.kg, b.composicao = _data(t.get('transactionDate')), mudou, t.get('customerCode'), kg, comp
+        if not j.get('hasNext') or pag >= 80:
+            break
+        pag += 1
+    db.session.commit()
+    return novas
+
+
 def sincronizar_baixas(cli) -> int:
-    """Guarda no banco todas as baixas de fio (uma por peca pesada) do TOTVS: a primeira vez desde DIAS_HISTORICO, depois so as novas."""
+    """Guarda no banco as baixas de fio (uma por peca pesada). A cada rodada: as ultimas (desde 2 dias antes da mais recente que ja temos)
+    e mais um bloco de 15 dias do historico, indo para tras ate DIAS_HISTORICO — assim as pecas recentes aparecem na primeira rodada."""
     from sqlalchemy import func
     from app import db
     from app.models import BaixaFio
-    ultimo = db.session.query(func.max(BaixaFio.mudou)).scalar()
     hoje = date.today()
-    desde = (ultimo.date() - timedelta(days=2)) if ultimo else hoje - timedelta(days=DIAS_HISTORICO)
-    existentes = {b.codigo: b for b in BaixaFio.query.filter(BaixaFio.mudou >= datetime.combine(desde, hora_do_dia(0, 0))).all()}
-    novas = 0
-    ini = desde
-    while ini <= hoje:
-        fim = min(ini + timedelta(days=14), hoje)
-        pag = 1
-        while True:
-            r = cli.post(TRX_URL, dict(branchCodeList=[EMPRESA], operationCodeList=[BAIXA_FIO], startChangeDate=f'{ini.isoformat()}T00:00:00',
-                                       endChangeDate=f'{(fim + timedelta(days=1)).isoformat()}T00:00:00', page=pag, pageSize=500))
-            if r.status_code != 200:
-                raise RuntimeError(f'Baixas de fio: HTTP {r.status_code} {r.text[:160]}')
-            j = r.json()
-            for t in j.get('items') or []:
-                cod, mudou = t.get('transactionCode'), _dt(t.get('lastchangeDate'))
-                if cod is None or not mudou:
-                    continue
-                its = t.get('items') or []
-                kg = round(sum(_num(i.get('quantity')) for i in its if str(i.get('measuredUnit') or '').strip().upper() == 'KG'), 3)
-                comp = ','.join(sorted({str(i.get('productCode')) for i in its}))[:200]
-                b = existentes.get(cod)
-                if b is None:
-                    b = existentes[cod] = BaixaFio(codigo=cod)
-                    db.session.add(b)
-                    novas += 1
-                b.data, b.mudou, b.cliente_cod, b.kg, b.composicao = _data(t.get('transactionDate')), mudou, t.get('customerCode'), kg, comp
-            if not j.get('hasNext') or pag >= 80:
-                break
-            pag += 1
-        ini = fim + timedelta(days=1)
-    db.session.commit()
+    ultimo = db.session.query(func.max(BaixaFio.mudou)).scalar()
+    novas = _baixar_janela(cli, (ultimo.date() - timedelta(days=2)) if ultimo else hoje - timedelta(days=14), hoje)
+    primeiro = db.session.query(func.min(BaixaFio.mudou)).scalar()
+    limite = hoje - timedelta(days=DIAS_HISTORICO)
+    if primeiro and primeiro.date() > limite:
+        fim = primeiro.date() - timedelta(days=1)
+        novas += _baixar_janela(cli, max(limite, fim - timedelta(days=14)), fim)
+    ESTADO.update(baixas_total=BaixaFio.query.count(), baixas_mais_antiga=str(primeiro.date()) if primeiro else None)
     return novas
 
 
@@ -557,10 +567,11 @@ def atualizar_todas(app) -> bool:
                 with _trava:
                     novas_baixas = sincronizar_baixas(cli)
                 ligar_baixas()
-                ESTADO.update(baixas_novas=novas_baixas)
-            except Exception:  # noqa: BLE001
+                ESTADO.update(baixas_novas=novas_baixas, erro_baixas=None)
+            except Exception as e_baixas:  # noqa: BLE001
                 traceback.print_exc()
                 db.session.rollback()
+                ESTADO.update(erro_baixas=str(e_baixas)[:300])
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), ops=len(ops), pecas=total_pecas)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
