@@ -5,10 +5,10 @@ import os
 import re
 import unicodedata
 
-from flask import Blueprint, Response, abort, jsonify, request
-from flask_login import current_user, login_required
+from flask import Blueprint, Response, abort, current_app, jsonify, redirect, request
+from flask_login import current_user, login_required, login_user
 
-from app.relatorio_fat import dados, pdf_gen, pptx_gen
+from app.relatorio_fat import captura, dados, pdf_gen, pptx_gen
 from app.relatorio_fat import envio_email as envio
 
 rel_fat_bp = Blueprint('relatorio_faturamento', __name__, url_prefix='/relatorio-faturamento')
@@ -29,6 +29,44 @@ def pode_gerar(user) -> bool:
     return any(n in alvo for n in nomes)
 
 
+def _base_url() -> str:
+    """Endereco do proprio Gestao (APP_URL no .env; senao o endereco da requisicao; senao localhost:5000)."""
+    if os.getenv('APP_URL'):
+        return os.getenv('APP_URL')
+    try:
+        return request.host_url
+    except RuntimeError:
+        return 'http://127.0.0.1:5000'
+
+
+def _usuario_id() -> int:
+    """Usuario com quem o Chromium entra para ler a tela: o logado (se autorizado) ou o primeiro da lista do relatorio."""
+    from app.models import User
+    if getattr(current_user, 'is_authenticated', False) and pode_gerar(current_user):
+        return current_user.id
+    for u in User.query.order_by(User.id).all():
+        if pode_gerar(u):
+            return u.id
+    raise RuntimeError('nenhum usuario autorizado')
+
+
+@rel_fat_bp.route('/entrar')
+def entrar():
+    """Uso interno: o Chromium do relatorio entra com um token de uso unico (valido por 2 min) e cai no Slide mensal."""
+    from app.models import User
+    uid = captura.consumir_token(request.args.get('t', ''))
+    u = db_get(User, uid) if uid else None
+    if not u:
+        abort(403)
+    login_user(u)
+    return redirect('/aba/dashboard-comercial?' + '&'.join(f'{k}={request.args[k]}' for k in ('ano', 'mes') if request.args.get(k)))
+
+
+def db_get(model, pk):
+    from app import db
+    return db.session.get(model, pk)
+
+
 def _montar(formato, ano, mes):
     """(bytes, nome do arquivo, mes, ano) ou None se ainda nao ha dados."""
     from datetime import datetime
@@ -36,8 +74,15 @@ def _montar(formato, ano, mes):
     d = dados_do_slide(ano, mes)
     if not d:
         return None
-    paginas = dados.montar_paginas(d)
-    corpo = (pptx_gen if formato == 'pptx' else pdf_gen).gerar(paginas, datetime.now().strftime('%d/%m/%Y %H:%M'))
+    corpo = None
+    if formato == 'pdf' and captura.disponivel():
+        try:
+            corpo = captura.gerar_pdf(_base_url(), _usuario_id(), d['ano'], d['mes'])     # copia exata da tela do Gestao
+        except Exception as e:  # noqa: BLE001
+            current_app.logger.warning('Relatorio: captura da tela falhou (%s); usando o PDF padrao.', e)
+    if corpo is None:
+        paginas = dados.montar_paginas(d)
+        corpo = (pptx_gen if formato == 'pptx' else pdf_gen).gerar(paginas, datetime.now().strftime('%d/%m/%Y %H:%M'))
     nome = re.sub(r'[^A-Za-z0-9_]+', '_', f'Relatorio_de_Faturamento_{_norm(dados.MESES[d["mes"] - 1])}_{d["ano"]}')
     return corpo, f'{nome}.{formato}', d['mes'], d['ano']
 
