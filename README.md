@@ -132,3 +132,7 @@ Ajustes no `.env`: `PEDIDOS_INTERVALO_MIN`, `PEDIDOS_DIAS`, `PEDIDOS_CICLO` (vej
 ### PDF do Relatório de Faturamento (cópia exata da tela)
 
 O PDF é gerado abrindo o Slide mensal do próprio Gestão num Chromium invisível (mesmo layout do botão Imprimir). Instale uma vez: `python -m pip install -r requirements.txt` e `python -m playwright install chromium`. Sem o Chromium, o sistema usa o PDF padrão gerado por código. O PowerPoint continua igual.
+
+### Entrada de pedidos (BI Comercial)
+
+A aba **Entrada de pedidos** (no lugar do antigo "Painel TOTVS") mostra, por dia do mês escolhido, o valor dos pedidos de 2024, 2025 e 2026 lado a lado, direto da API do TOTVS (só leitura). Vale a data do pedido e o valor líquido; entram só vendas (inclui exportação), sem amostras, remessas em substituição e cancelados. Na primeira abertura busca o histórico de 2024 em segundo plano (alguns minutos) e depois atualiza sozinho a cada 2 minutos.

@@ -10,7 +10,7 @@ from flask_login import current_user, login_required
 from app.comercial_me.routes import idioma_atual
 from app.models import Tab
 
-from . import base, movimentos, painel, pedidos, servico, slide
+from . import base, entrada, movimentos, painel, pedidos, servico, slide
 
 bi_bp = Blueprint('bi_comercial', __name__, url_prefix='/bi-comercial')
 SLUG = 'dashboard-comercial'
@@ -143,6 +143,16 @@ def dados_do_slide(ano=None, mes=None):
         meses = sorted(int(ym[5:]) for ym in idx if ym.startswith(f'{ano}-'))
     mes = mes or meses[-1]
     return slide.montar(_derivados(servico._chave_blocos(), (ano, ano - 1)), mes, ano)
+
+
+@bi_bp.route('/entrada-pedidos')
+@login_required
+def entrada_pedidos():
+    """Entrada de pedidos por dia (2024-2026), do TOTVS. ?mes=1..12"""
+    _autorizar()
+    if entrada.configurado() and not entrada.ESTADO['rodando'] and not entrada._ler():
+        threading.Thread(target=entrada.atualizar, daemon=True, name='totvs-entrada-1a').start()      # 1a vez: busca o historico em segundo plano
+    return _json(entrada.resumo(request.args.get('mes', type=int)))
 
 
 @bi_bp.route('/slide')

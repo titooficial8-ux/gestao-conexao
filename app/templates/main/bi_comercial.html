@@ -65,7 +65,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
 
   <div class="cme-grupos" id="biVisoes">
     <button type="button" class="cme-grupo active" data-visao="slide">{{ 'Slide mensual' if es else 'Slide mensal' }}</button>
-    <button type="button" class="cme-grupo" data-visao="painel">{{ 'Panel TOTVS (detalle)' if es else 'Painel TOTVS (detalhe)' }}</button>
+    <button type="button" class="cme-grupo" data-visao="pedidos">{{ 'Entrada de pedidos' if es else 'Entrada de pedidos' }}</button>
   </div>
 
   <div class="bi-conteudo" id="biConteudo">
@@ -97,6 +97,11 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     <div id="biSlideCorpo"></div>
   </div>
 
+  <div id="biPedidos" hidden>
+    <div class="cme-filtros" id="biPedFiltros"></div>
+    <div id="biPedCorpo"></div>
+  </div>
+
   <div id="biPainel" hidden>
   <div class="cme-grupos" id="biFontes">
     <button type="button" class="cme-grupo active" data-fonte="padrao">{{ 'Año actual (automático)' if es else 'Ano atual (automático)' }}</button>
@@ -118,7 +123,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
 (function () {
   var ES = {{ es|tojson }};
   var LOCALE = ES ? 'es-GT' : 'pt-BR';
-  var URL_DADOS = {{ url_for('bi_comercial.dados')|tojson }}, URL_STATUS = {{ url_for('bi_comercial.status')|tojson }}, URL_GERAR = {{ url_for('bi_comercial.gerar')|tojson }}, URL_CANCELAR = {{ url_for('bi_comercial.cancelar')|tojson }}, URL_SLIDE = {{ url_for('bi_comercial.slide_mensal')|tojson }};
+  var URL_DADOS = {{ url_for('bi_comercial.dados')|tojson }}, URL_STATUS = {{ url_for('bi_comercial.status')|tojson }}, URL_GERAR = {{ url_for('bi_comercial.gerar')|tojson }}, URL_CANCELAR = {{ url_for('bi_comercial.cancelar')|tojson }}, URL_SLIDE = {{ url_for('bi_comercial.slide_mensal')|tojson }}, URL_PED = {{ url_for('bi_comercial.entrada_pedidos')|tojson }};
   var URL_REL = {{ url_for('relatorio_faturamento.gerar')|tojson }}, URL_REL_ENVIAR = {{ url_for('relatorio_faturamento.enviar')|tojson }}, relSel = null;
   var URL_DL = {{ url_for('bi_comercial.download', tag='__T__', tipo='__K__')|tojson }};
   var TXT = { dias: ES ? 'días' : 'dias', ver_todas: ES ? 'Ver todas' : 'Ver todas', ver_menos: ES ? 'Ver menos' : 'Ver menos', nenhum: ES ? 'Sin datos' : 'Sem dados', sem_dados: ES ? 'Sin datos para este filtro.' : 'Sem dados para este filtro.' };
@@ -488,10 +493,73 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     $('biSlideCorpo').classList.add('cme-carregando');
     fetch(URL_SLIDE + (qs ? '?' + qs : ''), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { $('biSlideCorpo').classList.remove('cme-carregando'); desenharSlide(d); });
   }
+
+  // ---------------------------------------------------------------- entrada de pedidos por dia (2024, 2025 e 2026) - API do TOTVS
+  var pedSel = { mes: null, modo: 'dia' }, pedDados = null, pedTimer = null, PED_COR = { '2024': '#9aa6bc', '2025': '#1f9d55', '2026': '#2f7fe0' };
+  function rs(v) { return ui.nf(Math.round(v), { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+  function carregarPedidos() {
+    clearTimeout(pedTimer);
+    var qs = pedSel.mes ? '?mes=' + pedSel.mes : '';
+    $('biPedCorpo').classList.add('cme-carregando');
+    fetch(URL_PED + qs, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      $('biPedCorpo').classList.remove('cme-carregando'); pedDados = d; if (!pedSel.mes) pedSel.mes = d.mes; desenharPedidos(d);
+      if (!$('biPedidos').hidden && (d.vazio || (d.estado && d.estado.rodando))) pedTimer = setTimeout(carregarPedidos, 10000);     // historico sendo buscado
+    });
+  }
+  function desenharPedidos(d) {
+    var corpo = $('biPedCorpo'), f = $('biPedFiltros'); corpo.textContent = ''; f.textContent = '';
+    if (d.vazio) { corpo.appendChild(ui.el('div', 'table-card', ES ? 'Trayendo el histórico de pedidos del TOTVS (2024-2026)... la primera vez tarda unos minutos; esta pantalla se actualiza sola.' : 'Buscando o histórico de pedidos no TOTVS (2024-2026)... na primeira vez demora alguns minutos; esta tela se atualiza sozinha.' + (d.estado && d.estado.erro ? ' Erro: ' + d.estado.erro : ''))); return; }
+    var l = ui.el('label', 'cme-filtro'); l.appendChild(ui.el('span', null, ES ? 'Mes de referencia' : 'Mês referência')); var s = ui.el('select', 'ticket-input');
+    MESES.forEach(function (m, i) { var o = ui.el('option', null, m); o.value = i + 1; if (i + 1 === d.mes) o.selected = true; s.appendChild(o); });
+    s.addEventListener('change', function () { pedSel.mes = +s.value; carregarPedidos(); }); l.appendChild(s); f.appendChild(l);
+    [['dia', ES ? 'Por día' : 'Por dia'], ['acum', ES ? 'Acumulado' : 'Acumulado']].forEach(function (x) {
+      var b = ui.el('button', 'cme-grupo' + (pedSel.modo === x[0] ? ' active' : ''), x[1]); b.type = 'button'; b.addEventListener('click', function () { pedSel.modo = x[0]; desenharPedidos(pedDados); }); f.appendChild(b); });
+    f.appendChild(ui.el('span', 'cme-meta', (ES ? 'Datos del TOTVS · actualizado ' : 'Dados do TOTVS · atualizado ') + (d.atualizado ? d.atualizado.slice(8, 10) + '/' + d.atualizado.slice(5, 7) + '/' + d.atualizado.slice(0, 4) + ' ' + d.atualizado.slice(11, 16) : '—')));
+    var K = ui.el('div', 'cme-kpigrid');
+    d.anos.forEach(function (a, i) {
+      var t = d.total[a], ant = i ? d.total[d.anos[i - 1]] : null;
+      var nota = t.n + (ES ? ' pedidos · ' : ' pedidos · ') + rs(t.metros) + ' mts' + (t.me ? ' · ME R$ ' + mi(t.me) : '');
+      if (ant && ant.valor) nota += ' · ' + (t.valor >= ant.valor ? '+' : '') + ui.nf((t.valor / ant.valor - 1) * 100, { maximumFractionDigits: 1 }) + '% vs ' + d.anos[i - 1];
+      K.appendChild(ui.cartaoKpi({ rotulo: (ES ? 'Entrada de pedidos ' : 'Entrada de pedidos ') + MESES[d.mes - 1].slice(0, 3) + '/' + a, valor: t.valor, fmt: 'm', texto: 'R$ ' + mi(t.valor), nota: nota, tom: i === 2 ? 'azul' : (i === 1 ? 'verde' : 'azul') }));
+    });
+    corpo.appendChild(K);
+    // grafico por dia (ou acumulado) do mes escolhido
+    var c1 = ui.el('div', 'table-card sl-grafico'); var tp = ui.el('div', 'sl-g-topo'); var tt = ui.el('div');
+    tt.appendChild(ui.el('h3', null, (pedSel.modo === 'dia' ? (ES ? 'Pedidos por día' : 'Pedidos por dia') : (ES ? 'Pedidos acumulados en el mes' : 'Pedidos acumulados no mês')) + ' — ' + MESES[d.mes - 1]));
+    tt.appendChild(ui.el('p', 'cme-meta', ES ? 'Valor en R$ mil · fecha del pedido · solo ventas (sin muestras ni cancelados)' : 'Valor em R$ mil · data do pedido · só vendas (sem amostras e cancelados)')); tp.appendChild(tt); c1.appendChild(tp);
+    var cx = ui.el('div', 'sl-g-canvas'), cv = document.createElement('canvas'); cx.appendChild(cv); c1.appendChild(cx); corpo.appendChild(c1);
+    var labels = d.dias.map(function (x) { return x.dia; });
+    var series = d.anos.map(function (a) { var ac = 0; return d.dias.map(function (x) { var y = x.anos[a]; if (!y) return null; ac += y.valor; return Math.round(pedSel.modo === 'dia' ? y.valor : ac); }); });
+    if (GRAFS.ped) { try { GRAFS.ped.destroy(); } catch (e) {} }
+    var linha = pedSel.modo !== 'dia';
+    GRAFS.ped = new Chart(cv, { type: linha ? 'line' : 'bar', data: { labels: labels, datasets: d.anos.map(function (a, i) { return { label: a, data: series[i], backgroundColor: PED_COR[a], borderColor: PED_COR[a], borderRadius: 3, borderWidth: linha ? 2.5 : 0, pointRadius: 0, pointHoverRadius: 4, tension: .2, spanGaps: false }; }) },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 9, padding: 18 } }, tooltip: { backgroundColor: 'rgba(10,45,84,0.95)', padding: 12, callbacks: {
+          title: function (it) { return (ES ? 'Día ' : 'Dia ') + it[0].label + ' / ' + MESES[d.mes - 1]; }, label: function (c) { return ' ' + c.dataset.label + ': R$ ' + rs(c.parsed.y || 0); } } } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return milN(v); } } } } } });
+    // tabela dia x ano
+    var c2 = ui.el('div', 'table-card'); c2.appendChild(ui.el('h3', null, (ES ? 'Entrada de pedidos por día' : 'Entrada de pedidos por dia') + ' — ' + MESES[d.mes - 1]));
+    c2.appendChild(ui.el('p', 'cme-meta', ES ? 'Valor en R$ por día del pedido, un año al lado del otro' : 'Valor em R$ por dia do pedido, um ano ao lado do outro'));
+    var w = ui.el('div', 'table-scroll'), tb = ui.el('table', 'data-table sl-tab'); w.appendChild(tb);
+    var th = ui.el('thead'), tr = ui.el('tr'); [ES ? 'Día' : 'Dia'].concat(d.anos).forEach(function (h, i) { tr.appendChild(ui.el('th', i ? 'cme-num' : null, String(h))); }); th.appendChild(tr); tb.appendChild(th);
+    var bd = ui.el('tbody');
+    d.dias.forEach(function (x) { var r = ui.el('tr'); r.appendChild(ui.el('td', 'sl-rot', String(x.dia)));
+      d.anos.forEach(function (a) { var y = x.anos[a]; r.appendChild(ui.el('td', 'cme-num' + (y && y.valor ? ' sl-real' : ''), y ? (y.valor ? 'R$ ' + rs(y.valor) : '–') : '')); }); bd.appendChild(r); });
+    var rt = ui.el('tr', 'sl-total'); rt.appendChild(ui.el('td', 'sl-rot', 'TOTAL')); d.anos.forEach(function (a) { rt.appendChild(ui.el('td', 'cme-num sl-real', 'R$ ' + rs(d.total[a].valor))); }); bd.appendChild(rt);
+    tb.appendChild(bd); c2.appendChild(w); corpo.appendChild(c2);
+    // grafico por mes (ano inteiro)
+    var c3 = ui.el('div', 'table-card sl-grafico'); var t3 = ui.el('div', 'sl-g-topo'); var tt3 = ui.el('div'); tt3.appendChild(ui.el('h3', null, ES ? 'Entrada de pedidos por mes' : 'Entrada de pedidos por mês'));
+    tt3.appendChild(ui.el('p', 'cme-meta', ES ? 'R$ mil por mes · 2024, 2025 y 2026' : 'R$ mil por mês · 2024, 2025 e 2026')); t3.appendChild(tt3); c3.appendChild(t3);
+    var cx3 = ui.el('div', 'sl-g-canvas'), cv3 = document.createElement('canvas'); cx3.appendChild(cv3); c3.appendChild(cx3); corpo.appendChild(c3);
+    if (GRAFS.pedMes) { try { GRAFS.pedMes.destroy(); } catch (e) {} }
+    GRAFS.pedMes = new Chart(cv3, { type: 'bar', data: { labels: MESES.map(function (m) { return m.slice(0, 3); }), datasets: d.anos.map(function (a) { return { label: a, data: d.meses[a].map(function (x, i) { var fut = +a === new Date().getFullYear() && i + 1 > new Date().getMonth() + 1; return fut ? null : Math.round(x.valor); }), backgroundColor: PED_COR[a], borderRadius: 3 }; }) },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 9, padding: 18 } }, tooltip: { backgroundColor: 'rgba(10,45,84,0.95)', padding: 12, callbacks: { label: function (c) { return ' ' + c.dataset.label + ': R$ ' + rs(c.parsed.y || 0); } } } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return milN(v); } } } } } });
+  }
   function mudarVisao(v) {
     Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.classList.toggle('active', b.dataset.visao === v); });
-    $('biSlide').hidden = v !== 'slide'; $('biPainel').hidden = v !== 'painel';
-    ui.limpar(); if (v === 'slide') carregarSlide(); else carregar();
+    $('biSlide').hidden = v !== 'slide'; $('biPedidos').hidden = v !== 'pedidos'; $('biPainel').hidden = v !== 'painel';
+    ui.limpar(); if (v === 'slide') carregarSlide(); else if (v === 'pedidos') carregarPedidos(); else carregar();
   }
   Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.addEventListener('click', function () { mudarVisao(b.dataset.visao); }); });
   $('biHistorico').addEventListener('click', function () { if (confirm(ES ? 'Esto trae todas las notas desde enero del año pasado y puede tardar varios minutos. ¿Continuar?' : 'Isso busca todas as notas desde janeiro do ano passado e pode demorar vários minutos. Continuar?')) gerar(hoje(), hoje(), 'historico'); });
