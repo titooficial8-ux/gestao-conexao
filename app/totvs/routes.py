@@ -440,6 +440,48 @@ def movimentos_endpoints():
     return Response('\n'.join(linhas), mimetype='text/plain')
 
 
+@mov_bp.route('/tipos')
+@login_required
+def movimentos_tipos():
+    """Texto: testa os filtros de tipo da consulta de movimentos (tipo de OP e tipo de movimento) para o dia (?dia=2026-10-09)
+    e conta as pecas 23->24 de cada combinacao, para achar as que a consulta padrao deixa de fora."""
+    from datetime import date as _d, timedelta as _t
+    from flask import Response
+    from app.totvs import movimentos
+    dia = _d.fromisoformat(request.args.get('dia') or _d.today().isoformat())
+    base = dict(branchCodeList=[movimentos.EMPRESA], movementStartDate=dia.isoformat(), movementEndDate=(dia + _t(days=1)).isoformat(),
+                listNormalMovement=True, listFinalizationMovement=True, reversalType=3, originsLocalCodeList=[23], destinationLocalCodeList=[24], pageSize=500)
+    testes = [('padrao (ciclo 13)', dict(cycleCodeList=[13])), ('sem ciclo', {}),
+              ('tipoOP 1..6', dict(productionOrderTypeList=[1, 2, 3, 4, 5, 6])), ('tipoOP 2', dict(productionOrderTypeList=[2])),
+              ('tipoOP 3', dict(productionOrderTypeList=[3])), ('movementTypes 1..6', dict(movementTypes=[1, 2, 3, 4, 5, 6])),
+              ('finalizationTypes 1..6', dict(finalizationTypes=[1, 2, 3, 4, 5, 6]))]
+    linhas = [f'dia {dia}: pecas 23->24 por filtro (movimentos do dia {dia:%d/%m} e {dia + _t(days=1):%d/%m})']
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        for nome, extra in testes:
+            itens, pag, erro = [], 1, None
+            while True:
+                r = cli.post(movimentos.MOV_URL, dict(base, **extra, page=pag))
+                if r.status_code != 200:
+                    erro = f'HTTP {r.status_code} {r.text[:120]}'
+                    break
+                j = r.json()
+                itens += j.get('items') or []
+                if not j.get('hasNext') or pag >= 40:
+                    break
+                pag += 1
+            if erro:
+                linhas.append(f'{nome}: {erro}')
+                continue
+            p24 = [m for m in itens if m.get('originLocationCode') == 23 and m.get('destinationLocationCode') == 24]
+            g = {}
+            for m in p24:
+                k = f"tipoOP={m.get('productionOrderType')} ciclo={m.get('cycle')} {m.get('movementType')}/{m.get('movementHistory')}"
+                g[k] = g.get(k, 0) + 1
+            linhas.append(f'{nome}: total {len(p24)} | ' + '; '.join(f'{k}={v}' for k, v in sorted(g.items())))
+    return Response('\n'.join(linhas), mimetype='text/plain')
+
+
 @mov_bp.route('/diagnostico')
 @login_required
 def movimentos_diagnostico():
