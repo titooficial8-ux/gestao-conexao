@@ -200,7 +200,9 @@ def movimentos_estado():
     from app.totvs import movimentos
     prog = {str(x.op) for x in Sequencia.query.all()}
     ops_db = {p.op for p in PesagemMalharia.query.all()}
-    return _json(dict(estado=dict(movimentos.ESTADO), pecas_no_banco=PesagemMalharia.query.count(), ops_no_banco=len(ops_db),
+    from app.models import BaixaFio, PesagemResumo
+    amostra = BaixaFio.query.filter(BaixaFio.casada.is_(True)).count(), BaixaFio.query.filter(BaixaFio.gramatura.isnot(None)).count(), PesagemResumo.query.filter(PesagemResumo.gramatura.isnot(None)).count()
+    return _json(dict(versao='gramatura-v22', baixas_casadas=amostra[0], baixas_com_gramatura=amostra[1], ops_com_gramatura=amostra[2], estado=dict(movimentos.ESTADO), pecas_no_banco=PesagemMalharia.query.count(), ops_no_banco=len(ops_db),
                       ops_fora_da_programacao=len(ops_db - prog)))
 
 
