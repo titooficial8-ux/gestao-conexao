@@ -2015,6 +2015,8 @@ def _api_movimentos(hub):
     for p in pecas:
         r = resumos[p.op]
         dt_utc = horas[p.id]
+        ini_dia = datetime.combine(p.data, datetime.min.time()) + timedelta(hours=9, minutes=20)     # dia de producao da data do movimento: 06:20 BRT ...
+        dt_utc = min(max(dt_utc, ini_dia), ini_dia + timedelta(hours=23, minutes=59))                # ... ate 06:19 BRT do dia seguinte
         desc = r.artigo_desc or ''
         kg = round(p.peso_kg, 2) if p.peso_kg else 0             # kg da baixa de fio ligada a peca (API do TOTVS)
         saida.append({
