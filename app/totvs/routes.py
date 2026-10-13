@@ -323,6 +323,37 @@ def movimentos_produto():
     return _json(out)
 
 
+@mov_bp.route('/dia')
+@login_required
+def movimentos_dia():
+    """Texto curto: totais de um dia de producao (?dia=2026-10-08) por turno, com a mesma conta do Controle de Producao
+    (pecas = baixas de fio, metros = metro padrao da OP, kg = peso da peca), para comparar com a planilha do TOTVS."""
+    import json as _j
+    from datetime import date as _d, datetime as _dt, timedelta as _t
+    from flask import Response
+    from app.main.routes import _api_baixas, _hub_movimentos_json
+    dia = _d.fromisoformat(request.args.get('dia') or _d.today().isoformat())
+    ini = _dt.combine(dia, _dt.min.time()) + _t(hours=6, minutes=20)
+    linhas = _j.loads('[' + _api_baixas(dict(_hub_movimentos_json())) + ']')
+    turnos = {'1o turno (06:20-14:19)': [0, 0.0, 0.0, 0], '2o turno (14:20-22:19)': [0, 0.0, 0.0, 0], '3o turno (22:20-06:19)': [0, 0.0, 0.0, 0]}
+    tot = [0, 0.0, 0.0, 0]
+    for r in linhas:
+        h = _dt.fromisoformat(r['dt_real'].replace('Z', '')) - _t(hours=3)
+        if not (ini <= h < ini + _t(days=1)) or (r.get('cod_artigo') and 'amostra' in r['cod_artigo'].lower()):
+            continue
+        k = int((h - ini).total_seconds() // 28800)
+        nome = list(turnos)[min(k, 2)]
+        for alvo in (turnos[nome], tot):
+            alvo[0] += 1
+            alvo[1] += r.get('metro_padrao') or 0
+            alvo[2] += r.get('qt_pesos') or 0
+            alvo[3] += 0 if r.get('op') else 1
+    out = [f'dia de producao {dia} ({ini:%d/%m %H:%M} ate {(ini + _t(days=1)):%d/%m %H:%M})', 'turno | pecas | metros (padrao) | kg | pecas sem OP']
+    out += [f'{n} | {v[0]} | {v[1]:.0f} | {v[2]:.1f} | {v[3]}' for n, v in turnos.items()]
+    out.append(f'TOTAL | {tot[0]} | {tot[1]:.0f} | {tot[2]:.1f} | {tot[3]}')
+    return Response('\n'.join(out), mimetype='text/plain')
+
+
 @mov_bp.route('/diagnostico')
 @login_required
 def movimentos_diagnostico():
