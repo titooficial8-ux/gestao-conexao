@@ -260,7 +260,8 @@
   }
 
   var GRAF_RECEITA = null;
-  function mi(v) { return ui.nf(v / 1e6, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' mi'; }
+  // valor cheio em reais: sem decimais (abaixo de mil nao tem virgula) e com ponto como separador de milhar (R$ 1.150.000)
+  function mi(v) { return ui.nf(Math.round(v), { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
   function graficoReceita(d) {
     var card = ui.el('div', 'table-card sl-grafico');
     var topo = ui.el('div', 'sl-g-topo');
