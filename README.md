@@ -125,6 +125,6 @@ Ajustes no `.env`: `PEDIDOS_INTERVALO_MIN`, `PEDIDOS_DIAS`, `PEDIDOS_CICLO` (vej
 
 ## Relatório de Faturamento (PowerPoint, PDF e e-mail)
 
-- Botões no Dashboard Comercial (visão Slide mensal), só para Christian e Edmar (`RELATORIO_FAT_USUARIOS`): baixar em PowerPoint ou PDF e enviar por e-mail.
+- Botões no Dashboard Comercial (visão Slide mensal), só para Christian, Edmar e Luciano (`RELATORIO_FAT_USUARIOS`): baixar em PowerPoint ou PDF e enviar por e-mail.
 - Envio automático: todo dia às 08:30 o Gestão manda o PDF para `edmar.santos@conexaomalhas.com.br` e `christian.yarzon@conexaomalhas.com.br`
   (precisa do `SMTP_HOST`, `SMTP_USER` e `SMTP_PASSWORD` no `.env`; horário, dias, formato e destinatários em `.env.example`).
