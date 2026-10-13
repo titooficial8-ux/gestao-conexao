@@ -186,14 +186,32 @@ def _grafico_area(s, p, x, y, w, h):
     real.data_labels.position = XL_LABEL_POSITION.OUTSIDE_END
 
 
+def _cartoes(s, cards, y0, h=1.2):
+    n = len(cards)
+    gap = 0.15
+    w = (12.6 - gap * (n - 1)) / n
+    for i, (rot, val, nota, tom) in enumerate(cards):
+        x = 0.35 + i * (w + gap)
+        _retangulo(s, x, y0, w, h, 'FFFFFF', MSO_SHAPE.ROUNDED_RECTANGLE, borda='D6DEE8').adjustments[0] = 0.08
+        _texto(s, x + 0.14, y0 + 0.1, w - 0.28, 0.32, rot, 9, '6B7280', negrito=True)
+        _texto(s, x + 0.14, y0 + 0.47, w - 0.28, 0.4, val, 20, TONS_CARD[tom], negrito=True)
+        if nota:
+            _texto(s, x + 0.14, y0 + 0.9, w - 0.28, 0.25, nota, 9, '6B7280')
+
+
 def _grafico_pag(prs, p):
     s = _base_conteudo(prs, p['secao'], p['titulo'], p.get('nota'))
+    topo = 1.15
+    if p.get('cards'):
+        _cartoes(s, p['cards'], topo)
+        topo += 1.35
     for i, (rot, val) in enumerate(p.get('extra') or []):
         x = 0.35 + i * 3.17
-        _retangulo(s, x, 1.15, 3.05, 0.5, 'EAF2FB', MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.2
-        _texto(s, x + 0.12, 1.19, 1.3, 0.42, rot, 8, '6B7280', negrito=True, ancora=MSO_ANCHOR.MIDDLE)
-        _texto(s, x + 1.3, 1.19, 1.65, 0.42, val, 13, AZUL_ESCURO, negrito=True, alinhar=PP_ALIGN.RIGHT, ancora=MSO_ANCHOR.MIDDLE)
-    _grafico_area(s, p, 0.35, 1.85, 12.6, 5.05)
+        _retangulo(s, x, topo, 3.05, 0.45, 'EAF2FB', MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.2
+        _texto(s, x + 0.12, topo + 0.03, 1.3, 0.39, rot, 8, '6B7280', negrito=True, ancora=MSO_ANCHOR.MIDDLE)
+        _texto(s, x + 1.3, topo + 0.03, 1.65, 0.39, val, 13, AZUL_ESCURO, negrito=True, alinhar=PP_ALIGN.RIGHT, ancora=MSO_ANCHOR.MIDDLE)
+    topo += 0.6
+    _grafico_area(s, p, 0.35, topo, 12.6, 6.9 - topo)
 
 
 def _cor_pct(v):

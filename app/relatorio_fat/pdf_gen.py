@@ -212,12 +212,26 @@ def _resumo(c, p):
 
 def _grafico_pag(c, p):
     _base(c, p['secao'], p['titulo'], p.get('nota'))
+    topo = 1.15
+    cards = p.get('cards')
+    if cards:
+        n, gap = len(cards), 0.15
+        w = (12.6 - gap * (n - 1)) / n
+        for i, (rot, val, nota, tom) in enumerate(cards):
+            x = 0.35 + i * (w + gap)
+            _card(c, x, topo, w, 1.2, '#FFFFFF', '#D6DEE8', 8)
+            _txt(c, x + 0.14, topo + 0.1, rot, 9, '#6B7280', FONTE_B)
+            _txt(c, x + 0.14, topo + 0.47, val, 20, TONS_CARD[tom], FONTE_B)
+            if nota:
+                _txt(c, x + 0.14, topo + 0.9, nota, 9, '#6B7280')
+        topo += 1.35
     for i, (rot, val) in enumerate(p.get('extra') or []):
         x = 0.35 + i * 3.17
-        _card(c, x, 1.15, 3.05, 0.5, '#EAF2FB', None, 8)
-        _txt(c, x + 0.12, 1.29, rot, 8, '#6B7280', FONTE_B)
-        _txt(c, x + 1.3, 1.28, val, 13, AZUL_ESCURO, FONTE_B, 'r', 1.65)
-    _grafico_area(c, p, 1.05, 2.0, 11.9, 4.1)
+        _card(c, x, topo, 3.05, 0.45, '#EAF2FB', None, 8)
+        _txt(c, x + 0.12, topo + 0.14, rot, 8, '#6B7280', FONTE_B)
+        _txt(c, x + 1.3, topo + 0.1, val, 13, AZUL_ESCURO, FONTE_B, 'r', 1.65)
+    topo += 0.6
+    _grafico_area(c, p, 1.05, topo + 0.1, 11.9, 6.2 - topo - 0.55)
 
 
 def _cor_pct(v):
