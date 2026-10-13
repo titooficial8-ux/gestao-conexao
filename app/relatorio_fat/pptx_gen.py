@@ -79,6 +79,7 @@ def _capa(prs, p):
     s.shapes.add_picture(str(ASSETS / 'capa_fundo.jpg'), 0, 0, prs.slide_width, prs.slide_height)
     # a logo branca da Conexao ja faz parte da imagem de fundo da capa (no mesmo lugar do modelo)
     _texto(s, 0.4, 1.32, 11.5, 0.9, p['titulo'].upper(), 44, 'FFFFFF', negrito=True, espaco=300)
+    _texto(s, 0.4, 3.15, 11.5, 0.4, f'Gerado em {CTX["gerado"]}', 16, 'C9D6E8')
     ln = s.shapes.add_connector(1, Inches(0), Inches(2.23), Inches(3.41), Inches(2.23))
     ln.line.color.rgb = _rgb(AZUL_CLARO)
     ln.line.width = Pt(1.5)

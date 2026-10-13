@@ -91,6 +91,7 @@ def _capa(c, p):
     to.setCharSpace(1.5)
     to.textLine(p['sub'].upper())
     c.drawText(to)
+    _txt(c, 0.4, 3.15, f'Gerado em {CTX["gerado"]}', 16, '#C9D6E8')
     _rodape(c, None)
 
 
