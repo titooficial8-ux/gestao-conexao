@@ -544,7 +544,13 @@ def atualizar_todas(app) -> bool:
                     novas_ops = [o for o in novas_ops if o in info]
                     movs += [m for m in extras_movs if str(m.get('productionOrder')) in novas_ops]
                     for o in novas_ops:
-                        padroes[o], maquinas[o] = None, (info[o].get('machineCode'))
+                        nome = (((info[o].get('items') or [{}])[0].get('productName')) or '')
+                        try:                                           # metro padrao do artigo (Base Estrutura), como o PCP Hub usa
+                            from app.main.routes import resolve_metros_from_article
+                            padroes[o] = float(str(resolve_metros_from_article(nome) or '').replace(',', '.')) or None
+                        except ValueError:
+                            padroes[o] = None
+                        maquinas[o] = info[o].get('machineCode')
                     ops = sorted(set(ops) | set(novas_ops), key=int)
 
             por_op = {}
