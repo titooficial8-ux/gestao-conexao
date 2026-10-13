@@ -106,6 +106,21 @@ def _dt(txt):
         return None
 
 
+def baixas_do_banco(desde: date):
+    """Baixas de fio ja guardadas no banco, no mesmo formato de buscar_baixas ({cliente: [dict(codigo, data, mudou, kg)]}).
+    Devolve None se o banco ainda nao cobre o periodo (aí vale a busca na API)."""
+    from sqlalchemy import func
+    from app import db
+    from app.models import BaixaFio
+    primeiro = db.session.query(func.min(BaixaFio.mudou)).scalar()
+    if not primeiro or primeiro.date() > desde:
+        return None
+    saida = {}
+    for b in BaixaFio.query.filter(BaixaFio.mudou >= datetime.combine(desde, hora_do_dia(0, 0))).all():
+        saida.setdefault(b.cliente_cod, []).append(dict(codigo=b.codigo, data=b.data, mudou=b.mudou, kg=b.kg or 0.0))
+    return saida
+
+
 def buscar_baixas(cli, clientes: list, desde: date) -> dict:
     """Transacoes 2000 (baixa de fio, uma por peca) dos clientes das OPs: {cliente: [dict(codigo, data, mudou, kg)]}."""
     saida = {}
@@ -538,7 +553,7 @@ def atualizar_situacoes(info: dict, pecas_por_op: dict) -> None:
     db.session.commit()
 
 
-LIGACAO_VERSAO = '5'                                          # sobe quando a regra de ligar peca a baixa muda: as ligacoes recentes sao refeitas
+LIGACAO_VERSAO = '6'                                          # sobe quando a regra de ligar peca a baixa muda: as ligacoes recentes sao refeitas
 
 
 def _refazer_ligacoes(app) -> None:
@@ -664,7 +679,11 @@ def atualizar_todas(app) -> bool:
             recentes = {op: [l for l in ls if (date.today() - _data(l['data'])).days <= 1] for op, ls in pendentes.items()}
             recentes = {op: ls for op, ls in recentes.items() if ls}
             antigas_pend = any((date.today() - _data(l['data'])).days > 1 for ls in pendentes.values() for l in ls)
-            if antigas_pend and time.time() - _ULTIMA_BUSCA_ANTIGAS > 600:
+            desde_pend = min([_data(l['data']) for ls in pendentes.values() for l in ls] or [date.today()]) - timedelta(days=1)
+            do_banco = baixas_do_banco(desde_pend) if pendentes else None
+            if do_banco is not None:
+                alvo, buscou_antigas = pendentes, False               # baixas ja estao no banco: sem custo de API, tenta todas toda rodada
+            elif antigas_pend and time.time() - _ULTIMA_BUSCA_ANTIGAS > 600:
                 alvo, buscou_antigas = pendentes, True                # pecas mais velhas: tenta de novo so a cada 10 min (a busca e pesada)
             else:
                 alvo = recentes                                        # pecas de hoje/ontem: toda rodada
@@ -672,8 +691,11 @@ def atualizar_todas(app) -> bool:
                 try:
                     clientes_op = {op: (info.get(op) or {}).get('customerCode') for op in alvo}
                     desde = min(_data(l['data']) for ls in alvo.values() for l in ls) - timedelta(days=1)
-                    with _trava:
-                        baixas = buscar_baixas(cli, sorted({c for c in clientes_op.values() if c}), desde)
+                    if do_banco is not None:
+                        baixas = do_banco
+                    else:
+                        with _trava:
+                            baixas = buscar_baixas(cli, sorted({c for c in clientes_op.values() if c}), desde)
                     for op, ls in alvo.items():
                         achados = casar_horas(ls, baixas.get(clientes_op[op], []), _fator(((info.get(op) or {}).get('items') or [{}])[0].get('productName')), trx_usadas)
                         for l in ls:
