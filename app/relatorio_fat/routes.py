@@ -88,6 +88,22 @@ def _montar(formato, ano, mes):
     return corpo, f'{nome}.{formato}', d['mes'], d['ano']
 
 
+def _resumo_envio_automatico() -> str:
+    """Texto: como esta o envio automatico neste computador (para quem, quando, ultimo envio)."""
+    cfg = agenda.configuracao()
+    est = agenda._ler(current_app)
+    dias = ', '.join(['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'][d] for d in sorted(cfg['dias']))
+    return ('\n\nENVIO AUTOMATICO\n'
+            f'Ligado: {"SIM" if cfg["ativo"] else "NAO"}\n'
+            f'Horario (Brasilia): {cfg["hora"][0]:02d}:{cfg["hora"][1]:02d} (se o Gestao ligar depois de {cfg["ate"][0]:02d}:{cfg["ate"][1]:02d}, pula o dia)\n'
+            f'Dias: {dias}\n'
+            f'Formato: {cfg["formato"]}\n'
+            f'Destinatarios ({len(cfg["destinos"].split(","))}): {cfg["destinos"]}\n'
+            f'Origem da lista: {"RELATORIO_FAT_DESTINOS do arquivo .env" if os.getenv("RELATORIO_FAT_DESTINOS") else "lista padrao do sistema"}\n'
+            f'Ultimo envio: {est.get("enviado_em") or "nenhum ainda"}' + (f' para {", ".join(est.get("para") or [])}' if est.get('para') else '') + '\n'
+            f'Ultimo erro: {est.get("erro") or "nenhum"}')
+
+
 @rel_fat_bp.route('/quem')
 @login_required
 def quem():
@@ -97,7 +113,8 @@ def quem():
                     f'Ve os botoes do Relatorio de Faturamento: {"SIM" if pode_gerar(current_user) else "NAO"}\n'
                     f'Lista atual (RELATORIO_FAT_USUARIOS): {lista}\n'
                     f'Regra: o nome ou o e-mail do usuario precisa conter um dos nomes da lista.\n'
-                    f'E-mail de saida configurado (SMTP): {"SIM" if envio.configurado() else "NAO - faltam " + ", ".join(envio.faltando())}',
+                    f'E-mail de saida configurado (SMTP): {"SIM" if envio.configurado() else "NAO - faltam " + ", ".join(envio.faltando())}'
+                    + _resumo_envio_automatico(),
                     mimetype='text/plain; charset=utf-8')
 
 
