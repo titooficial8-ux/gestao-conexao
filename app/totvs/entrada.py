@@ -17,8 +17,8 @@ from . import api, planilha_pedidos
 
 ORDERS_URL = f'{api.BASE_URL}/api/totvsmoda/sales-order/v2/orders/search'
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
-ANOS_TOTVS = (2025, 2026)                                          # 2025 e 2026 vem do TOTVS
-ANOS = (2023, 2024, 2025, 2026)                                    # 2023 e 2024 vem da planilha (planilha_pedidos)
+ANOS_TOTVS = (2026,)                                               # so 2026 vem do TOTVS
+ANOS = (2023, 2024, 2025, 2026)                                    # 2023, 2024 e 2025 vem da planilha (planilha_pedidos)
 RECENTE_DIAS = int(os.getenv('ENTRADA_RECENTE_DIAS', '75'))        # a cada rodada, refaz so os ultimos N dias (pedido muda de status)
 LEGAL_URL = f'{api.BASE_URL}/api/totvsmoda/person/v2/legal-entities/search'
 RAPIDA_DIAS = 3                                                    # ciclo rapido (a cada INTERVALO_SEG): so os ultimos dias
@@ -209,7 +209,7 @@ def resumo(mes: int | None = None) -> dict:
             y[0] += valor; y[1] += 1; y[2] += metros; y[3] += valor if local == 'ME' else 0
             c = por_cliente[a].setdefault((nome, local), [0.0, 0])
             c[0] += valor; c[1] += 1
-    # 2023 e 2024: o VALOR de cada dia vem da tabela 'Pedido de Venda - Carteira' da planilha (como ela mostra); pedidos/ME seguem da lista de pedidos
+    # 2023, 2024 e 2025: o VALOR de cada dia vem da tabela 'Pedido de Venda - Carteira' da planilha (como ela mostra); pedidos/ME seguem da lista de pedidos
     for a in planilha_pedidos.ANOS:
         for mk, dias_c in (plan.get('carteira', {}).get(str(a)) or {}).items():
             mm = int(mk)
@@ -237,7 +237,7 @@ def resumo(mes: int | None = None) -> dict:
     for a in ANOS:
         v = [sum(por_dia[a].get(d, [0, 0, 0, 0])[i] for d in por_dia[a]) for i in range(4)]
         base = por_mes[a][mes - 1]                       # pedidos, metros e ME: da lista de pedidos do mes
-        valor_total = por_mes[a][mes - 1][0] if a in planilha_pedidos.ANOS and (plan.get('carteira', {}).get(str(a)) or {}).get(str(mes)) else v[0]   # 2023/2024: total da planilha; 2025/2026: soma do TOTVS
+        valor_total = por_mes[a][mes - 1][0] if a in planilha_pedidos.ANOS and (plan.get('carteira', {}).get(str(a)) or {}).get(str(mes)) else v[0]   # 2023/2024: total da planilha; 2026: soma do TOTVS
         tot[str(a)] = dict(valor=round(valor_total, 2), n=int(base[1]), metros=round(base[2], 2), me=round(base[3], 2), mi=round(valor_total - base[3], 2))
     meses = {str(a): [dict(valor=round(x[0], 2), n=x[1], metros=round(x[2], 2)) for x in por_mes[a]] for a in ANOS}
     clientes, clientes_loc = {}, {}

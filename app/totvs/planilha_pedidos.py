@@ -1,4 +1,4 @@
-"""Pedidos de venda de anos antigos (2023 e 2024) lidos da planilha "Pedido de venda" (uma aba por mes: Fev_23 ... Jan_26).
+"""Pedidos de venda de anos anteriores (2023, 2024 e 2025) lidos da planilha "Pedido de venda" (uma aba por mes: Fev_23 ... Jan_26).
 
 A planilha tem tabelas dinamicas que o openpyxl nao abre, entao o arquivo .xlsx e lido direto (zip + xml).
 Em cada aba mensal: DATA (A), PEDIDO (B), Cliente - Fantasia (I), LOCAL MI/ME (J), Metros (H) e VALOR R$ (K, ja convertido em reais).
@@ -18,8 +18,8 @@ from . import api
 
 RAIZ = Path(__file__).resolve().parents[2]                 # pasta do Gestao
 ARQUIVO = api.OUT_DIR / 'pedidos_planilha.json'
-VERSAO = 3                                                # sobe quando muda o que e lido da planilha: o arquivo e lido de novo mesmo sem ter sido trocado
-ANOS = (2023, 2024)                                       # os anos que vem da planilha (2025 e 2026 vem do TOTVS)
+VERSAO = 4                                                # sobe quando muda o que e lido da planilha: o arquivo e lido de novo mesmo sem ter sido trocado
+ANOS = (2023, 2024, 2025)                                       # os anos que vem da planilha (2026 vem do TOTVS)
 _NS = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
 _MES = re.compile(r'^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\w*_(\d{2})$', re.I)
 
@@ -184,7 +184,7 @@ def importar(arquivo, origem=None) -> dict:
                     if a in tot_c:
                         totais_planilha[str(a)][str(mes)] = tot_c[a]
     if not pedidos:
-        raise ValueError('Não achei pedidos de 2023/2024 nas abas mensais (ex.: Out_24). É a planilha "Pedido de venda"?')
+        raise ValueError('Não achei pedidos de 2023 a 2025 nas abas mensais (ex.: Out_24). É a planilha "Pedido de venda"?')
     ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
     ARQUIVO.write_text(json.dumps(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), anos=list(ANOS), arquivo=origem[0] if origem else None, mtime=origem[1] if origem else None, carteira=carteira, totais=totais_planilha, pedidos=pedidos), ensure_ascii=False), encoding='utf-8')
     return dict(abas=len(lidas), pedidos=len(pedidos), meses_carteira={a: sorted(int(m) for m in v) for a, v in carteira.items()}, por_ano={str(a): sum(1 for p in pedidos if p[0].startswith(str(a))) for a in ANOS})
