@@ -636,15 +636,6 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       tp2.appendChild(bp); cp.appendChild(wp);
     } else { cp.appendChild(ui.el('p', 'cme-meta', ES ? 'Sin pedidos en este mes.' : 'Nenhum pedido neste mês.')); }
     corpo.appendChild(cp);
-    // grafico por mes (ano inteiro)
-    var c3 = ui.el('div', 'table-card sl-grafico'); var t3 = ui.el('div', 'sl-g-topo'); var tt3 = ui.el('div'); tt3.appendChild(ui.el('h3', null, ES ? 'Entrada de pedidos por mes' : 'Entrada de pedidos por mês'));
-    tt3.appendChild(ui.el('p', 'cme-meta', ES ? 'Cada barra = valor de los pedidos de venta del mes (R$ mil) · pase el mouse para ver pedidos y metros' : 'Cada barra = valor dos pedidos de venda do mês (R$ mil) · passe o mouse para ver pedidos e metros')); t3.appendChild(tt3); t3.appendChild(pedChipsAno(d)); c3.appendChild(t3);
-    var cx3 = ui.el('div', 'sl-g-canvas'), cv3 = document.createElement('canvas'); cx3.appendChild(cv3); c3.appendChild(cx3); corpo.appendChild(c3);
-    if (GRAFS.pedMes) { try { GRAFS.pedMes.destroy(); } catch (e) {} }
-    GRAFS.pedMes = new Chart(cv3, { type: 'bar', data: { labels: MESES.map(function (m) { return m.slice(0, 3); }), datasets: d.anos.map(function (a) { return { label: a, ano: a, data: d.meses[a].map(function (x, i) { var fut = +a === new Date().getFullYear() && i + 1 > new Date().getMonth() + 1; return fut ? null : Math.round(x.valor); }), backgroundColor: PED_COR[a], borderRadius: 3 }; }) },
-      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 9, padding: 18 } }, tooltip: { backgroundColor: 'rgba(10,45,84,0.95)', padding: 12, callbacks: { label: function (c) { return ' ' + c.dataset.ano + ': R$ ' + rs(c.parsed.y || 0); },
-          afterLabel: function (c) { var x = d.meses[c.dataset.ano][c.dataIndex]; return x ? '     ' + x.n + (ES ? ' pedidos · ' : ' pedidos · ') + rs(x.metros) + ' mts' : ''; } } } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return milN(v); } } } } } });
   }
   function mudarVisao(v) {
     Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.classList.toggle('active', b.dataset.visao === v); });
