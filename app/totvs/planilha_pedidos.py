@@ -92,6 +92,33 @@ def sincronizar() -> bool:
         return False
 
 
+def _carteira(z, ss, caminho, mes: int) -> dict:
+    """Tabela 'Pedido de Venda - Carteira' de uma aba de 2026: {ano: {dia: valor}} para 2023 e 2024 (colunas do cabecalho com o ano)."""
+    base = date(1899, 12, 30)
+    linhas = list(_linhas(z, ss, caminho))
+    cab = None
+    for r, d in linhas:
+        if r <= 6:
+            for col, v in d.items():
+                if v == 'Data PV':
+                    cab = (r, col, d)
+    if not cab:
+        return {}
+    r0, col_data, dh = cab
+    colunas = {c: int(v) for c, v in dh.items() if isinstance(v, float) and int(v) in ANOS}
+    saida = {a: {} for a in colunas.values()}
+    for r, d in linhas:
+        if r <= r0 or not isinstance(d.get(col_data), float):
+            continue
+        dia = base + timedelta(days=int(d[col_data]))
+        if dia.month != mes:                                   # linhas que sobram de outro mes
+            continue
+        for c, a in colunas.items():
+            if isinstance(d.get(c), float) and d[c]:
+                saida[a][str(dia.day)] = round(d[c], 2)
+    return saida
+
+
 def importar(arquivo, origem=None) -> dict:
     """Le a planilha (caminho ou arquivo aberto), guarda os pedidos de ANOS e devolve um resumo."""
     z = zipfile.ZipFile(arquivo)
@@ -137,11 +164,19 @@ def importar(arquivo, origem=None) -> dict:
             met = d.get(cols.get('metros', ''))
             cli = str(d.get(cols.get('cliente', '')) or d.get(cols.get('fantasia', '')) or '').strip()[:60]
             pedidos.append([dia.isoformat(), round(val, 2), round(met, 2) if isinstance(met, float) else 0.0, local, cli])
+    carteira = {str(a): {} for a in ANOS}                      # 2023/2024: valores da tabela Carteira de cada aba de 2026 (como a planilha mostra)
+    for nome, caminho in abas:
+        m = _MES.match(nome)
+        if m and 2000 + int(m.group(2)) == 2026:
+            mes = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'].index(m.group(1).lower()) + 1
+            for a, dias in _carteira(z, ss, caminho, mes).items():
+                if dias:
+                    carteira[str(a)][str(mes)] = dias
     if not pedidos:
         raise ValueError('Não achei pedidos de 2023/2024 nas abas mensais (ex.: Out_24). É a planilha "Pedido de venda"?')
     ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
-    ARQUIVO.write_text(json.dumps(dict(atualizado=datetime.now().isoformat(timespec='seconds'), anos=list(ANOS), arquivo=origem[0] if origem else None, mtime=origem[1] if origem else None, pedidos=pedidos), ensure_ascii=False), encoding='utf-8')
-    return dict(abas=len(lidas), pedidos=len(pedidos), por_ano={str(a): sum(1 for p in pedidos if p[0].startswith(str(a))) for a in ANOS})
+    ARQUIVO.write_text(json.dumps(dict(atualizado=datetime.now().isoformat(timespec='seconds'), anos=list(ANOS), arquivo=origem[0] if origem else None, mtime=origem[1] if origem else None, carteira=carteira, pedidos=pedidos), ensure_ascii=False), encoding='utf-8')
+    return dict(abas=len(lidas), pedidos=len(pedidos), meses_carteira={a: sorted(int(m) for m in v) for a, v in carteira.items()}, por_ano={str(a): sum(1 for p in pedidos if p[0].startswith(str(a))) for a in ANOS})
 
 
 def ler() -> dict:

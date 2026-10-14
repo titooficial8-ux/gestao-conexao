@@ -577,7 +577,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     corpo.appendChild(lv);
     // Pedido de Venda - Carteira: data do pedido x ano (2023 e 2024 da planilha; 2025 e 2026 do TOTVS)
     var c2 = ui.el('div', 'table-card'); c2.appendChild(ui.el('h3', null, (ES ? 'Pedido de Venta - Cartera' : 'Pedido de Venda - Carteira') + ' — ' + MESES[d.mes - 1]));
-    c2.appendChild(ui.el('p', 'cme-meta', ES ? 'Valor en R$ por fecha del pedido (Data PV) · 2023 y 2024 vienen de la planilla "Pedido de venda"; 2025 y 2026, del TOTVS (en vivo) · sin muestras ni cancelados' : 'Valor em R$ pela data do pedido (Data PV) · 2023 e 2024 vêm da planilha "Pedido de venda"; 2025 e 2026 vêm do TOTVS (ao vivo) · sem amostras e cancelados'));
+    c2.appendChild(ui.el('p', 'cme-meta', ES ? 'Valor en R$ por fecha del pedido (Data PV) · 2023 y 2024: tabla "Pedido de Venda - Cartera" de la planilla; 2025 y 2026: TOTVS (en vivo, sin muestras ni cancelados)' : 'Valor em R$ pela data do pedido (Data PV) · 2023 e 2024: tabela "Pedido de Venda - Carteira" da planilha; 2025 e 2026: TOTVS (ao vivo, sem amostras e cancelados)'));
     var w = ui.el('div', 'table-scroll'), tb = ui.el('table', 'data-table sl-tab sl-carteira'); w.appendChild(tb);
     var th = ui.el('thead'), tr = ui.el('tr'); ['Data PV'].concat(d.anos).forEach(function (h, i) { tr.appendChild(ui.el('th', i ? 'cme-num' : null, String(h))); }); th.appendChild(tr); tb.appendChild(th);
     var bd = ui.el('tbody'), mm = MESES[d.mes - 1].slice(0, 3).toLowerCase();
@@ -597,7 +597,9 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       ate.forEach(function (v) { rs2.appendChild(ui.el('td', 'cme-num', rs(v))); }); bd.appendChild(rs2);
       bd.appendChild(linhaPct(ES ? 'vs año anterior (mismo período)' : 'vs ano anterior (mesmo período)', ate.map(function (v, i) { return i && ate[i - 1] ? v / ate[i - 1] - 1 : null; })));
     }
-    tb.appendChild(bd); c2.appendChild(w); corpo.appendChild(c2);
+    tb.appendChild(bd); c2.appendChild(w);
+    if (d.planilha) c2.appendChild(ui.el('p', 'cme-meta', ES ? 'Nota: el TOTAL de la planilla (SOMA W3:W34) incluye la celda del encabezado con el año (R$ 2.023 en 2023 y R$ 2.024 en 2024); aquí el total es solo la suma de los días.' : 'Obs.: o TOTAL da planilha (SOMA W3:W34) inclui a célula do cabeçalho com o ano (R$ 2.023 em 2023 e R$ 2.024 em 2024); aqui o total é só a soma dos dias.'));
+    corpo.appendChild(c2);
     // grafico por cliente (mes escolhido, um ano por vez)
     var c4 = ui.el('div', 'table-card sl-grafico'), t4 = ui.el('div', 'sl-g-topo'), tt4 = ui.el('div');
     tt4.appendChild(ui.el('h3', null, (ES ? 'Pedidos por cliente' : 'Pedidos por cliente') + ' — ' + MESES[d.mes - 1] + '/' + pedSel.anoCli));

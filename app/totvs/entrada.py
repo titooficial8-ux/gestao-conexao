@@ -209,6 +209,14 @@ def resumo(mes: int | None = None) -> dict:
             y[0] += valor; y[1] += 1; y[2] += metros; y[3] += valor if local == 'ME' else 0
             c = por_cliente[a].setdefault((nome, local), [0.0, 0])
             c[0] += valor; c[1] += 1
+    # 2023 e 2024: o VALOR de cada dia vem da tabela 'Pedido de Venda - Carteira' da planilha (como ela mostra); pedidos/ME seguem da lista de pedidos
+    for a in planilha_pedidos.ANOS:
+        for mk, dias_c in (plan.get('carteira', {}).get(str(a)) or {}).items():
+            mm = int(mk)
+            por_mes[a][mm - 1][0] = sum(dias_c.values())
+            if mm == mes:
+                antigo = por_dia[a]
+                por_dia[a] = {int(dd): [v, (antigo.get(int(dd)) or [0, 0, 0, 0])[1], (antigo.get(int(dd)) or [0, 0, 0, 0])[2], (antigo.get(int(dd)) or [0, 0, 0, 0])[3]] for dd, v in dias_c.items()}
     dias = []
     for dia in range(1, 32):
         linha = dict(dia=dia, anos={})
@@ -228,7 +236,8 @@ def resumo(mes: int | None = None) -> dict:
     tot = {}
     for a in ANOS:
         v = [sum(por_dia[a].get(d, [0, 0, 0, 0])[i] for d in por_dia[a]) for i in range(4)]
-        tot[str(a)] = dict(valor=round(v[0], 2), n=int(v[1]), metros=round(v[2], 2), me=round(v[3], 2), mi=round(v[0] - v[3], 2))
+        base = por_mes[a][mes - 1]                       # pedidos, metros e ME: da lista de pedidos do mes
+        tot[str(a)] = dict(valor=round(v[0], 2), n=int(base[1]), metros=round(base[2], 2), me=round(base[3], 2), mi=round(v[0] - base[3], 2))
     meses = {str(a): [dict(valor=round(x[0], 2), n=x[1], metros=round(x[2], 2)) for x in por_mes[a]] for a in ANOS}
     clientes, clientes_loc = {}, {}
     for a in ANOS:
