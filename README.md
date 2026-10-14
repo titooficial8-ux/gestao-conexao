@@ -126,7 +126,7 @@ Ajustes no `.env`: `PEDIDOS_INTERVALO_MIN`, `PEDIDOS_DIAS`, `PEDIDOS_CICLO` (vej
 ## Relatório de Faturamento (PowerPoint, PDF e e-mail)
 
 - Botões no Dashboard Comercial (visão Slide mensal), só para Christian, Edmar e Luciano (`RELATORIO_FAT_USUARIOS`): baixar em PowerPoint ou PDF e enviar por e-mail.
-- Envio automático: todo dia às 08:30 o Gestão manda o PDF para `edmar.santos@conexaomalhas.com.br` e `christian.yarzon@conexaomalhas.com.br`
+- Envio automático: de segunda a sexta, às 08:00 (Brasília), o Gestão manda o PDF para a lista de 10 pessoas definida em `app/relatorio_fat/agenda.py` (ou em `RELATORIO_FAT_DESTINOS` no `.env`). Para ver o que está valendo: `/relatorio-faturamento/quem`
   (precisa do `SMTP_HOST`, `SMTP_USER` e `SMTP_PASSWORD` no `.env`; horário, dias, formato e destinatários em `.env.example`).
 
 ### PDF do Relatório de Faturamento (cópia exata da tela)
