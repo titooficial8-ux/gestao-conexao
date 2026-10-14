@@ -543,7 +543,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     var lv = ui.el('div', 'bi-ao-vivo'), u = (d.ultimos || [])[0];
     lv.appendChild(ui.el('span', 'bi-ao-vivo-ponto')); lv.appendChild(ui.el('strong', null, ES ? 'ACTUALIZACIÓN EN TIEMPO REAL' : 'ATUALIZAÇÃO EM TEMPO REAL'));
     lv.appendChild(ui.el('span', 'bi-ao-vivo-txt', u ? (u.data.slice(8, 10) + '/' + u.data.slice(5, 7) + ' ' + u.hora + '  ·  ' + pedCli(u) + '  ·  ' + rs(u.metros) + ' mts  ·  R$ ' + rs(u.valor) + (u.me ? ' (ME)' : '')) : (ES ? 'Sin pedidos aún' : 'Nenhum pedido ainda')));
-    lv.appendChild(ui.el('small', 'cme-meta', ES ? 'último pedido recibido · se actualiza solo' : 'último pedido recebido · atualiza sozinho')); corpo.appendChild(lv);
+    corpo.appendChild(lv);
     // grafico por dia (ou acumulado) do mes escolhido
     var c1 = ui.el('div', 'table-card sl-grafico'); var tp = ui.el('div', 'sl-g-topo'); var tt = ui.el('div');
     tt.appendChild(ui.el('h3', null, (pedSel.modo === 'dia' ? (ES ? 'Pedidos por día' : 'Pedidos por dia') : (ES ? 'Pedidos acumulados en el mes' : 'Pedidos acumulados no mês')) + ' — ' + MESES[d.mes - 1]));
