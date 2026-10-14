@@ -515,7 +515,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   function pedAtualTxt(d) { return (ES ? 'Datos del TOTVS · en vivo · actualizado ' : 'Dados do TOTVS · ao vivo · atualizado ') + (d.atualizado ? d.atualizado.slice(8, 10) + '/' + d.atualizado.slice(5, 7) + '/' + d.atualizado.slice(0, 4) + ' ' + d.atualizado.slice(11, 19) : '—'); }
   function pedAviso(novos) {
     var b = $('biPedAviso'); if (!b) return; b.textContent = '';
-    novos.slice(0, 3).forEach(function (x) { b.appendChild(ui.el('div', null, '🔔 ' + (ES ? 'Nuevo pedido: ' : 'Novo pedido: ') + x.cliente + ' · R$ ' + rs(x.valor) + (x.me ? ' (ME)' : ''))); });
+    novos.slice(0, 3).forEach(function (x) { b.appendChild(ui.el('div', null, '🔔 ' + (ES ? 'Nuevo pedido: ' : 'Novo pedido: ') + x.cliente + ' · ' + rs(x.metros) + ' mts · R$ ' + rs(x.valor) + (x.me ? ' (ME)' : ''))); });
     b.hidden = false; clearTimeout(b._t); b._t = setTimeout(function () { b.hidden = true; }, 25000);
   }
   function desenharPedidos(d) {
@@ -540,7 +540,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     var cf = ui.el('div', 'table-card'); cf.appendChild(ui.el('h3', null, ES ? 'Últimos pedidos que entraron' : 'Últimos pedidos que entraram'));
     cf.appendChild(ui.el('p', 'cme-meta', ES ? 'Se actualiza solo cada 15 s · el pedido nuevo aparece aquí y avisa arriba' : 'Atualiza sozinho a cada 15 s · o pedido novo aparece aqui e avisa no topo'));
     var tf = ui.el('table', 'data-table sl-tab'), bf = ui.el('tbody'); tf.appendChild(bf);
-    (d.ultimos || []).forEach(function (x) { var r = ui.el('tr'); r.appendChild(ui.el('td', 'sl-rot', x.data.slice(8, 10) + '/' + x.data.slice(5, 7) + ' ' + x.hora)); r.appendChild(ui.el('td', null, x.cliente)); r.appendChild(ui.el('td', 'cme-num sl-real', 'R$ ' + rs(x.valor) + (x.me ? ' (ME)' : ''))); bf.appendChild(r); });
+    (d.ultimos || []).forEach(function (x) { var r = ui.el('tr'); r.appendChild(ui.el('td', 'sl-rot', x.data.slice(8, 10) + '/' + x.data.slice(5, 7) + ' ' + x.hora)); r.appendChild(ui.el('td', null, x.cliente)); r.appendChild(ui.el('td', 'cme-num', rs(x.metros) + ' mts')); r.appendChild(ui.el('td', 'cme-num sl-real', 'R$ ' + rs(x.valor) + (x.me ? ' (ME)' : ''))); bf.appendChild(r); });
     var wf = ui.el('div', 'table-scroll'); wf.appendChild(tf); cf.appendChild(wf); corpo.appendChild(cf);
     // grafico por dia (ou acumulado) do mes escolhido
     var c1 = ui.el('div', 'table-card sl-grafico'); var tp = ui.el('div', 'sl-g-topo'); var tt = ui.el('div');
