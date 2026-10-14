@@ -9,7 +9,7 @@ from datetime import datetime
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, request
 from flask_login import current_user, login_required, login_user
 
-from app.relatorio_fat import agenda, captura, dados, pdf_gen, pptx_gen
+from app.relatorio_fat import agenda, captura, dados, pptx_gen
 from app.relatorio_fat import envio_email as envio
 
 rel_fat_bp = Blueprint('relatorio_faturamento', __name__, url_prefix='/relatorio-faturamento')
@@ -75,15 +75,10 @@ def _montar(formato, ano, mes):
     d = dados_do_slide(ano, mes)
     if not d:
         return None
-    corpo = None
-    if formato == 'pdf' and captura.disponivel():
-        try:
-            corpo = captura.gerar_pdf(_base_url(), _usuario_id(), d['ano'], d['mes'])     # copia exata da tela do Gestao
-        except Exception as e:  # noqa: BLE001
-            current_app.logger.warning('Relatorio: captura da tela falhou (%s); usando o PDF padrao.', e)
-    if corpo is None:
-        paginas = dados.montar_paginas(d)
-        corpo = (pptx_gen if formato == 'pptx' else pdf_gen).gerar(paginas, datetime.now().strftime('%d/%m/%Y %H:%M'))
+    if formato == 'pdf':
+        corpo = captura.gerar_pdf(_base_url(), _usuario_id(), d['ano'], d['mes'])           # PDF = copia exata da tela do Gestao (nao ha outro modelo)
+    else:
+        corpo = pptx_gen.gerar(dados.montar_paginas(d), datetime.now().strftime('%d/%m/%Y %H:%M'))
     nome = re.sub(r'[^A-Za-z0-9_]+', '_', f'Relatorio_de_Faturamento_{_norm(dados.MESES[d["mes"] - 1])}_{d["ano"]}')
     return corpo, f'{nome}.{formato}', d['mes'], d['ano']
 
@@ -134,7 +129,10 @@ def enviar():
     formatos = {'pdf': ['pdf'], 'pptx': ['pptx'], 'ambos': ['pdf', 'pptx']}.get(j.get('formato', 'pdf'), ['pdf'])
     anexos, ref = [], None
     for f in formatos:
-        r = _montar(f, j.get('ano'), j.get('mes'))
+        try:
+            r = _montar(f, j.get('ano'), j.get('mes'))
+        except Exception as e:  # noqa: BLE001
+            return jsonify(ok=False, erro=f'Não foi possível gerar o {f.upper()}: {e}'), 500
         if not r:
             return jsonify(ok=False, erro='Ainda não há dados de faturamento carregados do TOTVS.'), 404
         anexos.append((r[1], r[0], MIME[f]))
@@ -155,7 +153,10 @@ def gerar():
     formato = request.args.get('formato', 'pptx').lower()
     if formato not in MIME:
         abort(400)
-    r_ = _montar(formato, request.args.get('ano', type=int), request.args.get('mes', type=int))
+    try:
+        r_ = _montar(formato, request.args.get('ano', type=int), request.args.get('mes', type=int))
+    except Exception as e:  # noqa: BLE001
+        return Response(f'Não foi possível gerar o {formato.upper()}: {e}', status=500, mimetype='text/plain; charset=utf-8')
     if not r_:
         return Response('Ainda não há dados de faturamento carregados do TOTVS. Abra o Dashboard Comercial e aguarde a primeira atualização.',
                         status=404, mimetype='text/plain; charset=utf-8')

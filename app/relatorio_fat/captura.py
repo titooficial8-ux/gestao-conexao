@@ -22,16 +22,23 @@ def consumir_token(t: str):
     return v[0] if v and v[1] >= time.time() else None
 
 
-def disponivel() -> bool:
-    try:
-        import playwright.sync_api  # noqa: F401
-        return os.getenv('RELATORIO_FAT_CAPTURA', '1') != '0'
-    except ImportError:
-        return False
+AJUDA = 'Instale o navegador do relatório uma vez, no computador do Gestão: python -m pip install -r requirements.txt  e depois  python -m playwright install chromium'
 
 
 def gerar_pdf(base_url: str, user_id: int, ano, mes) -> bytes:
-    from playwright.sync_api import sync_playwright
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as e:
+        raise RuntimeError('playwright não instalado. ' + AJUDA) from e
+    try:
+        return _gerar(sync_playwright, base_url, user_id, ano, mes)
+    except Exception as e:  # noqa: BLE001
+        if "Executable doesn't exist" in str(e) or 'playwright install' in str(e):
+            raise RuntimeError('Chromium não instalado. ' + AJUDA) from e
+        raise
+
+
+def _gerar(sync_playwright, base_url: str, user_id: int, ano, mes) -> bytes:
     base = base_url.rstrip('/')
     q = ''.join(f'&{k}={v}' for k, v in (('ano', ano), ('mes', mes)) if v)
     with sync_playwright() as pw:
