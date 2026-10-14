@@ -10,3 +10,8 @@ app/static/dist/
 .tools/
 Claude outputs/
 *.log
+
+# planilhas com dados da empresa (o repositorio e publico): nunca versionar
+*.xlsx
+*.xls
+*.xlsm
