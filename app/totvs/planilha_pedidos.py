@@ -103,12 +103,18 @@ def _carteira(z, ss, caminho, mes: int) -> dict:
                 if v == 'Data PV':
                     cab = (r, col, d)
     if not cab:
-        return {}
+        return {}, {}
     r0, col_data, dh = cab
     colunas = {c: int(v) for c, v in dh.items() if isinstance(v, float) and int(v) in ANOS}
     saida = {a: {} for a in colunas.values()}
+    totais, achou_total = {}, False
     for r, d in linhas:
-        if r <= r0 or not isinstance(d.get(col_data), float):
+        if r <= r0:
+            continue
+        if not isinstance(d.get(col_data), float):                # a 1a linha sem data, com valores grandes, e o TOTAL da planilha (SOMA da coluna)
+            if not achou_total and any(isinstance(d.get(c), float) and d[c] > 1000 for c in colunas):
+                achou_total = True
+                totais = {a: round(d[c], 2) for c, a in colunas.items() if isinstance(d.get(c), float)}
             continue
         dia = base + timedelta(days=int(d[col_data]))
         if dia.month != mes:                                   # linhas que sobram de outro mes
@@ -116,7 +122,7 @@ def _carteira(z, ss, caminho, mes: int) -> dict:
         for c, a in colunas.items():
             if isinstance(d.get(c), float) and d[c]:
                 saida[a][str(dia.day)] = round(d[c], 2)
-    return saida
+    return saida, totais
 
 
 def importar(arquivo, origem=None) -> dict:
@@ -164,18 +170,22 @@ def importar(arquivo, origem=None) -> dict:
             met = d.get(cols.get('metros', ''))
             cli = str(d.get(cols.get('cliente', '')) or d.get(cols.get('fantasia', '')) or '').strip()[:60]
             pedidos.append([dia.isoformat(), round(val, 2), round(met, 2) if isinstance(met, float) else 0.0, local, cli])
+    totais_planilha = {str(a): {} for a in ANOS}
     carteira = {str(a): {} for a in ANOS}                      # 2023/2024: valores da tabela Carteira de cada aba de 2026 (como a planilha mostra)
     for nome, caminho in abas:
         m = _MES.match(nome)
         if m and 2000 + int(m.group(2)) == 2026:
             mes = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'].index(m.group(1).lower()) + 1
-            for a, dias in _carteira(z, ss, caminho, mes).items():
+            dias_c, tot_c = _carteira(z, ss, caminho, mes)
+            for a, dias in dias_c.items():
                 if dias:
                     carteira[str(a)][str(mes)] = dias
+                    if a in tot_c:
+                        totais_planilha[str(a)][str(mes)] = tot_c[a]
     if not pedidos:
         raise ValueError('Não achei pedidos de 2023/2024 nas abas mensais (ex.: Out_24). É a planilha "Pedido de venda"?')
     ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
-    ARQUIVO.write_text(json.dumps(dict(atualizado=datetime.now().isoformat(timespec='seconds'), anos=list(ANOS), arquivo=origem[0] if origem else None, mtime=origem[1] if origem else None, carteira=carteira, pedidos=pedidos), ensure_ascii=False), encoding='utf-8')
+    ARQUIVO.write_text(json.dumps(dict(atualizado=datetime.now().isoformat(timespec='seconds'), anos=list(ANOS), arquivo=origem[0] if origem else None, mtime=origem[1] if origem else None, carteira=carteira, totais=totais_planilha, pedidos=pedidos), ensure_ascii=False), encoding='utf-8')
     return dict(abas=len(lidas), pedidos=len(pedidos), meses_carteira={a: sorted(int(m) for m in v) for a, v in carteira.items()}, por_ano={str(a): sum(1 for p in pedidos if p[0].startswith(str(a))) for a in ANOS})
 
 

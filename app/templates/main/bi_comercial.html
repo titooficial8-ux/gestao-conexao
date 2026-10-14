@@ -598,7 +598,6 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       bd.appendChild(linhaPct(ES ? 'vs año anterior (mismo período)' : 'vs ano anterior (mesmo período)', ate.map(function (v, i) { return i && ate[i - 1] ? v / ate[i - 1] - 1 : null; })));
     }
     tb.appendChild(bd); c2.appendChild(w);
-    if (d.planilha) c2.appendChild(ui.el('p', 'cme-meta', ES ? 'Nota: el TOTAL de la planilla (SOMA W3:W34) incluye la celda del encabezado con el año (R$ 2.023 en 2023 y R$ 2.024 en 2024); aquí el total es solo la suma de los días.' : 'Obs.: o TOTAL da planilha (SOMA W3:W34) inclui a célula do cabeçalho com o ano (R$ 2.023 em 2023 e R$ 2.024 em 2024); aqui o total é só a soma dos dias.'));
     corpo.appendChild(c2);
     // grafico por cliente (mes escolhido, um ano por vez)
     var c4 = ui.el('div', 'table-card sl-grafico'), t4 = ui.el('div', 'sl-g-topo'), tt4 = ui.el('div');
