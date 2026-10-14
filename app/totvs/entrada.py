@@ -213,7 +213,7 @@ def resumo(mes: int | None = None) -> dict:
     for a in planilha_pedidos.ANOS:
         for mk, dias_c in (plan.get('carteira', {}).get(str(a)) or {}).items():
             mm = int(mk)
-            por_mes[a][mm - 1][0] = sum(dias_c.values())
+            por_mes[a][mm - 1][0] = (plan.get('totais', {}).get(str(a), {}).get(mk)) or sum(dias_c.values())      # total = o da planilha (SOMA da coluna)
             if mm == mes:
                 antigo = por_dia[a]
                 por_dia[a] = {int(dd): [v, (antigo.get(int(dd)) or [0, 0, 0, 0])[1], (antigo.get(int(dd)) or [0, 0, 0, 0])[2], (antigo.get(int(dd)) or [0, 0, 0, 0])[3]] for dd, v in dias_c.items()}
@@ -237,7 +237,8 @@ def resumo(mes: int | None = None) -> dict:
     for a in ANOS:
         v = [sum(por_dia[a].get(d, [0, 0, 0, 0])[i] for d in por_dia[a]) for i in range(4)]
         base = por_mes[a][mes - 1]                       # pedidos, metros e ME: da lista de pedidos do mes
-        tot[str(a)] = dict(valor=round(v[0], 2), n=int(base[1]), metros=round(base[2], 2), me=round(base[3], 2), mi=round(v[0] - base[3], 2))
+        valor_total = por_mes[a][mes - 1][0] if a in planilha_pedidos.ANOS and (plan.get('carteira', {}).get(str(a)) or {}).get(str(mes)) else v[0]   # 2023/2024: total da planilha; 2025/2026: soma do TOTVS
+        tot[str(a)] = dict(valor=round(valor_total, 2), n=int(base[1]), metros=round(base[2], 2), me=round(base[3], 2), mi=round(valor_total - base[3], 2))
     meses = {str(a): [dict(valor=round(x[0], 2), n=x[1], metros=round(x[2], 2)) for x in por_mes[a]] for a in ANOS}
     clientes, clientes_loc = {}, {}
     for a in ANOS:
