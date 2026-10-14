@@ -131,7 +131,7 @@ Ajustes no `.env`: `PEDIDOS_INTERVALO_MIN`, `PEDIDOS_DIAS`, `PEDIDOS_CICLO` (vej
 
 ### PDF do Relatório de Faturamento (cópia exata da tela)
 
-O PDF é gerado abrindo o Slide mensal do próprio Gestão num Chromium invisível (mesmo layout do botão Imprimir). Instale uma vez: `python -m pip install -r requirements.txt` e `python -m playwright install chromium`. Sem o Chromium, o sistema usa o PDF padrão gerado por código. O PowerPoint continua igual.
+O PDF é gerado abrindo o Slide mensal do próprio Gestão num Chromium invisível (mesmo layout do botão Imprimir). Instale uma vez: `python -m pip install -r requirements.txt` e `python -m playwright install chromium`. Sem o Chromium o PDF não é gerado (não existe outro modelo de PDF) e o sistema avisa o que instalar. O PowerPoint continua igual.
 
 ### Entrada de pedidos (BI Comercial)
 
