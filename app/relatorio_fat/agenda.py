@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import threading
 import time
 import traceback
@@ -113,14 +114,50 @@ def _precisa_enviar(app, agora: datetime) -> bool:
     return True
 
 
+def _reivindicar(dia) -> Path | None:
+    """Trava do dia, valida para todo o computador (mesmo com duas copias do Gestao abertas): so quem criar o arquivo envia.
+    Devolve o caminho da trava (para soltar se o envio falhar) ou None se outra copia ja esta enviando/enviou."""
+    pasta = Path(tempfile.gettempdir())
+    for velho in pasta.glob('gestao_relatorio_fat_*.lock'):            # limpa travas de dias anteriores
+        if not velho.name.endswith(f'{dia.isoformat()}.lock'):
+            try:
+                velho.unlink()
+            except OSError:
+                pass
+    caminho = pasta / f'gestao_relatorio_fat_{dia.isoformat()}.lock'
+    for _ in range(2):
+        try:
+            fd = os.open(caminho, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, f'{os.getpid()} {datetime.now().isoformat(timespec="seconds")}'.encode())
+            os.close(fd)
+            return caminho
+        except FileExistsError:
+            try:
+                if time.time() - caminho.stat().st_mtime > 1200:       # trava velha (copia que caiu no meio do envio): assume
+                    caminho.unlink()
+                    continue
+            except OSError:
+                pass
+            return None
+        except OSError:
+            return caminho                                              # sem como travar: segue (o arquivo de estado ainda protege)
+    return None
+
+
 def _tick(app) -> None:
     agora = agora_brasilia()
     if not _precisa_enviar(app, agora):
         return
     if not _trava.acquire(blocking=False):
         return
+    trava_dia = None
     try:
         est = _ler(app)
+        if est.get('enviado_em') == agora.date().isoformat():           # outra copia acabou de enviar
+            return
+        trava_dia = _reivindicar(agora.date())
+        if trava_dia is None:
+            return
         try:
             r = enviar_agora(app)
         except Exception as e:  # noqa: BLE001
@@ -133,6 +170,10 @@ def _tick(app) -> None:
         else:
             est['erro'] = r['erro']
             print(f'[relatorio-faturamento] envio automatico falhou: {r["erro"]}', flush=True)
+            try:
+                trava_dia.unlink()                                      # falhou: solta a trava para tentar de novo em 30 min
+            except OSError:
+                pass
         ESTADO.update(ultimo_envio=est.get('enviado_em'), ultima_tentativa=est['tentativa'], erro=est.get('erro'))
         _gravar(app, est)
     finally:
