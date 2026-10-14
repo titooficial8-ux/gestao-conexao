@@ -18,6 +18,7 @@ from . import api
 
 RAIZ = Path(__file__).resolve().parents[2]                 # pasta do Gestao
 ARQUIVO = api.OUT_DIR / 'pedidos_planilha.json'
+VERSAO = 3                                                # sobe quando muda o que e lido da planilha: o arquivo e lido de novo mesmo sem ter sido trocado
 ANOS = (2023, 2024)                                       # os anos que vem da planilha (2025 e 2026 vem do TOTVS)
 _NS = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
 _MES = re.compile(r'^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\w*_(\d{2})$', re.I)
@@ -83,7 +84,7 @@ def sincronizar() -> bool:
     try:
         mt = round(f.stat().st_mtime)
         atual = ler()
-        if atual.get('arquivo') == f.name and atual.get('mtime') == mt:
+        if atual.get('arquivo') == f.name and atual.get('mtime') == mt and atual.get('versao') == VERSAO:
             return False
         importar(f, origem=(f.name, mt))
         return True
@@ -185,7 +186,7 @@ def importar(arquivo, origem=None) -> dict:
     if not pedidos:
         raise ValueError('Não achei pedidos de 2023/2024 nas abas mensais (ex.: Out_24). É a planilha "Pedido de venda"?')
     ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
-    ARQUIVO.write_text(json.dumps(dict(atualizado=datetime.now().isoformat(timespec='seconds'), anos=list(ANOS), arquivo=origem[0] if origem else None, mtime=origem[1] if origem else None, carteira=carteira, totais=totais_planilha, pedidos=pedidos), ensure_ascii=False), encoding='utf-8')
+    ARQUIVO.write_text(json.dumps(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), anos=list(ANOS), arquivo=origem[0] if origem else None, mtime=origem[1] if origem else None, carteira=carteira, totais=totais_planilha, pedidos=pedidos), ensure_ascii=False), encoding='utf-8')
     return dict(abas=len(lidas), pedidos=len(pedidos), meses_carteira={a: sorted(int(m) for m in v) for a, v in carteira.items()}, por_ano={str(a): sum(1 for p in pedidos if p[0].startswith(str(a))) for a in ANOS})
 
 
