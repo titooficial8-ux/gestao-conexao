@@ -19,7 +19,11 @@ ORDERS_URL = f'{api.BASE_URL}/api/totvsmoda/sales-order/v2/orders/search'
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
 ANOS = (2024, 2025, 2026)
 RECENTE_DIAS = int(os.getenv('ENTRADA_RECENTE_DIAS', '75'))        # a cada rodada, refaz so os ultimos N dias (pedido muda de status)
-INTERVALO_MIN = float(os.getenv('ENTRADA_INTERVALO_MIN', '2'))
+LEGAL_URL = f'{api.BASE_URL}/api/totvsmoda/person/v2/legal-entities/search'
+RAPIDA_DIAS = 3                                                    # ciclo rapido (a cada INTERVALO_SEG): so os ultimos dias
+INTERVALO_SEG = float(os.getenv('ENTRADA_INTERVALO_SEG', '20'))
+COMPLETA_MIN = float(os.getenv('ENTRADA_COMPLETA_MIN', '10'))      # a cada N min refaz tambem os ultimos RECENTE_DIAS (cancelamentos, mudancas)
+VERSAO = 2                                                         # sobe quando muda o formato guardado: o historico e buscado de novo
 ARQUIVO = api.OUT_DIR / 'entrada_pedidos.json'
 _trava = threading.Lock()
 ESTADO = dict(rodando=False, ultima=None, msg='', erro=None, n=0)
@@ -80,7 +84,32 @@ def _buscar(cli, ini: date, fim: date) -> list[dict]:
         pag += 1
 
 
-def atualizar() -> bool:
+def _fantasias(cli, codigos: set, conhecidos: dict) -> dict:
+    """Nome fantasia dos clientes que ainda nao estao no cache ({codigo: nome})."""
+    faltam = sorted(c for c in codigos if c is not None and str(c) not in conhecidos)
+    for k in range(0, len(faltam), 100):
+        pag = 1
+        while True:
+            r = cli.post(LEGAL_URL, dict(filter=dict(personCodeList=faltam[k:k + 100]), pageSize=500, page=pag))
+            if r.status_code != 200:
+                break
+            j = r.json()
+            for x in j.get('items') or []:
+                nome = (x.get('fantasyName') or x.get('name') or '').strip()
+                if nome:
+                    conhecidos[str(x.get('code'))] = nome
+            if not j.get('hasNext'):
+                break
+            pag += 1
+    return conhecidos
+
+
+_ULT_COMPLETA = 0.0
+
+
+def atualizar(rapida: bool = False) -> bool:
+    """rapida=True: so os ultimos dias (roda a cada ~20 s para o pedido novo aparecer na hora); senao a rodada completa."""
+    global _ULT_COMPLETA
     if not _trava.acquire(blocking=False):
         return False
     ESTADO.update(rodando=True, erro=None, msg='Conectando ao TOTVS...')
@@ -88,10 +117,18 @@ def atualizar() -> bool:
         cli = api.TotvsModaClient()
         cli.autenticar()
         dados = _ler()
+        if dados.get('versao') != VERSAO:
+            dados = {}
         pedidos = dados.get('pedidos', {})
+        fantasia = dados.get('clientes', {})
         hoje = date.today()
         primeira = not pedidos
-        ini = date(ANOS[0], 1, 1) if primeira else hoje - timedelta(days=RECENTE_DIAS)
+        if primeira:
+            ini = date(ANOS[0], 1, 1)
+        elif rapida:
+            ini = hoje - timedelta(days=RAPIDA_DIAS)
+        else:
+            ini = hoje - timedelta(days=RECENTE_DIAS)
         for a, b in _janelas(ini, hoje):
             ESTADO['msg'] = f'Buscando pedidos de {a:%m/%Y}...'
             novos = _buscar(cli, a, b)
@@ -100,8 +137,15 @@ def atualizar() -> bool:
             for p in novos:
                 entra, local = classificar(p)
                 if entra and p.get('orderDate'):
-                    pedidos[str(p['orderCode'])] = [str(p['orderDate'])[:10], round(_num(p.get('netValue')), 2), round(_num(p.get('quantity')), 2), local]
-        _gravar(dict(atualizado=datetime.now().isoformat(timespec='seconds'), pedidos=pedidos))
+                    pedidos[str(p['orderCode'])] = [str(p['orderDate'])[:10], round(_num(p.get('netValue')), 2), round(_num(p.get('quantity')), 2), local,
+                                                    p.get('customerCode'), str(p.get('insertDate') or '')[:19], str(p.get('customerName') or '')[:60]]
+        try:
+            fantasia = _fantasias(cli, {v[4] for v in pedidos.values()}, fantasia)
+        except Exception:  # noqa: BLE001  - sem o nome fantasia usa a razao social
+            traceback.print_exc()
+        _gravar(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), pedidos=pedidos, clientes=fantasia))
+        if not rapida:
+            _ULT_COMPLETA = time.time()
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), n=len(pedidos), msg=f'{len(pedidos)} pedidos')
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
@@ -120,22 +164,28 @@ def iniciar_agendador(app=None) -> None:
         time.sleep(25)
         while True:
             try:
-                atualizar()
+                completa = time.time() - _ULT_COMPLETA > COMPLETA_MIN * 60
+                atualizar(rapida=not completa)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
-            time.sleep(max(INTERVALO_MIN, 1) * 60)
+            time.sleep(max(INTERVALO_SEG, 10))
     threading.Thread(target=loop, daemon=True, name='totvs-entrada-pedidos').start()
 
 
 def resumo(mes: int | None = None) -> dict:
     """Dados da tela: por dia do mes escolhido e por mes, para cada ano."""
     dados = _ler()
+    if dados.get('versao') != VERSAO:
+        dados = {}
     pedidos = dados.get('pedidos', {})
+    fantasia = dados.get('clientes', {})
+    from app.main.routes import normalize_client_name
     hoje = date.today()
     mes = mes or hoje.month
     por_dia = {a: {} for a in ANOS}                 # ano -> dia -> [valor, n, metros, valor_me]
     por_mes = {a: [[0.0, 0, 0.0, 0.0] for _ in range(12)] for a in ANOS}
-    for d, valor, metros, local in pedidos.values():
+    por_cliente = {a: {} for a in ANOS}              # ano -> cliente -> [valor, n] (so o mes escolhido)
+    for d, valor, metros, local, cod, _ins, razao in pedidos.values():
         a, m, dia = int(d[:4]), int(d[5:7]), int(d[8:10])
         if a not in por_mes:
             continue
@@ -144,6 +194,9 @@ def resumo(mes: int | None = None) -> dict:
         if m == mes:
             y = por_dia[a].setdefault(dia, [0.0, 0, 0.0, 0.0])
             y[0] += valor; y[1] += 1; y[2] += metros; y[3] += valor if local == 'ME' else 0
+            nome = normalize_client_name(fantasia.get(str(cod)) or razao) or 'SEM CLIENTE'
+            c = por_cliente[a].setdefault(nome, [0.0, 0])
+            c[0] += valor; c[1] += 1
     dias = []
     for dia in range(1, 32):
         linha = dict(dia=dia, anos={})
@@ -165,5 +218,9 @@ def resumo(mes: int | None = None) -> dict:
         v = [sum(por_dia[a].get(d, [0, 0, 0, 0])[i] for d in por_dia[a]) for i in range(4)]
         tot[str(a)] = dict(valor=round(v[0], 2), n=int(v[1]), metros=round(v[2], 2), me=round(v[3], 2), mi=round(v[0] - v[3], 2))
     meses = {str(a): [dict(valor=round(x[0], 2), n=x[1], metros=round(x[2], 2)) for x in por_mes[a]] for a in ANOS}
-    return dict(mes=mes, anos=list(ANOS), hoje=hoje.isoformat(), atualizado=dados.get('atualizado'), dias=dias, total=tot, meses=meses,
+    clientes = {str(a): sorted(([n, round(v[0], 2), v[1]] for n, v in por_cliente[a].items()), key=lambda x: -x[1]) for a in ANOS}
+    ultimos = sorted(((cod, v) for cod, v in pedidos.items() if v[5]), key=lambda x: x[1][5], reverse=True)[:10]
+    ultimos = [dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), me=v[3] == 'ME',
+                    cliente=normalize_client_name(fantasia.get(str(v[4])) or v[6]) or 'SEM CLIENTE') for cod, v in ultimos]
+    return dict(mes=mes, anos=list(ANOS), clientes=clientes, ultimos=ultimos, hoje=hoje.isoformat(), atualizado=dados.get('atualizado'), dias=dias, total=tot, meses=meses,
                 vazio=not pedidos, estado=dict(ESTADO))

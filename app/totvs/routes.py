@@ -150,7 +150,7 @@ def dados_do_slide(ano=None, mes=None):
 def entrada_pedidos():
     """Entrada de pedidos por dia (2024-2026), do TOTVS. ?mes=1..12"""
     _autorizar()
-    if entrada.configurado() and not entrada.ESTADO['rodando'] and not entrada._ler():
+    if entrada.configurado() and not entrada.ESTADO['rodando'] and entrada._ler().get('versao') != entrada.VERSAO:
         threading.Thread(target=entrada.atualizar, daemon=True, name='totvs-entrada-1a').start()      # 1a vez: busca o historico em segundo plano
     return _json(entrada.resumo(request.args.get('mes', type=int)))
 
