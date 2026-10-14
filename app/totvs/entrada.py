@@ -220,7 +220,7 @@ def resumo(mes: int | None = None) -> dict:
     meses = {str(a): [dict(valor=round(x[0], 2), n=x[1], metros=round(x[2], 2)) for x in por_mes[a]] for a in ANOS}
     clientes = {str(a): sorted(([n, round(v[0], 2), v[1]] for n, v in por_cliente[a].items()), key=lambda x: -x[1]) for a in ANOS}
     ultimos = sorted(((cod, v) for cod, v in pedidos.items() if v[5]), key=lambda x: x[1][5], reverse=True)[:10]
-    ultimos = [dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), me=v[3] == 'ME',
+    ultimos = [dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), metros=round(v[2]), me=v[3] == 'ME',
                     cliente=normalize_client_name(fantasia.get(str(v[4])) or v[6]) or 'SEM CLIENTE') for cod, v in ultimos]
     return dict(mes=mes, anos=list(ANOS), clientes=clientes, ultimos=ultimos, hoje=hoje.isoformat(), atualizado=dados.get('atualizado'), dias=dias, total=tot, meses=meses,
                 vazio=not pedidos, estado=dict(ESTADO))
