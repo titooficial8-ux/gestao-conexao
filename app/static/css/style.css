@@ -2774,3 +2774,9 @@ textarea.ticket-input { resize: vertical; }
 
 .bi-ped-aviso { background: #fff7e0; border: 1px solid #f0c24b; color: #7a5200; border-radius: 12px; padding: 10px 16px; font-weight: 700; margin-bottom: 14px; animation: biPedPisca 1.2s ease-in-out 3; }
 @keyframes biPedPisca { 0%, 100% { box-shadow: none; } 50% { box-shadow: 0 0 0 4px rgba(240,194,75,.45); } }
+
+.bi-ao-vivo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #fff; border: 1px solid #d6e4f5; border-left: 5px solid #1f9d55; border-radius: 12px; padding: 12px 18px; margin-bottom: 14px; }
+.bi-ao-vivo strong { color: #11703c; letter-spacing: .06em; font-size: 12px; }
+.bi-ao-vivo-txt { font-weight: 800; color: var(--blue-900); font-size: 15px; font-variant-numeric: tabular-nums; }
+.bi-ao-vivo-ponto { width: 10px; height: 10px; border-radius: 50%; background: #1f9d55; animation: biPonto 1.4s ease-in-out infinite; }
+@keyframes biPonto { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(31,157,85,.5); } 50% { opacity: .55; box-shadow: 0 0 0 6px rgba(31,157,85,0); } }
