@@ -234,12 +234,16 @@ def casar_globalmente() -> int:
     menor = min(p.data for p in pend) - timedelta(days=1)
     livres = [b for b in BaixaFio.query.filter(BaixaFio.mudou >= datetime.combine(menor, hora_do_dia(0, 0))).all()
               if b.codigo not in usados and b.kg and b.kg > 0 and b.composicao and b.mudou]
+    from app.models import PesagemResumo
+    cliente_da_op = {r.op: r.cliente_cod for r in PesagemResumo.query.all()}
     por_dia = {}
     for b in livres:
         por_dia.setdefault(b.mudou.date(), []).append(b)
 
     def janela(p):
-        return [b for d in range(-1, 3) for b in por_dia.get(p.data + timedelta(days=d), [])]
+        # a baixa de fio de uma peca e do mesmo cliente da OP (sem o cliente da OP, nao arrisca ligar)
+        cod = cliente_da_op.get(p.op)
+        return [b for d in range(-1, 3) for b in por_dia.get(p.data + timedelta(days=d), []) if cod and b.cliente_cod == cod]
 
     por_op = {}
     for p in pend:
@@ -554,7 +558,7 @@ def atualizar_situacoes(info: dict, pecas_por_op: dict) -> None:
     db.session.commit()
 
 
-LIGACAO_VERSAO = '6'                                          # sobe quando a regra de ligar peca a baixa muda: as ligacoes recentes sao refeitas
+LIGACAO_VERSAO = '7'                                          # sobe quando a regra de ligar peca a baixa muda: as ligacoes recentes sao refeitas
 
 
 def _refazer_ligacoes(app) -> None:
@@ -741,7 +745,7 @@ def atualizar_todas(app) -> bool:
                                              artigo_desc=(((o or {}).get('items') or [{}])[0].get('productName') or '')[:200] or None,
                                              gramatura=_campos_artigo(o).get('gramatura'), largura=_campos_artigo(o).get('largura'),
                                              metro_ideal=_campos_artigo(o).get('metro_ideal'),
-                                             metro_padrao=_campos_artigo(o).get('metro_ideal') or padroes[op], pecas=len(lista),
+                                             metro_padrao=_campos_artigo(o).get('metro_ideal') or padroes[op], cliente_cod=(o or {}).get('customerCode'), pecas=len(lista),
                                              metros=round(sum(l['metros'] or 0 for l in lista), 3) if padroes[op] else None,
                                              no_local=round(_no_local(o), 3) if o else 0.0, saiu=round(saiu, 3),
                                              quantidade_op=_num((o or {}).get('quantity')), atualizado_em=agora))
