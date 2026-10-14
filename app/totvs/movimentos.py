@@ -227,7 +227,7 @@ def casar_globalmente() -> int:
     from app.models import BaixaFio, PesagemMalharia
     hoje = date.today()
     pend = [p for p in PesagemMalharia.query.filter(PesagemMalharia.trx_codigo.is_(None)).all()
-            if p.data and p.metros and p.metros > 0 and (hoje - p.data).days <= 30]
+            if p.data and p.metros and p.metros > 0 and (hoje - p.data).days <= 30 and p.hora_origem not in ('vivo', 'visto')]
     if not pend:
         return 0
     usados = {c for (c,) in db.session.query(PesagemMalharia.trx_codigo).filter(PesagemMalharia.trx_codigo.isnot(None)).all()}
@@ -380,10 +380,12 @@ def _hora_confiavel(data_trx: date, mudou: datetime) -> bool:
 
 
 def casar_horas(pecas: list, baixas: list, fator, usadas: set) -> dict:
-    """Liga cada peca a sua baixa de fio. O peso da baixa e metros x kg/m, e o kg/m e o mesmo em todas as pecas do artigo
-    (ex.: 0,5291 = 240 g/m2 x 2,20 m). Acha esse kg/m (o valor que mais se repete entre pecas e baixas de dias proximos; se o nome do
-    artigo traz gramatura e largura, so vale perto do valor teorico) e liga cada peca a baixa de peso mais exato (tolerancia de 0,02%),
-    no mesmo dia de producao ou a 1 dia de diferenca. Devolve {item: baixa}."""
+    """Liga cada peca a sua baixa de fio (hora real da pesagem). Devolve {item: baixa}.
+    1) Peca vista ao vivo (p['visto'] = momento em que o Gestao a viu aparecer): a baixa e a do mesmo cliente feita segundos antes
+       (de 30 s depois ate 1 min antes), de peso proximo do esperado (+-4%). Isso separa baixas de pesos iguais de OPs parecidas.
+    2) O resto, pelo peso: o peso da baixa e metros x kg/m, e o kg/m e o mesmo em todas as pecas do artigo (ex.: 0,5291 = 240 g/m2 x 2,20 m).
+       Acha esse kg/m (o valor que mais se repete entre pecas e baixas de dias proximos; se o nome do artigo traz gramatura e largura,
+       so vale perto do valor teorico) e liga cada peca a baixa de peso mais exato (0,02%), no mesmo dia de producao ou a 1 dia de diferenca."""
     ts = [b for b in baixas if b['codigo'] not in usadas and b['data'] and b['mudou'] and b['kg'] > 0]
     if not pecas or not ts:
         return {}
@@ -403,15 +405,32 @@ def casar_horas(pecas: list, baixas: list, fator, usadas: set) -> dict:
             if fator is None or abs(r / fator - 1) <= 0.05:
                 cont[round(r / 0.0005)] = cont.get(round(r / 0.0005), 0) + 1
                 razoes.append(r)
-    if not cont:
-        return {}
-    melhor = max(cont, key=lambda k: cont[k] + cont.get(k - 1, 0) + cont.get(k + 1, 0))
-    if cont[melhor] + cont.get(melhor - 1, 0) + cont.get(melhor + 1, 0) < max(2, 0.25 * len(pecas)):
-        return {}
-    perto = sorted(r for r in razoes if abs(r / 0.0005 - melhor) <= 1.5)
-    r_ok = perto[len(perto) // 2]                              # mediana: o kg/m exato (as baixas tem 3 casas, entao o erro e minimo)
+    r_ok = None
+    if cont:
+        melhor = max(cont, key=lambda k: cont[k] + cont.get(k - 1, 0) + cont.get(k + 1, 0))
+        if cont[melhor] + cont.get(melhor - 1, 0) + cont.get(melhor + 1, 0) >= max(2, 0.25 * len(pecas)):
+            perto = sorted(r for r in razoes if abs(r / 0.0005 - melhor) <= 1.5)
+            r_ok = perto[len(perto) // 2]                      # mediana: o kg/m exato (as baixas tem 3 casas, entao o erro e minimo)
     achados, usadas_aqui = {}, set()
-    for p in sorted(pecas, key=lambda p: (str(p['data']), p.get('sequencia') or 0)):
+    for p in sorted(pecas, key=lambda p: (str(p['data']), p.get('sequencia') or 0)):       # 1) pecas vistas ao vivo: baixa feita segundos antes
+        v = p.get('visto')
+        if not v or p['metros'] <= 0:
+            continue
+        ref = r_ok or fator
+        esperado = p['metros'] * ref if ref else None
+        cand = [b for b in ts if b['codigo'] not in usadas_aqui and -30 <= (v - b['mudou']).total_seconds() <= 60
+                and (esperado is None or abs(b['kg'] - esperado) <= 0.04 * esperado)]
+        if esperado is None and len(cand) != 1:
+            continue
+        if cand:
+            b = min(cand, key=lambda b: abs((v - b['mudou']).total_seconds() - 8))
+            achados[p['item']] = dict(b, ao_vivo=True)
+            usadas_aqui.add(b['codigo'])
+    if r_ok is None:
+        return achados
+    for p in sorted(pecas, key=lambda p: (str(p['data']), p.get('sequencia') or 0)):       # 2) o resto, pelo peso
+        if p['item'] in achados or p.get('visto'):                                          # peca vista ao vivo sem baixa: nao arrisca pelo peso
+            continue
         esperado = p['metros'] * r_ok
         cand = [b for b in vizinhas(_data(p['data'])) if b['codigo'] not in usadas_aqui and abs(b['kg'] - esperado) <= max(0.0002 * esperado, 0.004)]
         if cand:
@@ -481,6 +500,7 @@ DIAS_DESCOBERTA = int(os.getenv('MOVIMENTOS_DIAS_DESCOBERTA', '60'))   # histori
 ESTADO = dict(rodando=False, ultima=None, erro=None, ops=0, pecas=0, duracao=None)
 _trava_auto = threading.Lock()
 _ULTIMA_BUSCA_ANTIGAS = 0.0
+_ULT_CICLO = 0.0                                              # fim do ultimo ciclo completo: peca nova so vale como 'vista ao vivo' se o ciclo anterior foi ha pouco
 
 
 def _metro_padrao(seq):
@@ -558,7 +578,7 @@ def atualizar_situacoes(info: dict, pecas_por_op: dict) -> None:
     db.session.commit()
 
 
-LIGACAO_VERSAO = '7'                                          # sobe quando a regra de ligar peca a baixa muda: as ligacoes recentes sao refeitas
+LIGACAO_VERSAO = '8'                                          # sobe quando a regra de ligar peca a baixa muda: as ligacoes recentes sao refeitas
 
 
 def _refazer_ligacoes(app) -> None:
@@ -677,10 +697,10 @@ def atualizar_todas(app) -> bool:
             for op in ops:
                 for l in listas[op][0]:
                     ch = (op, str(l['data']), l['sequencia'], round(l['metros'], 3))
-                    if horas_antigas.get(ch, (None, None, None))[1] is None or (horas_antigas[ch][1] == 'trx' and not pesos_antigos.get(ch)):
+                    if horas_antigas.get(ch, (None, None, None))[1] in (None, 'vivo') or (horas_antigas[ch][1] == 'trx' and not pesos_antigos.get(ch)):
                         pendentes.setdefault(op, []).append(l)
             horas, busca_ok, buscou_antigas = {}, False, False
-            global _ULTIMA_BUSCA_ANTIGAS
+            global _ULTIMA_BUSCA_ANTIGAS, _ULT_CICLO
             recentes = {op: [l for l in ls if (date.today() - _data(l['data'])).days <= 1] for op, ls in pendentes.items()}
             recentes = {op: ls for op, ls in recentes.items() if ls}
             antigas_pend = any((date.today() - _data(l['data'])).days > 1 for ls in pendentes.values() for l in ls)
@@ -702,12 +722,23 @@ def atualizar_todas(app) -> bool:
                         with _trava:
                             baixas = buscar_baixas(cli, sorted({c for c in clientes_op.values() if c}), desde)
                     for op, ls in alvo.items():
+                        for l in ls:                                       # peca vista agora (ao vivo): guarda o momento para escolher a baixa certa entre pesos iguais
+                            ch_ = (op, str(l['data']), l['sequencia'], round(l['metros'], 3))
+                            if ch_ not in antigas:                                         # peca nova: vale como 'ao vivo' se o ciclo anterior foi ha pouco
+                                l['visto'] = agora_local if op in ops_conhecidas and time.time() - _ULT_CICLO <= 90 else None
+                            elif horas_antigas.get(ch_, (None, None, None))[1] == 'vivo' and antigas.get(ch_) and 0 <= (agora_local - antigas[ch_]).total_seconds() <= 900:
+                                l['visto'] = antigas[ch_]                  # ainda dentro dos 15 min em que a baixa pode aparecer
+                            else:
+                                l['visto'] = None
                         achados = casar_horas(ls, baixas.get(clientes_op[op], []), _fator(((info.get(op) or {}).get('items') or [{}])[0].get('productName')), trx_usadas)
                         for l in ls:
                             b = achados.get(l['item'])
+                            if not b and l.get('visto'):
+                                ch_ = (op, str(l['data']), l['sequencia'], round(l['metros'], 3))
+                                horas[ch_] = (None, 'vivo' if (agora_local - l['visto']).total_seconds() <= 900 else 'visto', None)
                             if b:
                                 trx_usadas.add(b['codigo'])
-                                ok = abs((b['mudou'].date() - _data(l['data'])).days) <= 1      # baixa feita bem depois do movimento nao vale como hora da pesagem
+                                ok = b.get('ao_vivo') or abs((b['mudou'].date() - _data(l['data'])).days) <= 1      # baixa feita bem depois do movimento nao vale como hora da pesagem (a vista ao vivo vale sempre)
                                 horas[(op, str(l['data']), l['sequencia'], round(l['metros'], 3))] = (b['mudou'], 'trx' if ok else 'tardia', b['codigo'])
                                 pesos[(op, str(l['data']), l['sequencia'], round(l['metros'], 3))] = b['kg']
                     busca_ok = True
@@ -769,6 +800,7 @@ def atualizar_todas(app) -> bool:
                 traceback.print_exc()
                 db.session.rollback()
                 ESTADO.update(erro_baixas=str(e_baixas)[:300])
+        _ULT_CICLO = time.time()
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), ops=len(ops), pecas=total_pecas)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
