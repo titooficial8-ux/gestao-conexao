@@ -513,9 +513,12 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     });
   }
   function pedAtualTxt(d) { return (ES ? 'Datos del TOTVS · en vivo · actualizado ' : 'Dados do TOTVS · ao vivo · atualizado ') + (d.atualizado ? d.atualizado.slice(8, 10) + '/' + d.atualizado.slice(5, 7) + '/' + d.atualizado.slice(0, 4) + ' ' + d.atualizado.slice(11, 19) : '—'); }
+  function pedLegDia(d, a) { var t = d.total[a]; return a + ' — ' + MESES[d.mes - 1].slice(0, 3) + ': R$ ' + milN(t.valor) + ' mil · ' + t.n + ' pedidos · ' + rs(t.metros) + ' mts'; }
+  function pedLegAno(d, a) { var v = 0, n = 0, m = 0; d.meses[a].forEach(function (x) { v += x.valor; n += x.n; m += x.metros; }); return a + ' — ano: R$ ' + milN(v) + ' mil · ' + n + ' pedidos · ' + rs(m) + ' mts'; }
+  function pedCli(x) { return x.unidade ? x.cliente + ' · ' + x.unidade : x.cliente; }       // Ortobom: mostra a unidade (filial)
   function pedAviso(novos) {
     var b = $('biPedAviso'); if (!b) return; b.textContent = '';
-    novos.slice(0, 3).forEach(function (x) { b.appendChild(ui.el('div', null, '🔔 ' + (ES ? 'Nuevo pedido: ' : 'Novo pedido: ') + x.cliente + ' · ' + rs(x.metros) + ' mts · R$ ' + rs(x.valor) + (x.me ? ' (ME)' : ''))); });
+    novos.slice(0, 3).forEach(function (x) { b.appendChild(ui.el('div', null, '🔔 ' + (ES ? 'Nuevo pedido: ' : 'Novo pedido: ') + pedCli(x) + ' · ' + rs(x.metros) + ' mts · R$ ' + rs(x.valor) + (x.me ? ' (ME)' : ''))); });
     b.hidden = false; clearTimeout(b._t); b._t = setTimeout(function () { b.hidden = true; }, 25000);
   }
   function desenharPedidos(d) {
@@ -536,25 +539,25 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       K.appendChild(ui.cartaoKpi({ rotulo: (ES ? 'Entrada de pedidos ' : 'Entrada de pedidos ') + MESES[d.mes - 1].slice(0, 3) + '/' + a, valor: t.valor, fmt: 'm', texto: 'R$ ' + mi(t.valor), nota: nota, tom: i === 2 ? 'azul' : (i === 1 ? 'verde' : 'azul') }));
     });
     corpo.appendChild(K);
-    // ultimos pedidos que entraram (tempo real)
-    var cf = ui.el('div', 'table-card'); cf.appendChild(ui.el('h3', null, ES ? 'Últimos pedidos que entraron' : 'Últimos pedidos que entraram'));
-    cf.appendChild(ui.el('p', 'cme-meta', ES ? 'Se actualiza solo cada 15 s · el pedido nuevo aparece aquí y avisa arriba' : 'Atualiza sozinho a cada 15 s · o pedido novo aparece aqui e avisa no topo'));
-    var tf = ui.el('table', 'data-table sl-tab'), bf = ui.el('tbody'); tf.appendChild(bf);
-    (d.ultimos || []).forEach(function (x) { var r = ui.el('tr'); r.appendChild(ui.el('td', 'sl-rot', x.data.slice(8, 10) + '/' + x.data.slice(5, 7) + ' ' + x.hora)); r.appendChild(ui.el('td', null, x.cliente)); r.appendChild(ui.el('td', 'cme-num', rs(x.metros) + ' mts')); r.appendChild(ui.el('td', 'cme-num sl-real', 'R$ ' + rs(x.valor) + (x.me ? ' (ME)' : ''))); bf.appendChild(r); });
-    var wf = ui.el('div', 'table-scroll'); wf.appendChild(tf); cf.appendChild(wf); corpo.appendChild(cf);
+    // ao vivo: ultimo pedido que entrou (uma linha so; atualiza sozinho)
+    var lv = ui.el('div', 'bi-ao-vivo'), u = (d.ultimos || [])[0];
+    lv.appendChild(ui.el('span', 'bi-ao-vivo-ponto')); lv.appendChild(ui.el('strong', null, ES ? 'ACTUALIZACIÓN EN TIEMPO REAL' : 'ATUALIZAÇÃO EM TEMPO REAL'));
+    lv.appendChild(ui.el('span', 'bi-ao-vivo-txt', u ? (u.data.slice(8, 10) + '/' + u.data.slice(5, 7) + ' ' + u.hora + '  ·  ' + pedCli(u) + '  ·  ' + rs(u.metros) + ' mts  ·  R$ ' + rs(u.valor) + (u.me ? ' (ME)' : '')) : (ES ? 'Sin pedidos aún' : 'Nenhum pedido ainda')));
+    lv.appendChild(ui.el('small', 'cme-meta', ES ? 'último pedido recibido · se actualiza solo' : 'último pedido recebido · atualiza sozinho')); corpo.appendChild(lv);
     // grafico por dia (ou acumulado) do mes escolhido
     var c1 = ui.el('div', 'table-card sl-grafico'); var tp = ui.el('div', 'sl-g-topo'); var tt = ui.el('div');
     tt.appendChild(ui.el('h3', null, (pedSel.modo === 'dia' ? (ES ? 'Pedidos por día' : 'Pedidos por dia') : (ES ? 'Pedidos acumulados en el mes' : 'Pedidos acumulados no mês')) + ' — ' + MESES[d.mes - 1]));
-    tt.appendChild(ui.el('p', 'cme-meta', ES ? 'Valor en R$ mil · fecha del pedido · solo ventas (sin muestras ni cancelados)' : 'Valor em R$ mil · data do pedido · só vendas (sem amostras e cancelados)')); tp.appendChild(tt); c1.appendChild(tp);
+    tt.appendChild(ui.el('p', 'cme-meta', ES ? 'Cada barra = valor de los pedidos de venta del día (R$ mil), por fecha del pedido · sin muestras ni cancelados · pase el mouse para ver pedidos y metros' : 'Cada barra = valor dos pedidos de venda do dia (R$ mil), pela data do pedido · sem amostras e cancelados · passe o mouse para ver pedidos e metros')); tp.appendChild(tt); c1.appendChild(tp);
     var cx = ui.el('div', 'sl-g-canvas'), cv = document.createElement('canvas'); cx.appendChild(cv); c1.appendChild(cx); corpo.appendChild(c1);
     var labels = d.dias.map(function (x) { return x.dia; });
     var series = d.anos.map(function (a) { var ac = 0; return d.dias.map(function (x) { var y = x.anos[a]; if (!y) return null; ac += y.valor; return Math.round(pedSel.modo === 'dia' ? y.valor : ac); }); });
     if (GRAFS.ped) { try { GRAFS.ped.destroy(); } catch (e) {} }
     var linha = pedSel.modo !== 'dia';
-    GRAFS.ped = new Chart(cv, { type: linha ? 'line' : 'bar', data: { labels: labels, datasets: d.anos.map(function (a, i) { return { label: a, data: series[i], backgroundColor: PED_COR[a], borderColor: PED_COR[a], borderRadius: 3, borderWidth: linha ? 2.5 : 0, pointRadius: 0, pointHoverRadius: 4, tension: .2, spanGaps: false }; }) },
+    GRAFS.ped = new Chart(cv, { type: linha ? 'line' : 'bar', data: { labels: labels, datasets: d.anos.map(function (a, i) { return { label: pedLegDia(d, a), ano: a, data: series[i], backgroundColor: PED_COR[a], borderColor: PED_COR[a], borderRadius: 3, borderWidth: linha ? 2.5 : 0, pointRadius: 0, pointHoverRadius: 4, tension: .2, spanGaps: false }; }) },
       options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
         plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 9, padding: 18 } }, tooltip: { backgroundColor: 'rgba(10,45,84,0.95)', padding: 12, callbacks: {
-          title: function (it) { return (ES ? 'Día ' : 'Dia ') + it[0].label + ' / ' + MESES[d.mes - 1]; }, label: function (c) { return ' ' + c.dataset.label + ': R$ ' + rs(c.parsed.y || 0); } } } },
+          title: function (it) { return (ES ? 'Día ' : 'Dia ') + it[0].label + ' / ' + MESES[d.mes - 1]; }, label: function (c) { return ' ' + c.dataset.ano + (pedSel.modo === 'dia' ? ': R$ ' : ' (acumulado): R$ ') + rs(c.parsed.y || 0); },
+          afterLabel: function (c) { var y = (d.dias[c.dataIndex] || { anos: {} }).anos[c.dataset.ano]; return y ? '     ' + y.n + (ES ? ' pedidos no día · ' : ' pedidos no dia · ') + rs(y.metros) + ' mts' + (y.me ? ' · ME R$ ' + rs(y.me) : '') : ''; } } } },
         scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return milN(v); } } } } } });
     // grafico por cliente (mes escolhido, um ano por vez)
     var c4 = ui.el('div', 'table-card sl-grafico'), t4 = ui.el('div', 'sl-g-topo'), tt4 = ui.el('div');
@@ -587,11 +590,12 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     tb.appendChild(bd); c2.appendChild(w); corpo.appendChild(c2);
     // grafico por mes (ano inteiro)
     var c3 = ui.el('div', 'table-card sl-grafico'); var t3 = ui.el('div', 'sl-g-topo'); var tt3 = ui.el('div'); tt3.appendChild(ui.el('h3', null, ES ? 'Entrada de pedidos por mes' : 'Entrada de pedidos por mês'));
-    tt3.appendChild(ui.el('p', 'cme-meta', ES ? 'R$ mil por mes · 2024, 2025 y 2026' : 'R$ mil por mês · 2024, 2025 e 2026')); t3.appendChild(tt3); c3.appendChild(t3);
+    tt3.appendChild(ui.el('p', 'cme-meta', ES ? 'Cada barra = valor de los pedidos de venta del mes (R$ mil) · el total de cada año está en la leyenda · pase el mouse para ver pedidos y metros' : 'Cada barra = valor dos pedidos de venda do mês (R$ mil) · o total de cada ano está na legenda · passe o mouse para ver pedidos e metros')); t3.appendChild(tt3); c3.appendChild(t3);
     var cx3 = ui.el('div', 'sl-g-canvas'), cv3 = document.createElement('canvas'); cx3.appendChild(cv3); c3.appendChild(cx3); corpo.appendChild(c3);
     if (GRAFS.pedMes) { try { GRAFS.pedMes.destroy(); } catch (e) {} }
-    GRAFS.pedMes = new Chart(cv3, { type: 'bar', data: { labels: MESES.map(function (m) { return m.slice(0, 3); }), datasets: d.anos.map(function (a) { return { label: a, data: d.meses[a].map(function (x, i) { var fut = +a === new Date().getFullYear() && i + 1 > new Date().getMonth() + 1; return fut ? null : Math.round(x.valor); }), backgroundColor: PED_COR[a], borderRadius: 3 }; }) },
-      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 9, padding: 18 } }, tooltip: { backgroundColor: 'rgba(10,45,84,0.95)', padding: 12, callbacks: { label: function (c) { return ' ' + c.dataset.label + ': R$ ' + rs(c.parsed.y || 0); } } } },
+    GRAFS.pedMes = new Chart(cv3, { type: 'bar', data: { labels: MESES.map(function (m) { return m.slice(0, 3); }), datasets: d.anos.map(function (a) { return { label: pedLegAno(d, a), ano: a, data: d.meses[a].map(function (x, i) { var fut = +a === new Date().getFullYear() && i + 1 > new Date().getMonth() + 1; return fut ? null : Math.round(x.valor); }), backgroundColor: PED_COR[a], borderRadius: 3 }; }) },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 9, padding: 18 } }, tooltip: { backgroundColor: 'rgba(10,45,84,0.95)', padding: 12, callbacks: { label: function (c) { return ' ' + c.dataset.ano + ': R$ ' + rs(c.parsed.y || 0); },
+          afterLabel: function (c) { var x = d.meses[c.dataset.ano][c.dataIndex]; return x ? '     ' + x.n + (ES ? ' pedidos · ' : ' pedidos · ') + rs(x.metros) + ' mts' : ''; } } } },
         scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return milN(v); } } } } } });
   }
   function mudarVisao(v) {
