@@ -504,7 +504,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     fetch(URL_PED + qs, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       $('biPedCorpo').classList.remove('cme-carregando'); var primeiro = !pedDados; pedDados = d; if (!pedSel.mes) pedSel.mes = d.mes;
       var codigos = (d.ultimos || []).map(function (x) { return x.codigo; }), novos = pedVistos ? (d.ultimos || []).filter(function (x) { return pedVistos.indexOf(x.codigo) < 0; }) : [];
-      pedVistos = codigos;
+      if (!d.vazio) pedVistos = codigos;                          // so conta como 'visto' depois de ter pedidos de verdade (evita falso aviso no 1o carregamento)
       var ass = pedAssin(d);
       if (ass !== pedAssinatura || primeiro) { pedAssinatura = ass; desenharPedidos(d); }
       else { var m = $('biPedAtual'); if (m) m.textContent = pedAtualTxt(d); }
