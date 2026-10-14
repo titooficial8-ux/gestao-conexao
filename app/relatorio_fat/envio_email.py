@@ -55,21 +55,11 @@ def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str
 
 def corpo_padrao(ref: str, gerado: str, automatico: bool = False) -> str:
     """Texto do e-mail do Relatorio de Faturamento (ref = 'Outubro/2026', gerado = '13/10/2026 11:15')."""
-    como = 'enviado automaticamente pelo Gestão Conexão' if automatico else 'gerado pelo Gestão Conexão'
+    dia, _, hora = gerado.partition(' ')
     return (
         'Prezados,\n\n'
-        f'Segue em anexo o Relatório de Faturamento de {ref}, {como} em {gerado}.\n\n'
-        'O relatório traz:\n'
-        '  • Resumo do mês: receita bruta, deduções, devoluções, receita líquida e quanto falta para bater o plano;\n'
-        '  • Volume em metros: total, devoluções, líquido e comparação com o plano;\n'
-        '  • Receita, metros, quilos e preço médio por segmento, comparados ao plano e a 2025;\n'
-        '  • Representantes, Ortobom por filial e Mercado internacional.\n\n'
-        'Os números vêm direto das notas fiscais do TOTVS e do plano de vendas, e o mês corrente é parcial: '
-        'ele considera as notas emitidas até o momento da geração.\n\n'
-        'Qualquer dúvida, é só falar.\n\n'
+        f'Segue em anexo o Relatório de Faturamento de {ref}, gerado em {dia} às {hora}.\n\n'
         'Atenciosamente,\n'
         'Gestão Conexão\n'
-        'Conexão Malhas e Desenvolvimento\n'
-        'www.gestaoconexao.com.br\n\n'
-        'Esta é uma mensagem gerada pelo sistema. Se for preciso responder, use o e-mail da equipe.'
+        'www.gestaoconexao.com.br'
     )
