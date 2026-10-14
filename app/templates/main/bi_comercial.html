@@ -584,6 +584,19 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     d.dias.forEach(function (x) { var r = ui.el('tr'); r.appendChild(ui.el('td', 'sl-rot', ('0' + x.dia).slice(-2) + '/' + mm));
       d.anos.forEach(function (a) { var y = x.anos[a]; r.appendChild(ui.el('td', 'cme-num', y ? (y.valor ? rs(y.valor) : '-') : '')); }); bd.appendChild(r); });
     var rt = ui.el('tr', 'sl-total'); rt.appendChild(ui.el('td', 'sl-rot', 'TOTAL')); d.anos.forEach(function (a) { rt.appendChild(ui.el('td', 'cme-num sl-real', rs(d.total[a].valor))); }); bd.appendChild(rt);
+    // linhas de comparacao (mesma logica da planilha): variacao do mes completo e "mesmo periodo comparado ate hoje"
+    function pctTxt(v) { return v === null ? '' : (v >= 0 ? '+' : '') + ui.nf(v * 100, { maximumFractionDigits: 2 }) + '%'; }
+    function linhaPct(rot, valores) { var r = ui.el('tr', 'sl-carteira-var'); r.appendChild(ui.el('td', 'sl-rot', rot));
+      valores.forEach(function (v) { r.appendChild(ui.el('td', 'cme-num ' + (v === null ? '' : (v >= 0 ? 'sl-up' : 'sl-down')), pctTxt(v))); }); return r; }
+    var tot = d.anos.map(function (a) { return d.total[a].valor; });
+    bd.appendChild(linhaPct(ES ? 'vs año anterior (mes completo)' : 'vs ano anterior (mês completo)', tot.map(function (v, i) { return i && tot[i - 1] ? v / tot[i - 1] - 1 : null; })));
+    var correnteMes = d.hoje.slice(0, 4) === String(d.anos[d.anos.length - 1]) && +d.hoje.slice(5, 7) === d.mes, corte = +d.hoje.slice(8, 10);
+    if (correnteMes) {
+      var ate = d.anos.map(function (a) { var v = 0; d.dias.forEach(function (x) { if (x.dia <= corte && x.anos[a]) v += x.anos[a].valor; }); return v; });
+      var rs2 = ui.el('tr', 'sl-carteira-ate'); rs2.appendChild(ui.el('td', 'sl-rot', (ES ? 'Mismo período (hasta el día ' : 'Mesmo período (até o dia ') + corte + ')'));
+      ate.forEach(function (v) { rs2.appendChild(ui.el('td', 'cme-num', rs(v))); }); bd.appendChild(rs2);
+      bd.appendChild(linhaPct(ES ? 'vs año anterior (mismo período)' : 'vs ano anterior (mesmo período)', ate.map(function (v, i) { return i && ate[i - 1] ? v / ate[i - 1] - 1 : null; })));
+    }
     tb.appendChild(bd); c2.appendChild(w); corpo.appendChild(c2);
     // grafico por cliente (mes escolhido, um ano por vez)
     var c4 = ui.el('div', 'table-card sl-grafico'), t4 = ui.el('div', 'sl-g-topo'), tt4 = ui.el('div');

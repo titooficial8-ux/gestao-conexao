@@ -2791,3 +2791,7 @@ textarea.ticket-input { resize: vertical; }
 .sl-pivo-item { padding-left: 28px !important; }
 
 #biPedCorpo .cme-kpi-rodape small { white-space: pre-line; line-height: 1.45; }
+
+.sl-carteira-var td, .sl-carteira-ate td { font-weight: 700; background: #fafcff; }
+.sl-carteira .sl-up { color: #11703c; }
+.sl-carteira .sl-down { color: #c0272d; }
