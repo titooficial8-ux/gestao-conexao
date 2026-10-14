@@ -10,7 +10,7 @@ from flask_login import current_user, login_required
 from app.comercial_me.routes import idioma_atual
 from app.models import Tab
 
-from . import base, entrada, movimentos, painel, pedidos, servico, slide
+from . import base, entrada, movimentos, painel, pedidos, planilha_pedidos, servico, slide
 
 bi_bp = Blueprint('bi_comercial', __name__, url_prefix='/bi-comercial')
 SLUG = 'dashboard-comercial'
@@ -153,6 +153,25 @@ def entrada_pedidos():
     if entrada.configurado() and not entrada.ESTADO['rodando'] and entrada._ler().get('versao') != entrada.VERSAO:
         threading.Thread(target=entrada.atualizar, daemon=True, name='totvs-entrada-1a').start()      # 1a vez: busca o historico em segundo plano
     return _json(entrada.resumo(request.args.get('mes', type=int)))
+
+
+@bi_bp.route('/pedidos-planilha', methods=['POST'])
+@login_required
+def pedidos_planilha():
+    """Envia a planilha "Pedido de venda": dela saem os pedidos de 2023 e 2024 (2025 e 2026 vem do TOTVS)."""
+    import io
+    _autorizar()
+    from app.relatorio_fat.routes import pode_gerar
+    if not pode_gerar(current_user):
+        abort(403)
+    f = request.files.get('arquivo')
+    if not f or not f.filename.lower().endswith('.xlsx'):
+        return _json(dict(ok=False, erro='Escolha o arquivo .xlsx da planilha "Pedido de venda".')), 400
+    try:
+        r = planilha_pedidos.importar(io.BytesIO(f.read()))
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(ok=False, erro=f'Não consegui ler a planilha: {e}')), 400
+    return _json(dict(ok=True, **r))
 
 
 @bi_bp.route('/slide')

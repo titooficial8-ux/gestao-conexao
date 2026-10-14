@@ -1,0 +1,151 @@
+"""Pedidos de venda de anos antigos (2023 e 2024) lidos da planilha "Pedido de venda" (uma aba por mes: Fev_23 ... Jan_26).
+
+A planilha tem tabelas dinamicas que o openpyxl nao abre, entao o arquivo .xlsx e lido direto (zip + xml).
+Em cada aba mensal: DATA (A), PEDIDO (B), Cliente - Fantasia (I), LOCAL MI/ME (J), Metros (H) e VALOR R$ (K, ja convertido em reais).
+O resultado fica em instance/totvs/pedidos_planilha.json (so no computador do Gestao; a planilha em si nao e guardada).
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import xml.etree.ElementTree as ET
+import zipfile
+from datetime import date, datetime, timedelta
+from pathlib import Path
+
+from . import api
+
+RAIZ = Path(__file__).resolve().parents[2]                 # pasta do Gestao
+ARQUIVO = api.OUT_DIR / 'pedidos_planilha.json'
+ANOS = (2023, 2024)                                       # os anos que vem da planilha (2025 e 2026 vem do TOTVS)
+_NS = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
+_MES = re.compile(r'^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\w*_(\d{2})$', re.I)
+
+
+def _abas(z):
+    ss = []
+    if 'xl/sharedStrings.xml' in z.namelist():
+        for si in ET.fromstring(z.read('xl/sharedStrings.xml')).findall('m:si', _NS):
+            ss.append(''.join(t.text or '' for t in si.iter('{%s}t' % _NS['m'])))
+    wb = ET.fromstring(z.read('xl/workbook.xml'))
+    rels = {r.get('Id'): r.get('Target') for r in ET.fromstring(z.read('xl/_rels/workbook.xml.rels'))}
+    abas = []
+    for sh in wb.find('m:sheets', _NS):
+        alvo = rels[sh.get('{%s}id' % _NS['r'])].lstrip('/')
+        abas.append((sh.get('name').strip(), alvo if alvo.startswith('xl/') else 'xl/' + alvo))
+    return ss, abas
+
+
+def _linhas(z, ss, caminho):
+    for row in ET.fromstring(z.read(caminho)).find('m:sheetData', _NS):
+        d = {}
+        for c in row:
+            col = re.match(r'[A-Z]+', c.get('r')).group()
+            v, t = c.find('m:v', _NS), c.get('t')
+            if v is None:
+                continue
+            if t == 's':
+                d[col] = ss[int(v.text)]
+            elif t in ('str', 'b', 'e'):
+                d[col] = v.text
+            else:
+                try:
+                    d[col] = float(v.text)
+                except ValueError:
+                    pass
+        yield int(row.get('r')), d
+
+
+def localizar() -> Path | None:
+    """A planilha "Pedido de venda" na pasta do Gestao (ou em instance/): o .xlsx mais recente cujo nome contenha pedido+venda.
+    PEDIDOS_PLANILHA no .env pode apontar para um caminho especifico."""
+    if os.getenv('PEDIDOS_PLANILHA'):
+        p = Path(os.getenv('PEDIDOS_PLANILHA'))
+        return p if p.is_file() else None
+    achados = []
+    for pasta in (RAIZ, RAIZ / 'instance', api.OUT_DIR):
+        try:
+            for f in pasta.iterdir():
+                nome = re.sub(r'[\s_\-]+', '', f.name.lower())
+                if f.is_file() and nome.endswith('.xlsx') and not f.name.startswith('~$') and 'pedido' in nome and 'venda' in nome:
+                    achados.append(f)
+        except OSError:
+            pass
+    return max(achados, key=lambda f: f.stat().st_mtime) if achados else None
+
+
+def sincronizar() -> bool:
+    """Se ha uma planilha na pasta e ela e nova (ou foi trocada), le de novo. Devolve True se leu agora."""
+    f = localizar()
+    if not f:
+        return False
+    try:
+        mt = round(f.stat().st_mtime)
+        atual = ler()
+        if atual.get('arquivo') == f.name and atual.get('mtime') == mt:
+            return False
+        importar(f, origem=(f.name, mt))
+        return True
+    except Exception as e:  # noqa: BLE001  - planilha aberta/corrompida: segue com o que ja tem
+        print(f'[pedidos] nao consegui ler a planilha {f.name}: {e}', flush=True)
+        return False
+
+
+def importar(arquivo, origem=None) -> dict:
+    """Le a planilha (caminho ou arquivo aberto), guarda os pedidos de ANOS e devolve um resumo."""
+    z = zipfile.ZipFile(arquivo)
+    ss, abas = _abas(z)
+    base = date(1899, 12, 30)
+    pedidos, vistos, lidas = [], set(), []
+    for nome, caminho in abas:
+        m = _MES.match(nome)
+        if not m or 2000 + int(m.group(2)) not in ANOS:
+            continue
+        lidas.append(nome)
+        cab, cols = None, {}
+        for r, d in _linhas(z, ss, caminho):
+            if cab is None:                                       # o cabecalho muda de lugar/colunas entre os anos: acha pela linha que tem "DATA"
+                if r <= 3 and any(str(v).strip().upper() == 'DATA' for v in d.values() if isinstance(v, str)):
+                    cab = r
+                    for col, v in d.items():
+                        h = re.sub(r'\s+', '', str(v)).upper() if isinstance(v, str) else ''
+                        if h == 'DATA': cols.setdefault('data', col)
+                        elif h == 'PEDIDO': cols.setdefault('pedido', col)
+                        elif h == 'PED.CLI': cols.setdefault('pedcli', col)
+                        elif h.startswith('CLIENTE'): cols.setdefault('cliente', col)
+                        elif h == 'FANTASIA': cols.setdefault('fantasia', col)
+                        elif h == 'LOCAL': cols.setdefault('local', col)
+                        elif h in ('VALORR$', 'R$VALOR'): cols.setdefault('valor', col)
+                        elif h == 'METROS': cols.setdefault('metros', col)
+                continue
+            if r <= cab or 'data' not in cols or 'valor' not in cols:
+                continue
+            dt, val = d.get(cols['data']), d.get(cols['valor'])
+            if not isinstance(dt, float) or not isinstance(val, float):
+                continue
+            if 'AMOSTRA' in str(d.get(cols.get('pedcli', ''), '')).upper():
+                continue                                          # amostra nao e pedido de venda
+            dia = base + timedelta(days=int(dt))
+            ped = d.get(cols.get('pedido', ''))
+            chave = (dia.year, int(ped)) if isinstance(ped, float) else None
+            if dia.year not in ANOS or (chave and chave in vistos):
+                continue
+            if chave:
+                vistos.add(chave)
+            local = 'ME' if str(d.get(cols.get('local', ''), '')).strip().upper() == 'ME' else 'MI'
+            met = d.get(cols.get('metros', ''))
+            cli = str(d.get(cols.get('cliente', '')) or d.get(cols.get('fantasia', '')) or '').strip()[:60]
+            pedidos.append([dia.isoformat(), round(val, 2), round(met, 2) if isinstance(met, float) else 0.0, local, cli])
+    if not pedidos:
+        raise ValueError('Não achei pedidos de 2023/2024 nas abas mensais (ex.: Out_24). É a planilha "Pedido de venda"?')
+    ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
+    ARQUIVO.write_text(json.dumps(dict(atualizado=datetime.now().isoformat(timespec='seconds'), anos=list(ANOS), arquivo=origem[0] if origem else None, mtime=origem[1] if origem else None, pedidos=pedidos), ensure_ascii=False), encoding='utf-8')
+    return dict(abas=len(lidas), pedidos=len(pedidos), por_ano={str(a): sum(1 for p in pedidos if p[0].startswith(str(a))) for a in ANOS})
+
+
+def ler() -> dict:
+    try:
+        return json.loads(ARQUIVO.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}

@@ -13,17 +13,18 @@ import time
 import traceback
 from datetime import date, datetime, timedelta
 
-from . import api
+from . import api, planilha_pedidos
 
 ORDERS_URL = f'{api.BASE_URL}/api/totvsmoda/sales-order/v2/orders/search'
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
-ANOS = (2024, 2025, 2026)
+ANOS_TOTVS = (2025, 2026)                                          # 2025 e 2026 vem do TOTVS
+ANOS = (2023, 2024, 2025, 2026)                                    # 2023 e 2024 vem da planilha (planilha_pedidos)
 RECENTE_DIAS = int(os.getenv('ENTRADA_RECENTE_DIAS', '75'))        # a cada rodada, refaz so os ultimos N dias (pedido muda de status)
 LEGAL_URL = f'{api.BASE_URL}/api/totvsmoda/person/v2/legal-entities/search'
 RAPIDA_DIAS = 3                                                    # ciclo rapido (a cada INTERVALO_SEG): so os ultimos dias
 INTERVALO_SEG = float(os.getenv('ENTRADA_INTERVALO_SEG', '20'))
 COMPLETA_MIN = float(os.getenv('ENTRADA_COMPLETA_MIN', '10'))      # a cada N min refaz tambem os ultimos RECENTE_DIAS (cancelamentos, mudancas)
-VERSAO = 2                                                         # sobe quando muda o formato guardado: o historico e buscado de novo
+VERSAO = 3                                                         # sobe quando muda o formato guardado: o historico e buscado de novo
 ARQUIVO = api.OUT_DIR / 'entrada_pedidos.json'
 _trava = threading.Lock()
 ESTADO = dict(rodando=False, ultima=None, msg='', erro=None, n=0)
@@ -124,7 +125,7 @@ def atualizar(rapida: bool = False) -> bool:
         hoje = date.today()
         primeira = not pedidos
         if primeira:
-            ini = date(ANOS[0], 1, 1)
+            ini = date(ANOS_TOTVS[0], 1, 1)
         elif rapida:
             ini = hoje - timedelta(days=RAPIDA_DIAS)
         else:
@@ -184,8 +185,20 @@ def resumo(mes: int | None = None) -> dict:
     mes = mes or hoje.month
     por_dia = {a: {} for a in ANOS}                 # ano -> dia -> [valor, n, metros, valor_me]
     por_mes = {a: [[0.0, 0, 0.0, 0.0] for _ in range(12)] for a in ANOS}
-    por_cliente = {a: {} for a in ANOS}              # ano -> cliente -> [valor, n] (so o mes escolhido)
+    por_cliente = {a: {} for a in ANOS}              # ano -> cliente -> [valor, n, 'MI'|'ME'] (so o mes escolhido)
+    try:
+        planilha_pedidos.sincronizar()                     # planilha na pasta do Gestao: le sozinho quando aparece ou e trocada
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+    plan = planilha_pedidos.ler()
+    registros = []                                   # (data, valor, metros, local, cliente)
     for d, valor, metros, local, cod, _ins, razao in pedidos.values():
+        if int(d[:4]) in ANOS_TOTVS:
+            registros.append((d, valor, metros, local, normalize_client_name(fantasia.get(str(cod)) or razao) or 'SEM CLIENTE'))
+    for d, valor, metros, local, cliente in plan.get('pedidos', []):
+        if int(d[:4]) not in ANOS_TOTVS:
+            registros.append((d, valor, metros, local, normalize_client_name(cliente) or 'SEM CLIENTE'))
+    for d, valor, metros, local, nome in registros:
         a, m, dia = int(d[:4]), int(d[5:7]), int(d[8:10])
         if a not in por_mes:
             continue
@@ -194,8 +207,7 @@ def resumo(mes: int | None = None) -> dict:
         if m == mes:
             y = por_dia[a].setdefault(dia, [0.0, 0, 0.0, 0.0])
             y[0] += valor; y[1] += 1; y[2] += metros; y[3] += valor if local == 'ME' else 0
-            nome = normalize_client_name(fantasia.get(str(cod)) or razao) or 'SEM CLIENTE'
-            c = por_cliente[a].setdefault(nome, [0.0, 0])
+            c = por_cliente[a].setdefault((nome, local), [0.0, 0])
             c[0] += valor; c[1] += 1
     dias = []
     for dia in range(1, 32):
@@ -218,10 +230,21 @@ def resumo(mes: int | None = None) -> dict:
         v = [sum(por_dia[a].get(d, [0, 0, 0, 0])[i] for d in por_dia[a]) for i in range(4)]
         tot[str(a)] = dict(valor=round(v[0], 2), n=int(v[1]), metros=round(v[2], 2), me=round(v[3], 2), mi=round(v[0] - v[3], 2))
     meses = {str(a): [dict(valor=round(x[0], 2), n=x[1], metros=round(x[2], 2)) for x in por_mes[a]] for a in ANOS}
-    clientes = {str(a): sorted(([n, round(v[0], 2), v[1]] for n, v in por_cliente[a].items()), key=lambda x: -x[1]) for a in ANOS}
+    clientes, clientes_loc = {}, {}
+    for a in ANOS:
+        junto = {}
+        for (nome, _loc), v in por_cliente[a].items():
+            j = junto.setdefault(nome, [0.0, 0]); j[0] += v[0]; j[1] += v[1]
+        clientes[str(a)] = sorted(([n, round(v[0], 2), v[1]] for n, v in junto.items()), key=lambda x: -x[1])
+        grupos = {}
+        for loc in ('MI', 'ME'):
+            itens = sorted(([n, round(v[0], 2), v[1]] for (n, l), v in por_cliente[a].items() if l == loc), key=lambda x: -x[1])
+            grupos[loc] = dict(total=round(sum(i[1] for i in itens), 2), n=sum(i[2] for i in itens), itens=itens)
+        clientes_loc[str(a)] = grupos
     ultimos = sorted(((cod, v) for cod, v in pedidos.items() if v[5]), key=lambda x: x[1][5], reverse=True)[:10]
     ultimos = [dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), metros=round(v[2]), me=v[3] == 'ME',
                     cliente=normalize_client_name(fantasia.get(str(v[4])) or v[6]) or 'SEM CLIENTE',
                     unidade=(fantasia.get(str(v[4])) or v[6]) if normalize_client_name(fantasia.get(str(v[4])) or v[6]) == 'ORTOBOM' else '') for cod, v in ultimos]
-    return dict(mes=mes, anos=list(ANOS), clientes=clientes, ultimos=ultimos, hoje=hoje.isoformat(), atualizado=dados.get('atualizado'), dias=dias, total=tot, meses=meses,
+    return dict(mes=mes, anos=list(ANOS), clientes=clientes, clientes_loc=clientes_loc, ultimos=ultimos,
+                planilha=dict(atualizado=plan.get('atualizado'), arquivo=plan.get('arquivo'), n=len(plan.get('pedidos', []))) if plan.get('pedidos') else None, hoje=hoje.isoformat(), atualizado=dados.get('atualizado'), dias=dias, total=tot, meses=meses,
                 vazio=not pedidos, estado=dict(ESTADO))
