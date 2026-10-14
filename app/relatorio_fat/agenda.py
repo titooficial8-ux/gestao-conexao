@@ -1,13 +1,14 @@
 """Envio automatico do Relatorio de Faturamento por e-mail, uma vez por dia no horario combinado.
 
-Padrao: todos os dias as 08:30, em PDF, para os e-mails de RELATORIO_FAT_DESTINOS (padrao: Edmar e Christian). Ajustes no .env:
+Padrao: de segunda a sexta, as 08:00 (horario de Brasilia), em PDF, para os e-mails de RELATORIO_FAT_DESTINOS (lista abaixo). Ajustes no .env:
   RELATORIO_FAT_ENVIO=1                  (0 desliga o envio automatico)
-  RELATORIO_FAT_ENVIO_HORA=08:30
-  RELATORIO_FAT_ENVIO_DIAS=0,1,2,3,4,5,6 (0 = segunda ... 6 = domingo)
+  RELATORIO_FAT_ENVIO_HORA=08:00         (horario de Brasilia)
+  RELATORIO_FAT_ENVIO_ATE=12:00          (se o Gestao so ligar depois disso, pula o dia em vez de mandar tarde)
+  RELATORIO_FAT_ENVIO_DIAS=0,1,2,3,4    (0 = segunda ... 6 = domingo)
   RELATORIO_FAT_ENVIO_FORMATO=pdf        (pdf, pptx ou ambos)
   RELATORIO_FAT_DESTINOS=a@x.com,b@y.com
 Nao repete no mesmo dia: a data do ultimo envio fica em instance/relatorio_fat_envio.json. Se o envio falhar (e-mail nao configurado, sem
-dados do TOTVS...), tenta de novo a cada 30 minutos ate o fim do dia.
+dados do TOTVS...), tenta de novo a cada 30 minutos ate o limite do dia (ENVIO_ATE).
 """
 from __future__ import annotations
 
@@ -18,8 +19,19 @@ import time
 import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-DESTINOS_PADRAO = 'edmar.santos@conexaomalhas.com.br,christian.yarzon@conexaomalhas.com.br'
+DESTINOS_PADRAO = ','.join([
+    'luiz.lago@conexaomalhas.com.br', 'marco@conexaomalhas.com.br', 'carlos.ruiz@conexaomalhas.com.br', 'homero.vieira@conexaomalhas.com.br',
+    'anderson@conexaomalhas.com.br', 'luciano@conexaomalhas.com.br', 'edmar.santos@conexaomalhas.com.br', 'mauricio@conexaomalhas.com.br',
+    'dora.appolinario@conexaomalhas.com.br', 'luciane.frias@conexaomalhas.com.br'])
+FUSO = ZoneInfo('America/Sao_Paulo')
+
+
+def agora_brasilia() -> datetime:
+    """Hora de Brasilia (sem fuso no objeto), qualquer que seja o fuso do computador."""
+    return datetime.now(FUSO).replace(tzinfo=None)
+
 ESTADO = dict(ultimo_envio=None, ultima_tentativa=None, erro=None)
 _trava = threading.Lock()
 
@@ -43,17 +55,22 @@ def _gravar(app, d: dict) -> None:
         pass
 
 
+def _hm(txt, padrao):
+    try:
+        h, m = [int(x) for x in str(txt).strip().split(':')]
+        return h, m
+    except ValueError:
+        return padrao
+
+
 def configuracao() -> dict:
-    hora = os.getenv('RELATORIO_FAT_ENVIO_HORA', '08:30').strip()
+    h, m = _hm(os.getenv('RELATORIO_FAT_ENVIO_HORA', '08:00'), (8, 0))
     try:
-        h, m = [int(x) for x in hora.split(':')]
+        dias = {int(x) for x in os.getenv('RELATORIO_FAT_ENVIO_DIAS', '0,1,2,3,4').split(',') if x.strip() != ''}
     except ValueError:
-        h, m = 8, 30
-    try:
-        dias = {int(x) for x in os.getenv('RELATORIO_FAT_ENVIO_DIAS', '0,1,2,3,4,5,6').split(',') if x.strip() != ''}
-    except ValueError:
-        dias = set(range(7))
+        dias = {0, 1, 2, 3, 4}
     return dict(ativo=os.getenv('RELATORIO_FAT_ENVIO', '1') != '0', hora=(h, m), dias=dias,
+                ate=_hm(os.getenv('RELATORIO_FAT_ENVIO_ATE', '12:00'), (12, 0)),
                 formato=os.getenv('RELATORIO_FAT_ENVIO_FORMATO', 'pdf').lower(),
                 destinos=os.getenv('RELATORIO_FAT_DESTINOS', DESTINOS_PADRAO))
 
@@ -76,7 +93,7 @@ def enviar_agora(app) -> dict:
             anexos.append((r[1], r[0], MIME[f]))
             ref = f'{dados.MESES[r[2] - 1]}/{r[3]}'
     envio.enviar(destinos, f'Relatório de Faturamento — {ref}',
-                 envio.corpo_padrao(ref, f'{datetime.now():%d/%m/%Y %H:%M}', True), anexos)
+                 envio.corpo_padrao(ref, f'{agora_brasilia():%d/%m/%Y %H:%M}', True), anexos)
     return dict(ok=True, enviado_para=destinos)
 
 
@@ -85,7 +102,7 @@ def _precisa_enviar(app, agora: datetime) -> bool:
     if not cfg['ativo'] or agora.weekday() not in cfg['dias']:
         return False
     alvo = agora.replace(hour=cfg['hora'][0], minute=cfg['hora'][1], second=0, microsecond=0)
-    if agora < alvo:
+    if agora < alvo or agora > agora.replace(hour=cfg['ate'][0], minute=cfg['ate'][1], second=0, microsecond=0):
         return False
     est = _ler(app)
     if est.get('enviado_em') == agora.date().isoformat():
@@ -97,7 +114,7 @@ def _precisa_enviar(app, agora: datetime) -> bool:
 
 
 def _tick(app) -> None:
-    agora = datetime.now()
+    agora = agora_brasilia()
     if not _precisa_enviar(app, agora):
         return
     if not _trava.acquire(blocking=False):

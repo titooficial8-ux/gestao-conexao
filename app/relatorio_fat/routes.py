@@ -9,7 +9,7 @@ from datetime import datetime
 from flask import Blueprint, Response, abort, current_app, jsonify, redirect, request
 from flask_login import current_user, login_required, login_user
 
-from app.relatorio_fat import captura, dados, pdf_gen, pptx_gen
+from app.relatorio_fat import agenda, captura, dados, pdf_gen, pptx_gen
 from app.relatorio_fat import envio_email as envio
 
 rel_fat_bp = Blueprint('relatorio_faturamento', __name__, url_prefix='/relatorio-faturamento')
@@ -124,7 +124,7 @@ def enviar():
         ref = f'{dados.MESES[r[2] - 1]}/{r[3]}'
     try:
         envio.enviar(destinos, f'Relatório de Faturamento — {ref}',
-                     envio.corpo_padrao(ref, datetime.now().strftime('%d/%m/%Y %H:%M')), anexos)
+                     envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M')), anexos)
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=f'Não foi possível enviar: {e}'), 502
     return jsonify(ok=True, enviado_para=destinos, anexos=[a[0] for a in anexos])
