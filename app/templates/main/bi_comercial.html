@@ -547,7 +547,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   }
   function desenharPedidos(d) {
     var corpo = $('biPedCorpo'), f = $('biPedFiltros'); corpo.textContent = ''; f.textContent = '';
-    if (d.vazio) { corpo.appendChild(ui.el('div', 'table-card', ES ? 'Trayendo el pedidos de 2026 del TOTVS... la primera vez tarda unos minutos; esta pantalla se actualiza sola.' : 'Buscando o pedidos de 2026 no TOTVS... na primeira vez demora alguns minutos; esta tela se atualiza sozinha.' + (d.estado && d.estado.erro ? ' Erro: ' + d.estado.erro : ''))); return; }
+    if (d.vazio) { corpo.appendChild(ui.el('div', 'table-card', ES ? 'Trayendo el pedidos de 2026 del TOTVS... la primera vez tarda unos minutos; esta pantalla se actualiza sola.' : 'Buscando os pedidos de 2026 no TOTVS... na primeira vez demora alguns minutos; esta tela se atualiza sozinha.' + (d.estado && d.estado.erro ? ' Erro: ' + d.estado.erro : ''))); return; }
     var l = ui.el('label', 'cme-filtro'); l.appendChild(ui.el('span', null, ES ? 'Mes de referencia' : 'Mês referência')); var s = ui.el('select', 'ticket-input');
     MESES.forEach(function (m, i) { var o = ui.el('option', null, m); o.value = i + 1; if (i + 1 === d.mes) o.selected = true; s.appendChild(o); });
     s.addEventListener('change', function () { pedSel.mes = +s.value; carregarPedidos(); }); l.appendChild(s); f.appendChild(l);
@@ -561,6 +561,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     }
     var at = ui.el('span', 'cme-meta', pedAtualTxt(d)); at.id = 'biPedAtual'; f.appendChild(at);
     var av = ui.el('div', 'bi-ped-aviso'); av.id = 'biPedAviso'; av.hidden = true; corpo.appendChild(av);
+    if (d.totvs_pendente) corpo.appendChild(ui.el('div', 'bi-ped-aviso', ES ? '⏳ Trayendo los pedidos de 2026 del TOTVS… (la primera vez tarda unos minutos). Los años 2023 a 2025 ya vienen de la planilla; esta pantalla se actualiza sola.' : '⏳ Buscando os pedidos de 2026 no TOTVS… (na primeira vez demora alguns minutos). Os anos 2023 a 2025 já vêm da planilha; esta tela se atualiza sozinha.'));
     var K = ui.el('div', 'cme-kpigrid');
     d.anos.forEach(function (a, i) {
       var t = d.total[a], ant = i ? d.total[d.anos[i - 1]] : null;
@@ -621,15 +622,17 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     // pivo por cliente: MI e ME, com total (como a tabela dinamica da planilha)
     var gl = (d.clientes_loc || {})[pedSel.anoCli], cp = ui.el('div', 'table-card');
     cp.appendChild(ui.el('h3', null, (ES ? 'Pedidos por cliente — detalle' : 'Pedidos por cliente — detalhe') + ' — ' + MESES[d.mes - 1] + '/' + pedSel.anoCli));
-    cp.appendChild(ui.el('p', 'cme-meta', ES ? 'Soma de VALOR R$ por mercado (MI = interno, ME = externo) y por cliente' : 'Soma de VALOR R$ por mercado (MI = interno, ME = externo) e por cliente'));
+    cp.appendChild(ui.el('p', 'cme-meta', ES ? 'Soma de VALOR R$ por mercado (MI = interno, ME = externo) y por cliente' : 'Soma de VALOR R$, metragem total e ticket médio (R$ por metro) por mercado (MI = interno, ME = externo) e por cliente'));
     if (gl && (gl.MI.itens.length || gl.ME.itens.length)) {
       var wp = ui.el('div', 'table-scroll'), tp2 = ui.el('table', 'data-table sl-tab sl-pivo'); wp.appendChild(tp2);
-      var hp = ui.el('thead'), hr = ui.el('tr'); hr.appendChild(ui.el('th', null, ES ? 'Rótulos de Fila' : 'Rótulos de Linha')); hr.appendChild(ui.el('th', 'cme-num', 'Soma de VALOR R$')); hp.appendChild(hr); tp2.appendChild(hp);
+      var hp = ui.el('thead'), hr = ui.el('tr'); hr.appendChild(ui.el('th', null, ES ? 'Rótulos de Fila' : 'Rótulos de Linha')); hr.appendChild(ui.el('th', 'cme-num', 'Soma de VALOR R$')); hr.appendChild(ui.el('th', 'cme-num', ES ? 'Metraje total' : 'Metragem total')); hr.appendChild(ui.el('th', 'cme-num', ES ? 'Ticket medio (R$/mt)' : 'Ticket médio (R$/mt)')); hp.appendChild(hr); tp2.appendChild(hp);
       var bp = ui.el('tbody');
+      function mtsTxt(m) { return m ? rs(m) + ' mts' : '-'; }
+      function ticketTxt(v, m) { return m ? 'R$ ' + ui.nf(v / m, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'; }      // ticket medio = valor / metros (como a planilha)
       ['MI', 'ME'].forEach(function (loc) { var g = gl[loc]; if (!g.itens.length) return;
-        var rr = ui.el('tr', 'sl-pivo-grupo'); rr.appendChild(ui.el('td', null, '⊟ ' + loc)); rr.appendChild(ui.el('td', 'cme-num', rs(g.total))); bp.appendChild(rr);
-        g.itens.forEach(function (x) { var r2 = ui.el('tr'); r2.appendChild(ui.el('td', 'sl-pivo-item', x[0])); r2.appendChild(ui.el('td', 'cme-num', rs(x[1]))); bp.appendChild(r2); }); });
-      var rg = ui.el('tr', 'sl-total'); rg.appendChild(ui.el('td', null, 'Total Geral')); rg.appendChild(ui.el('td', 'cme-num', rs(gl.MI.total + gl.ME.total))); bp.appendChild(rg);
+        var rr = ui.el('tr', 'sl-pivo-grupo'); rr.appendChild(ui.el('td', null, '⊟ ' + loc)); rr.appendChild(ui.el('td', 'cme-num', rs(g.total))); rr.appendChild(ui.el('td', 'cme-num', mtsTxt(g.metros))); rr.appendChild(ui.el('td', 'cme-num', ticketTxt(g.total, g.metros))); bp.appendChild(rr);
+        g.itens.forEach(function (x) { var r2 = ui.el('tr'); r2.appendChild(ui.el('td', 'sl-pivo-item', x[0])); r2.appendChild(ui.el('td', 'cme-num', rs(x[1]))); r2.appendChild(ui.el('td', 'cme-num', mtsTxt(x[3]))); r2.appendChild(ui.el('td', 'cme-num', ticketTxt(x[1], x[3]))); bp.appendChild(r2); }); });
+      var rg = ui.el('tr', 'sl-total'), mTot = gl.MI.metros + gl.ME.metros, vTot = gl.MI.total + gl.ME.total; rg.appendChild(ui.el('td', null, 'Total Geral')); rg.appendChild(ui.el('td', 'cme-num', rs(vTot))); rg.appendChild(ui.el('td', 'cme-num', mtsTxt(mTot))); rg.appendChild(ui.el('td', 'cme-num', ticketTxt(vTot, mTot))); bp.appendChild(rg);
       tp2.appendChild(bp); cp.appendChild(wp);
     } else { cp.appendChild(ui.el('p', 'cme-meta', ES ? 'Sin pedidos en este mes.' : 'Nenhum pedido neste mês.')); }
     corpo.appendChild(cp);

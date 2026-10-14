@@ -2786,7 +2786,7 @@ textarea.ticket-input { resize: vertical; }
 .bi-ped-up { cursor: pointer; }
 .sl-carteira td.sl-rot { font-weight: 600; color: var(--gray-700); }
 .sl-carteira td, .sl-pivo td { font-variant-numeric: tabular-nums; }
-.sl-pivo { max-width: 620px; }
+.sl-pivo { max-width: 860px; }
 .sl-pivo-grupo td { background: var(--blue-50); font-weight: 800; color: var(--blue-900); }
 .sl-pivo-item { padding-left: 28px !important; }
 

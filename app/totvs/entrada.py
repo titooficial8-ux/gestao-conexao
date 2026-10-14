@@ -207,8 +207,8 @@ def resumo(mes: int | None = None) -> dict:
         if m == mes:
             y = por_dia[a].setdefault(dia, [0.0, 0, 0.0, 0.0])
             y[0] += valor; y[1] += 1; y[2] += metros; y[3] += valor if local == 'ME' else 0
-            c = por_cliente[a].setdefault((nome, local), [0.0, 0])
-            c[0] += valor; c[1] += 1
+            c = por_cliente[a].setdefault((nome, local), [0.0, 0, 0.0])
+            c[0] += valor; c[1] += 1; c[2] += metros
     # 2023, 2024 e 2025: o VALOR de cada dia vem da tabela 'Pedido de Venda - Carteira' da planilha (como ela mostra); pedidos/ME seguem da lista de pedidos
     for a in planilha_pedidos.ANOS:
         for mk, dias_c in (plan.get('carteira', {}).get(str(a)) or {}).items():
@@ -244,12 +244,12 @@ def resumo(mes: int | None = None) -> dict:
     for a in ANOS:
         junto = {}
         for (nome, _loc), v in por_cliente[a].items():
-            j = junto.setdefault(nome, [0.0, 0]); j[0] += v[0]; j[1] += v[1]
+            j = junto.setdefault(nome, [0.0, 0, 0.0]); j[0] += v[0]; j[1] += v[1]; j[2] += v[2]
         clientes[str(a)] = sorted(([n, round(v[0], 2), v[1]] for n, v in junto.items()), key=lambda x: -x[1])
         grupos = {}
         for loc in ('MI', 'ME'):
-            itens = sorted(([n, round(v[0], 2), v[1]] for (n, l), v in por_cliente[a].items() if l == loc), key=lambda x: -x[1])
-            grupos[loc] = dict(total=round(sum(i[1] for i in itens), 2), n=sum(i[2] for i in itens), itens=itens)
+            itens = sorted(([n, round(v[0], 2), v[1], round(v[2], 2)] for (n, l), v in por_cliente[a].items() if l == loc), key=lambda x: -x[1])
+            grupos[loc] = dict(total=round(sum(i[1] for i in itens), 2), n=sum(i[2] for i in itens), metros=round(sum(i[3] for i in itens), 2), itens=itens)
         clientes_loc[str(a)] = grupos
     ultimos = sorted(((cod, v) for cod, v in pedidos.items() if v[5]), key=lambda x: x[1][5], reverse=True)[:10]
     ultimos = [dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), metros=round(v[2]), me=v[3] == 'ME',
@@ -257,4 +257,4 @@ def resumo(mes: int | None = None) -> dict:
                     unidade=(fantasia.get(str(v[4])) or v[6]) if normalize_client_name(fantasia.get(str(v[4])) or v[6]) == 'ORTOBOM' else '') for cod, v in ultimos]
     return dict(mes=mes, anos=list(ANOS), clientes=clientes, clientes_loc=clientes_loc, ultimos=ultimos,
                 planilha=dict(atualizado=plan.get('atualizado'), arquivo=plan.get('arquivo'), n=len(plan.get('pedidos', []))) if plan.get('pedidos') else None, hoje=hoje.isoformat(), atualizado=dados.get('atualizado'), dias=dias, total=tot, meses=meses,
-                vazio=not pedidos, estado=dict(ESTADO))
+                vazio=not pedidos and not plan.get('pedidos'), totvs_pendente=not pedidos, estado=dict(ESTADO))
