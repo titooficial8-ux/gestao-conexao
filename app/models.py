@@ -568,6 +568,7 @@ class PesagemResumo(db.Model):
     largura = db.Column(db.Float, nullable=True)             # LARGURA PADRAO
     metro_ideal = db.Column(db.Float, nullable=True)         # METRO IDEAL LOTE = metro padrao do PCP Hub
     metro_padrao = db.Column(db.Float, nullable=True)
+    cliente_cod = db.Column(db.Integer, nullable=True)       # codigo do cliente da OP no TOTVS: a baixa de fio da peca e do mesmo cliente
     pecas = db.Column(db.Integer, default=0)
     metros = db.Column(db.Float, nullable=True)
     no_local = db.Column(db.Float, default=0)
