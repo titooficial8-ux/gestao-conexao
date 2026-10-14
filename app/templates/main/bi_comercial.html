@@ -564,8 +564,9 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     var K = ui.el('div', 'cme-kpigrid');
     d.anos.forEach(function (a, i) {
       var t = d.total[a], ant = i ? d.total[d.anos[i - 1]] : null;
-      var nota = t.n + ' pedidos' + (t.metros ? ' · ' + rs(t.metros) + ' mts' : '') + (t.me ? ' · ME R$ ' + mi(t.me) : '');
-      if (ant && ant.valor) nota += ' · ' + (t.valor >= ant.valor ? '+' : '') + ui.nf((t.valor / ant.valor - 1) * 100, { maximumFractionDigits: 1 }) + '% vs ' + d.anos[i - 1];
+      var nota = t.n + ' pedidos' + (t.me ? ' · ME R$ ' + mi(t.me) : '');                                   // linha 1: pedidos e exportacao
+      if (t.metros) nota += '\n' + rs(t.metros) + ' mts';                                                    // linha 2: metragem total (so quando existe)
+      if (ant && ant.valor) nota += '\n' + (t.valor >= ant.valor ? '+' : '') + ui.nf((t.valor / ant.valor - 1) * 100, { maximumFractionDigits: 1 }) + '% vs ' + d.anos[i - 1];   // linha 3: vs ano anterior
       K.appendChild(ui.cartaoKpi({ rotulo: (ES ? 'Entrada de pedidos ' : 'Entrada de pedidos ') + MESES[d.mes - 1].slice(0, 3) + '/' + a, valor: t.valor, fmt: 'm', texto: 'R$ ' + mi(t.valor), nota: nota, tom: i === 2 ? 'azul' : (i === 1 ? 'verde' : 'azul') }));
     });
     corpo.appendChild(K);
