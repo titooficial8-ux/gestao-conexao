@@ -18,7 +18,7 @@ from . import api
 
 RAIZ = Path(__file__).resolve().parents[2]                 # pasta do Gestao
 ARQUIVO = api.OUT_DIR / 'pedidos_planilha.json'
-VERSAO = 4                                                # sobe quando muda o que e lido da planilha: o arquivo e lido de novo mesmo sem ter sido trocado
+VERSAO = 5                                                # sobe quando muda o que e lido da planilha: o arquivo e lido de novo mesmo sem ter sido trocado
 ANOS = (2023, 2024, 2025)                                       # os anos que vem da planilha (2026 vem do TOTVS)
 _NS = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
 _MES = re.compile(r'^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\w*_(\d{2})$', re.I)
@@ -93,7 +93,7 @@ def sincronizar() -> bool:
         return False
 
 
-def _carteira(z, ss, caminho, mes: int) -> dict:
+def _carteira(z, ss, caminho, mes: int):
     """Tabela 'Pedido de Venda - Carteira' de uma aba de 2026: {ano: {dia: valor}} para 2023 e 2024 (colunas do cabecalho com o ano)."""
     base = date(1899, 12, 30)
     linhas = list(_linhas(z, ss, caminho))
@@ -104,9 +104,16 @@ def _carteira(z, ss, caminho, mes: int) -> dict:
                 if v == 'Data PV':
                     cab = (r, col, d)
     if not cab:
-        return {}, {}
+        return {}, {}, {}
     r0, col_data, dh = cab
     colunas = {c: int(v) for c, v in dh.items() if isinstance(v, float) and int(v) in ANOS}
+    # metas em metros (colunas Meta/Real/%mts/%Meta da tabela): a linha 1 traz o saldo herdado (Meta), a meta do periodo (Real) e o % herdado (%Meta)
+    nomes = {str(v).strip(): c for c, v in dh.items() if isinstance(v, str)}
+    l1 = next((d for r, d in linhas if r == 1), {})
+    metas = {}
+    if nomes.get('Real') and isinstance(l1.get(nomes['Real']), float) and l1[nomes['Real']] > 0:
+        metas = dict(meta=l1[nomes['Real']], saldo=l1.get(nomes.get('Meta')) if isinstance(l1.get(nomes.get('Meta')), float) else 0.0,
+                     pct=l1.get(nomes.get('%Meta')) if isinstance(l1.get(nomes.get('%Meta')), float) else None)
     saida = {a: {} for a in colunas.values()}
     totais, achou_total = {}, False
     for r, d in linhas:
@@ -123,7 +130,7 @@ def _carteira(z, ss, caminho, mes: int) -> dict:
         for c, a in colunas.items():
             if isinstance(d.get(c), float) and d[c]:
                 saida[a][str(dia.day)] = round(d[c], 2)
-    return saida, totais
+    return saida, totais, metas
 
 
 def importar(arquivo, origem=None) -> dict:
@@ -172,12 +179,15 @@ def importar(arquivo, origem=None) -> dict:
             cli = str(d.get(cols.get('cliente', '')) or d.get(cols.get('fantasia', '')) or '').strip()[:60]
             pedidos.append([dia.isoformat(), round(val, 2), round(met, 2) if isinstance(met, float) else 0.0, local, cli])
     totais_planilha = {str(a): {} for a in ANOS}
+    metas_planilha = {}
     carteira = {str(a): {} for a in ANOS}                      # 2023/2024: valores da tabela Carteira de cada aba de 2026 (como a planilha mostra)
     for nome, caminho in abas:
         m = _MES.match(nome)
         if m and 2000 + int(m.group(2)) == 2026:
             mes = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'].index(m.group(1).lower()) + 1
-            dias_c, tot_c = _carteira(z, ss, caminho, mes)
+            dias_c, tot_c, metas_c = _carteira(z, ss, caminho, mes)
+            if metas_c:
+                metas_planilha[str(mes)] = metas_c
             for a, dias in dias_c.items():
                 if dias:
                     carteira[str(a)][str(mes)] = dias
@@ -186,7 +196,7 @@ def importar(arquivo, origem=None) -> dict:
     if not pedidos:
         raise ValueError('Não achei pedidos de 2023 a 2025 nas abas mensais (ex.: Out_24). É a planilha "Pedido de venda"?')
     ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
-    ARQUIVO.write_text(json.dumps(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), anos=list(ANOS), arquivo=origem[0] if origem else None, mtime=origem[1] if origem else None, carteira=carteira, totais=totais_planilha, pedidos=pedidos), ensure_ascii=False), encoding='utf-8')
+    ARQUIVO.write_text(json.dumps(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), anos=list(ANOS), arquivo=origem[0] if origem else None, mtime=origem[1] if origem else None, carteira=carteira, totais=totais_planilha, metas=metas_planilha, pedidos=pedidos), ensure_ascii=False), encoding='utf-8')
     return dict(abas=len(lidas), pedidos=len(pedidos), meses_carteira={a: sorted(int(m) for m in v) for a, v in carteira.items()}, por_ano={str(a): sum(1 for p in pedidos if p[0].startswith(str(a))) for a in ANOS})
 
 

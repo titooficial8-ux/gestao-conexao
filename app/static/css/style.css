@@ -2795,3 +2795,47 @@ textarea.ticket-input { resize: vertical; }
 .sl-carteira-var td, .sl-carteira-ate td { font-weight: 700; background: #fafcff; }
 .sl-carteira .sl-up { color: #11703c; }
 .sl-carteira .sl-down { color: #c0272d; }
+
+/* Carteira compacta (colunas juntas, como na planilha) */
+.sl-carteira-wrap { max-width: 100%; }
+.sl-carteira { width: auto !important; min-width: 0; margin: 0; border-collapse: separate; border-spacing: 0; }
+.sl-carteira th, .sl-carteira td { padding: 5px 12px !important; font-size: 12.5px; }
+.sl-carteira td.cme-num, .sl-carteira th.cme-num { text-align: right; min-width: 84px; font-variant-numeric: tabular-nums; }
+.sl-carteira td.sl-rot { min-width: 70px; }
+.sl-carteira tbody tr:nth-child(even) td { background: #f8fafd; }
+.sl-carteira tbody tr:hover td { background: #eef4ff; }
+.sl-carteira .sl-c-mt { color: #324a66; }
+.sl-carteira th.sl-h-mt { background: #5b6b80; color: #fff; }
+.sl-cart-grupo th { text-align: center !important; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #fff; padding: 6px 10px !important; }
+.sl-cart-grupo .sl-g-ped { background: #1f4e79; }
+.sl-cart-grupo .sl-g-tk { background: #6fa3d1; }
+.sl-cart-grupo .sl-g-mt { background: #5b6b80; }
+.sl-carteira .sl-total td { background: #eaf2fb !important; }
+.bi-metas { margin-bottom: 14px; }
+
+/* ===== Indicadores executivos (Entrada de pedidos) ===== */
+.ex-secao { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #46586e; margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; }
+.ex-secao::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, #d5dfec, transparent); }
+.ex-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 6px; }
+.ex-card { position: relative; background: #fff; border: 1px solid #e1e9f3; border-radius: 14px; padding: 18px 20px 16px; box-shadow: 0 1px 2px rgba(16,38,63,.04), 0 8px 22px rgba(16,38,63,.05); overflow: hidden; }
+.ex-card::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--ex-cor, #2f7fe0); }
+.ex-card.atual { background: linear-gradient(180deg, #f3f8ff 0%, #fff 70%); border-color: #bcd6f5; box-shadow: 0 2px 4px rgba(47,127,224,.10), 0 12px 28px rgba(47,127,224,.12); }
+.ex-rot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: .09em; color: #5d6e84; text-transform: uppercase; }
+.ex-tag { font-size: 10px; font-weight: 700; letter-spacing: .05em; padding: 3px 9px; border-radius: 999px; background: #eef2f8; color: #546880; white-space: nowrap; }
+.ex-tag.vivo { background: #e3f5ea; color: #11703c; }
+.ex-val { font-size: 29px; font-weight: 800; color: #0f2540; margin: 12px 0 8px; font-variant-numeric: tabular-nums; letter-spacing: -.015em; line-height: 1.1; }
+.ex-delta { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; margin-bottom: 4px; }
+.ex-delta.up { background: #e3f5ea; color: #11703c; }
+.ex-delta.down { background: #fdeaea; color: #b62027; }
+.ex-sub { font-size: 12.5px; color: #6a7b90; margin-top: 7px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+.ex-bar { height: 8px; border-radius: 8px; background: #e6ecf4; overflow: hidden; margin: 6px 0 4px; }
+.ex-bar span { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--ex-cor, #2f7fe0), color-mix(in srgb, var(--ex-cor, #2f7fe0) 60%, #fff)); }
+.ex-barrot { font-size: 11.5px; font-weight: 700; color: #6a7b90; }
+.ex-vivo { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 22px; margin: 16px 0 4px; padding: 15px 22px; border-radius: 14px; background: linear-gradient(100deg, #0b2a4a, #12395f); color: #fff; box-shadow: 0 8px 22px rgba(11,42,74,.22); }
+.ex-vivo-lbl { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 800; letter-spacing: .14em; color: #8be8b1; }
+.ex-vivo-ponto { width: 9px; height: 9px; border-radius: 50%; background: #3ddc84; animation: biPonto 1.4s ease-in-out infinite; }
+.ex-vivo-hora { font-size: 13px; color: #aebfd3; font-variant-numeric: tabular-nums; }
+.ex-vivo-cli { font-size: 17px; font-weight: 800; letter-spacing: .01em; }
+.ex-vivo-mt { font-size: 14px; color: #d4e0ee; font-variant-numeric: tabular-nums; }
+.ex-vivo-val { margin-left: auto; font-size: 18px; font-weight: 800; color: #8be8b1; font-variant-numeric: tabular-nums; }
+.bi-ped-aviso { background: #fff; border: 1px solid #cfe0f5; border-left: 5px solid #2f7fe0; color: #0f2540; border-radius: 12px; padding: 12px 18px; font-weight: 700; margin-bottom: 14px; box-shadow: 0 8px 22px rgba(16,38,63,.10); animation: biPedPisca 1.2s ease-in-out 3; }
