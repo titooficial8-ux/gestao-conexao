@@ -244,20 +244,19 @@ def resumo(mes: int | None = None) -> dict:
     mt = (plan.get('metas') or {}).get(str(mes))
     if mt and mt.get('meta'):
         ano = ANOS[-1]
-        saldo, pct, meta = mt.get('saldo') or 0.0, mt.get('pct'), mt['meta']
+        saldo, meta = mt.get('saldo') or 0.0, mt['meta']
+        saldo_ini = saldo
         linhas = {}
         ultimo = hoje.day if (hoje.year == ano and hoje.month == mes) else (31 if mes in (1, 3, 5, 7, 8, 10, 12) else (30 if mes != 2 else 29))
         for dd in range(1, ultimo + 1):                      # todos os dias (sem pedido o saldo e o % ficam iguais, como na planilha)
             v, _n, m, _me = por_dia[ano].get(dd, [0.0, 0, 0.0, 0.0])
-            pm = m / meta
-            saldo -= m
-            if pct is not None and m:
-                pct -= pm
-            linhas[str(dd)] = dict(ticket=round(v / m, 4) if m else 0, real=round(m, 2), pct_mts=pm, acum=round(saldo, 2), pct_meta=pct)
+            saldo -= m                                       # Meta (coluna): saldo da meta em metros = saldo anterior - Real do dia
+            linhas[str(dd)] = dict(ticket=round(v / m, 4) if m else 0, real=round(m, 2), pct_mts=m / meta, acum=round(saldo, 2), pct_meta=saldo / meta)   # %Meta = saldo / meta total
         mtot = sum(l['real'] for l in linhas.values())
         vtot = sum(por_dia[ano][dd][0] for dd in por_dia[ano])
-        metas = dict(ano=ano, meta=meta, saldo_inicial=mt.get('saldo') or 0.0, pct_inicial=mt.get('pct'), linhas=linhas,
-                     total=dict(real=round(mtot, 2), ticket=round(vtot / mtot, 4) if mtot else 0, acum=round(saldo, 2), pct_mts=mtot / meta, pct_meta=pct))
+        metas = dict(ano=ano, meta=meta, saldo_inicial=saldo_ini, pct_inicial=saldo_ini / meta, linhas=linhas,
+                     total=dict(real=round(mtot, 2), ticket=round(vtot / mtot, 4) if mtot else 0, acum=round(saldo, 2), pct_mts=mtot / meta, pct_meta=saldo / meta,
+                                realizado_ano=round(meta - saldo, 2)))
     meses = {str(a): [dict(valor=round(x[0], 2), n=x[1], metros=round(x[2], 2)) for x in por_mes[a]] for a in ANOS}
     clientes, clientes_loc = {}, {}
     for a in ANOS:
