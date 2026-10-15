@@ -500,6 +500,9 @@ DIAS_DESCOBERTA = int(os.getenv('MOVIMENTOS_DIAS_DESCOBERTA', '60'))   # histori
 ESTADO = dict(rodando=False, ultima=None, erro=None, ops=0, pecas=0, duracao=None)
 _trava_auto = threading.Lock()
 _ULTIMA_BUSCA_ANTIGAS = 0.0
+_DESC_OPS = set()                                             # OPs fora da Programacao que ja pesaram no local 23 (achadas na varredura completa)
+_DESC_EM = 0.0                                                # quando foi a ultima varredura completa
+DESCOBERTA_COMPLETA_SEG = int(os.getenv('MOVIMENTOS_DESCOBERTA_SEG', '900'))
 _ULT_CICLO = 0.0                                              # fim do ultimo ciclo completo: peca nova so vale como 'vista ao vivo' se o ciclo anterior foi ha pouco
 
 
@@ -635,7 +638,19 @@ def atualizar_todas(app) -> bool:
                             raise RuntimeError(f'OPs: HTTP {r.status_code} {r.text[:160]}')
                         for o in r.json().get('items') or []:
                             info[str(o.get('orderCode'))] = o
+                global _DESC_OPS, _DESC_EM
                 buscar_info(ops)
+                conhecidas = sorted(_DESC_OPS - set(ops), key=int)              # OPs fora da Programacao ja descobertas (finalizadas etc.)
+                if conhecidas:
+                    buscar_info(conhecidas)
+                    conhecidas = [o for o in conhecidas if o in info]
+                for o in conhecidas:
+                    try:                                                # metro padrao do artigo (Base Estrutura), como o PCP Hub usa
+                        from app.main.routes import resolve_metros_from_article
+                        padroes[o] = float(str(resolve_metros_from_article(((info[o].get('items') or [{}])[0].get('productName')) or '') or '').replace(',', '.')) or None
+                    except ValueError:
+                        padroes[o] = None
+                    maquinas[o] = info[o].get('machineCode')
                 hoje = date.today()
                 inicio = min([_data(o.get('insertDate')) for o in info.values() if _data(o.get('insertDate'))] or [hoje - timedelta(days=60)])
                 inicio = max(inicio, hoje - timedelta(days=DIAS_HISTORICO))
@@ -647,11 +662,19 @@ def atualizar_todas(app) -> bool:
                         break
                     fim = ini - timedelta(days=1)
                 # OPs que pesaram no local 23 mas nao estao (mais) na Programacao (ex.: ja finalizadas): descobertas pelos movimentos de todas as OPs
+                fim2, lim2 = hoje, hoje - timedelta(days=DIAS_DESCOBERTA)       # OPs ja descobertas: filtradas por codigo (em blocos de 100), so os ultimos 60 dias
+                while conhecidas and fim2 >= lim2:
+                    ini2 = max(lim2, fim2 - timedelta(days=JANELA_DIAS))
+                    for i in range(0, len(conhecidas), 100):
+                        movs += _buscar_movs(cli, ini2, fim2, conhecidas[i:i + 100])
+                    fim2 = ini2 - timedelta(days=1)
+                # a varredura de 60 dias de TODAS as OPs e pesada (dezenas de milhares de movimentos): so a cada 15 min; nas rodadas de 10 s olha so os ultimos 2 dias
+                completa = (not _DESC_OPS) or time.time() - _DESC_EM > DESCOBERTA_COMPLETA_SEG
                 extras_movs, fim = [], hoje
-                limite = hoje - timedelta(days=DIAS_DESCOBERTA)
+                limite = hoje - timedelta(days=DIAS_DESCOBERTA if completa else 2)
                 while fim >= limite:
                     ini = max(limite, fim - timedelta(days=JANELA_DIAS))
-                    extras_movs += [m for m in _buscar_movs(cli, ini, fim) if str(m.get('productionOrder')) not in seqs]
+                    extras_movs += [m for m in _buscar_movs(cli, ini, fim) if str(m.get('productionOrder')) not in seqs and str(m.get('productionOrder')) not in _DESC_OPS]
                     fim = ini - timedelta(days=1)
                 novas_ops = sorted({str(m.get('productionOrder')) for m in extras_movs
                                     if m.get('originLocationCode') == LOCAL and m.get('destinationLocationCode') == 24 and str(m.get('productionOrder')).isdigit()}, key=int)
@@ -669,7 +692,10 @@ def atualizar_todas(app) -> bool:
                         except ValueError:
                             padroes[o] = None
                         maquinas[o] = info[o].get('machineCode')
-                    ops = sorted(set(ops) | set(novas_ops), key=int)
+                _DESC_OPS |= set(novas_ops)
+                if completa:
+                    _DESC_EM = time.time()
+                ops = sorted(set(ops) | set(novas_ops) | set(conhecidas), key=int)
 
             por_op = {}
             for m in movs:
