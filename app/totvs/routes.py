@@ -176,7 +176,7 @@ def ultimo_pedido():
     tabs = Tab.query.filter(Tab.slug.in_(['dashboard-comercial', 'pedidos-comercial-mi', 'pedidos-comercial-me'])).all()
     if not any(t.visible_to(current_user) for t in tabs):
         abort(403)
-    return _json(dict(ultimo=entrada.ultimo()))
+    return _json(dict(ultimo=entrada.ultimo(), estado=dict(ultima=entrada.ESTADO.get('ultima'), erro=entrada.ESTADO.get('erro'), rodando=entrada.ESTADO.get('rodando'), msg=entrada.ESTADO.get('msg'))))
 
 
 @bi_bp.route('/pedidos-planilha', methods=['POST'])
