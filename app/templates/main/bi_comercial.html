@@ -582,18 +582,28 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
         valor: 'R$ ' + mi(t.valor), delta: ant && ant.valor ? t.valor / ant.valor - 1 : null, deltaRef: ant ? d.anos[i - 1] : null, linhas: linhasSub, destaque: atual, cor: atual ? '#2f7fe0' : '#aab6c8' }));
     });
     corpo.appendChild(K);
-    // Metas em metros (indicador): meta do periodo, real do mes, % da meta realizado e % que ainda falta (mesma conta da planilha)
+    // Metas em metros (indicador): meta do ano, real do mes, % da meta no mes e quanto falta (ou quanto passou) da meta
     var M = d.metas;
     if (M) {
-      var falta = M.total.pct_meta, realizado = falta === null ? null : 1 - falta;
+      var falta = M.total.pct_meta, superada = falta < 0, realizadoAno = M.total.realizado_ano, pctReal = realizadoAno / M.meta;
       corpo.appendChild(ui.el('div', 'ex-secao', (ES ? 'Metas en metros' : 'Metas em metros') + ' · ' + MESES[d.mes - 1] + '/' + M.ano));
       var KM = ui.el('div', 'ex-grid');
-      KM.appendChild(execCard({ rotulo: ES ? 'META EN METROS' : 'META EM METROS', tag: ES ? 'Planilla' : 'Planilha', valor: rs(M.meta) + ' mts', linhas: [(ES ? 'Saldo anterior: ' : 'Saldo anterior: ') + rs(Math.abs(M.saldo_inicial)) + ' mts'], cor: '#1f4e79' }));
+      KM.appendChild(execCard({ rotulo: ES ? 'META EN METROS (AÑO)' : 'META EM METROS (ANO)', tag: ES ? 'Planilla' : 'Planilha', valor: rs(M.meta) + ' mts', linhas: [(ES ? 'Saldo al inicio del mes: ' : 'Saldo no início do mês: ') + (M.saldo_inicial < 0 ? '−' : '') + rs(Math.abs(M.saldo_inicial)) + ' mts'], cor: '#1f4e79' }));
       KM.appendChild(execCard({ rotulo: (ES ? 'REAL EN ' : 'REAL EM ') + MESES[d.mes - 1].slice(0, 3).toUpperCase() + '/' + M.ano, tag: 'TOTVS', vivo: true, valor: rs(M.total.real) + ' mts', linhas: [(ES ? 'Ticket medio: ' : 'Ticket médio: ') + 'R$ ' + ui.nf(M.total.ticket, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '/mt'], cor: '#1f9d55' }));
       KM.appendChild(execCard({ rotulo: ES ? '% DE LA META EN EL MES' : '% DA META NO MÊS', valor: ui.nf(M.total.pct_mts * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%', barra: Math.min(M.total.pct_mts, 1), linhas: [ES ? 'real del mes ÷ meta' : 'real do mês ÷ meta'], cor: '#2f7fe0' }));
-      KM.appendChild(execCard({ rotulo: ES ? '% DE LA META QUE FALTA' : '% DA META QUE FALTA', valor: falta === null ? '–' : ui.nf(falta * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%', barra: realizado === null ? null : Math.max(Math.min(realizado, 1), 0), barraRot: realizado === null ? '' : (ES ? 'realizado ' : 'realizado ') + ui.nf(realizado * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%',
-        linhas: [(ES ? 'empieza en ' : 'começa em ') + (M.pct_inicial === null ? '–' : ui.nf(M.pct_inicial * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%')], cor: '#c0272d' }));
+      KM.appendChild(execCard({ rotulo: superada ? (ES ? 'META SUPERADA' : 'META SUPERADA') : (ES ? '% DE LA META QUE FALTA' : '% DA META QUE FALTA'), tag: superada ? (ES ? 'meta alcanzada' : 'meta atingida') : null, vivo: superada,
+        valor: superada ? '+' + ui.nf(Math.abs(falta) * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%' : ui.nf(falta * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%',
+        barra: Math.max(Math.min(pctReal, 1), 0), barraRot: (ES ? 'realizado en el año ' : 'realizado no ano ') + ui.nf(pctReal * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%',
+        linhas: [superada ? (ES ? 'excedió la meta en ' : 'excedeu a meta em ') + rs(Math.abs(M.total.acum)) + ' mts' : (ES ? 'faltan ' : 'faltam ') + rs(M.total.acum) + ' mts'], cor: superada ? '#1f9d55' : '#c0272d' }));
       corpo.appendChild(KM);
+      var como = ui.el('details', 'ex-como'); como.appendChild(ui.el('summary', null, ES ? 'ⓘ Cómo se calcula' : 'ⓘ Como é calculado'));
+      [['Ticket médio', 'valor do dia ÷ metros do dia (R$ por metro). No total, valor do mês ÷ metros do mês.'],
+       ['Real', 'metros dos pedidos do dia (TOTVS).'],
+       ['%mts', 'Real do dia ÷ Meta do ano (' + rs(M.meta) + ' mts).'],
+       ['Meta (coluna)', 'saldo da meta em metros: parte do saldo do mês anterior (' + (M.saldo_inicial < 0 ? '−' : '') + rs(Math.abs(M.saldo_inicial)) + ' mts) e, a cada dia, subtrai o Real. Negativo = meta superada.'],
+       ['%Meta', 'saldo ÷ meta do ano = o que ainda falta da meta. É a fórmula da planilha (=SE(%mts=0; anterior; anterior − %mts)), partindo do saldo do mês anterior. Zero ou negativo = meta atingida.']].forEach(function (x) {
+        var p = ui.el('p'); p.appendChild(ui.el('strong', null, x[0] + ': ')); p.appendChild(document.createTextNode(x[1])); como.appendChild(p); });
+      corpo.appendChild(como);
     }
     // Pedido de Venda - Carteira: data do pedido x ano (2023 a 2025 da planilha; 2026 do TOTVS), com ticket medio e metas em metros
     var c2 = ui.el('div', 'table-card'); c2.appendChild(ui.el('h3', null, (ES ? 'Pedido de Venta - Cartera' : 'Pedido de Venda - Carteira') + ' — ' + MESES[d.mes - 1]));

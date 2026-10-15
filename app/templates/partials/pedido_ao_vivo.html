@@ -4,6 +4,7 @@
   <span class="gc-vivo-hora" id="gcVivoHora"></span>
   <span class="gc-vivo-cli" id="gcVivoCli"></span>
   <span class="gc-vivo-mt" id="gcVivoMt"></span>
+  <span class="gc-vivo-imp" id="gcVivoImp"></span>
   <span class="gc-vivo-val" id="gcVivoVal"></span>
 </div>
 <script>
@@ -18,6 +19,7 @@
         document.getElementById('gcVivoHora').textContent = u.data.slice(8, 10) + '/' + u.data.slice(5, 7) + ' · ' + u.hora;
         document.getElementById('gcVivoCli').textContent = u.unidade ? u.cliente + ' · ' + u.unidade : u.cliente;
         document.getElementById('gcVivoMt').textContent = nf(u.metros) + ' mts';
+        document.getElementById('gcVivoImp').textContent = {{ ('implementación de pedido en el sistema' if lang == 'es' else 'implementação de pedido em sistema')|tojson }};
         document.getElementById('gcVivoVal').textContent = 'R$ ' + nf(u.valor) + (u.me ? ' (ME)' : '');
         box.hidden = false;
         if (ultimo !== null && ultimo !== u.codigo) { box.classList.remove('novo'); void box.offsetWidth; box.classList.add('novo'); }     // pedido novo: pisca
