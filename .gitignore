@@ -15,3 +15,5 @@ Claude outputs/
 *.xlsx
 *.xls
 *.xlsm
+*.db-wal
+*.db-shm

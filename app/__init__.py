@@ -21,7 +21,20 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'gestao_conexao.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+    # varias threads gravam no banco o dia todo (pesagens, pedidos, baixas): sem WAL elas travam a leitura das telas
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'connect_args': {'timeout': 30}}
+
     db.init_app(app)
+    with app.app_context():
+        from sqlalchemy import event
+
+        @event.listens_for(db.engine, 'connect')
+        def _sqlite_wal(conexao, _registro):
+            c = conexao.cursor()
+            c.execute('PRAGMA journal_mode=WAL')
+            c.execute('PRAGMA synchronous=NORMAL')
+            c.execute('PRAGMA busy_timeout=30000')
+            c.close()
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
     login_manager.login_message = 'faca_login_para_continuar'
