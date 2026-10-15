@@ -686,6 +686,35 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       tp2.appendChild(bp); cp.appendChild(wp);
     } else { cp.appendChild(ui.el('p', 'cme-meta', ES ? 'Sin pedidos en este mes.' : 'Nenhum pedido neste mês.')); }
     corpo.appendChild(cp);
+    desenharAlterados(corpo);
+  }
+  // pedidos alterados (secao separada): do 1o dia do mes ate ontem, filtro de alteracao da API do TOTVS
+  var altCache = null;
+  function desenharAlterados(corpo) {
+    var card = ui.el('div', 'table-card'); card.appendChild(ui.el('h3', null, ES ? 'Pedidos modificados' : 'Pedidos alterados'));
+    var corpoAlt = ui.el('div'); card.appendChild(corpoAlt); corpo.appendChild(card);
+    function fmtD(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : ''; }
+    function fmtDH(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + ' ' + iso.slice(11, 16) : '—'; }
+    function mostrar(a) {
+      corpoAlt.textContent = '';
+      if (!a.ok) { corpoAlt.appendChild(ui.el('p', 'cme-meta', (ES ? 'No se pudo consultar: ' : 'Não consegui consultar o TOTVS: ') + (a.erro || ''))); return; }
+      corpoAlt.appendChild(ui.el('p', 'cme-meta', (ES ? 'Alterados después de registrados, del ' : 'Alterados depois de lançados, de ') + fmtD(a.inicio) + (ES ? ' al ' : ' até ') + fmtD(a.fim) + ' · ' + a.total + (ES ? ' pedidos' : ' pedidos') + ' · ' + a.mudaram + (ES ? ' con valor/metros cambiados' : ' com valor ou metragem diferente do que o Gestão viu antes')
+        + (a.base_desde ? ' · ' + (ES ? 'el valor anterior existe desde ' : 'o valor anterior só existe desde ') + fmtD(a.base_desde) + (ES ? ' (cuando el Gestão empezó a guardarlo)' : ' (quando o Gestão passou a guardar)') : '')));
+      if (!a.itens.length) { corpoAlt.appendChild(ui.el('p', 'cme-meta', ES ? 'Ningún pedido alterado en el período.' : 'Nenhum pedido alterado no período.')); return; }
+      var w = ui.el('div', 'table-scroll'), tb = ui.el('table', 'data-table sl-tab'), th = ui.el('thead'), tr = ui.el('tr');
+      ['Pedido', 'Cliente', 'Data PV', 'Alterado em', 'Valor antes', 'Valor agora', 'Δ valor', 'Mts antes', 'Mts agora', 'Δ mts'].forEach(function (h, i) { tr.appendChild(ui.el('th', i > 3 ? 'cme-num' : null, h)); });
+      th.appendChild(tr); tb.appendChild(th); var bd = ui.el('tbody');
+      function dif(n, ant) { if (ant === null || ant === undefined) return ['', '']; var d = n - ant; return [Math.abs(d) < 0.5 ? '-' : (d > 0 ? '+' : '') + rs(d), Math.abs(d) < 0.5 ? '' : (d > 0 ? 'sl-up' : 'sl-down')]; }
+      a.itens.forEach(function (x) { var r = ui.el('tr', x.mudou ? '' : 'op-sem-base'), dv = dif(x.valor, x.valor_ant), dm = dif(x.metros, x.metros_ant);
+        r.appendChild(ui.el('td', null, x.codigo)); r.appendChild(ui.el('td', null, x.cliente + (x.local === 'ME' ? ' (ME)' : ''))); r.appendChild(ui.el('td', null, fmtD(x.data))); r.appendChild(ui.el('td', null, fmtDH(x.alterado)));
+        r.appendChild(ui.el('td', 'cme-num', x.valor_ant === null ? '—' : rs(x.valor_ant))); r.appendChild(ui.el('td', 'cme-num', rs(x.valor))); r.appendChild(ui.el('td', 'cme-num ' + dv[1], dv[0]));
+        r.appendChild(ui.el('td', 'cme-num', x.metros_ant === null ? '—' : rs(x.metros_ant))); r.appendChild(ui.el('td', 'cme-num', rs(x.metros))); r.appendChild(ui.el('td', 'cme-num ' + dm[1], dm[0])); bd.appendChild(r); });
+      tb.appendChild(bd); w.appendChild(tb); corpoAlt.appendChild(w);
+    }
+    if (altCache && Date.now() - altCache.t < 120000) { mostrar(altCache.d); return; }
+    corpoAlt.appendChild(ui.el('p', 'cme-meta', ES ? 'Consultando el TOTVS…' : 'Consultando o TOTVS…'));
+    fetch('/bi-comercial/pedidos-alterados', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { altCache = { t: Date.now(), d: d }; mostrar(d); })
+      .catch(function () { corpoAlt.textContent = ''; corpoAlt.appendChild(ui.el('p', 'cme-meta', ES ? 'Falla de conexión.' : 'Falha de conexão ao consultar.')); });
   }
   function mudarVisao(v) {
     Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.classList.toggle('active', b.dataset.visao === v); });

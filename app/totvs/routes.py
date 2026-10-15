@@ -169,6 +169,19 @@ def entrada_pedidos():
     return _json(entrada.resumo(request.args.get('mes', type=int)))
 
 
+@bi_bp.route('/pedidos-alterados')
+@login_required
+def pedidos_alterados():
+    """Pedidos alterados do 1o dia do mes ate ontem (secao separada da Entrada de pedidos)."""
+    _autorizar()
+    if not entrada.configurado():
+        return _json(dict(ok=False, erro='TOTVS não configurado no .env.')), 400
+    try:
+        return _json(dict(ok=True, **entrada.alterados()))
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(ok=False, erro=str(e)[:300])), 502
+
+
 @bi_bp.route('/ultimo-pedido')
 @login_required
 def ultimo_pedido():
