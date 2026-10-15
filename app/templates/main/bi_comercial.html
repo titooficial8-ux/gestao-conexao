@@ -607,7 +607,6 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     }
     // Pedido de Venda - Carteira: data do pedido x ano (2023 a 2025 da planilha; 2026 do TOTVS), com ticket medio e metas em metros
     var c2 = ui.el('div', 'table-card'); c2.appendChild(ui.el('h3', null, (ES ? 'Pedido de Venta - Cartera' : 'Pedido de Venda - Carteira') + ' — ' + MESES[d.mes - 1]));
-    c2.appendChild(ui.el('p', 'cme-meta', ES ? 'Valor en R$ por fecha del pedido (Data PV) · 2023 a 2025: tabla "Pedido de Venda - Cartera" de la planilla; 2026: TOTVS (en vivo, sin muestras ni cancelados) · ticket medio = valor ÷ metros del día' : 'Valor em R$ pela data do pedido (Data PV) · 2023 a 2025: tabela "Pedido de Venda - Carteira" da planilha; 2026: TOTVS (ao vivo, sem amostras e cancelados) · ticket médio = valor ÷ metros do dia'));
     var w = ui.el('div', 'table-scroll sl-carteira-wrap'), tb = ui.el('table', 'data-table sl-tab sl-carteira'); w.appendChild(tb);
     var th = ui.el('thead');
     var g1 = ui.el('tr', 'sl-cart-grupo'); g1.appendChild(ui.el('th', null, ''));
