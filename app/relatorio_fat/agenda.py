@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 DESTINOS_PADRAO = ','.join([
     'luiz.lago@conexaomalhas.com.br', 'marco@conexaomalhas.com.br', 'carlos.ruiz@conexaomalhas.com.br', 'homero.vieira@conexaomalhas.com.br',
     'anderson@conexaomalhas.com.br', 'luciano@conexaomalhas.com.br', 'edmar.santos@conexaomalhas.com.br', 'mauricio@conexaomalhas.com.br',
-    'dora.appolinario@conexaomalhas.com.br', 'luciane.frias@conexaomalhas.com.br'])
+    'dora.appolinario@conexaomalhas.com.br', 'luciane.frias@conexaomalhas.com.br', 'fiscal@conexaomalhas.com.br'])
 FUSO = ZoneInfo('America/Sao_Paulo')
 
 
