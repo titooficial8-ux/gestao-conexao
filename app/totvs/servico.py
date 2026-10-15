@@ -417,6 +417,10 @@ def gerar_blocos(inicio: date, fim: date, pular_existentes: bool = False) -> dic
     return dict(meses=feitos, n_itens=total_itens)
 
 
+def hoje_iso() -> str:
+    return _agora().date().isoformat()
+
+
 def _rodar(inicio: date, fim: date, tag: str, origem: str) -> None:
     from app.totvs import api
     try:
@@ -441,7 +445,11 @@ def _rodar(inicio: date, fim: date, tag: str, origem: str) -> None:
             m = gerar_dados(inicio, fim, tag)
             ESTADO.update(erro=None, msg=f'Concluido: {m["n_itens"]} itens em {m["n_validas"]} notas validas.')
         if origem == 'agenda':
-            _escrever(DIR / 'agenda.json', dict(ultima_ok=_agora().isoformat(timespec='seconds'), tentativa=_agora().isoformat(timespec='seconds'), erro=False))
+            ag_ = _ler_agenda()
+            if date.fromisoformat(ESTADO.get('inicio') or hoje_iso()) < _agora().date().replace(day=1):      # este ciclo incluiu o mes anterior
+                ag_['mes_anterior_em'] = _agora().isoformat(timespec='seconds')
+            _escrever(DIR / 'agenda.json', dict(ag_, ultima_ok=_agora().isoformat(timespec='seconds'), tentativa=_agora().isoformat(timespec='seconds'), erro=False,
+                                                 duracao_s=round((_agora() - datetime.fromisoformat(ESTADO['iniciado_em'])).total_seconds()) if ESTADO.get('iniciado_em') else None))
     except api.Cancelado:
         ESTADO.update(erro=None, msg='Busca cancelada.')
     except Exception as e:  # noqa: BLE001
@@ -522,7 +530,13 @@ def tentar_automatico() -> None:
         iniciar(date.today(), date.today(), 'base', 'historico_auto')
         return
     hoje = _agora().date()
-    ini = (hoje.replace(day=1) - timedelta(days=1)).replace(day=1)       # mes anterior (pega notas lancadas com atraso)
+    ini = hoje.replace(day=1)                                            # ciclo de 2 min: so o mes atual (leve)
+    try:
+        ult_ant = datetime.fromisoformat(ag.get('mes_anterior_em') or '')
+    except ValueError:
+        ult_ant = None
+    if not ult_ant or (_agora() - ult_ant).total_seconds() > 3600:      # a cada 1 h confere tambem o mes anterior (notas lancadas com atraso)
+        ini = (hoje.replace(day=1) - timedelta(days=1)).replace(day=1)
     iniciar(ini, hoje, 'base', 'agenda')
 
 
