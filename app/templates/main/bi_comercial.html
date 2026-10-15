@@ -582,16 +582,6 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
         valor: 'R$ ' + mi(t.valor), delta: ant && ant.valor ? t.valor / ant.valor - 1 : null, deltaRef: ant ? d.anos[i - 1] : null, linhas: linhasSub, destaque: atual, cor: atual ? '#2f7fe0' : '#aab6c8' }));
     });
     corpo.appendChild(K);
-    // ao vivo: ultimo pedido que entrou (uma linha so; atualiza sozinho)
-    var lv = ui.el('div', 'ex-vivo'), u = (d.ultimos || [])[0];
-    var lb = ui.el('div', 'ex-vivo-lbl'); lb.appendChild(ui.el('span', 'ex-vivo-ponto')); lb.appendChild(ui.el('span', null, ES ? 'ACTUALIZACIÓN EN TIEMPO REAL' : 'ATUALIZAÇÃO EM TEMPO REAL')); lv.appendChild(lb);
-    if (u) {
-      lv.appendChild(ui.el('span', 'ex-vivo-hora', u.data.slice(8, 10) + '/' + u.data.slice(5, 7) + ' · ' + u.hora));
-      lv.appendChild(ui.el('span', 'ex-vivo-cli', pedCli(u)));
-      lv.appendChild(ui.el('span', 'ex-vivo-mt', rs(u.metros) + ' mts'));
-      lv.appendChild(ui.el('span', 'ex-vivo-val', 'R$ ' + rs(u.valor) + (u.me ? ' (ME)' : '')));
-    } else lv.appendChild(ui.el('span', 'ex-vivo-cli', ES ? 'Sin pedidos aún' : 'Nenhum pedido ainda'));
-    corpo.appendChild(lv);
     // Metas em metros (indicador): meta do periodo, real do mes, % da meta realizado e % que ainda falta (mesma conta da planilha)
     var M = d.metas;
     if (M) {
