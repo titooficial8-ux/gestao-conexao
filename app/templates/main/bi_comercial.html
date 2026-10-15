@@ -491,7 +491,10 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   function carregarSlide() {
     var qs = Object.keys(slideSel).map(function (k) { return k + '=' + encodeURIComponent(slideSel[k]); }).join('&');
     $('biSlideCorpo').classList.add('cme-carregando');
-    fetch(URL_SLIDE + (qs ? '?' + qs : ''), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { $('biSlideCorpo').classList.remove('cme-carregando'); desenharSlide(d); });
+    var t0 = Date.now();
+    fetch(URL_SLIDE + (qs ? '?' + qs : ''), { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) { $('biSlideCorpo').classList.remove('cme-carregando'); desenharSlide(d); if (window.console) console.log('slide mensal: ' + (Date.now() - t0) + ' ms'); })
+      .catch(function (e) { $('biSlideCorpo').classList.remove('cme-carregando'); $('biSlideCorpo').textContent = ''; $('biSlideCorpo').appendChild(ui.el('p', 'bi-ped-aviso', 'Não consegui carregar o slide mensal (' + e.message + '). Veja o terminal do python run.py e me envie o erro.')); });
   }
 
   // ---------------------------------------------------------------- entrada de pedidos por dia (2024, 2025 e 2026) - API do TOTVS
