@@ -17,8 +17,9 @@ from . import api, planilha_pedidos
 
 ORDERS_URL = f'{api.BASE_URL}/api/totvsmoda/sales-order/v2/orders/search'
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
-ANOS_TOTVS = (2026,)                                               # so 2026 vem do TOTVS
-ANOS = (2023, 2024, 2025, 2026)                                    # 2023, 2024 e 2025 vem da planilha (planilha_pedidos)
+ANO_TOTVS_INICIAL = 2026                                           # 2023, 2024 e 2025 sao fixos da planilha (planilha_pedidos); de 2026 em diante vem do TOTVS
+ANOS_TOTVS = tuple(range(ANO_TOTVS_INICIAL, max(ANO_TOTVS_INICIAL, date.today().year) + 1))   # vira o ano: 2026 e 2027 passam a vir do TOTVS
+ANOS = tuple(planilha_pedidos.ANOS) + ANOS_TOTVS
 RECENTE_DIAS = int(os.getenv('ENTRADA_RECENTE_DIAS', '75'))        # a cada rodada, refaz so os ultimos N dias (pedido muda de status)
 LEGAL_URL = f'{api.BASE_URL}/api/totvsmoda/person/v2/legal-entities/search'
 RAPIDA_DIAS = 3                                                    # ciclo rapido (a cada INTERVALO_SEG): so os ultimos dias

@@ -579,7 +579,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       var linhasSub = [t.n + (ES ? ' pedidos' : ' pedidos') + (t.metros ? ' · ' + rs(t.metros) + ' mts' : '')];
       if (t.me) linhasSub.push((ES ? 'Mercado externo: ' : 'Mercado externo: ') + 'R$ ' + mi(t.me));
       K.appendChild(execCard({ rotulo: MESES[d.mes - 1].slice(0, 3).toUpperCase() + '/' + a, tag: atual ? (ES ? 'TOTVS · en vivo' : 'TOTVS · ao vivo') : (ES ? 'Planilla' : 'Planilha'), vivo: atual,
-        valor: 'R$ ' + mi(t.valor), delta: ant && ant.valor ? t.valor / ant.valor - 1 : null, deltaRef: ant ? d.anos[i - 1] : null, linhas: linhasSub, destaque: atual, cor: atual ? '#2f7fe0' : '#aab6c8' }));
+        valor: 'R$ ' + rs(t.valor), delta: ant && ant.valor ? t.valor / ant.valor - 1 : null, deltaRef: ant ? d.anos[i - 1] : null, linhas: linhasSub, destaque: atual, cor: atual ? '#2f7fe0' : '#aab6c8' }));
     });
     corpo.appendChild(K);
     // Metas em metros (indicador): meta do ano, real do mes, % da meta no mes e quanto falta (ou quanto passou) da meta
