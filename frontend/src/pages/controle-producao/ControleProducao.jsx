@@ -388,7 +388,7 @@ export default function ControleProducao() {
       )}
 
       <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(120deg,#0a2540 0%,#0f3a66 55%,#16508a 100%)', boxShadow: '0 10px 30px rgba(10,37,64,.25)' }}>
-        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-6 p-6 items-center">
+        <div className="cp-hero">
           <div className="flex items-center gap-5">
             <Ring value={progressoMeta} />
             <div>
@@ -400,12 +400,16 @@ export default function ControleProducao() {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-6 lg:px-8 lg:border-x" style={{ borderColor: 'rgba(255,255,255,.12)' }}>
+          <div className="cp-hero-metrics">
             <HeroMetric icon={Ruler} label="Metros produzidos" value={nf(totalMetros)} sub={`capacidade instalada ${nf(capMetrosDia)} m`} />
             <HeroMetric icon={Package} label="Peças" value={nf(totalPecas)} sub={`capacidade ${nf(capPecasDia)} pç`} />
             <HeroMetric icon={Weight} label="Quilos" value={nfKg(totalKg)} sub="kg produzidos no dia" />
+            <div className="cp-maq" title={totalPecas > 0 ? 'Máquinas em operação' : 'Sem produção no dia'}>
+              <div className={`cp-maq-img ${totalPecas > 0 ? 'rodando' : ''}`}><img src="/static/img/maquina-rodando.png" alt="" /><span className="cp-maq-fio" /></div>
+              <p className="cp-maq-rot"><i />{totalPecas > 0 ? 'Em operação' : 'Parada'}</p>
+            </div>
           </div>
-          <div className="text-left lg:text-right">
+          <div className="cp-hero-data">
             <p className="text-[10px] uppercase tracking-[.18em] font-semibold" style={{ color: '#8fb4dc' }}>Produção do dia</p>
             <p className="font-heading font-bold text-white text-lg">{date.split('-').reverse().join('/')}</p>
             <span className="inline-block mt-2 text-[11px] font-bold px-3 py-1 rounded-full" style={{ background: 'rgba(255,255,255,.12)', color: '#fff', border: `1px solid ${TONE_COLOR[toneFor(eficDia)]}` }}>
