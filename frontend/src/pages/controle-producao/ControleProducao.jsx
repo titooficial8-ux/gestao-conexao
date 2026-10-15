@@ -305,7 +305,7 @@ export default function ControleProducao() {
     <div className="gc-scope p-4 md:p-6 space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4 pb-1">
         <div className="flex items-center gap-4">
-          <span className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: 'linear-gradient(135deg,#0a2540,#16508a)' }}>🧶</span>
+          <img src="/static/img/maquina-circular.png" alt="" style={{ height: 72, width: 'auto', filter: 'drop-shadow(0 6px 8px rgba(10,37,64,.28))' }} />
           <div>
             <p className="text-[10px] uppercase tracking-[.18em] font-semibold" style={{ color: 'var(--gc-muted-foreground)' }}>PCP Conexão · Malharia · Painel Executivo</p>
             <h1 className="font-heading font-bold" style={{ color: 'var(--gc-foreground)', fontSize: 26, lineHeight: 1.15 }}>Dados Malharia</h1>
