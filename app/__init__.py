@@ -1,3 +1,4 @@
+import threading
 import os
 from datetime import timedelta, datetime
 
@@ -151,6 +152,15 @@ def create_app():
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or os.environ.get('BI_AGENDADOR') == '1':
         from app.totvs.servico import iniciar_agendador
         iniciar_agendador()
+
+        def _aquecer_slide():                            # calcula o slide mensal ja na partida: a tela BI COMERCIAL abre sem esperar
+            try:
+                with app.app_context():
+                    from app.totvs.routes import dados_do_slide
+                    dados_do_slide()
+            except Exception:  # noqa: BLE001
+                pass
+        threading.Thread(target=_aquecer_slide, daemon=True, name='aquecer-slide').start()
         from app.totvs.pedidos import iniciar_agendador as iniciar_pedidos
         iniciar_pedidos(app)      # Relatorio Pedidos: a cada 2 min
         from app.totvs.entrada import iniciar_agendador as iniciar_entrada

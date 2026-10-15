@@ -130,6 +130,19 @@ def _derivados(chave, anos):
     return out
 
 
+_slide_cache = {}
+
+
+def _montar_slide(ano, mes):
+    """slide.montar com cache: so refaz quando os blocos de notas mudam (a conta leva segundos)."""
+    chave = (servico._chave_blocos(), ano, mes)
+    if chave not in _slide_cache:
+        if len(_slide_cache) > 12:
+            _slide_cache.clear()
+        _slide_cache[chave] = slide.montar(_derivados(chave[0], (ano, ano - 1)), mes, ano)
+    return dict(_slide_cache[chave])
+
+
 def dados_do_slide(ano=None, mes=None):
     """Dados do slide mensal (o mesmo da tela) para um mes/ano; None se ainda nao ha notas carregadas."""
     idx = servico._indice()
@@ -142,7 +155,7 @@ def dados_do_slide(ano=None, mes=None):
         ano = anos[-1]
         meses = sorted(int(ym[5:]) for ym in idx if ym.startswith(f'{ano}-'))
     mes = mes or meses[-1]
-    return slide.montar(_derivados(servico._chave_blocos(), (ano, ano - 1)), mes, ano)
+    return _montar_slide(ano, mes)
 
 
 @bi_bp.route('/entrada-pedidos')
@@ -198,8 +211,7 @@ def slide_mensal():
         ano = anos[-1]
         meses = sorted(int(ym[5:]) for ym in idx if ym.startswith(f'{ano}-'))
     mes = request.args.get('mes', type=int) or meses[-1]
-    regs = _derivados(servico._chave_blocos(), (ano, ano - 1))
-    out = slide.montar(regs, mes, ano)
+    out = _montar_slide(ano, mes)
     out.update(vazio=False, anos=anos, meses=meses, gerado_em=max(r['gerado_em'] for r in idx.values()), plano_origem=base._ler('origem'))
     return _json(out)
 
