@@ -145,7 +145,10 @@ def atualizar(rapida: bool = False) -> bool:
             fantasia = _fantasias(cli, {v[4] for v in pedidos.values()}, fantasia)
         except Exception:  # noqa: BLE001  - sem o nome fantasia usa a razao social
             traceback.print_exc()
-        _gravar(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), pedidos=pedidos, clientes=fantasia))
+        base = dados.get('base', {})                                    # valor e metros do pedido na 1a vez que o Gestao o viu (para mostrar o "antes" dos alterados)
+        for k, v in pedidos.items():
+            base.setdefault(k, [v[1], v[2], datetime.now().isoformat(timespec='seconds')])
+        _gravar(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), pedidos=pedidos, clientes=fantasia, base=base))
         if not rapida:
             _ULT_COMPLETA = time.time()
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), n=len(pedidos), msg=f'{len(pedidos)} pedidos')
@@ -294,3 +297,57 @@ def ultimo() -> dict | None:
     cliente = normalize_client_name(nome) or 'SEM CLIENTE'
     return dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), metros=round(v[2]), me=v[3] == 'ME', cliente=cliente,
                 unidade=nome if cliente == 'ORTOBOM' else '')
+
+
+_ALT_CACHE = {}
+
+
+def _periodo_alteracao():
+    """Do 1o dia do mes atual ate o fim de ontem (se hoje e dia 1, o mes anterior inteiro ate ontem)."""
+    ontem = date.today() - timedelta(days=1)
+    return ontem.replace(day=1), ontem
+
+
+def alterados() -> dict:
+    """Pedidos de venda ALTERADOS depois de lancados, no periodo [1o dia do mes, ontem] (filtro de alteracao da API do TOTVS).
+    Mostra valor e metros de agora e, quando o Gestao ja tinha visto o pedido antes, o valor e os metros de antes."""
+    ini, fim = _periodo_alteracao()
+    chave = (ini, fim)
+    c = _ALT_CACHE.get(chave)
+    if c and time.time() - c[0] < 120:
+        return c[1]
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    brutos, pag = [], 1
+    while True:
+        r = cli.post(ORDERS_URL, dict(filter=dict(branchCodeList=[EMPRESA], change=dict(startDate=f'{ini}T00:00:00', endDate=f'{fim}T23:59:59')), pageSize=500, page=pag))
+        if r.status_code != 200:
+            raise RuntimeError(f'pedidos alterados: HTTP {r.status_code} {r.text[:200]}')
+        j = r.json()
+        brutos += j.get('items') or []
+        if not j.get('hasNext') or pag >= 40:
+            break
+        pag += 1
+    dados = _ler()
+    base = dados.get('base', {})
+    fantasia = dados.get('clientes', {})
+    itens = []
+    for p in brutos:
+        entra, local = classificar(p)
+        if not entra:
+            continue
+        ins, mud = str(p.get('insertDate') or '')[:19], str(p.get('maxChangeFilterDate') or '')[:19]
+        if ins and mud and mud <= (datetime.fromisoformat(ins) + timedelta(minutes=10)).isoformat():
+            continue                                                   # so foi lancado, nao foi alterado depois
+        cod = str(p.get('orderCode'))
+        valor, metros = round(_num(p.get('netValue')), 2), round(_num(p.get('quantity')), 2)
+        b = base.get(cod)
+        itens.append(dict(codigo=cod, data=str(p.get('orderDate') or '')[:10], inserido=ins, alterado=mud, local=local,
+                          cliente=(fantasia.get(str(p.get('customerCode'))) or str(p.get('customerName') or ''))[:60], situacao=p.get('statusOrder'),
+                          valor=valor, metros=metros, valor_ant=b[0] if b else None, metros_ant=b[1] if b else None,
+                          mudou=bool(b) and (abs(b[0] - valor) > 0.5 or abs(b[1] - metros) > 0.5)))
+    itens.sort(key=lambda x: x['alterado'], reverse=True)
+    res = dict(inicio=ini.isoformat(), fim=fim.isoformat(), itens=itens, total=len(itens), com_valor_anterior=sum(1 for x in itens if x['valor_ant'] is not None),
+               mudaram=sum(1 for x in itens if x['mudou']), base_desde=min([v[2] for v in base.values()] or [''])[:10])
+    _ALT_CACHE[chave] = (time.time(), res)
+    return res
