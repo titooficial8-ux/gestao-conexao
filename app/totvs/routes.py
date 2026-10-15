@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from functools import lru_cache
 
 import threading
+import time
 
 from flask import Blueprint, Response, abort, current_app, jsonify, request, send_from_directory
 from flask_login import current_user, login_required
@@ -211,7 +212,10 @@ def slide_mensal():
         ano = anos[-1]
         meses = sorted(int(ym[5:]) for ym in idx if ym.startswith(f'{ano}-'))
     mes = request.args.get('mes', type=int) or meses[-1]
+    t0 = time.time()
     out = _montar_slide(ano, mes)
+    if time.time() - t0 > 2:
+        print(f'[bi-comercial] slide mensal {mes}/{ano} levou {time.time() - t0:.1f}s', flush=True)
     out.update(vazio=False, anos=anos, meses=meses, gerado_em=max(r['gerado_em'] for r in idx.values()), plano_origem=base._ler('origem'))
     return _json(out)
 
