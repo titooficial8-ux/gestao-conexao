@@ -73,7 +73,8 @@ function StatBlock({ icon: Icon, label, value, sub }) {
 
 function HeaderKpi({ icon: Icon, label, value, sub, accent }) {
   return (
-    <Card style={{ background: 'var(--gc-card)', border: '1px solid var(--gc-border)' }} className="p-4 relative overflow-hidden">
+    <Card style={{ background: 'var(--gc-card)', border: '1px solid var(--gc-border)' }} className="p-4 relative overflow-hidden" >
+      <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: accent || 'var(--gc-primary)' }} />
       <div className="flex items-center justify-between">
         <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: 'var(--gc-muted-foreground)' }}>{label}</p>
         <Icon className="w-4 h-4" style={{ color: accent || 'var(--gc-primary)' }} />
@@ -81,6 +82,27 @@ function HeaderKpi({ icon: Icon, label, value, sub, accent }) {
       <p className="text-2xl font-heading font-bold mt-1" style={{ color: accent || 'var(--gc-foreground)' }}>{value}</p>
       {sub && <p className="text-[10px] mt-0.5" style={{ color: 'var(--gc-muted-foreground)' }}>{sub}</p>}
     </Card>
+  );
+}
+
+function Ring({ value, size = 112 }) {
+  const r = (size - 14) / 2, c = 2 * Math.PI * r, v = Math.min(Math.max(value, 0), 100);
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flex: 'none' }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.14)" strokeWidth="10" />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={value >= 100 ? '#3ddc84' : '#5eb0ff'} strokeWidth="10" strokeLinecap="round"
+        strokeDasharray={`${(c * v) / 100} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} style={{ transition: 'stroke-dasharray .6s ease' }} />
+    </svg>
+  );
+}
+
+function HeroMetric({ icon: Icon, label, value, sub }) {
+  return (
+    <div>
+      <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[.14em] font-semibold" style={{ color: '#8fb4dc' }}><Icon className="w-3.5 h-3.5" /> {label}</p>
+      <p className="font-heading font-bold text-white" style={{ fontSize: 34, lineHeight: 1.15, fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+      <p className="text-[11px]" style={{ color: '#9fbfe0' }}>{sub}</p>
+    </div>
   );
 }
 
@@ -215,6 +237,7 @@ export default function ControleProducao() {
   const eficDia = pct(totalMetros, capMetrosDia);
   const eficPecas = pct(totalPecas, capPecasDia);
   const progressoMeta = pct(totalMetros, s.meta_dia);
+  const mediaReal = totalPecas ? totalMetros / totalPecas : 0;
 
   const byMachine = useMemo(() => {
     const map = {};
@@ -280,13 +303,16 @@ export default function ControleProducao() {
 
   return (
     <div className="gc-scope p-4 md:p-6 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">🧶</span>
+      <div className="flex flex-wrap items-end justify-between gap-4 pb-1">
+        <div className="flex items-center gap-4">
+          <span className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: 'linear-gradient(135deg,#0a2540,#16508a)' }}>🧶</span>
           <div>
-            <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--gc-muted-foreground)' }}>PCP Conexão / Malharia / Painel Executivo</p>
-            <h1 className="font-heading text-xl font-bold" style={{ color: 'var(--gc-foreground)' }}>Dados Malharia</h1>
-            <p className="text-xs" style={{ color: 'var(--gc-muted-foreground)' }}>Controle de produção por turno · Atualização automática 24 h pela API do TOTVS (a cada 15 s)</p>
+            <p className="text-[10px] uppercase tracking-[.18em] font-semibold" style={{ color: 'var(--gc-muted-foreground)' }}>PCP Conexão · Malharia · Painel Executivo</p>
+            <h1 className="font-heading font-bold" style={{ color: 'var(--gc-foreground)', fontSize: 26, lineHeight: 1.15 }}>Dados Malharia</h1>
+            <p className="text-xs flex items-center gap-2" style={{ color: 'var(--gc-muted-foreground)' }}>
+              <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: '#3ddc84' }} /><span className="relative inline-flex rounded-full h-2 w-2" style={{ background: '#3ddc84' }} /></span>
+              Ao vivo · integrado ao TOTVS · atualização a cada 15 s
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -361,42 +387,49 @@ export default function ControleProducao() {
         </Card>
       )}
 
-      <Card style={{ background: 'var(--gc-card)', border: '1px solid var(--gc-border)' }} className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--gc-muted-foreground)' }}>Produção do dia</p>
-                <p className="text-xs font-semibold" style={{ color: 'var(--gc-foreground)' }}>{date.split('-').reverse().join('/')}</p>
-              </div>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${TONE_COLOR[toneFor(eficDia)]}22`, color: TONE_COLOR[toneFor(eficDia)] }}>Eficiência {nf1(eficDia)}%</span>
-            </div>
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              <StatBlock icon={Ruler} label="Metros" value={nf(totalMetros)} sub={`/ ${nf(capMetrosDia)} instalados`} />
-              <StatBlock icon={Package} label="Peças" value={nf(totalPecas)} sub={`/ ${nf(capPecasDia)} cap.`} />
-              <StatBlock icon={Weight} label="Quilos" value={nfKg(totalKg)} sub="produzidos no dia" />
-            </div>
+      <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(120deg,#0a2540 0%,#0f3a66 55%,#16508a 100%)', boxShadow: '0 10px 30px rgba(10,37,64,.25)' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-6 p-6 items-center">
+          <div className="flex items-center gap-5">
+            <Ring value={progressoMeta} />
             <div>
-              <div className="flex justify-between text-[10px] mb-1" style={{ color: 'var(--gc-muted-foreground)' }}>
-                <span>Progresso da meta diária</span><span>{nf(totalMetros)} / {nf(s.meta_dia)} mt</span>
-              </div>
-              <Progress value={progressoMeta} />
+              <p className="text-[10px] uppercase tracking-[.18em] font-semibold" style={{ color: '#8fb4dc' }}>Meta diária</p>
+              <p className="font-heading font-bold text-white" style={{ fontSize: 30, lineHeight: 1.1 }}>{nf1(progressoMeta)}%</p>
+              <p className="text-xs" style={{ color: '#b9d0ea' }}>{nf(totalMetros)} de {nf(s.meta_dia)} m</p>
+              <p className="text-xs mt-1" style={{ color: totalMetros >= s.meta_dia ? '#7be0a6' : '#ffd37a' }}>
+                {totalMetros >= s.meta_dia ? `Meta superada em ${nf(totalMetros - s.meta_dia)} m` : `Faltam ${nf(s.meta_dia - totalMetros)} m`}
+              </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <EditableSetting label="Meta diária" value={s.meta_dia} unit="metros" disabled={!IS_ADMIN} onSave={(v) => saveSetting('meta_dia', v)} />
-            <EditableSetting label="Meta por turno" value={s.meta_turno} unit="metros" disabled={!IS_ADMIN} onSave={(v) => saveSetting('meta_turno', v)} />
-            <EditableSetting label="Média padrão" value={s.media_padrao} unit="mt/pç" disabled={!IS_ADMIN} onSave={(v) => saveSetting('media_padrao', v)} />
-            <EditableSetting label="Cap. instalada" value={s.cap_maquinas} unit="máqs" disabled={!IS_ADMIN} onSave={(v) => saveSetting('cap_maquinas', v)} />
+          <div className="grid grid-cols-3 gap-6 lg:px-8 lg:border-x" style={{ borderColor: 'rgba(255,255,255,.12)' }}>
+            <HeroMetric icon={Ruler} label="Metros produzidos" value={nf(totalMetros)} sub={`capacidade instalada ${nf(capMetrosDia)} m`} />
+            <HeroMetric icon={Package} label="Peças" value={nf(totalPecas)} sub={`capacidade ${nf(capPecasDia)} pç`} />
+            <HeroMetric icon={Weight} label="Quilos" value={nfKg(totalKg)} sub="kg produzidos no dia" />
+          </div>
+          <div className="text-left lg:text-right">
+            <p className="text-[10px] uppercase tracking-[.18em] font-semibold" style={{ color: '#8fb4dc' }}>Produção do dia</p>
+            <p className="font-heading font-bold text-white text-lg">{date.split('-').reverse().join('/')}</p>
+            <span className="inline-block mt-2 text-[11px] font-bold px-3 py-1 rounded-full" style={{ background: 'rgba(255,255,255,.12)', color: '#fff', border: `1px solid ${TONE_COLOR[toneFor(eficDia)]}` }}>
+              Eficiência {nf1(eficDia)}%
+            </span>
           </div>
         </div>
-      </Card>
+      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <HeaderKpi icon={Ruler} label="Total Metros" value={nf(totalMetros)} sub="produzidos no dia" />
-        <HeaderKpi icon={Package} label="Total Peças" value={nf(totalPecas)} sub={`cap. ${nf(capPecasDia)}`} />
-        <HeaderKpi icon={Weight} label="Total Quilos" value={nfKg(totalKg)} sub="kg do dia" />
-        <HeaderKpi icon={Gauge} label="Eficiência Peças" value={`${nf1(eficPecas)}%`} sub="vs. capacidade" accent={TONE_COLOR[toneFor(eficPecas)]} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <HeaderKpi icon={Gauge} label="Eficiência de metros" value={`${nf1(eficDia)}%`} sub="vs. capacidade instalada" accent={TONE_COLOR[toneFor(eficDia)]} />
+        <HeaderKpi icon={Gauge} label="Eficiência de peças" value={`${nf1(eficPecas)}%`} sub="vs. capacidade de peças" accent={TONE_COLOR[toneFor(eficPecas)]} />
+        <HeaderKpi icon={Target} label="Média por peça" value={`${nf1(mediaReal)} m`} sub={`padrão ${nf(s.media_padrao)} m/pç`} />
+        <HeaderKpi icon={Wrench} label="Máquinas produzindo" value={`${byMachine.length} / ${nf(s.cap_maquinas)}`} sub="ativas no dia" />
+      </div>
+
+      <div>
+        <p className="text-[10px] uppercase tracking-[.16em] font-semibold mb-2" style={{ color: 'var(--gc-muted-foreground)' }}>Metas e capacidade {IS_ADMIN ? '· clique para editar' : ''}</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <EditableSetting label="Meta diária" value={s.meta_dia} unit="metros" disabled={!IS_ADMIN} onSave={(v) => saveSetting('meta_dia', v)} />
+          <EditableSetting label="Meta por turno" value={s.meta_turno} unit="metros" disabled={!IS_ADMIN} onSave={(v) => saveSetting('meta_turno', v)} />
+          <EditableSetting label="Média padrão" value={s.media_padrao} unit="mt/pç" disabled={!IS_ADMIN} onSave={(v) => saveSetting('media_padrao', v)} />
+          <EditableSetting label="Cap. instalada" value={s.cap_maquinas} unit="máqs" disabled={!IS_ADMIN} onSave={(v) => saveSetting('cap_maquinas', v)} />
+        </div>
       </div>
 
       <div>
