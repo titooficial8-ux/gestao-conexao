@@ -5,6 +5,7 @@
   <span class="gc-vivo-cli" id="gcVivoCli"></span>
   <span class="gc-vivo-mt" id="gcVivoMt"></span>
   <span class="gc-vivo-imp" id="gcVivoImp"></span>
+  <span class="gc-vivo-chk" id="gcVivoChk"></span>
   <span class="gc-vivo-val" id="gcVivoVal"></span>
 </div>
 <script>
@@ -14,6 +15,11 @@
   function nf(v) { return Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 }); }
   function tick() {
     fetch(URL, { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (d && d.estado) {
+        var ck = document.getElementById('gcVivoChk'), e = d.estado;
+        ck.textContent = e.erro ? '⚠ TOTVS sem resposta' : (e.ultima ? 'verificado ' + e.ultima.slice(11, 19) : (e.rodando ? 'buscando no TOTVS…' : ''));
+        ck.title = e.erro || e.msg || ''; ck.style.color = e.erro ? '#ffb4b4' : '';
+      }
       if (d && d.ultimo) {
         var u = d.ultimo;
         document.getElementById('gcVivoHora').textContent = u.data.slice(8, 10) + '/' + u.data.slice(5, 7) + ' · ' + u.hora;
