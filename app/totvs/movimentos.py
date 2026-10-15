@@ -480,7 +480,7 @@ def pecas(op: str, ciclo: int = 13, metro_padrao: float | None = None) -> dict:
     resultado = dict(
         op=str(op), ciclo=ciclo, encontrada=True, local=NOME_LOCAL, pecas=lista,
         maquina=o.get('machineCode'), maquina_descricao=o.get('machineDescription'), metro_padrao=metro_padrao,
-        resumo=dict(pecas=len(lista), metros=round(sum(l['metros'] or 0 for l in lista), 3) if metro_padrao else None,
+        resumo=dict(pecas=len(lista), metros=round(sum(l['metros'] or 0 for l in lista), 3),
                     no_local=round(no_local, 3), saiu=round(saiu, 3), quantidade_op=_num(o.get('quantity')),
                     atualizado_em=datetime.now().isoformat(timespec='seconds')))
     _cache[chave] = (time.time(), resultado)
@@ -777,7 +777,7 @@ def atualizar_todas(app) -> bool:
                                              gramatura=_campos_artigo(o).get('gramatura'), largura=_campos_artigo(o).get('largura'),
                                              metro_ideal=_campos_artigo(o).get('metro_ideal'),
                                              metro_padrao=_campos_artigo(o).get('metro_ideal') or padroes[op], cliente_cod=(o or {}).get('customerCode'), pecas=len(lista),
-                                             metros=round(sum(l['metros'] or 0 for l in lista), 3) if padroes[op] else None,
+                                             metros=round(sum(l['metros'] or 0 for l in lista), 3),
                                              no_local=round(_no_local(o), 3) if o else 0.0, saiu=round(saiu, 3),
                                              quantidade_op=_num((o or {}).get('quantity')), atualizado_em=agora))
             try:
