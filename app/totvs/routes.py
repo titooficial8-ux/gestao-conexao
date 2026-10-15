@@ -155,6 +155,16 @@ def entrada_pedidos():
     return _json(entrada.resumo(request.args.get('mes', type=int)))
 
 
+@bi_bp.route('/ultimo-pedido')
+@login_required
+def ultimo_pedido():
+    """Ultimo pedido que entrou (faixa fixa das abas BI COMERCIAL, COMERCIAL MI e COMERCIAL ME)."""
+    tabs = Tab.query.filter(Tab.slug.in_(['dashboard-comercial', 'pedidos-comercial-mi', 'pedidos-comercial-me'])).all()
+    if not any(t.visible_to(current_user) for t in tabs):
+        abort(403)
+    return _json(dict(ultimo=entrada.ultimo()))
+
+
 @bi_bp.route('/pedidos-planilha', methods=['POST'])
 @login_required
 def pedidos_planilha():

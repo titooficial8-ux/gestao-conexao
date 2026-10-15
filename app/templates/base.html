@@ -103,6 +103,7 @@
         {% endif %}
       </div>
     </div>
+    {% if tab is defined and tab and tab.slug in ('dashboard-comercial', 'pedidos-comercial-mi', 'pedidos-comercial-me') %}{% include 'partials/pedido_ao_vivo.html' %}{% endif %}
   </nav>
 
   <div class="gc-page-title">{% block page_title %}{{ t('app_name') }}{% endblock %}</div>

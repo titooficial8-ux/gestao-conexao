@@ -277,3 +277,18 @@ def resumo(mes: int | None = None) -> dict:
     return dict(mes=mes, anos=list(ANOS), clientes=clientes, clientes_loc=clientes_loc, metas=metas, ultimos=ultimos,
                 planilha=dict(atualizado=plan.get('atualizado'), arquivo=plan.get('arquivo'), n=len(plan.get('pedidos', []))) if plan.get('pedidos') else None, hoje=hoje.isoformat(), atualizado=dados.get('atualizado'), dias=dias, total=tot, meses=meses,
                 vazio=not pedidos and not plan.get('pedidos'), totvs_pendente=not pedidos, estado=dict(ESTADO))
+
+
+def ultimo() -> dict | None:
+    """Ultimo pedido que entrou (mais recente pela hora de inclusao no TOTVS), para a faixa fixa do topo."""
+    dados = _ler()
+    if dados.get('versao') != VERSAO or not dados.get('pedidos'):
+        return None
+    from app.main.routes import normalize_client_name
+    cod, v = max(dados['pedidos'].items(), key=lambda kv: kv[1][5] or '')
+    if not v[5]:
+        return None
+    nome = dados.get('clientes', {}).get(str(v[4])) or v[6]
+    cliente = normalize_client_name(nome) or 'SEM CLIENTE'
+    return dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), metros=round(v[2]), me=v[3] == 'ME', cliente=cliente,
+                unidade=nome if cliente == 'ORTOBOM' else '')

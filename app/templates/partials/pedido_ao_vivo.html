@@ -1,0 +1,30 @@
+{# Faixa fixa no topo das abas BI COMERCIAL, COMERCIAL MI e COMERCIAL ME: ultimo pedido que entrou no TOTVS (atualiza sozinha). #}
+<div class="gc-vivo" id="gcVivo" hidden>
+  <span class="gc-vivo-lbl"><span class="gc-vivo-ponto"></span>{{ 'ACTUALIZACIÓN EN TIEMPO REAL' if lang == 'es' else 'ATUALIZAÇÃO EM TEMPO REAL' }}</span>
+  <span class="gc-vivo-hora" id="gcVivoHora"></span>
+  <span class="gc-vivo-cli" id="gcVivoCli"></span>
+  <span class="gc-vivo-mt" id="gcVivoMt"></span>
+  <span class="gc-vivo-val" id="gcVivoVal"></span>
+</div>
+<script>
+(function () {
+  var box = document.getElementById('gcVivo'); if (!box || window.__gcVivo) return; window.__gcVivo = true;
+  var URL = {{ url_for('bi_comercial.ultimo_pedido')|tojson }}, ultimo = null;
+  function nf(v) { return Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 }); }
+  function tick() {
+    fetch(URL, { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (d && d.ultimo) {
+        var u = d.ultimo;
+        document.getElementById('gcVivoHora').textContent = u.data.slice(8, 10) + '/' + u.data.slice(5, 7) + ' · ' + u.hora;
+        document.getElementById('gcVivoCli').textContent = u.unidade ? u.cliente + ' · ' + u.unidade : u.cliente;
+        document.getElementById('gcVivoMt').textContent = nf(u.metros) + ' mts';
+        document.getElementById('gcVivoVal').textContent = 'R$ ' + nf(u.valor) + (u.me ? ' (ME)' : '');
+        box.hidden = false;
+        if (ultimo !== null && ultimo !== u.codigo) { box.classList.remove('novo'); void box.offsetWidth; box.classList.add('novo'); }     // pedido novo: pisca
+        ultimo = u.codigo;
+      }
+    }).catch(function () {});
+  }
+  tick(); setInterval(tick, 15000);
+})();
+</script>
