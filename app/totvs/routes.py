@@ -718,7 +718,7 @@ def almox_atualizar():
     _autorizar_almox()
     if not almoxarifado.configurado():
         return _json(dict(ok=False, erro='TOTVS não configurado no .env.')), 400
-    threading.Thread(target=lambda: (almoxarifado.atualizar(), almoxarifado.atualizar_kardex()), daemon=True, name='almox-agora').start()
+    threading.Thread(target=almoxarifado.atualizar, daemon=True, name='almox-agora').start()
     return _json(dict(ok=True))
 
 
