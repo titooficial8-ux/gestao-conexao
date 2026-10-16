@@ -7,6 +7,7 @@ Padrao: de segunda a sexta, as 08:00 (horario de Brasilia), em PDF, para os e-ma
   RELATORIO_FAT_ENVIO_DIAS=0,1,2,3,4    (0 = segunda ... 6 = domingo)
   RELATORIO_FAT_ENVIO_FORMATO=pdf        (pdf, pptx ou ambos)
   RELATORIO_FAT_DESTINOS=a@x.com,b@y.com
+  RELATORIO_FAT_ENVIO_PEDIDOS=1          (1 = manda junto o PDF da Entrada de Pedidos, em alta prioridade; 0 = so o faturamento)
 Nao repete no mesmo dia: a data do ultimo envio fica em instance/relatorio_fat_envio.json. Se o envio falhar (e-mail nao configurado, sem
 dados do TOTVS...), tenta de novo a cada 30 minutos ate o limite do dia (ENVIO_ATE).
 """
@@ -77,14 +78,16 @@ def configuracao() -> dict:
 
 
 def enviar_agora(app) -> dict:
-    """Gera o relatorio do mes mais recente e envia. Devolve {'ok', 'enviado_para'|'erro'}."""
+    """Gera o Relatorio de Faturamento do mes mais recente e, junto, o PDF da Entrada de Pedidos do mes (RELATORIO_FAT_ENVIO_PEDIDOS=0 desliga), e manda tudo
+    num e-mail so, em alta prioridade. Devolve {'ok', 'enviado_para'|'erro'}."""
     from app.relatorio_fat import dados, envio_email as envio
-    from app.relatorio_fat.routes import MIME, _montar
+    from app.relatorio_fat.routes import MIME, _montar, _montar_pedidos
     cfg = configuracao()
     if not envio.configurado():
         return dict(ok=False, erro='E-mail não configurado: preencha no .env ' + ', '.join(envio.faltando()))
     destinos = envio.validar(cfg['destinos'])
     formatos = {'pdf': ['pdf'], 'pptx': ['pptx'], 'ambos': ['pdf', 'pptx']}.get(cfg['formato'], ['pdf'])
+    com_pedidos = os.getenv('RELATORIO_FAT_ENVIO_PEDIDOS', '1') != '0'
     with app.app_context():
         anexos, ref = [], None
         for f in formatos:
@@ -93,8 +96,16 @@ def enviar_agora(app) -> dict:
                 return dict(ok=False, erro='Ainda não há dados de faturamento carregados do TOTVS.')
             anexos.append((r[1], r[0], MIME[f]))
             ref = f'{dados.MESES[r[2] - 1]}/{r[3]}'
-    envio.enviar(destinos, f'Relatório de Faturamento — {ref}',
-                 envio.corpo_padrao(ref, f'{agora_brasilia():%d/%m/%Y %H:%M}', True), anexos)
+        if com_pedidos:
+            rp = _montar_pedidos(None)
+            anexos.append((rp[1], rp[0], MIME['pdf']))
+            ref_ped = f'{dados.MESES[rp[2] - 1]}/{rp[3]}'
+    if com_pedidos:
+        assunto = f'Relatório de Faturamento e Entrada de Pedidos — {ref}' if ref_ped == ref else f'Relatório de Faturamento ({ref}) e Entrada de Pedidos ({ref_ped})'
+        titulo = 'Relatório de Faturamento e o Relatório de Entrada de Pedidos'
+    else:
+        assunto, titulo = f'Relatório de Faturamento — {ref}', 'Relatório de Faturamento'
+    envio.enviar(destinos, assunto, envio.corpo_padrao(ref, f'{agora_brasilia():%d/%m/%Y %H:%M}', True, titulo=titulo), anexos, prioridade_alta=com_pedidos)
     return dict(ok=True, enviado_para=destinos)
 
 
