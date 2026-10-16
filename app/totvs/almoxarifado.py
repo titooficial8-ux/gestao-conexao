@@ -287,10 +287,12 @@ def atualizar_kardex() -> bool:
         cli.autenticar()
         hoje = date.today()
         ini = (hoje - timedelta(days=KARDEX_DIAS)).isoformat()
-        produtos, erros = {}, []
+        produtos, erros, sem_mov = {}, [], 0
 
         def um(cod):
             r = cli.get(KARDEX_URL, dict(ProductCode=cod, BranchCode=EMPRESA, StartDate=f'{ini}T00:00:00', EndDate=f'{hoje.isoformat()}T23:59:59', BalanceType=tipo_saldo()))
+            if r.status_code == 400 and 'MovementDataNotFound' in r.text:      # sem movimento nem saldo no periodo: nao e erro
+                return cod, dict(_resumir({}, hoje), sem_mov=True)
             if r.status_code != 200:
                 raise RuntimeError(f'kardex {cod}: HTTP {r.status_code} {r.text[:120]}')
             j = r.json()
@@ -301,6 +303,8 @@ def atualizar_kardex() -> bool:
                 try:
                     cod, res = fut.result()
                     produtos[str(cod)] = res
+                    if res.get('sem_mov'):
+                        sem_mov += 1
                 except Exception as e:  # noqa: BLE001
                     erros.append(str(e)[:160])
                 ESTADO_K['feitos'] += 1
@@ -308,7 +312,7 @@ def atualizar_kardex() -> bool:
             raise RuntimeError('Nenhum kardex lido: ' + (erros[0] if erros else 'sem resposta'))
         ARQ_KARDEX.parent.mkdir(parents=True, exist_ok=True)
         tmp = ARQ_KARDEX.with_suffix('.tmp')
-        tmp.write_text(json.dumps(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), dias=KARDEX_DIAS + 1, produtos=produtos, erros=len(erros), amostra_erro=erros[:2]), ensure_ascii=False), encoding='utf-8')
+        tmp.write_text(json.dumps(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), dias=KARDEX_DIAS + 1, produtos=produtos, erros=len(erros), sem_mov=sem_mov, amostra_erro=erros[:2]), ensure_ascii=False), encoding='utf-8')
         tmp.replace(ARQ_KARDEX)
         ESTADO_K.update(ultima=datetime.now().isoformat(timespec='seconds'), msg=f'{len(produtos)} kardex lidos' + (f' ({len(erros)} com erro)' if erros else ''))
     except Exception as e:  # noqa: BLE001
@@ -337,6 +341,10 @@ def indicadores() -> dict:
     if not itens:
         return dict(pronto=False, kardex_atualizado=k.get('atualizado'), n_materia_prima=len(base.get('itens', [])))
     tot_out90 = sum(x['out90'] for x in itens)
+    aviso = None
+    if tot_out90 == 0:
+        aviso = (f"O kardex nao trouxe nenhuma saida nos ultimos 180 dias para as {len(itens)} materias-primas ({k.get('sem_mov', 0)} sem movimento no TOTVS). "
+                 "Se isso nao for verdade, o tipo de saldo do kardex pode estar errado: ajuste ALMOX_TIPO_SALDO no .env e abra /estoque-almox/diagnostico-kardex.")
     # curva ABC pelas saidas de 90 dias: A = ate 80% do consumo, B = ate 95%, C = resto
     acum, ordenados = 0.0, sorted(itens, key=lambda x: -x['out90'])
     for x in ordenados:
@@ -364,7 +372,7 @@ def indicadores() -> dict:
     serie = [dict(mes=m, entradas=round(v[0], 1), saidas=round(v[1], 1), movimentos=v[2]) for m, v in sorted(meses.items())][-6:]
     consumo_diario = tot_out90 / 90.0
     return dict(
-        pronto=True, kardex_atualizado=k.get('atualizado'), saldo_atualizado=base.get('atualizado'), estoque=base.get('estoque'), estoque_nome=base.get('estoque_nome'), n_materia_prima=len(itens), kardex_erros=k.get('erros', 0),
+        pronto=True, aviso=aviso, kardex_atualizado=k.get('atualizado'), saldo_atualizado=base.get('atualizado'), estoque=base.get('estoque'), estoque_nome=base.get('estoque_nome'), n_materia_prima=len(itens), kardex_erros=k.get('erros', 0),
         cards=dict(saldo_total=round(saldo_total, 1), n_itens=len(itens), saidas30=round(out30, 1), saidas30_ant=round(ant30, 1),
                    var30=round(out30 / ant30 - 1, 4) if ant30 else None, consumo_diario=round(consumo_diario, 1),
                    cobertura_geral=round(saldo_total / consumo_diario, 1) if consumo_diario else None,

@@ -140,6 +140,7 @@
     if (dados && !dados.configurado) av.appendChild(el('div', 'ce-aviso', 'TOTVS não configurado no arquivo .env.'));
     else if (dados && dados.estado && dados.estado.erro) av.appendChild(el('div', 'ce-aviso', '⚠ Falha ao consultar o saldo no TOTVS: ' + dados.estado.erro));
     else if (ind && ind.estado && ind.estado.erro) av.appendChild(el('div', 'ce-aviso', '⚠ Falha ao ler o kardex no TOTVS: ' + ind.estado.erro));
+    else if (ind && ind.pronto && ind.aviso) av.appendChild(el('div', 'ce-aviso', '⚠ ' + ind.aviso));
     else if (dados && dados.configurado && !dados.atualizado) av.appendChild(el('div', 'ce-aviso', 'Primeira consulta ao TOTVS em andamento — a lista aparece em alguns minutos.'));
     else if (ind && !ind.pronto && dados && dados.atualizado) av.appendChild(el('div', 'ce-aviso', 'Lendo o kardex de cada matéria-prima no TOTVS (180 dias) para montar giro e cobertura — os indicadores aparecem em alguns minutos' + (ind.estado && ind.estado.rodando ? ' (' + ind.estado.feitos + ' de ' + ind.estado.total + ' lidas)' : '') + '.'));
   }
