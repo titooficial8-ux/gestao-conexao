@@ -500,8 +500,8 @@ def atualizar_transferencias() -> bool:
     ESTADO_K.update(rodando=True, erro=None, msg='Lendo as transferencias para a producao...', feitos=0, total=0)
     try:
         d = ler_transf()
-        if d.get('versao') != 2:
-            d = {}                                                     # formato antigo (sem usuario/hora): le de novo
+        if d.get('versao') != 3:
+            d = {}                                                     # formato antigo (sem documento): le de novo
         trans = d.get('transacoes', {})
         hoje = date.today()
         ops = [int(o) for o in OPERACOES_SAIDA if o.isdigit()] or [2011]
@@ -536,8 +536,10 @@ def atualizar_transferencias() -> bool:
                     if cod not in trans:
                         novas += 1
                     quando = str(t.get('insertDate') or t.get('lastchangeDate') or t.get('transactionDate') or '')[:19]
-                    usuario = next((str(t[k]).strip() for k in ('userName', 'userLogin', 'user', 'lastchangeUserName', 'insertUserName', 'userCode', 'insertUser', 'lastchangeUser') if t.get(k)), '')
-                    trans[cod] = [str(t.get('transactionDate') or '')[:10], itens, quando, usuario[:40], str(t.get('documentNumber') or t.get('documentCode') or '')[:20]]
+                    rel = t.get('relatedFiscalDocument') or {}
+                    usuario = ''                                       # a API de transacoes nao informa quem fez; guarda o documento fiscal da transferencia
+                    doc = str(rel.get('invoiceSequence') or rel.get('invoiceCode') or '')
+                    trans[cod] = [str(t.get('transactionDate') or '')[:10], itens, quando, usuario, doc[:20] or cod]
                 ESTADO_K['feitos'] += 1
                 if not j.get('hasNext') or pag >= 60:
                     break
@@ -547,7 +549,7 @@ def atualizar_transferencias() -> bool:
         trans = {c: v for c, v in trans.items() if v[0] >= limite}
         ARQ_TRANSF.parent.mkdir(parents=True, exist_ok=True)
         tmp = ARQ_TRANSF.with_suffix('.tmp')
-        tmp.write_text(json.dumps(dict(versao=2, atualizado=datetime.now().isoformat(timespec='seconds'), ultima_mudanca=mais_recente or ult, operacoes=ops, transacoes=trans), ensure_ascii=False), encoding='utf-8')
+        tmp.write_text(json.dumps(dict(versao=3, atualizado=datetime.now().isoformat(timespec='seconds'), ultima_mudanca=mais_recente or ult, operacoes=ops, transacoes=trans), ensure_ascii=False), encoding='utf-8')
         tmp.replace(ARQ_TRANSF)
         ESTADO_K.update(ultima=datetime.now().isoformat(timespec='seconds'), msg=f'{len(trans)} transferencias para a producao ({novas} novas)')
     except Exception as e:  # noqa: BLE001
