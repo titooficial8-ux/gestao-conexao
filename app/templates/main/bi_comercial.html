@@ -710,6 +710,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     corpo.appendChild(cp);
     desenharAlterados(corpo);
     desenharPrecos(corpo);
+    desenharCancelados(corpo);
   }
   // pedidos alterados (secao separada): do 1o dia do mes ate ontem, filtro de alteracao da API do TOTVS
   var altCache = null;
@@ -774,6 +775,37 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     corpoP.appendChild(ui.el('p', 'cme-meta', ES ? 'Consultando el TOTVS…' : 'Consultando o TOTVS e a tabela de preços…'));
     fetch('/bi-comercial/precos-divergentes', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { precosCache = { t: Date.now(), d: d }; mostrar(d); })
       .catch(function () { corpoP.textContent = ''; corpoP.appendChild(ui.el('p', 'cme-meta', ES ? 'Falla de conexión.' : 'Falha de conexão ao consultar.')); });
+  }
+  // pedidos cancelados e duplicados do mes (vendas; amostras ficam de fora)
+  var cancCache = null;
+  function desenharCancelados(corpo) {
+    var card = ui.el('div', 'table-card cd-card'); card.appendChild(ui.el('h3', null, (ES ? 'Pedidos cancelados y duplicados' : 'Pedidos cancelados e duplicados') + ' — ' + MESES[new Date().getMonth()] + '/' + new Date().getFullYear()));
+    var corpoC = ui.el('div'); card.appendChild(corpoC); corpo.appendChild(card);
+    function fmtD(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : ''; }
+    function mostrar(a) {
+      corpoC.textContent = ''; corpoC.dataset.pronto = '1'; card.classList.toggle('pr-oculto', !(a.ok && a.itens && a.itens.length));
+      if (!a.ok) { corpoC.appendChild(ui.el('p', 'cme-meta', (ES ? 'No se pudo consultar: ' : 'Não consegui consultar o TOTVS: ') + (a.erro || ''))); return; }
+      corpoC.appendChild(ui.el('p', 'cme-meta', (ES ? 'Solo ventas del mes (muestras no entran), de ' : 'Só vendas do mês (amostras não entram), de ') + fmtD(a.inicio) + (ES ? ' al ' : ' até ') + fmtD(a.fim) + ' · ' + a.n_pedidos_mes + ' pedidos de venda no período · duplicado = mesmo cliente, mesmo PO, mesmo valor e mesma metragem'));
+      var g = ui.el('div', 'ex-grid');
+      g.appendChild(execCard({ rotulo: 'PEDIDOS CANCELADOS', valor: String(a.cancelados.n), cor: '#c0272d', linhas: ['R$ ' + rs(a.cancelados.valor) + ' · ' + rs(a.cancelados.metros) + ' mts', ui.nf(a.pct_cancelado * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '% do valor vendido no mês'], barra: Math.min(a.pct_cancelado * 8, 1) }));
+      g.appendChild(execCard({ rotulo: 'PEDIDOS DUPLICADOS', valor: String(a.duplicados.n), cor: '#e0972f', linhas: ['R$ ' + rs(a.duplicados.valor) + ' · ' + rs(a.duplicados.metros) + ' mts', 'valor em duplicidade ainda ativo no TOTVS'] }));
+      g.appendChild(execCard({ rotulo: 'VALOR IMPACTADO', valor: 'R$ ' + rs(a.cancelados.valor + a.duplicados.valor), cor: '#2f7fe0', linhas: [rs(a.cancelados.metros + a.duplicados.metros) + ' mts no total', 'cancelados + duplicados'] }));
+      corpoC.appendChild(g);
+      var w = ui.el('div', 'table-scroll'), tb = ui.el('table', 'data-table sl-tab'), th = ui.el('thead'), tr = ui.el('tr');
+      ['Ocorrência', 'Pedido', 'Cliente', 'Data PV', 'Valor', 'Metros', 'PO do cliente', 'Detalhe'].forEach(function (h, i) { tr.appendChild(ui.el('th', i === 4 || i === 5 ? 'cme-num' : null, h)); });
+      th.appendChild(tr); tb.appendChild(th); var bd = ui.el('tbody');
+      a.itens.forEach(function (x) {
+        var canc = x.tipo === 'cancelado', r = ui.el('tr'), td = ui.el('td'); td.appendChild(ui.el('span', 'pd-pill ' + (canc ? 'down' : 'dup'), canc ? '✕ CANCELADO' : '⧉ DUPLICADO')); r.appendChild(td);
+        r.appendChild(ui.el('td', null, x.pedido)); r.appendChild(ui.el('td', null, x.cliente + (x.local === 'ME' ? ' (ME)' : ''))); r.appendChild(ui.el('td', null, fmtD(x.data)));
+        r.appendChild(ui.el('td', 'cme-num', 'R$ ' + rs(x.valor))); r.appendChild(ui.el('td', 'cme-num', rs(x.metros))); r.appendChild(ui.el('td', null, x.po || '—'));
+        r.appendChild(ui.el('td', 'cd-det', canc ? (ES ? 'Motivo: ' : 'Motivo: ') + x.motivo : (ES ? 'Duplica el pedido ' : 'Duplica o pedido ') + x.original)); bd.appendChild(r); });
+      tb.appendChild(bd); w.appendChild(tb); corpoC.appendChild(w);
+      if (!a.itens.length) { corpoC.textContent = ''; corpoC.dataset.pronto = '1'; corpoC.appendChild(ui.el('div', 'pd-ok', ES ? '✔ Ningún pedido cancelado o duplicado en el mes.' : '✔ Nenhum pedido cancelado ou duplicado no mês.')); }
+    }
+    if (cancCache && Date.now() - cancCache.t < 120000) { mostrar(cancCache.d); return; }
+    corpoC.appendChild(ui.el('p', 'cme-meta', ES ? 'Consultando el TOTVS…' : 'Consultando o TOTVS…'));
+    fetch('/bi-comercial/cancelados-duplicados', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { cancCache = { t: Date.now(), d: d }; mostrar(d); })
+      .catch(function () { corpoC.textContent = ''; corpoC.appendChild(ui.el('p', 'cme-meta', ES ? 'Falla de conexión.' : 'Falha de conexão ao consultar.')); });
   }
   function mudarVisao(v) {
     Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.classList.toggle('active', b.dataset.visao === v); });

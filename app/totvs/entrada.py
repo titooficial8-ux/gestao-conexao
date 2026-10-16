@@ -54,7 +54,7 @@ def classificar(p: dict):
     if p.get('statusOrder') == 'Canceled':
         return False, 'MI'
     externo = any(k in nome for k in ('EXPORT', 'USD', 'DOLAR', 'DÓLAR'))
-    entra = 'VENDA' in nome and 'AMOSTRA' not in nome and 'SUBSTITUI' not in nome
+    entra = 'VENDA' in nome and 'AMOSTRA' not in nome and 'SUBSTITUI' not in nome and 'AMOSTRA' not in str(p.get('customerOrderCode') or '').upper()      # pedido de amostra lancado como venda (PO = AMOSTRA) tambem fica de fora
     return entra, 'ME' if externo else 'MI'
 
 
@@ -381,4 +381,64 @@ def alterados() -> dict:
     res = dict(analisados=analisados, inicio=ini.isoformat(), fim=fim.isoformat(), itens=itens, total=len(itens), com_valor_anterior=sum(1 for x in itens if x['valor_ant'] is not None),
                mudaram=sum(1 for x in itens if x['mudou']), base_desde=min([v[2] for v in base.values()] or [''])[:10])
     _ALT_CACHE[chave] = (time.time(), res)
+    return res
+
+
+_CD_CACHE = {}
+
+
+def cancelados_duplicados() -> dict:
+    """Pedidos de VENDA do mes atual que foram CANCELADOS e os que foram DUPLICADOS (mesmo cliente, mesmo numero de pedido do cliente, mesmo valor e mesma metragem).
+    Amostras e remessas ficam de fora. Em duplicidade, o pedido de menor numero e o original e os demais sao os duplicados."""
+    hoje = date.today()
+    ini = hoje.replace(day=1)
+    c = _CD_CACHE.get(ini)
+    if c and time.time() - c[0] < 120:
+        return c[1]
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    brutos = _buscar(cli, ini, hoje)
+    dados = _ler()
+    base = dados.get('base', {})
+    fantasia = dados.get('clientes', {})
+    from app.main.routes import normalize_client_name
+    faltam = {p.get('customerCode') for p in brutos if str(p.get('customerCode')) not in fantasia}
+    if faltam:
+        try:
+            fantasia = _fantasias(cli, faltam, fantasia)
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+
+    def venda(p):
+        nome = str(p.get('operationName') or '').upper()
+        return 'VENDA' in nome and 'AMOSTRA' not in nome and 'SUBSTITUI' not in nome and 'AMOSTRA' not in str(p.get('customerOrderCode') or '').upper()
+
+    def linha(p, tipo, **extra):
+        cod = str(p.get('orderCode'))
+        valor = _valor(p)
+        b = base.get(cod)
+        if valor == 0 and b and b[0] > 0:
+            valor = b[0]
+        nome = fantasia.get(str(p.get('customerCode'))) or str(p.get('customerName') or '')
+        return dict(tipo=tipo, pedido=cod, data=str(p.get('orderDate') or '')[:10], cliente=(normalize_client_name(nome) or nome)[:60], local=classificar(dict(p, statusOrder=''))[1],
+                    valor=round(valor, 2), metros=round(_num(p.get('quantity')), 2), po=str(p.get('customerOrderCode') or ''), **extra)
+
+    cancelados = [linha(p, 'cancelado', motivo=str(p.get('reasonCancellationDescription') or '').strip().title() or '—')
+                  for p in brutos if p.get('statusOrder') == 'Canceled' and venda(p)]
+    ativos = [p for p in brutos if p.get('statusOrder') != 'Canceled' and venda(p) and p.get('customerOrderCode')]
+    grupos = {}
+    for p in sorted(ativos, key=lambda p: int(p['orderCode'])):
+        grupos.setdefault((p.get('customerCode'), str(p['customerOrderCode']).strip(), round(_num(p.get('netValue')), 2), round(_num(p.get('quantity')), 2)), []).append(p)
+    duplicados = []
+    for g in grupos.values():
+        for p in g[1:]:
+            duplicados.append(linha(p, 'duplicado', original=str(g[0]['orderCode']), motivo=f'Duplica o pedido {g[0]["orderCode"]} (mesmo cliente, mesmo PO {str(p["customerOrderCode"]).strip()}, mesmo valor e metragem)'))
+    itens = sorted(cancelados + duplicados, key=lambda x: -x['valor'])
+    ativos_valor = sum(_valor(p) for p in brutos if p.get('statusOrder') != 'Canceled' and venda(p))
+    vc, vd = sum(x['valor'] for x in cancelados), sum(x['valor'] for x in duplicados)
+    res = dict(inicio=ini.isoformat(), fim=hoje.isoformat(), itens=itens,
+               cancelados=dict(n=len(cancelados), valor=round(vc, 2), metros=round(sum(x['metros'] for x in cancelados), 2)),
+               duplicados=dict(n=len(duplicados), valor=round(vd, 2), metros=round(sum(x['metros'] for x in duplicados), 2)),
+               pct_cancelado=round(vc / (vc + ativos_valor), 4) if (vc + ativos_valor) else 0, n_pedidos_mes=len([p for p in brutos if venda(p)]))
+    _CD_CACHE[ini] = (time.time(), res)
     return res
