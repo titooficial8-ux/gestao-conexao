@@ -194,7 +194,16 @@ def diagnostico_pedido():
     try:
         cli = entrada.api.TotvsModaClient()
         cli.autenticar()
-        itens = entrada._buscar(cli, dia - _td(days=2), dia + _td(days=1))
+        itens, pag = [], 1
+        while pag <= 10:
+            r = cli.post(entrada.ORDERS_URL, dict(filter=dict(branchCodeList=[entrada.EMPRESA], startOrderDate=f'{dia - _td(days=2)}T00:00:00', endOrderDate=f'{dia + _td(days=1)}T23:59:59'),
+                                                  expand='items,invoices', pageSize=500, page=pag))
+            if r.status_code != 200:
+                return _json(dict(erro=f'HTTP {r.status_code}', resposta=r.text[:400])), 502
+            j = r.json(); itens += j.get('items') or []
+            if not j.get('hasNext') or any(str(x.get('orderCode')) == str(cod) for x in itens):
+                break
+            pag += 1
     except Exception as e:  # noqa: BLE001
         return _json(dict(erro=str(e)[:400])), 502
     achados = [p for p in itens if str(p.get('orderCode')) == str(cod)]
@@ -202,7 +211,7 @@ def diagnostico_pedido():
         return _json(dict(erro='pedido nao encontrado nessa data', pedidos_no_periodo=len(itens)))
     p = achados[0]
     return _json(dict(numericos={k: v for k, v in p.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}, operacao=p.get('operationName'), status=p.get('statusOrder'),
-                      chaves=sorted(p.keys()), itens=json_curto(p.get('items'), 2500)))
+                      itens=json_curto(p.get('items'), 3000), notas=json_curto(p.get('invoices'), 1500), ultimo_faturamento=p.get('lastBillingDate')))
 
 
 @bi_bp.route('/ultimo-pedido')
