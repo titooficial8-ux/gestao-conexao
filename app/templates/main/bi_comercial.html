@@ -116,6 +116,12 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
         <a class="btn-primary bi-btn" id="biRelPedPdf" href="#" download>⬇ {{ 'Generar PDF' if es else 'Gerar PDF' }}</a>
         <span class="cme-meta" id="biRelPedMsg">{{ 'Tarda cerca de 30 segundos.' if es else 'Demora cerca de 30 segundos.' }}</span>
       </div>
+      <div class="bi-rel-linha bi-rel-email">
+        <span class="cme-meta">{{ 'Enviar por e-mail para:' if es else 'Enviar por e-mail para:' }}</span>
+        <input type="text" id="biRelPedPara" class="ticket-input" value="edmar.santos@conexaomalhas.com.br, christian.yarzon@conexaomalhas.com.br" placeholder="{{ 'E-mail(s) del destinatario' if es else 'E-mail(s) do destinatário (separe por vírgula)' }}" autocomplete="off" style="min-width: 360px; max-width: 520px; width: 520px;">
+        <button type="button" class="btn-primary bi-btn" id="biRelPedEnviar">✉ {{ 'Enviar PDF' if es else 'Enviar PDF' }}</button>
+        <span class="cme-meta" id="biRelPedEmailMsg"></span>
+      </div>
     </div>
     {% endif %}
     <div class="cme-filtros" id="biPedFiltros"></div>
@@ -825,6 +831,20 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       btn.disabled = true; msg.textContent = '⏳ Gerando e enviando…';
       fetch(URL_REL_ENVIAR, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ para: $('biRelPara').value, formato: $('biRelFmt').value, mes: d.mes, ano: d.ano }) })
+        .then(function (r) { return r.json().then(function (j) { return [r.ok, j]; }); })
+        .then(function (x) { btn.disabled = false; msg.textContent = x[0] ? '✅ Enviado para ' + x[1].enviado_para.join(', ') : '⚠ ' + (x[1].erro || 'Falha ao enviar.'); })
+        .catch(function () { btn.disabled = false; msg.textContent = '⚠ Falha de conexão ao enviar.'; });
+    });
+  }
+
+  if ($('biRelPedEnviar')) {
+    try { var gp = localStorage.getItem('relPedPara'); if (gp) $('biRelPedPara').value = gp; } catch (e) {}
+    $('biRelPedEnviar').addEventListener('click', function () {
+      var msg = $('biRelPedEmailMsg'), btn = $('biRelPedEnviar');
+      try { localStorage.setItem('relPedPara', $('biRelPedPara').value); } catch (e) {}
+      btn.disabled = true; msg.textContent = '⏳ Gerando o PDF e enviando… (cerca de 30 s)';
+      fetch(URL_REL_ENVIAR, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ para: $('biRelPedPara').value, visao: 'pedidos', formato: 'pdf', mes: pedSel.mes || new Date().getMonth() + 1 }) })
         .then(function (r) { return r.json().then(function (j) { return [r.ok, j]; }); })
         .then(function (x) { btn.disabled = false; msg.textContent = x[0] ? '✅ Enviado para ' + x[1].enviado_para.join(', ') : '⚠ ' + (x[1].erro || 'Falha ao enviar.'); })
         .catch(function () { btn.disabled = false; msg.textContent = '⚠ Falha de conexão ao enviar.'; });

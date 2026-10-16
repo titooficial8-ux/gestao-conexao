@@ -53,12 +53,12 @@ def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str
             s.send_message(msg)
 
 
-def corpo_padrao(ref: str, gerado: str, automatico: bool = False) -> str:
+def corpo_padrao(ref: str, gerado: str, automatico: bool = False, titulo: str = 'Relatório de Faturamento') -> str:
     """Texto do e-mail do Relatorio de Faturamento (ref = 'Outubro/2026', gerado = '13/10/2026 11:15')."""
     dia, _, hora = gerado.partition(' ')
     return (
         'Prezados,\n\n'
-        f'Segue em anexo o Relatório de Faturamento de {ref}, gerado em {dia} às {hora}.\n\n'
+        f'Segue em anexo o {titulo} de {ref}, gerado em {dia} às {hora}.\n\n'
         'Atenciosamente,\n'
         'Gestão Conexão\n'
         'www.gestaoconexao.com.br'

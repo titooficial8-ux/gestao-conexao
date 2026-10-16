@@ -135,11 +135,12 @@ def enviar():
         destinos = envio.validar(j.get('para'))
     except ValueError as e:
         return jsonify(ok=False, erro=str(e)), 400
-    formatos = {'pdf': ['pdf'], 'pptx': ['pptx'], 'ambos': ['pdf', 'pptx']}.get(j.get('formato', 'pdf'), ['pdf'])
+    pedidos = j.get('visao') == 'pedidos'
+    formatos = ['pdf'] if pedidos else {'pdf': ['pdf'], 'pptx': ['pptx'], 'ambos': ['pdf', 'pptx']}.get(j.get('formato', 'pdf'), ['pdf'])
     anexos, ref = [], None
     for f in formatos:
         try:
-            r = _montar(f, j.get('ano'), j.get('mes'))
+            r = _montar_pedidos(j.get('mes')) if pedidos else _montar(f, j.get('ano'), j.get('mes'))
         except Exception as e:  # noqa: BLE001
             return jsonify(ok=False, erro=f'Não foi possível gerar o {f.upper()}: {e}'), 500
         if not r:
@@ -147,8 +148,9 @@ def enviar():
         anexos.append((r[1], r[0], MIME[f]))
         ref = f'{dados.MESES[r[2] - 1]}/{r[3]}'
     try:
-        envio.enviar(destinos, f'Relatório de Faturamento — {ref}',
-                     envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M')), anexos)
+        titulo = 'Relatório de Entrada de Pedidos' if pedidos else 'Relatório de Faturamento'
+        envio.enviar(destinos, f'{"Entrada de Pedidos" if pedidos else "Relatório de Faturamento"} — {ref}',
+                     envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), titulo=titulo), anexos)
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=f'Não foi possível enviar: {e}'), 502
     return jsonify(ok=True, enviado_para=destinos, anexos=[a[0] for a in anexos])
