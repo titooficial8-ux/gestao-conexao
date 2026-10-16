@@ -70,8 +70,8 @@
   <div class="table-card" style="margin-top:10px;">
     <div class="table-scroll">
       <table class="data-table prod-table">
-        <thead><tr><th>Código</th><th>Descrição</th><th>Origem</th><th>Un.</th><th class="cme-num">Saldo</th><th class="cme-num">Saída p/ produção no mês</th></tr></thead>
-        <tbody id="almoxCorpo"><tr><td colspan="6" class="prod-table-empty">Carregando…</td></tr></tbody>
+        <thead><tr><th>Código</th><th>Descrição</th><th>Fornecedor</th><th>Origem</th><th>Un.</th><th class="cme-num">Saldo</th><th class="cme-num">Saída p/ produção no mês</th></tr></thead>
+        <tbody id="almoxCorpo"><tr><td colspan="7" class="prod-table-empty">Carregando…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -110,6 +110,8 @@
     itens.forEach(function (i) { var g = grupo(i); soma[g] += i.saldo; qtd[g]++; });
     var top10 = itens.slice(0, 10), pTop10 = total ? top10.reduce(function (s, i) { return s + i.saldo; }, 0) / total : 0, maior = itens[0];
     var acum = 0, n80 = 0; itens.forEach(function (i) { if (acum / total < 0.8) n80++; acum += i.saldo; });
+    var pf = {}; itens.forEach(function (i) { var f = i.fornecedor || 'Sem fornecedor'; pf[f] = pf[f] || { nome: f, kg: 0, itens: 0 }; pf[f].kg += i.saldo; pf[f].itens++; });
+    var forn = Object.keys(pf).map(function (k) { return pf[k]; }).filter(function (f) { return f.nome !== 'Sem fornecedor'; }).sort(function (x, y) { return y.kg - x.kg; }), fornTodos = Object.keys(pf).map(function (k) { return pf[k]; }).sort(function (x, y) { return y.kg - x.kg; });
     var baixos = itens.filter(function (i) { return i.minimo > 0 ? i.saldo < i.minimo : i.saldo < 100; }), temMin = itens.some(function (i) { return i.minimo > 0; });
 
     // ---- faixa principal (diretoria)
@@ -118,40 +120,45 @@
     a.appendChild(el('div', 'ce-hero-txt', itens.length + ' itens ativos em KG · ' + (dados.estoque_nome || 'Almoxarifado'))); h.appendChild(a);
     var m = el('div', 'ce-hero-mid');
     function metrica(rot, val, un, extra) { var d = el('div'); d.appendChild(el('div', 'ce-hero-rot', rot)); var v = el('div', 'ce-m-val', val); if (un) v.appendChild(el('small', null, un)); d.appendChild(v); if (extra) d.appendChild(el('div', 'ce-hero-txt', extra)); return d; }
-    m.appendChild(metrica('Maior saldo', nf(maior.saldo / 1000, 1), 't', curto(maior.nome, 30)));
+    m.appendChild(metrica('Maior saldo', nf(maior.saldo), 'kg', curto(maior.nome, 30)));
     m.appendChild(metrica('Top 10 concentram', pct(pTop10, 0), '', 'do estoque total'));
     m.appendChild(metrica('80% do estoque em', String(n80), 'itens', 'de ' + itens.length + ' matérias-primas'));
     h.appendChild(m);
     var sa = el('div', 'ce-saude'), gw = el('div', 'ce-saude-graf'), cvS = document.createElement('canvas'); gw.appendChild(cvS);
     var ct = el('div', 'ce-saude-centro'); ct.appendChild(el('b', null, pct(total ? soma.prop / total : 0, 0))); ct.appendChild(el('span', null, 'próprio')); gw.appendChild(ct); sa.appendChild(gw);
-    var lg = el('div', 'ce-leg'); [['#3ddc84', 'Próprio', soma.prop], ['#5eb0ff', 'Terceiros', soma.terc], ['#8aa0ba', 'Sem origem', soma.sem]].forEach(function (x) { if (!x[2] && x[0] === '#8aa0ba') return; var r = el('div'); var i = el('i'); i.style.background = x[0]; r.appendChild(i); r.appendChild(document.createTextNode(x[1])); r.appendChild(el('b', null, nf(x[2] / 1000, 1) + ' t')); lg.appendChild(r); }); sa.appendChild(lg);
+    var lg = el('div', 'ce-leg'); [['#3ddc84', 'Próprio', soma.prop], ['#5eb0ff', 'Terceiros', soma.terc], ['#8aa0ba', 'Sem origem', soma.sem]].forEach(function (x) { if (!x[2] && x[0] === '#8aa0ba') return; var r = el('div'); var i = el('i'); i.style.background = x[0]; r.appendChild(i); r.appendChild(document.createTextNode(x[1])); r.appendChild(el('b', null, nf(x[2]) + ' kg')); lg.appendChild(r); }); sa.appendChild(lg);
     h.appendChild(sa); box.appendChild(h);
     graf.origem = new Chart(cvS, { type: 'doughnut', data: { labels: ['Próprio', 'Terceiros', 'Sem origem'], datasets: [{ data: [soma.prop, soma.terc, soma.sem], backgroundColor: ['#3ddc84', '#5eb0ff', '#8aa0ba'], borderWidth: 0 }] }, options: { cutout: '74%', plugins: { legend: { display: false } }, maintainAspectRatio: false } });
 
     // ---- cartoes de gestao
     var kp = el('div', 'ce-kpis');
     kp.appendChild(kpi('Itens em estoque', String(itens.length), 'matérias-primas ativas com saldo', '#1f4e79'));
-    kp.appendChild(kpi('Produção própria', nf(soma.prop / 1000, 1) + ' t', qtd.prop + ' itens · ' + pct(total ? soma.prop / total : 0, 0) + ' do estoque', '#1f9d55'));
-    kp.appendChild(kpi('Terceiros', nf(soma.terc / 1000, 1) + ' t', qtd.terc + ' itens · ' + pct(total ? soma.terc / total : 0, 0) + ' do estoque', '#2f7fe0'));
+    kp.appendChild(kpi('Produção própria', nf(soma.prop) + ' kg', qtd.prop + ' itens · ' + pct(total ? soma.prop / total : 0, 0) + ' do estoque', '#1f9d55'));
+    kp.appendChild(kpi('Fornecedores', String(forn.length), forn.length ? 'maior: ' + forn[0].nome + ' · ' + pct(total ? forn[0].kg / total : 0, 0) + ' do estoque' : 'cadastro sem fornecedor nos produtos', '#2f7fe0'));
     kp.appendChild(kpi(temMin ? 'Abaixo do mínimo' : 'Saldo abaixo de 100 kg', String(baixos.length), temMin ? 'itens com saldo menor que o estoque mínimo do cadastro' : 'itens quase zerados, para acompanhar a reposição', baixos.length ? '#e0972f' : '#1f9d55'));
     box.appendChild(kp);
 
     // ---- graficos
     var l1 = el('div', 'ce-linha');
-    var c1 = cartao('Maiores saldos em estoque', '10 matérias-primas com mais quilos no almoxarifado'), cv1 = graficoEm(c1); l1.appendChild(c1);
+    var c1 = cartao('Maiores saldos em estoque', 'Top 10 matérias-primas com mais KG no estoque'), cv1 = graficoEm(c1); l1.appendChild(c1);
     graf.saldos = new Chart(cv1, { type: 'bar', data: { labels: top10.map(function (x) { return curto(x.nome, 34); }), datasets: [{ data: top10.map(function (x) { return Math.round(x.saldo); }), backgroundColor: top10.map(function (x) { return grupo(x) === 'terc' ? '#5eb0ff' : '#2f7fe0'; }), borderRadius: 5, barThickness: 18 }] },
-      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 60 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + pct(total ? x.raw / total : 0, 1) + ' do estoque'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v / 1000) + ' t'; } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
-      plugins: [{ id: 'rot', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(top10[i].saldo / 1000, 1) + ' t', e.x + 6, e.y); }); x.restore(); } }] });
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 78 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + pct(total ? x.raw / total : 0, 1) + ' do estoque'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v); } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
+      plugins: [{ id: 'rot', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(top10[i].saldo) + ' kg', e.x + 6, e.y); }); x.restore(); } }] });
     var c2 = el('div', 'ce-card'); c2.id = 'ceConsumo'; l1.appendChild(c2); desenharConsumo(c2);
     box.appendChild(l1);
 
     var l2 = el('div', 'ce-linha');
     var c3 = cartao('Menores saldos · atenção à reposição', temMin ? 'Itens com saldo abaixo do estoque mínimo cadastrado' : 'Itens com menos de 100 kg em estoque');
     var lista = baixos.slice().sort(function (x, y) { return x.saldo - y.saldo; }).slice(0, 10);
-    c3.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return curto(x.nome, 38); } }, { t: 'Origem', f: function (x) { return x.origem || ''; } }, { t: 'Saldo', num: 1, f: function (x) { return nf(x.saldo, 1) + ' kg'; } }].concat(temMin ? [{ t: 'Mínimo', num: 1, f: function (x) { return x.minimo ? nf(x.minimo) + ' kg' : '—'; } }] : []), lista, 'Nenhum item com saldo baixo.'));
+    c3.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return curto(x.nome, 38); } }, { t: 'Fornecedor', f: function (x) { return x.fornecedor || ''; } }, { t: 'Saldo', num: 1, f: function (x) { return nf(x.saldo, 1) + ' kg'; } }].concat(temMin ? [{ t: 'Mínimo', num: 1, f: function (x) { return x.minimo ? nf(x.minimo) + ' kg' : '—'; } }] : []), lista, 'Nenhum item com saldo baixo.'));
     l2.appendChild(c3);
-    var c4 = cartao('Maiores saldos · detalhe', 'Os 10 itens que mais pesam no estoque');
-    c4.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return curto(x.nome, 38); } }, { t: 'Origem', f: function (x) { return x.origem || ''; } }, { t: 'Saldo', num: 1, f: function (x) { return nf(x.saldo) + ' kg'; } }, { t: '% do total', num: 1, f: function (x) { return pct(total ? x.saldo / total : 0, 1); } }], top10, 'Sem dados.'));
+    var c4 = cartao('Estoque por fornecedor', 'Quilos em estoque por fornecedor da matéria-prima (cadastro do produto)');
+    if (forn.length) {
+      var cv4 = graficoEm(c4), tf = fornTodos.slice(0, 8);
+      graf.forn = new Chart(cv4, { type: 'bar', data: { labels: tf.map(function (x) { return curto(x.nome, 30); }), datasets: [{ data: tf.map(function (x) { return Math.round(x.kg); }), backgroundColor: tf.map(function (x) { return x.nome === 'Sem fornecedor' ? '#cfd6e2' : '#8a5fe0'; }), borderRadius: 5, barThickness: 18 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 78 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + tf[x.dataIndex].itens + ' itens · ' + pct(total ? x.raw / total : 0, 1) + ' do estoque'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v); } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
+        plugins: [{ id: 'rotf', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(tf[i].kg) + ' kg', e.x + 6, e.y); }); x.restore(); } }] });
+    } else c4.appendChild(el('div', 'ce-vazio', 'O TOTVS não trouxe fornecedor no cadastro dos produtos. Se os fornecedores (UNIFI, AVANTI…) ficam em outro lugar, me diga onde.'));
     l2.appendChild(c4); box.appendChild(l2);
     box.appendChild(el('p', 'ce-nota', 'Saldo do ' + (dados.estoque_nome || 'almoxarifado') + ' direto do TOTVS (consulta a cada minuto). Itens ativos, em KG, tipo matéria-prima. Atualizado em ' + dh(dados.atualizado) + '.'));
   }
@@ -177,16 +184,16 @@
     if (!d.itens.length) { card.appendChild(el('div', 'ce-vazio', 'Nenhuma saída para a produção neste mês.')); return; }
     var top = d.itens.slice(0, 10), w = el('div', 'ce-graf'), cv = document.createElement('canvas'); w.appendChild(cv); card.appendChild(w);
     graf.consumo = new Chart(cv, { type: 'bar', data: { labels: top.map(function (x) { return curto(x.nome, 34); }), datasets: [{ data: top.map(function (x) { return Math.round(x.kg); }), backgroundColor: '#1f9d55', borderRadius: 5, barThickness: 18 }] },
-      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 60 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + pct(d.total ? x.raw / d.total : 0, 1) + ' do mês · ' + top[x.dataIndex].movimentos + ' transferências'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v / 1000) + ' t'; } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
-      plugins: [{ id: 'rotc', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(top[i].kg / 1000, 1) + ' t', e.x + 6, e.y); }); x.restore(); } }] });
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 78 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + pct(d.total ? x.raw / d.total : 0, 1) + ' do mês · ' + top[x.dataIndex].movimentos + ' transferências'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v); } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
+      plugins: [{ id: 'rotc', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(top[i].kg) + ' kg', e.x + 6, e.y); }); x.restore(); } }] });
   }
 
   function desenharTabela() {
     var corpo = $('almoxCorpo'); corpo.textContent = '';
     var q = ($('buscaAlmox').value || '').trim().toLowerCase(), lista = ((dados && dados.itens) || []).filter(function (i) { return !q || String(i.codigo).indexOf(q) >= 0 || (i.nome || '').toLowerCase().indexOf(q) >= 0; }).sort(function (x, y) { return y.saldo - x.saldo; });
-    if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', 'Nenhuma matéria-prima encontrada.'); c0.colSpan = 6; r0.appendChild(c0); corpo.appendChild(r0); return; }
+    if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', 'Nenhuma matéria-prima encontrada.'); c0.colSpan = 7; r0.appendChild(c0); corpo.appendChild(r0); return; }
     lista.forEach(function (i) {
-      var r = el('tr'); [[i.codigo], [i.nome], [i.origem || ''], [i.unidade || ''], [nf(i.saldo, 1), 'cme-num'], [cons && cons.pronto && cons.por_item && cons.por_item[i.codigo] && cons.por_item[i.codigo][mesSel] ? nf(cons.por_item[i.codigo][mesSel], 1) : '—', 'cme-num']].forEach(function (c) { r.appendChild(el('td', c[1], String(c[0]))); }); corpo.appendChild(r);
+      var r = el('tr'); [[i.codigo], [i.nome], [i.fornecedor || ''], [i.origem || ''], [i.unidade || ''], [nf(i.saldo, 1), 'cme-num'], [cons && cons.pronto && cons.por_item && cons.por_item[i.codigo] && cons.por_item[i.codigo][mesSel] ? nf(cons.por_item[i.codigo][mesSel], 1) : '—', 'cme-num']].forEach(function (c) { r.appendChild(el('td', c[1], String(c[0]))); }); corpo.appendChild(r);
     });
   }
 
@@ -195,14 +202,12 @@
     if (dados && dados.atualizado) {
       var a = el('span'); a.appendChild(el('span', 'ce-dot')); a.appendChild(document.createTextNode('TOTVS · ao vivo')); s.appendChild(a);
       s.appendChild(el('span', null, 'Saldo atualizado ' + dh(dados.atualizado)));
-      if (cons && cons.kardex_atualizado) s.appendChild(el('span', null, 'Saídas p/ produção atualizadas ' + dh(cons.kardex_atualizado)));
-      if (dados.filtro_mp) s.appendChild(el('span', null, 'Filtro: ' + dados.filtro_mp));
     } else s.textContent = 'Consultando o TOTVS…';
     var av = $('ceAviso'); av.textContent = '';
     if (dados && !dados.configurado) av.appendChild(el('div', 'ce-aviso', 'TOTVS não configurado no arquivo .env.'));
     else if (dados && dados.estado && dados.estado.erro) av.appendChild(el('div', 'ce-aviso', '⚠ Falha ao consultar o saldo no TOTVS: ' + dados.estado.erro));
     else if (cons && cons.estado && cons.estado.erro) av.appendChild(el('div', 'ce-aviso', '⚠ Falha ao ler as saídas (kardex) no TOTVS: ' + cons.estado.erro));
-    else if (cons && cons.pronto && cons.aviso) av.appendChild(el('div', 'ce-aviso', '⚠ ' + cons.aviso + ' Se isso não for verdade, abra /estoque-almox/diagnostico-kardex como administrador.'));
+    else if (cons && cons.pronto && cons.aviso) av.appendChild(el('div', 'ce-aviso', '⚠ ' + cons.aviso + (cons.ops_saida && cons.ops_saida.length ? ' Saídas que o TOTVS informou: ' + cons.ops_saida.map(function (o) { return 'op. ' + o.operacao + ' ' + (o.nome || o.historico) + ' (' + o.n + ')'; }).join('; ') + '.' : '') + ' Se isso não for verdade, abra /estoque-almox/diagnostico-kardex como administrador.'));
   }
 
   function carregar() {
