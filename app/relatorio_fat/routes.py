@@ -60,12 +60,21 @@ def entrar():
     if not u:
         abort(403)
     login_user(u)
-    return redirect('/aba/dashboard-comercial?' + '&'.join(f'{k}={request.args[k]}' for k in ('ano', 'mes') if request.args.get(k)))
+    return redirect('/aba/dashboard-comercial?' + '&'.join(f'{k}={request.args[k]}' for k in ('ano', 'mes', 'visao') if request.args.get(k)))
 
 
 def db_get(model, pk):
     from app import db
     return db.session.get(model, pk)
+
+
+def _montar_pedidos(mes):
+    """PDF da Entrada de Pedidos: mesma impressao da tela (cabecalho, rodape e cores do relatorio de faturamento), com o titulo Entrada de Pedidos."""
+    hoje = datetime.now()
+    mes = mes or hoje.month
+    corpo = captura.gerar_pdf(_base_url(), _usuario_id(), hoje.year, mes, 'pedidos')
+    nome = re.sub(r'[^A-Za-z0-9_]+', '_', f'Entrada_de_Pedidos_{_norm(dados.MESES[mes - 1])}_{hoje.year}')
+    return corpo, f'{nome}.pdf', mes, hoje.year
 
 
 def _montar(formato, ano, mes):
@@ -153,8 +162,11 @@ def gerar():
     formato = request.args.get('formato', 'pptx').lower()
     if formato not in MIME:
         abort(400)
+    pedidos = request.args.get('visao') == 'pedidos'
+    if pedidos and formato != 'pdf':
+        abort(400)
     try:
-        r_ = _montar(formato, request.args.get('ano', type=int), request.args.get('mes', type=int))
+        r_ = _montar_pedidos(request.args.get('mes', type=int)) if pedidos else _montar(formato, request.args.get('ano', type=int), request.args.get('mes', type=int))
     except Exception as e:  # noqa: BLE001
         return Response(f'Não foi possível gerar o {formato.upper()}: {e}', status=500, mimetype='text/plain; charset=utf-8')
     if not r_:
