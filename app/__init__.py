@@ -52,7 +52,7 @@ def create_app():
     from app.admin.routes import admin_bp
     from app.chamados.routes import chamados_bp
     from app.comercial_me.routes import comercial_me_bp
-    from app.totvs.routes import almox_bp, bi_bp, mov_bp, pedidos_bp
+    from app.totvs.routes import almox_bp, bi_bp, mov_bp, mp_bp, pedidos_bp
     app.register_blueprint(gateway_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -63,6 +63,7 @@ def create_app():
     app.register_blueprint(pedidos_bp)
     app.register_blueprint(mov_bp)
     app.register_blueprint(almox_bp)
+    app.register_blueprint(mp_bp)
     from app.relatorio_fat.routes import rel_fat_bp
     app.register_blueprint(rel_fat_bp)
 
@@ -163,6 +164,18 @@ def create_app():
             aba_dash.sectors = []
             db.session.delete(aba_dash)
             db.session.commit()
+        # aba 'Planejamento de Materia-Prima' (categoria Estoque): bancos ja criados nao passam pelo seed
+        from app.models import Category
+        if not Tab.query.filter_by(slug='planejamento-mp').first():
+            cat = Category.query.filter_by(slug='estoque').first()
+            irma = Tab.query.filter_by(slug='controle-estoque').first()
+            if cat:
+                nova = Tab(category_id=cat.id, slug='planejamento-mp', name_pt='Planejamento de Matéria-Prima', name_es='Planificación de Materia Prima', icon='\U0001F9F5', icon_color='#8a5fe0', is_new=True,
+                           order=(max([t.order or 0 for t in cat.tabs] or [0]) + 1) if hasattr(cat, 'tabs') else 9)
+                if irma:
+                    nova.sectors = list(irma.sectors)
+                db.session.add(nova)
+                db.session.commit()
         # contas iniciais por setor (idempotente)
         from app.usuarios_padrao import criar_usuarios_padrao
         criar_usuarios_padrao()
@@ -189,6 +202,8 @@ def create_app():
         iniciar_movimentos(app)   # pesagens da malharia (local 23) das OPs da Programacao: a cada 2 min
         from app.totvs.almoxarifado import iniciar_agendador as iniciar_almox
         iniciar_almox(app)        # materia-prima do almoxarifado (saldo): a cada 1 min
+        from app.totvs.empenho import iniciar_agendador as iniciar_empenho
+        iniciar_empenho(app)      # consumo de materia-prima das OPs da Programacao: a cada 10 min
         from app.totvs.almoxarifado import iniciar_agendador_kardex as iniciar_almox_kardex
         iniciar_almox_kardex(app)  # saidas para a producao (kardex, op. 2011) por mes: a cada 5 min
         from app.relatorio_fat.agenda import iniciar_agendador as iniciar_envio_relatorio

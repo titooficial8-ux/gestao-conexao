@@ -60,7 +60,7 @@ def _gravar(d: dict) -> None:
     ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
     tmp = ARQUIVO.with_suffix('.tmp')
     tmp.write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
-    tmp.replace(ARQUIVO)
+    api.trocar_arquivo(tmp, ARQUIVO)
 
 
 def _janelas(ini: date, fim: date):

@@ -206,7 +206,7 @@ def _gravar(d: dict) -> None:
     ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
     tmp = ARQUIVO.with_suffix('.tmp')
     tmp.write_text(json.dumps(d, ensure_ascii=False), encoding='utf-8')
-    tmp.replace(ARQUIVO)
+    api.trocar_arquivo(tmp, ARQUIVO)
 
 
 def buscar(cli=None, amostra: bool = False) -> dict:
@@ -391,7 +391,7 @@ def atualizar_kardex() -> bool:
         ARQ_KARDEX.parent.mkdir(parents=True, exist_ok=True)
         tmp = ARQ_KARDEX.with_suffix('.tmp')
         tmp.write_text(json.dumps(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), dias=KARDEX_DIAS + 1, produtos=produtos, erros=len(erros), sem_mov=sem_mov, amostra_erro=erros[:2], ops_saida=[dict(operacao=k[0], nome=k[1], historico=k[2], n=v) for k, v in sorted(_VISTAS.items(), key=lambda kv: -kv[1])[:8]]), ensure_ascii=False), encoding='utf-8')
-        tmp.replace(ARQ_KARDEX)
+        api.trocar_arquivo(tmp, ARQ_KARDEX)
         ESTADO_K.update(ultima=datetime.now().isoformat(timespec='seconds'), msg=f'{len(produtos)} kardex lidos' + (f' ({len(erros)} com erro)' if erros else ''))
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
@@ -553,7 +553,7 @@ def atualizar_transferencias() -> bool:
         ARQ_TRANSF.parent.mkdir(parents=True, exist_ok=True)
         tmp = ARQ_TRANSF.with_suffix('.tmp')
         tmp.write_text(json.dumps(dict(versao=3, atualizado=datetime.now().isoformat(timespec='seconds'), ultima_mudanca=mais_recente or ult, operacoes=ops, transacoes=trans), ensure_ascii=False), encoding='utf-8')
-        tmp.replace(ARQ_TRANSF)
+        api.trocar_arquivo(tmp, ARQ_TRANSF)
         try:
             enriquecer_operadores(cli)
         except Exception:  # noqa: BLE001  - o operador e um extra: sem ele o painel mostra so o documento
@@ -652,7 +652,7 @@ def atualizar_acertos() -> bool:
         ARQ_ACERTOS.parent.mkdir(parents=True, exist_ok=True)
         tmp = ARQ_ACERTOS.with_suffix('.tmp')
         tmp.write_text(json.dumps(dict(versao=1, atualizado=datetime.now().isoformat(timespec='seconds'), dias=ACUR_DIAS, transacoes=trans), ensure_ascii=False), encoding='utf-8')
-        tmp.replace(ARQ_ACERTOS)
+        api.trocar_arquivo(tmp, ARQ_ACERTOS)
         return True
     except Exception:  # noqa: BLE001
         traceback.print_exc()

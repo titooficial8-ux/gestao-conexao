@@ -40,7 +40,8 @@ def _escrever(caminho: Path, obj) -> None:
     caminho.parent.mkdir(parents=True, exist_ok=True)
     tmp = caminho.with_suffix(caminho.suffix + '.tmp')
     tmp.write_text(json.dumps(obj, ensure_ascii=False, default=str), encoding='utf-8')
-    os.replace(tmp, caminho)
+    from app.totvs import api
+    api.trocar_arquivo(tmp, caminho)
 
 
 def caminho_dados(tag: str) -> Path:
