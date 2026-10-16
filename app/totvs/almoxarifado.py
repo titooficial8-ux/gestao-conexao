@@ -25,6 +25,7 @@ NOME_ESTOQUE = os.getenv('ALMOX_NOME', 'ALMOXARIFADO').strip().upper()
 INTERVALO_MIN = max(1, int(os.getenv('ALMOX_INTERVALO_MIN', '5')))
 KARDEX_URL = f'{BASE_URL}/api/totvsmoda/product/v2/kardex-movement'
 TIPO_SALDO_FIXO = os.getenv('ALMOX_TIPO_SALDO', '').strip()           # "tipo de saldo" do kardex (PRDFL017); padrao = o proprio codigo do estoque
+OPERACOES_SAIDA = {x.strip() for x in os.getenv('ALMOX_OPERACOES_SAIDA', '2011').split(',') if x.strip()}      # consumo = saida do almoxarifado para a PRODUCAO (op. 2011: transferencia almox para prod)
 KARDEX_DIAS = 179                                                  # a API limita a janela a 180 dias
 KARDEX_INTERVALO_MIN = max(5, int(os.getenv('ALMOX_KARDEX_MIN', '15')))
 ARQUIVO = api.OUT_DIR / 'almoxarifado.json'
@@ -136,8 +137,38 @@ def estoque_atual() -> int:
     return _RES.get('codigo') if _RES.get('codigo') is not None else (int(ESTOQUE_FIXO) if ESTOQUE_FIXO.isdigit() else None)
 
 
+_AUTO = {}                                                          # {'tipo_saldo', 'so_data'}: o que funcionou na sondagem do kardex
+
+
 def tipo_saldo() -> int:
-    return int(TIPO_SALDO_FIXO) if TIPO_SALDO_FIXO.isdigit() else (estoque_atual() or 0)
+    if TIPO_SALDO_FIXO.isdigit():
+        return int(TIPO_SALDO_FIXO)
+    return _AUTO.get('tipo_saldo') if _AUTO.get('tipo_saldo') is not None else (estoque_atual() or 0)
+
+
+def _datas(ini: date, fim: date) -> tuple:
+    if _AUTO.get('so_data'):
+        return ini.isoformat(), fim.isoformat()
+    return f'{ini.isoformat()}T00:00:00', f'{fim.isoformat()}T23:59:59'
+
+
+def _sondar_kardex(cli, codigos_por_saldo: list, hoje: date) -> None:
+    """O kardex responde 'MovementDataNotFound' quando os parametros nao casam. Testa tipo de saldo e formato de data nos produtos de maior saldo e guarda o que funcionar."""
+    if TIPO_SALDO_FIXO.isdigit() and _AUTO.get('so_data') is not None:
+        return
+    base = estoque_atual() or 0
+    tipos = [int(TIPO_SALDO_FIXO)] if TIPO_SALDO_FIXO.isdigit() else [base] + [t for t in (1, 0, 2, 3) if t != base]
+    ini = hoje - timedelta(days=90)
+    for t in tipos:
+        for so_data in (False, True):
+            for cod in codigos_por_saldo[:6]:
+                a, b = (ini.isoformat(), hoje.isoformat()) if so_data else (f'{ini.isoformat()}T00:00:00', f'{hoje.isoformat()}T23:59:59')
+                r = cli.get(KARDEX_URL, dict(ProductCode=cod, BranchCode=EMPRESA, StartDate=a, EndDate=b, BalanceType=t))
+                if r.status_code == 200 and ((r.json() or [{}])[0] if isinstance(r.json(), list) and r.json() else r.json() or {}).get('movements'):
+                    _AUTO.update(tipo_saldo=t, so_data=so_data)
+                    print(f'[almoxarifado] kardex: tipo de saldo {t}, {"so data" if so_data else "data e hora"} (produto {cod})', flush=True)
+                    return
+    print('[almoxarifado] kardex: nenhuma combinacao de parametros trouxe movimentos na sondagem', flush=True)
 
 
 def ler() -> dict:
@@ -248,7 +279,9 @@ def _resumir(resp: dict, hoje: date) -> dict:
         d = str(m.get('movementDate') or '')[:10]
         if not d:
             continue
-        ent, sai = _num(m.get('inQuantity')), _num(m.get('outQuantity'))
+        ent, sai = abs(_num(m.get('inQuantity'))), abs(_num(m.get('outQuantity')))
+        if sai and OPERACOES_SAIDA and str(m.get('operationCode')) not in OPERACOES_SAIDA:
+            sai = 0.0                                                  # so conta a saida para a producao
         mm = meses.setdefault(d[:7], [0.0, 0.0, 0])
         mm[0] += ent
         mm[1] += sai
@@ -288,9 +321,12 @@ def atualizar_kardex() -> bool:
         hoje = date.today()
         ini = (hoje - timedelta(days=KARDEX_DIAS)).isoformat()
         produtos, erros, sem_mov = {}, [], 0
+        grandes = [i['codigo'] for i in sorted(base.get('itens', []), key=lambda x: -x['saldo'])]
+        _sondar_kardex(cli, grandes, hoje)
 
         def um(cod):
-            r = cli.get(KARDEX_URL, dict(ProductCode=cod, BranchCode=EMPRESA, StartDate=f'{ini}T00:00:00', EndDate=f'{hoje.isoformat()}T23:59:59', BalanceType=tipo_saldo()))
+            a_, b_ = _datas(hoje - timedelta(days=KARDEX_DIAS), hoje)
+            r = cli.get(KARDEX_URL, dict(ProductCode=cod, BranchCode=EMPRESA, StartDate=a_, EndDate=b_, BalanceType=tipo_saldo()))
             if r.status_code == 400 and 'MovementDataNotFound' in r.text:      # sem movimento nem saldo no periodo: nao e erro
                 return cod, dict(_resumir({}, hoje), sem_mov=True)
             if r.status_code != 200:

@@ -744,24 +744,48 @@ def almox_indicadores():
 @almox_bp.route('/diagnostico-kardex')
 @login_required
 def almox_diag_kardex():
-    """So administrador: kardex cru de 1 produto (?produto=CODIGO) para conferir os campos e o tipo de saldo."""
+    """So administrador: testa o kardex de 1 produto (?produto=CODIGO) de varias formas e mostra o que o TOTVS responde em cada uma."""
     if not current_user.is_admin:
         abort(403)
     from datetime import date, timedelta
     cod = request.args.get('produto', type=int) or ((almoxarifado.ler().get('itens') or [{}])[0].get('codigo'))
     if not cod:
-        d = almoxarifado.ler()
-        return _json(dict(erro='A lista de matérias-primas do local está vazia, então não há produto para testar o kardex.', n_com_saldo=d.get('n_com_saldo'), n_materia_prima=d.get('n_materia_prima'), atualizado=d.get('atualizado'),
-                          dica='Abra /estoque-almox/diagnostico para ver o que o TOTVS devolve no saldo do local, ou use ?produto=CODIGO.')), 200
+        return _json(dict(erro='A lista de materias-primas esta vazia: nao ha produto para testar. Use ?produto=CODIGO.'))
     try:
         cli = almoxarifado.api.TotvsModaClient()
         cli.autenticar()
-        hoje = date.today()
-        r = cli.get(almoxarifado.KARDEX_URL, dict(ProductCode=cod, BranchCode=almoxarifado.EMPRESA, StartDate=f'{(hoje - timedelta(days=30)).isoformat()}T00:00:00',
-                                                  EndDate=f'{hoje.isoformat()}T23:59:59', BalanceType=almoxarifado.tipo_saldo()))
-        j = r.json() if r.status_code == 200 else r.text[:400]
-        if isinstance(j, list) and j:
-            j[0]['movements'] = (j[0].get('movements') or [])[:8]
-        return _json(dict(http=r.status_code, tipo_saldo=almoxarifado.tipo_saldo(), produto=cod, resposta=j))
     except Exception as e:  # noqa: BLE001
         return _json(dict(erro=str(e)[:400])), 502
+    hoje = date.today()
+    ts = almoxarifado.tipo_saldo()
+
+    def tenta(nome, **p):
+        base = dict(ProductCode=cod, BranchCode=almoxarifado.EMPRESA)
+        base.update(p)
+        base = {k: v for k, v in base.items() if v is not None}
+        try:
+            r = cli.get(almoxarifado.KARDEX_URL, base)
+            try:
+                j = r.json()
+            except ValueError:
+                j = None
+            item = j[0] if isinstance(j, list) and j else (j if isinstance(j, dict) else {})
+            movs = item.get('movements') or [] if isinstance(item, dict) else []
+            return dict(variante=nome, parametros={k: str(v) for k, v in base.items()}, http=r.status_code, n_movimentos=len(movs), erro=(r.text[:160] if r.status_code != 200 else None),
+                        exemplo=[dict(data=str(m.get('movementDate'))[:10], operacao=m.get('operationCode'), historico=m.get('historyName'), entrada=m.get('inQuantity'), saida=m.get('outQuantity')) for m in movs[:3]])
+        except Exception as e:  # noqa: BLE001
+            return dict(variante=nome, erro=str(e)[:160])
+
+    def dt(d, fim=False):
+        return f'{d.isoformat()}T{"23:59:59" if fim else "00:00:00"}'
+
+    v = []
+    for dias in (179, 90, 30):
+        ini = hoje - timedelta(days=dias)
+        v.append(tenta(f'tipo saldo {ts}, {dias} dias, com hora', StartDate=dt(ini), EndDate=dt(hoje, True), BalanceType=ts))
+    v.append(tenta('so datas (sem hora), 90 dias', StartDate=(hoje - timedelta(days=90)).isoformat(), EndDate=hoje.isoformat(), BalanceType=ts))
+    v.append(tenta('sem BalanceType, 90 dias', StartDate=dt(hoje - timedelta(days=90)), EndDate=dt(hoje, True)))
+    for outro in (0, 1, 2):
+        if outro != ts:
+            v.append(tenta(f'BalanceType={outro}, 90 dias', StartDate=dt(hoje - timedelta(days=90)), EndDate=dt(hoje, True), BalanceType=outro))
+    return _json(dict(produto=cod, tipo_saldo_configurado=ts, operacoes_de_saida_contadas=sorted(almoxarifado.OPERACOES_SAIDA), tentativas=v))
