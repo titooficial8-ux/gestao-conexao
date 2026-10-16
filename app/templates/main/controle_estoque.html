@@ -174,7 +174,7 @@
     if (tx !== null) { var bb = el('div'); bb.style.cssText = 'height:6px;border-radius:6px;background:rgba(255,255,255,.18);margin:4px 0 8px;overflow:hidden'; var bs = el('span'); bs.style.cssText = 'display:block;height:100%;border-radius:6px;width:' + Math.max(tx * 100, 2) + '%;background:' + (tx >= 0.98 ? '#3ddc84' : (tx >= 0.95 ? '#ffc247' : '#ff6b6b')); bb.appendChild(bs); sa.appendChild(bb); }
     sa.appendChild(el('div', 'ce-hero-txt', ac && ac.texto ? ac.texto : 'aguardando os ajustes de inventário')); sa.title = 'Acuracidade = 1 − (kg ajustados nos inventários ÷ estoque atual), considerando os ajustes 2040 (entrada) e 2041 (saída) dos últimos 180 dias';
     h.appendChild(sa); box.appendChild(h);
-    var fd = el('div', 'ce-feed'); fd.id = 'ceFeed'; box.appendChild(fd); desenharFeed();
+    
 
     // ---- cartoes de gestao
     var kp = el('div', 'ce-kpis');
