@@ -175,19 +175,21 @@ def buscar(cli=None, amostra: bool = False) -> dict:
             produtos[p.get('productCode')] = p
     if amostra:
         return dict(estoque=ESTOQUE, estoque_nome=NOME, classificacao_mp=CLASSIF_MP, classificacoes_amostra=_amostra_classif(produtos), tipos_de_classificacao=_tipos_classif(cli), estoques_no_totvs={str(c): d for c, d in sorted((_RES.get('estoques') or descobrir_estoques(cli)).items())}, saldos_amostra=saldos[:3], produtos_amostra=list(produtos.values())[:3], n_saldos=len(saldos))
+    # materia-prima = "Tipo de produto M.P." do cadastro (o mesmo filtro do PRDFC014/PRDFF005) OU a classificacao MP (tipo 512)
+    por_tipo = {c for c, p in produtos.items() if p.get('isRawMaterial')}
     por_classif = {c for c, p in produtos.items() if _eh_mp_classif(p)}
-    usar_classif = bool(por_classif)                                   # MP e uma CLASSIFICACAO do produto; sem nenhuma, cai no campo "materia-prima" do cadastro
+    eh_mp = por_tipo | por_classif
     itens = []
     for cod, v in por_prod.items():
         p = produtos.get(cod) or {}
-        if not ((cod in por_classif) if usar_classif else p.get('isRawMaterial')):
+        if cod not in eh_mp or p.get('isActive') is False:                  # como o PRDFC014: so produtos ativos
             continue
         itens.append(dict(codigo=cod, nome=(p.get('productName') or v['nome'] or '')[:120], unidade=p.get('measuredUnit'), saldo=round(v['saldo'], 3),
                           disponivel=round(v['disponivel'], 3), entradas=round(v['entradas'], 3), saidas=round(v['saidas'], 3),
                           origem=_classif(p, 512), tipo_mp=_classif(p, 501), minimo=_num(p.get('minimumStockAmount')), maximo=_num(p.get('maximumStockAmount')), ideal=_num(p.get('idealStockAmount')), bloqueado=bool(p.get('isBlocked'))))
     itens.sort(key=lambda x: x['nome'])
     return dict(versao=VERSAO, estoque=ESTOQUE, estoque_nome=NOME, atualizado=datetime.now().isoformat(timespec='seconds'), itens=itens,
-                n_com_saldo=len(por_prod), n_materia_prima=len(itens), filtro_mp='classificacao ' + CLASSIF_MP if usar_classif else 'campo materia-prima do cadastro (nenhum produto com a classificacao MP, tipo ' + TIPO_CLASSIF + ')')
+                n_com_saldo=len(por_prod), n_materia_prima=len(itens), n_tipo_mp=len(por_tipo), n_classif_mp=len(por_classif), filtro_mp='tipo M.P. do cadastro ou classificacao MP')
 
 
 def atualizar() -> bool:
