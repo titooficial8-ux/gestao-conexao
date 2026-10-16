@@ -22,10 +22,7 @@ const URLS = {
 };
 const IS_ADMIN = ROOT?.dataset.isAdmin === '1';
 
-const todayISO = (() => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-})();
+const todayISO = productionDateOf(new Date());          // dia de producao: ate 06:20 ainda vale o dia anterior (turno da noite)
 const todayMonth = todayISO.slice(0, 7);
 
 function EditableSetting({ label, value, unit, onSave, disabled }) {
