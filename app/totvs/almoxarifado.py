@@ -76,6 +76,19 @@ def _classif(p: dict, tipo: int):
     return None
 
 
+def _fornecedor(p: dict):
+    """Nome do fornecedor do produto (primeiro da lista); None se o cadastro nao tiver."""
+    for f in p.get('suppliers') or []:
+        if not isinstance(f, dict):
+            continue
+        for k in ('supplierName', 'fantasyName', 'name', 'supplierFantasyName', 'description', 'companyName'):
+            if f.get(k):
+                return str(f[k]).strip()[:50]
+        if f.get('supplierCode') or f.get('code'):
+            return 'Fornecedor ' + str(f.get('supplierCode') or f.get('code'))
+    return None
+
+
 def _amostra_classif(produtos: dict) -> list:
     return [dict(produto=c, nome=p.get('productName'), isRawMaterial=p.get('isRawMaterial'), classificacoes=[dict(tipo=x.get('typeCode'), tipo_nome=x.get('typeName'), codigo=x.get('code'), nome=x.get('name')) for x in (p.get('classifications') or [])])
             for c, p in list(produtos.items())[:12]]
@@ -208,11 +221,11 @@ def buscar(cli=None, amostra: bool = False) -> dict:
         _PROD_TS[0] = time.time()
     faltam = [c for c in codigos if c not in _PROD]
     for i in range(0, len(faltam), 200):
-        for p in _paginar(cli, PRODUCTS_URL, dict(filter=dict(productCodeList=faltam[i:i + 200]), option=dict(branchInfoCode=EMPRESA), expand='classifications'), tam=500):
+        for p in _paginar(cli, PRODUCTS_URL, dict(filter=dict(productCodeList=faltam[i:i + 200]), option=dict(branchInfoCode=EMPRESA), expand='classifications,suppliers'), tam=500):
             _PROD[p.get('productCode')] = p
     produtos = {c: _PROD[c] for c in codigos if c in _PROD}
     if amostra:
-        return dict(estoque=ESTOQUE, estoque_nome=NOME, classificacao_mp=CLASSIF_MP, classificacoes_amostra=_amostra_classif(produtos), tipos_de_classificacao=_tipos_classif(cli), estoques_no_totvs={str(c): d for c, d in sorted((_RES.get('estoques') or descobrir_estoques(cli)).items())}, saldos_amostra=saldos[:3], produtos_amostra=list(produtos.values())[:3], n_saldos=len(saldos))
+        return dict(estoque=ESTOQUE, estoque_nome=NOME, classificacao_mp=CLASSIF_MP, classificacoes_amostra=_amostra_classif(produtos), tipos_de_classificacao=_tipos_classif(cli), estoques_no_totvs={str(c): d for c, d in sorted((_RES.get('estoques') or descobrir_estoques(cli)).items())}, saldos_amostra=saldos[:3], fornecedores_amostra=[p.get('suppliers') for p in produtos.values() if p.get('suppliers')][:3], produtos_amostra=list(produtos.values())[:3], n_saldos=len(saldos))
     # materia-prima = "Tipo de produto M.P." do cadastro (o mesmo filtro do PRDFC014/PRDFF005) OU a classificacao MP (tipo 512)
     por_tipo = {c for c, p in produtos.items() if p.get('isRawMaterial')}
     por_classif = {c for c, p in produtos.items() if _eh_mp_classif(p)}
@@ -226,7 +239,7 @@ def buscar(cli=None, amostra: bool = False) -> dict:
             continue
         itens.append(dict(codigo=cod, nome=(p.get('productName') or v['nome'] or '')[:120], unidade=p.get('measuredUnit'), saldo=round(v['saldo'], 3),
                           disponivel=round(v['disponivel'], 3), entradas=round(v['entradas'], 3), saidas=round(v['saidas'], 3),
-                          origem=_classif(p, 512), tipo_mp=_classif(p, 501), minimo=_num(p.get('minimumStockAmount')), maximo=_num(p.get('maximumStockAmount')), ideal=_num(p.get('idealStockAmount')), bloqueado=bool(p.get('isBlocked'))))
+                          origem=_classif(p, 512), tipo_mp=_classif(p, 501), fornecedor=_fornecedor(p), minimo=_num(p.get('minimumStockAmount')), maximo=_num(p.get('maximumStockAmount')), ideal=_num(p.get('idealStockAmount')), bloqueado=bool(p.get('isBlocked'))))
     itens.sort(key=lambda x: x['nome'])
     return dict(versao=VERSAO, estoque=ESTOQUE, estoque_nome=NOME, atualizado=datetime.now().isoformat(timespec='seconds'), itens=itens,
                 n_com_saldo=len(por_prod), n_materia_prima=len(itens), n_tipo_mp=len(por_tipo), n_classif_mp=len(por_classif), n_em_unidade=len(em_unidade & set(por_prod)), filtro_mp=(('unidade ' + UNIDADE + ' · ') if UNIDADE else '') + ('so itens da unidade (nenhum marcado como MP)' if sem_mp else 'tipo M.P. do cadastro ou classificacao MP'))
@@ -278,6 +291,17 @@ def ler_kardex() -> dict:
         return {}
 
 
+_VISTAS = {}                                                         # (operacao, nome, historico) das saidas vistas no ultimo kardex: mostra o que a API realmente manda
+
+
+def _saida_producao(m: dict) -> bool:
+    """Saida do almoxarifado para a PRODUCAO: operacao 2011 (transferencia almox para prod) ou, se o kardex nao trouxer a operacao, o historico de transferencia entre saldos."""
+    cod, nome, hist = str(m.get('operationCode') or '').strip(), str(m.get('operationName') or '').upper(), str(m.get('historyName') or '').upper()
+    if not OPERACOES_SAIDA or cod in OPERACOES_SAIDA or 'ALMOX PARA PROD' in nome:
+        return True
+    return not cod and not nome and 'TRANSFERENCIA ENTRE SALDOS' in hist
+
+
 def _resumir(resp: dict, hoje: date) -> dict:
     """Agrega as movimentacoes de um produto: por mes (entradas, saidas, n), saidas 30/60/90 dias, ultima saida."""
     meses, out30, out60, out90, in90, n30, n90, ult_saida, ult_mov = {}, 0.0, 0.0, 0.0, 0.0, 0, 0, None, None
@@ -286,8 +310,10 @@ def _resumir(resp: dict, hoje: date) -> dict:
         if not d:
             continue
         ent, sai = abs(_num(m.get('inQuantity'))), abs(_num(m.get('outQuantity')))
-        if sai and OPERACOES_SAIDA and str(m.get('operationCode')) not in OPERACOES_SAIDA:
-            sai = 0.0                                                  # so conta a saida para a producao
+        if sai:
+            _VISTAS[(str(m.get('operationCode')), str(m.get('operationName') or '')[:40], str(m.get('historyName') or '')[:40])] = _VISTAS.get((str(m.get('operationCode')), str(m.get('operationName') or '')[:40], str(m.get('historyName') or '')[:40]), 0) + 1
+            if not _saida_producao(m):
+                sai = 0.0                                              # so conta a saida do almoxarifado para a producao
         mm = meses.setdefault(d[:7], [0.0, 0.0, 0])
         mm[0] += ent
         mm[1] += sai
@@ -327,6 +353,7 @@ def atualizar_kardex() -> bool:
         hoje = date.today()
         ini = (hoje - timedelta(days=KARDEX_DIAS)).isoformat()
         produtos, erros, sem_mov = {}, [], 0
+        _VISTAS.clear()
         grandes = [i['codigo'] for i in sorted(base.get('itens', []), key=lambda x: -x['saldo'])]
         _sondar_kardex(cli, grandes, hoje)
 
@@ -354,7 +381,7 @@ def atualizar_kardex() -> bool:
             raise RuntimeError('Nenhum kardex lido: ' + (erros[0] if erros else 'sem resposta'))
         ARQ_KARDEX.parent.mkdir(parents=True, exist_ok=True)
         tmp = ARQ_KARDEX.with_suffix('.tmp')
-        tmp.write_text(json.dumps(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), dias=KARDEX_DIAS + 1, produtos=produtos, erros=len(erros), sem_mov=sem_mov, amostra_erro=erros[:2]), ensure_ascii=False), encoding='utf-8')
+        tmp.write_text(json.dumps(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), dias=KARDEX_DIAS + 1, produtos=produtos, erros=len(erros), sem_mov=sem_mov, amostra_erro=erros[:2], ops_saida=[dict(operacao=k[0], nome=k[1], historico=k[2], n=v) for k, v in sorted(_VISTAS.items(), key=lambda kv: -kv[1])[:8]]), ensure_ascii=False), encoding='utf-8')
         tmp.replace(ARQ_KARDEX)
         ESTADO_K.update(ultima=datetime.now().isoformat(timespec='seconds'), msg=f'{len(produtos)} kardex lidos' + (f' ({len(erros)} com erro)' if erros else ''))
     except Exception as e:  # noqa: BLE001
@@ -456,5 +483,5 @@ def consumo_mensal() -> dict:
         linhas.sort(key=lambda x: -x['kg'])
         saida[m] = dict(total=round(sum(x['kg'] for x in linhas), 1), n_itens=len(linhas), itens=linhas[:15])
     por_item = {cod: {m: round((r.get('meses') or {}).get(m, [0, 0, 0])[1], 1) for m in meses} for cod, r in prod.items() if cod in nomes}
-    return dict(pronto=bool(meses), meses=meses, por_mes=saida, por_item=por_item, kardex_atualizado=k.get('atualizado'), sem_mov=k.get('sem_mov', 0), n_itens=len(prod), erros=k.get('erros', 0),
+    return dict(pronto=bool(meses), meses=meses, por_mes=saida, por_item=por_item, kardex_atualizado=k.get('atualizado'), sem_mov=k.get('sem_mov', 0), n_itens=len(prod), erros=k.get('erros', 0), ops_saida=k.get('ops_saida', []),
                 aviso=(None if any(v['total'] for v in saida.values()) else 'O kardex ainda nao trouxe nenhuma saida para a producao (operacao 2011) nos ultimos meses.') if meses else None)
