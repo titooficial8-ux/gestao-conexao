@@ -94,6 +94,21 @@ def empresas_do_token(claims: dict) -> list[int]:
 # --------------------------------------------------------------------------
 # Cliente da API
 # --------------------------------------------------------------------------
+def trocar_arquivo(tmp, destino) -> None:
+    """tmp.replace(destino) que aguenta o Windows (WinError 5): outro processo/leitura/OneDrive pode estar com o arquivo aberto por instantes."""
+    for n in range(12):
+        try:
+            tmp.replace(destino)
+            return
+        except PermissionError:
+            time.sleep(0.15 * (n + 1))
+    destino.write_bytes(tmp.read_bytes())
+    try:
+        tmp.unlink()
+    except OSError:
+        pass
+
+
 class TotvsModaClient:
     def __init__(self) -> None:
         self.session = requests.Session()

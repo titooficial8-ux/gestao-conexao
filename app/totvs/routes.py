@@ -11,7 +11,7 @@ from flask_login import current_user, login_required
 from app.comercial_me.routes import idioma_atual
 from app.models import Tab
 
-from . import almoxarifado, base, entrada, movimentos, painel, pedidos, planilha_pedidos, servico, slide
+from . import almoxarifado, base, empenho, entrada, movimentos, painel, pedidos, planilha_pedidos, servico, slide
 
 bi_bp = Blueprint('bi_comercial', __name__, url_prefix='/bi-comercial')
 SLUG = 'dashboard-comercial'
@@ -917,4 +917,64 @@ def almox_diag_nf():
         except Exception as e:  # noqa: BLE001
             saida['erro_nota'] = str(e)[:200]
     saida['nomes_configurados'] = almoxarifado.NOMES_OPERADORES
+    return _json(saida)
+
+
+# ---------------------------------------------------------------------------
+# Planejamento de materia-prima: OPs em maquina (Programacao) x consumo de MP no TOTVS x saldo do almoxarifado
+# ---------------------------------------------------------------------------
+mp_bp = Blueprint('planejamento_mp', __name__, url_prefix='/planejamento-mp')
+
+
+def _autorizar_mp():
+    tab = Tab.query.filter_by(slug='planejamento-mp').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+
+
+@mp_bp.route('/dados')
+@login_required
+def mp_dados():
+    _autorizar_mp()
+    d = empenho.dashboard()
+    d['configurado'] = empenho.configurado()
+    return _json(d)
+
+
+@mp_bp.route('/atualizar', methods=['POST'])
+@login_required
+def mp_atualizar():
+    _autorizar_mp()
+    if not empenho.configurado():
+        return _json(dict(ok=False, erro='TOTVS não configurado no .env.')), 400
+    threading.Thread(target=empenho.atualizar, args=(current_app._get_current_object(),), daemon=True, name='empenho-agora').start()
+    return _json(dict(ok=True))
+
+
+@mp_bp.route('/diagnostico')
+@login_required
+def mp_diagnostico():
+    """So administrador: esquemas dos endpoints de consumo de materia-prima, a requisicao montada e a resposta do TOTVS para 2 OPs."""
+    if not current_user.is_admin:
+        abort(403)
+    try:
+        cli = empenho.api.TotvsModaClient()
+        cli.autenticar()
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(erro=str(e)[:400])), 502
+    ops = empenho.ops_da_programacao(current_app._get_current_object())[:2]
+    saida = dict(ops_testadas=ops, ciclo=empenho.CICLO, empresa=empenho.EMPRESA)
+    for nome, servico, caminho in empenho.ENDPOINTS:
+        info = dict(caminho=caminho)
+        try:
+            info['esquema'] = empenho.esquema(cli, servico, caminho)
+            if ops:
+                metodo, url, dados, unica = empenho.montar(cli, servico, caminho, ops[:1] if True else ops, 1)
+                info['requisicao_montada'] = dict(metodo=metodo, corpo=dados, uma_op_por_vez=unica)
+                r = empenho._enviar(cli, metodo, url, dados)
+                info['http'] = r.status_code
+                info['resposta'] = json_curto(r.json() if r.status_code == 200 else r.text[:500], 2800)
+        except Exception as e:  # noqa: BLE001
+            info['erro'] = str(e)[:300]
+        saida[nome] = info
     return _json(saida)
