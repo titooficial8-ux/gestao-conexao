@@ -156,7 +156,11 @@ def atualizar(rapida: bool = False) -> bool:
             traceback.print_exc()
         base = dados.get('base', {})                                    # valor e metros do pedido na 1a vez que o Gestao o viu (para mostrar o "antes" dos alterados)
         for k, v in pedidos.items():
-            base.setdefault(k, [v[1], v[2], datetime.now().isoformat(timespec='seconds')])
+            b = base.setdefault(k, [v[1], v[2], datetime.now().isoformat(timespec='seconds')])
+            if v[1] == 0 and b[0] > 0:
+                v[1] = b[0]                                             # o TOTVS zera o valor depois (ex.: exportacao drawback atendida): vale o valor original de entrada
+            elif b[0] == 0 and v[1] > 0:
+                b[0] = v[1]                                             # primeiro valor positivo vira o original
         _gravar(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), pedidos=pedidos, clientes=fantasia, base=base))
         if not rapida:
             _ULT_COMPLETA = time.time()
@@ -352,6 +356,8 @@ def alterados() -> dict:
         cod = str(p.get('orderCode'))
         valor, metros = _valor(p), round(_num(p.get('quantity')), 2)
         b = base.get(cod)
+        if valor == 0 and b and b[0] > 0:
+            valor = b[0]                                               # mesmo criterio: zerado pelo TOTVS nao conta como alteracao
         itens.append(dict(codigo=cod, data=str(p.get('orderDate') or '')[:10], inserido=ins, alterado=mud, local=local,
                           cliente=(fantasia.get(str(p.get('customerCode'))) or str(p.get('customerName') or ''))[:60], situacao=p.get('statusOrder'),
                           valor=valor, metros=metros, valor_ant=b[0] if b else None, metros_ant=b[1] if b else None,
