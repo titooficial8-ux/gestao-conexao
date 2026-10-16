@@ -591,7 +591,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       var falta = M.total.pct_meta, superada = falta < 0, realizadoAno = M.total.realizado_ano, pctReal = realizadoAno / M.meta;
       corpo.appendChild(ui.el('div', 'ex-secao', (ES ? 'Metas en metros' : 'Metas em metros') + ' · ' + MESES[d.mes - 1] + '/' + M.ano));
       var KM = ui.el('div', 'ex-grid');
-      KM.appendChild(execCard({ rotulo: ES ? 'META EN METROS (AÑO)' : 'META EM METROS (ANO)', tag: ES ? 'Planilla' : 'Planilha', valor: (M.total.acum < 0 ? '−' : '') + rs(Math.abs(M.total.acum)) + ' mts', linhas: [(ES ? 'Meta al 1º de enero: ' : 'Meta em 1º de janeiro: ') + rs(M.meta) + ' mts · ' + (ES ? 'al inicio del mes: ' : 'início do mês: ') + (M.saldo_inicial < 0 ? '−' : '') + rs(Math.abs(M.saldo_inicial)) + ' mts'], cor: '#1f4e79' }));
+      KM.appendChild(execCard({ rotulo: ES ? 'META EN METROS (AÑO)' : 'META EM METROS (ANO)', tag: ES ? 'Planilla' : 'Planilha', valor: rs(Math.abs(M.total.acum)) + ' mts', linhas: [(M.total.acum <= 0 ? (ES ? '✔ Meta alcanzada' : '✔ Meta atingida') + ' · ' : '') + (ES ? 'Meta al 1º de enero: ' : 'Meta em 1º de janeiro: ') + rs(M.meta) + ' mts · ' + (ES ? 'al inicio del mes: ' : 'início do mês: ') + (M.saldo_inicial <= 0 ? (ES ? 'meta alcanzada' : 'meta atingida') : rs(M.saldo_inicial) + ' mts')], cor: '#1f4e79' }));
       KM.appendChild(execCard({ rotulo: (ES ? 'REAL EN ' : 'REAL EM ') + MESES[d.mes - 1].slice(0, 3).toUpperCase() + '/' + M.ano, tag: 'TOTVS', vivo: true, valor: rs(M.total.real) + ' mts', linhas: [(ES ? 'Ticket medio: ' : 'Ticket médio: ') + 'R$ ' + ui.nf(M.total.ticket, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '/mt'], cor: '#1f9d55' }));
       KM.appendChild(execCard({ rotulo: ES ? '% DE LA META EN EL MES' : '% DA META NO MÊS', valor: ui.nf(M.total.pct_mts * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%', barra: Math.min(M.total.pct_mts, 1), linhas: [ES ? 'real del mes ÷ meta' : 'real do mês ÷ meta'], cor: '#2f7fe0' }));
       KM.appendChild(execCard({ rotulo: superada ? (ES ? 'META SUPERADA' : 'META SUPERADA') : (ES ? '% DE LA META QUE FALTA' : '% DA META QUE FALTA'), tag: superada ? (ES ? 'meta alcanzada' : 'meta atingida') : null, vivo: superada,
@@ -603,7 +603,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       [['Ticket médio', 'valor do dia ÷ metros do dia (R$ por metro). No total, valor do mês ÷ metros do mês.'],
        ['Real', 'metros dos pedidos do dia (TOTVS).'],
        ['%mts', 'Real do dia ÷ Meta do ano (' + rs(M.meta) + ' mts).'],
-       ['Meta (coluna)', 'saldo da meta em metros: parte da meta de 1º de janeiro (' + rs(M.meta) + ' mts), desconta o Real de cada dia e chega a este mês com (' + (M.saldo_inicial < 0 ? '−' : '') + rs(Math.abs(M.saldo_inicial)) + ' mts) e, a cada dia, subtrai o Real. Negativo = meta superada.'],
+       ['Meta (coluna)', 'saldo da meta em metros: parte da meta de 1º de janeiro (' + rs(M.meta) + ' mts), desconta o Real de cada dia e chega a este mês com (' + (M.saldo_inicial <= 0 ? 'meta atingida' : rs(M.saldo_inicial) + ' mts') + ') e, a cada dia, subtrai o Real. Quando zera, aparece Meta atingida.'],
        ['%Meta', 'igual à planilha: parte do %Meta herdado do mês anterior (' + pc(M.pct_inicial) + ') e, a cada dia com pedido, subtrai o %mts (=SE(%mts=0; anterior; anterior − %mts)).']].forEach(function (x) {
         var p = ui.el('p'); p.appendChild(ui.el('strong', null, x[0] + ': ')); p.appendChild(document.createTextNode(x[1])); como.appendChild(p); });
       corpo.appendChild(como);
@@ -626,13 +626,13 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       d.anos.forEach(function (a) { var y = x.anos[a]; r.appendChild(ui.el('td', 'cme-num', y ? (y.valor ? rs(y.valor) : '-') : '')); });
       if (M) { var L = M.linhas[String(x.dia)], vivo = !!x.anos[M.ano];
         r.appendChild(ui.el('td', 'cme-num sl-c-mt', vivo ? (L ? tk(L.ticket) : '-') : ''));
-        r.appendChild(ui.el('td', 'cme-num sl-c-mt', vivo ? (L ? rs(L.acum) : (x.dia > 1 ? '' : '-')) : ''));
+        r.appendChild(ui.el('td', 'cme-num sl-c-mt', vivo ? (L ? (L.acum <= 0 ? 'Meta atingida' : rs(L.acum)) : (x.dia > 1 ? '' : '-')) : ''));
         r.appendChild(ui.el('td', 'cme-num sl-c-mt', vivo ? (L && L.real ? rs(L.real) : '-') : ''));
         r.appendChild(ui.el('td', 'cme-num sl-c-mt', vivo ? (L ? pc(L.pct_mts) : '') : ''));
         r.appendChild(ui.el('td', 'cme-num sl-c-mt', vivo ? (L ? pc(L.pct_meta) : '') : '')); }
       bd.appendChild(r); });
     var rt = ui.el('tr', 'sl-total'); rt.appendChild(ui.el('td', 'sl-rot', 'TOTAL')); d.anos.forEach(function (a) { rt.appendChild(ui.el('td', 'cme-num sl-real', rs(d.total[a].valor))); });
-    if (M) { rt.appendChild(ui.el('td', 'cme-num sl-real', tk(M.total.ticket))); rt.appendChild(ui.el('td', 'cme-num sl-real', rs(M.total.acum))); rt.appendChild(ui.el('td', 'cme-num sl-real', rs(M.total.real))); rt.appendChild(ui.el('td', 'cme-num sl-real', pc(M.total.pct_mts))); rt.appendChild(ui.el('td', 'cme-num sl-real', pc(M.total.pct_meta))); }
+    if (M) { rt.appendChild(ui.el('td', 'cme-num sl-real', tk(M.total.ticket))); rt.appendChild(ui.el('td', 'cme-num sl-real', M.total.acum <= 0 ? 'Meta atingida' : rs(M.total.acum))); rt.appendChild(ui.el('td', 'cme-num sl-real', rs(M.total.real))); rt.appendChild(ui.el('td', 'cme-num sl-real', pc(M.total.pct_mts))); rt.appendChild(ui.el('td', 'cme-num sl-real', pc(M.total.pct_meta))); }
     bd.appendChild(rt);
     // linhas de comparacao (mesma logica da planilha): variacao do mes completo e "mesmo periodo comparado ate hoje"
     var extra = M ? 5 : 0;
