@@ -28,15 +28,21 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   .pr-pe { height: 12mm; }
   .pr-wrap .cme { padding: 0 9mm; }
   .sl-card, .sl-grafico, .sl-prog, .table-card, .cme-kpigrid { break-inside: avoid; page-break-inside: avoid; }
-  .bi-relatorio { display: none !important; }
+  .bi-overlay { display: none !important; }
+  #biPedCorpo { display: flex; flex-direction: column; }
+  #biPedidos .ped-carteira { order: 9; break-inside: auto; page-break-inside: auto; }      /* tabela diaria vai para o fim, como anexo */
+  #biPedidos .ped-carteira td, #biPedidos .ped-carteira th { font-size: 9.5px; padding: 2px 7px; }
+  #biPedidos .ped-carteira thead { display: table-header-group; }
+  #biPedidos .ped-carteira tr { break-inside: avoid; }
+  .bi-relatorio, #biPedFiltros, .ped-status, .sl-chips, .pd-card .btn-small { display: none !important; }
   .pr-juntos { break-inside: avoid; page-break-inside: avoid; }
   .pr-juntos .cme-kpigrid { margin-bottom: 4mm; }
   .pr-barras { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; margin-bottom: 5mm; }
   .pr-barras .sl-prog { margin: 0; }
 }
 </style>
-<div class="pr-topo"><strong>Relatório de Faturamento</strong><img src="{{ url_for('static', filename='img/logo_conexao.png') }}" alt="Conexão"></div>
-<div class="pr-rodape"><span>www.gestaoconexao.com.br</span><span>Relatório de Faturamento · Gerado em <span id="prGerado"></span></span></div>
+<div class="pr-topo"><strong id="prTitulo">Relatório de Faturamento</strong><img src="{{ url_for('static', filename='img/logo_conexao.png') }}" alt="Conexão"></div>
+<div class="pr-rodape"><span>www.gestaoconexao.com.br</span><span><span id="prRodTit">Relatório de Faturamento</span> · <span id="prRodRef" hidden></span><span id="prGeradoTxt">Gerado em <span id="prGerado"></span></span></span></div>
 <table class="pr-wrap"><thead><tr><td><div class="pr-cab"></div></td></tr></thead><tbody><tr><td><div class="pr-titulo"><small id="prGeradoSub"></small></div>
 <div class="cme bi">
   <div class="chamados-hero cme-hero">
@@ -98,6 +104,15 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   </div>
 
   <div id="biPedidos" hidden>
+    {% if pode_relatorio %}
+    <div class="bi-relatorio" id="biRelatorioPed">
+      <div class="bi-rel-linha">
+        <span class="cme-meta"><strong>{{ 'Informe de Entrada de Pedidos (modelo Conexão)' if es else 'Relatório de Entrada de Pedidos (modelo Conexão)' }}</strong> · <span id="biRelPedMes"></span></span>
+        <a class="btn-primary bi-btn" id="biRelPedPdf" href="#" download>⬇ {{ 'Generar PDF' if es else 'Gerar PDF' }}</a>
+        <span class="cme-meta" id="biRelPedMsg">{{ 'Tarda cerca de 30 segundos.' if es else 'Demora cerca de 30 segundos.' }}</span>
+      </div>
+    </div>
+    {% endif %}
     <div class="cme-filtros" id="biPedFiltros"></div>
     <div id="biPedCorpo"></div>
   </div>
@@ -563,7 +578,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     if (d.vazio) { corpo.appendChild(ui.el('div', 'table-card', ES ? 'Trayendo el pedidos de 2026 del TOTVS... la primera vez tarda unos minutos; esta pantalla se actualiza sola.' : 'Buscando os pedidos de 2026 no TOTVS... na primeira vez demora alguns minutos; esta tela se atualiza sozinha.' + (d.estado && d.estado.erro ? ' Erro: ' + d.estado.erro : ''))); return; }
     var l = ui.el('label', 'cme-filtro'); l.appendChild(ui.el('span', null, ES ? 'Mes de referencia' : 'Mês referência')); var s = ui.el('select', 'ticket-input');
     MESES.forEach(function (m, i) { var o = ui.el('option', null, m); o.value = i + 1; if (i + 1 === d.mes) o.selected = true; s.appendChild(o); });
-    s.addEventListener('change', function () { pedSel.mes = +s.value; carregarPedidos(); }); l.appendChild(s); f.appendChild(l);
+    s.addEventListener('change', function () { pedSel.mes = +s.value; linkPedPdf(); carregarPedidos(); }); l.appendChild(s); f.appendChild(l);
     if (d.planilha && d.planilha.arquivo) f.appendChild(ui.el('span', 'cme-meta', (ES ? 'Planilla 2023-2025: ' : 'Planilha 2023-2025: ') + d.planilha.arquivo));
     if (PODE_PLANILHA || !d.planilha) {
       var up = ui.el('label', 'btn-small ticket-btn-outline bi-ped-up', (d.planilha ? '📤 ' + (ES ? 'Actualizar planilla 2023-2025' : 'Atualizar planilha 2023-2025') : '📤 ' + (ES ? 'Enviar planilla "Pedido de venta" (2023 a 2025)' : 'Enviar planilha "Pedido de venda" (2023 a 2025)')));
@@ -609,7 +624,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       corpo.appendChild(como);
     }
     // Pedido de Venda - Carteira: data do pedido x ano (2023 a 2025 da planilha; 2026 do TOTVS), com ticket medio e metas em metros
-    var c2 = ui.el('div', 'table-card'); c2.appendChild(ui.el('h3', null, (ES ? 'Pedido de Venta - Cartera' : 'Pedido de Venda - Carteira') + ' — ' + MESES[d.mes - 1]));
+    var c2 = ui.el('div', 'table-card ped-carteira'); c2.appendChild(ui.el('h3', null, (ES ? 'Pedido de Venta - Cartera' : 'Pedido de Venda - Carteira') + ' — ' + MESES[d.mes - 1]));
     var w = ui.el('div', 'table-scroll sl-carteira-wrap'), tb = ui.el('table', 'data-table sl-tab sl-carteira'); w.appendChild(tb);
     var th = ui.el('thead');
     var g1 = ui.el('tr', 'sl-cart-grupo'); g1.appendChild(ui.el('th', null, ''));
@@ -700,7 +715,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     function fmtD(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : ''; }
     function fmtDH(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + ' ' + iso.slice(11, 16) : '—'; }
     function mostrar(a) {
-      corpoAlt.textContent = '';
+      corpoAlt.textContent = ''; corpoAlt.dataset.pronto = '1';
       if (!a.ok) { corpoAlt.appendChild(ui.el('p', 'cme-meta', (ES ? 'No se pudo consultar: ' : 'Não consegui consultar o TOTVS: ') + (a.erro || ''))); return; }
       corpoAlt.appendChild(ui.el('p', 'cme-meta', (ES ? 'Solo pedidos con valor o cantidad cambiados, del ' : 'Só pedidos com valor ou quantidade alterados, de ') + fmtD(a.inicio) + (ES ? ' al ' : ' até ') + fmtD(a.fim) + ' · ' + a.total + (ES ? ' pedidos' : ' pedidos')
         + (a.base_desde ? ' · ' + (ES ? 'el valor anterior existe desde ' : 'o valor anterior só existe desde ') + fmtD(a.base_desde) + (ES ? ' (cuando el Gestão empezó a guardarlo)' : ' (quando o Gestão passou a guardar)') : '')));
@@ -729,7 +744,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     function p2(v) { return 'R$ ' + ui.nf(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
     function sinal(v) { return (v < 0 ? '−' : '+') + 'R$ ' + rs(Math.abs(v)); }
     function mostrar(a) {
-      corpoP.textContent = '';
+      corpoP.textContent = ''; corpoP.dataset.pronto = '1';
       if (!a.ok) { corpoP.appendChild(ui.el('p', 'cme-meta', (ES ? 'No se pudo consultar: ' : 'Não consegui consultar o TOTVS: ') + (a.erro || ''))); return; }
       corpoP.appendChild(ui.el('p', 'cme-meta', (ES ? 'Precio unitario por metro del pedido vs. tabla de precios, de ' : 'Preço unitário por metro do pedido x tabela de preços, de ') + fmtD(a.inicio) + (ES ? ' al ' : ' até ') + fmtD(a.fim) + ' · ' + a.itens_comparados + (ES ? ' ítems comparados en ' : ' itens comparados em ') + a.n_pedidos_total + ' pedidos'));
       var pctMts = a.metros_total ? a.metros_divergentes / a.metros_total : 0, ok = !a.itens.length, g = ui.el('div', 'ex-grid');
@@ -759,7 +774,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   function mudarVisao(v) {
     Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.classList.toggle('active', b.dataset.visao === v); });
     $('biSlide').hidden = v !== 'slide'; $('biPedidos').hidden = v !== 'pedidos'; $('biPainel').hidden = v !== 'painel';
-    ui.limpar(); if (v === 'slide') carregarSlide(); else if (v === 'pedidos') carregarPedidos(); else carregar();
+    ui.limpar(); if (v === 'slide') carregarSlide(); else if (v === 'pedidos') { linkPedPdf(); carregarPedidos(); } else carregar();
   }
   Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.addEventListener('click', function () { mudarVisao(b.dataset.visao); }); });
   $('biHistorico').addEventListener('click', function () { if (confirm(ES ? 'Esto trae todas las notas desde enero del año pasado y puede tardar varios minutos. ¿Continuar?' : 'Isso busca todas as notas desde janeiro do ano passado e pode demorar vários minutos. Continuar?')) gerar(hoje(), hoje(), 'historico'); });
@@ -783,7 +798,12 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   // ao imprimir / salvar em PDF: titulo "Relatorio de Faturamento" no lugar do titulo do site e data/hora da geracao no rodape
   var tituloOriginal = document.title;
   function dataHoraAgora() { var d = new Date(), z = function (n) { return ('0' + n).slice(-2); }; return z(d.getDate()) + '/' + z(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
-  window.addEventListener('beforeprint', function () { var g = dataHoraAgora(); document.title = 'Relatório de Faturamento'; $('prGerado').textContent = g; $('prGeradoSub').textContent = 'Gerado em ' + g; });
+  window.addEventListener('beforeprint', function () {
+    var g = dataHoraAgora(), ped = !$('biPedidos').hidden, tit = ped ? 'Entrada de Pedidos' : 'Relatório de Faturamento';
+    document.title = tit; $('prTitulo').textContent = tit; $('prRodTit').textContent = tit; $('prGerado').textContent = g; $('prGeradoSub').textContent = 'Gerado em ' + g;
+    $('prRodRef').hidden = !ped; $('prGeradoTxt').hidden = ped;                       // Entrada de Pedidos: o rodape traz o mes/ano do relatorio
+    if (ped) $('prRodRef').textContent = MESES[(pedSel.mes || new Date().getMonth() + 1) - 1] + '/' + (pedDados && pedDados.anos ? pedDados.anos[pedDados.anos.length - 1] : new Date().getFullYear());
+  });
   // impressao: os quadros "Receita mercado externo - por pais" (mes e acumulado) ficam na mesma pagina da tabela "Mercado internacional"
   var juntos = null;
   function juntarIntl() {
@@ -804,7 +824,9 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   window.addEventListener('beforeprint', juntarIntl);
   window.addEventListener('afterprint', function () { document.title = tituloOriginal; separarIntl(); });
 
-  consultarStatus(function () { carregarSlide(); });
+  function linkPedPdf() { var a = $('biRelPedPdf'); if (!a) return; var m = pedSel.mes || new Date().getMonth() + 1; a.href = '/relatorio-faturamento/gerar?formato=pdf&visao=pedidos&mes=' + m; $('biRelPedMes').textContent = MESES[m - 1] + '/' + new Date().getFullYear(); }
+  var qsPag = new URLSearchParams(location.search);
+  consultarStatus(function () { if (qsPag.get('visao') === 'pedidos') { if (qsPag.get('mes')) pedSel.mes = +qsPag.get('mes'); mudarVisao('pedidos'); } else carregarSlide(); });
 })();
 </script>
 {% endblock %}
