@@ -27,7 +27,7 @@ def validar(destinos: str) -> list[str]:
     return lista
 
 
-def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str, bytes, str]]) -> None:
+def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str, bytes, str]], prioridade_alta: bool = False) -> None:
     """anexos = [(nome_do_arquivo, bytes, mime 'tipo/subtipo')]."""
     if not configurado():
         raise RuntimeError('E-mail não configurado: preencha no .env ' + ', '.join(faltando()) + '.')
@@ -37,6 +37,10 @@ def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str
     msg['Subject'] = assunto
     msg['From'] = os.getenv('SMTP_FROM') or usuario
     msg['To'] = ', '.join(destinos)
+    if prioridade_alta:
+        msg['X-Priority'] = '1 (Highest)'
+        msg['Importance'] = 'High'
+        msg['X-MSMail-Priority'] = 'High'
     msg.set_content(corpo)
     for nome, dados, mime in anexos:
         tipo, sub = mime.split('/', 1)
