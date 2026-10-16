@@ -189,8 +189,7 @@ def create_app():
         iniciar_movimentos(app)   # pesagens da malharia (local 23) das OPs da Programacao: a cada 2 min
         from app.totvs.almoxarifado import iniciar_agendador as iniciar_almox
         iniciar_almox(app)        # materia-prima do almoxarifado (local 34): a cada 5 min
-        from app.totvs.almoxarifado import iniciar_agendador_kardex as iniciar_almox_kardex
-        iniciar_almox_kardex(app)  # kardex por produto (giro/cobertura): a cada 15 min
+        # kardex (consumo por produto) fica desligado por enquanto: app.totvs.almoxarifado.iniciar_agendador_kardex
         from app.relatorio_fat.agenda import iniciar_agendador as iniciar_envio_relatorio
         iniciar_envio_relatorio(app)   # Relatorio de Faturamento por e-mail, 1x por dia (08:30)
 
