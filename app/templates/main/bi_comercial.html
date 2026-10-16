@@ -118,9 +118,17 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       </div>
       <div class="bi-rel-linha bi-rel-email">
         <span class="cme-meta" title="{{ destinos_pedidos|join(', ') }}">{{ 'Envío fijo (alta prioridad) para' if es else 'Envio fixo (alta prioridade) para' }} <strong>{{ destinos_pedidos|length }}</strong> {{ 'destinatarios' if es else 'destinatários' }}: {{ destinos_pedidos|join(', ') }}</span>
-        <button type="button" class="btn-primary bi-btn" id="biRelPedEnviar">✉ {{ 'Enviar PDF' if es else 'Enviar PDF' }}</button>
+<label class="cme-meta" style="display:inline-flex;align-items:center;gap:6px;"><input type="checkbox" id="biRelPedJunto" checked> {{ 'Incluir también el PDF del Informe de Facturación' if es else 'Incluir também o PDF do Relatório de Faturamento' }}</label>
+                <button type="button" class="btn-primary bi-btn" id="biRelPedEnviar">✉ {{ 'Enviar PDF' if es else 'Enviar PDF' }}</button>
         <span class="cme-meta" id="biRelPedEmailMsg"></span>
+      
       </div>
+      <div class="bi-rel-linha bi-rel-email">
+        <span class="cme-meta">{{ 'Prueba (solo a este e-mail):' if es else 'Teste (só para este e-mail):' }}</span>
+        <input type="text" id="biRelPedTeste" class="ticket-input" placeholder="nome@conexaomalhas.com.br" autocomplete="off" style="width: 320px;">
+        <button type="button" class="btn-small ticket-btn-outline" id="biRelPedTesteBtn">✉ {{ 'Enviar prueba' if es else 'Enviar teste' }}</button>
+        <span class="cme-meta" id="biRelPedTesteMsg"></span>
+</div>
     </div>
     {% endif %}
     <div class="cme-filtros" id="biPedFiltros"></div>
@@ -836,15 +844,21 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     });
   }
 
+  function enviarPed(teste, btn, msg) {
+    var corpo = { visao: 'pedidos', formato: 'pdf', mes: pedSel.mes || new Date().getMonth() + 1, ano: new Date().getFullYear(), junto_faturamento: $('biRelPedJunto').checked };
+    if (teste) { corpo.teste_para = teste; }
+    btn.disabled = true; msg.textContent = '⏳ Gerando o(s) PDF(s) e enviando… (cerca de ' + (corpo.junto_faturamento ? '1 min' : '30 s') + ')';
+    fetch(URL_REL_ENVIAR, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
+      .then(function (r) { return r.json().then(function (j) { return [r.ok, j]; }); })
+      .then(function (x) { btn.disabled = false; msg.textContent = x[0] ? '✅ ' + (teste ? 'Teste enviado para ' : 'Enviado para ') + x[1].enviado_para.join(', ') + ' · anexos: ' + x[1].anexos.join(', ') : '⚠ ' + (x[1].erro || 'Falha ao enviar.'); })
+      .catch(function () { btn.disabled = false; msg.textContent = '⚠ Falha de conexão ao enviar.'; });
+  }
   if ($('biRelPedEnviar')) {
-    $('biRelPedEnviar').addEventListener('click', function () {
-      var msg = $('biRelPedEmailMsg'), btn = $('biRelPedEnviar');
-      btn.disabled = true; msg.textContent = '⏳ Gerando o PDF e enviando… (cerca de 30 s)';
-      fetch(URL_REL_ENVIAR, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ visao: 'pedidos', formato: 'pdf', mes: pedSel.mes || new Date().getMonth() + 1 }) })
-        .then(function (r) { return r.json().then(function (j) { return [r.ok, j]; }); })
-        .then(function (x) { btn.disabled = false; msg.textContent = x[0] ? '✅ Enviado para ' + x[1].enviado_para.join(', ') : '⚠ ' + (x[1].erro || 'Falha ao enviar.'); })
-        .catch(function () { btn.disabled = false; msg.textContent = '⚠ Falha de conexão ao enviar.'; });
+    $('biRelPedEnviar').addEventListener('click', function () { enviarPed('', $('biRelPedEnviar'), $('biRelPedEmailMsg')); });
+    $('biRelPedTesteBtn').addEventListener('click', function () {
+      var t = $('biRelPedTeste').value.trim(), msg = $('biRelPedTesteMsg');
+      if (!t) { msg.textContent = 'Digite o e-mail do teste.'; return; }
+      enviarPed(t, $('biRelPedTesteBtn'), msg);
     });
   }
 

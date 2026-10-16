@@ -131,27 +131,42 @@ def enviar():
     j = request.get_json(silent=True) or {}
     if not envio.configurado():
         return jsonify(ok=False, erro='E-mail ainda não configurado neste computador. Preencha no arquivo .env: ' + ', '.join(envio.faltando()) + ' (veja o .env.example) e reinicie o Gestão.'), 400
-    pedidos_ = j.get('visao') == 'pedidos'
+    pedidos = j.get('visao') == 'pedidos'
+    teste = (j.get('teste_para') or '').strip()                          # envio de teste: so para este e-mail (nao usa a lista fixa)
     try:
-        destinos = envio.validar(agenda.configuracao()['destinos'] if pedidos_ else j.get('para'))        # Entrada de Pedidos: sempre a lista do relatorio de faturamento
+        if teste:
+            destinos = envio.validar(teste)
+        else:
+            destinos = envio.validar(agenda.configuracao()['destinos'] if pedidos else j.get('para'))        # Entrada de Pedidos: sempre a lista do relatorio de faturamento
     except ValueError as e:
         return jsonify(ok=False, erro=str(e)), 400
-    pedidos = j.get('visao') == 'pedidos'
-    formatos = ['pdf'] if pedidos else {'pdf': ['pdf'], 'pptx': ['pptx'], 'ambos': ['pdf', 'pptx']}.get(j.get('formato', 'pdf'), ['pdf'])
+    junto = pedidos and bool(j.get('junto_faturamento'))                 # Entrada de Pedidos + Relatorio de Faturamento no mesmo e-mail
+    # (funcao que monta, rotulo do erro) de cada anexo
+    tarefas = [(lambda: _montar_pedidos(j.get('mes')), 'PDF da Entrada de Pedidos')] if pedidos else []
+    if junto or not pedidos:
+        formatos = ['pdf'] if pedidos else {'pdf': ['pdf'], 'pptx': ['pptx'], 'ambos': ['pdf', 'pptx']}.get(j.get('formato', 'pdf'), ['pdf'])
+        for f in formatos:
+            tarefas.append(((lambda f=f: _montar(f, j.get('ano') if not pedidos else None, j.get('mes'))), f'{f.upper()} do Relatório de Faturamento'))
     anexos, ref = [], None
-    for f in formatos:
+    for fn, rotulo in tarefas:
         try:
-            r = _montar_pedidos(j.get('mes')) if pedidos else _montar(f, j.get('ano'), j.get('mes'))
+            r = fn()
         except Exception as e:  # noqa: BLE001
-            return jsonify(ok=False, erro=f'Não foi possível gerar o {f.upper()}: {e}'), 500
+            return jsonify(ok=False, erro=f'Não foi possível gerar o {rotulo}: {e}'), 500
         if not r:
             return jsonify(ok=False, erro='Ainda não há dados de faturamento carregados do TOTVS.'), 404
-        anexos.append((r[1], r[0], MIME[f]))
+        anexos.append((r[1], r[0], MIME['pdf' if r[1].endswith('.pdf') else 'pptx']))
         ref = f'{dados.MESES[r[2] - 1]}/{r[3]}'
     try:
-        titulo = 'Relatório de Entrada de Pedidos' if pedidos else 'Relatório de Faturamento'
-        envio.enviar(destinos, f'{"Entrada de Pedidos" if pedidos else "Relatório de Faturamento"} — {ref}',
-                     envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), titulo=titulo), anexos, prioridade_alta=pedidos)
+        if junto:
+            assunto, titulo = f'Relatório de Faturamento e Entrada de Pedidos — {ref}', 'Relatório de Faturamento e o Relatório de Entrada de Pedidos'
+        elif pedidos:
+            assunto, titulo = f'Entrada de Pedidos — {ref}', 'Relatório de Entrada de Pedidos'
+        else:
+            assunto, titulo = f'Relatório de Faturamento — {ref}', 'Relatório de Faturamento'
+        if teste:
+            assunto = '[TESTE] ' + assunto
+        envio.enviar(destinos, assunto, envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), titulo=titulo), anexos, prioridade_alta=pedidos)
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=f'Não foi possível enviar: {e}'), 502
     return jsonify(ok=True, enviado_para=destinos, anexos=[a[0] for a in anexos])
