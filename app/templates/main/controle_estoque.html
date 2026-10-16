@@ -2,156 +2,223 @@
 {% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
 {% block content %}
 <style>
-  .ce-topo { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 4px; }
-  .ce-topo h1 { margin: 0 0 2px; }
-  .ce-status { font-size: 12.5px; color: #5d6e84; }
-  .ce-status b { color: #11703c; }
-  .ce-grid2 { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; }
-  @media (max-width: 1000px) { .ce-grid2 { grid-template-columns: 1fr; } }
-  .ce-chart { position: relative; height: 330px; }
-  .ce-pill { display: inline-block; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
+  .ce { --cinza: #6a7b90; }
+  .ce-topo { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin: 4px 0 14px; }
+  .ce-topo h1 { margin: 0; font-size: 26px; line-height: 1.15; color: #0f2540; }
+  .ce-sub { font-size: 12.5px; color: var(--cinza); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+  .ce-dot { width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; display: inline-block; margin-right: 6px; animation: biPonto 1.4s ease-in-out infinite; }
+  .ce-aviso { margin: 0 0 14px; padding: 12px 16px; border-radius: 12px; background: #fff7e6; border: 1px solid #f3d9a4; color: #7a5200; font-size: 13px; }
+
+  .ce-hero { display: grid; grid-template-columns: 1.1fr 1.6fr 1fr; gap: 28px; padding: 26px 28px; border-radius: 18px; color: #fff; align-items: center;
+    background: linear-gradient(120deg, #0a2540 0%, #0f3a66 55%, #16508a 100%); box-shadow: 0 12px 32px rgba(10, 37, 64, .25); }
+  .ce-hero-rot { font-size: 10.5px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #8fb4dc; }
+  .ce-hero-big { font-size: 44px; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; margin: 8px 0 6px; font-variant-numeric: tabular-nums; }
+  .ce-hero-big small { font-size: 18px; font-weight: 700; color: #b9d0ea; margin-left: 6px; }
+  .ce-hero-txt { font-size: 12.5px; color: #b9d0ea; line-height: 1.5; }
+  .ce-hero-mid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; padding: 0 26px; border-left: 1px solid rgba(255, 255, 255, .14); border-right: 1px solid rgba(255, 255, 255, .14); }
+  .ce-m-val { font-size: 30px; font-weight: 800; margin: 8px 0 4px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .ce-m-val small { font-size: 14px; font-weight: 700; color: #b9d0ea; margin-left: 4px; }
+  .ce-delta { display: inline-block; font-size: 11.5px; font-weight: 800; padding: 2px 9px; border-radius: 999px; }
+  .ce-delta.bom { background: rgba(61, 220, 132, .18); color: #7be0a6; }
+  .ce-delta.ruim { background: rgba(255, 107, 107, .2); color: #ffb4b4; }
+  .ce-saude { display: flex; align-items: center; gap: 16px; }
+  .ce-saude-graf { position: relative; width: 118px; height: 118px; flex: none; }
+  .ce-saude-centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  .ce-saude-centro b { font-size: 24px; line-height: 1; }
+  .ce-saude-centro span { font-size: 9.5px; color: #8fb4dc; letter-spacing: .1em; text-transform: uppercase; margin-top: 3px; }
+  .ce-leg { display: grid; gap: 7px; font-size: 12px; color: #d4e0ee; }
+  .ce-leg i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 8px; }
+  .ce-leg b { margin-left: 6px; color: #fff; }
+
+  .ce-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 14px 0; }
+  .ce-kpi { background: #fff; border: 1px solid #e1e9f3; border-radius: 14px; padding: 16px 18px; position: relative; overflow: hidden; box-shadow: 0 1px 2px rgba(16, 38, 63, .04), 0 8px 20px rgba(16, 38, 63, .05); }
+  .ce-kpi::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c, #2f7fe0); }
+  .ce-kpi-rot { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #5d6e84; }
+  .ce-kpi-val { font-size: 28px; font-weight: 800; color: #0f2540; margin: 8px 0 2px; font-variant-numeric: tabular-nums; }
+  .ce-kpi-sub { font-size: 12px; color: var(--cinza); line-height: 1.45; }
+
+  .ce-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .ce-card { background: #fff; border: 1px solid #e1e9f3; border-radius: 14px; padding: 18px 20px 14px; box-shadow: 0 1px 2px rgba(16, 38, 63, .04), 0 8px 20px rgba(16, 38, 63, .05); }
+  .ce-card h3 { margin: 0 0 2px; font-size: 15px; color: #0f2540; }
+  .ce-card p.m { margin: 0 0 10px; font-size: 12px; color: var(--cinza); }
+  .ce-graf { position: relative; height: 320px; }
+  .ce-vazio { color: var(--cinza); font-size: 13px; padding: 40px 10px; text-align: center; }
+  .ce-pill { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 999px; letter-spacing: .03em; }
   .ce-pill.crit { background: #fdeaea; color: #b62027; }
   .ce-pill.aten { background: #fff3dc; color: #9a6200; }
   .ce-pill.ok { background: #e3f5ea; color: #11703c; }
-  .ce-pill.a { background: #e4eefc; color: #1d55a6; }
-  .ce-aviso { margin: 12px 0; padding: 12px 16px; border-radius: 12px; background: #fff7e6; border: 1px solid #f3d9a4; color: #7a5200; font-size: 13px; }
-  .ce-vazio { color: #6a7b90; font-size: 13px; padding: 10px 2px; }
-  .ce-nota { font-size: 11.5px; color: #7c8ca1; margin-top: 8px; line-height: 1.5; }
+  .ce-pill.par { background: #eceff4; color: #4d5d72; }
+  .ce-nota { font-size: 11.5px; color: #7c8ca1; margin: 6px 2px 18px; line-height: 1.5; }
+  .ce-sec { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #46586e; margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; }
+  .ce-sec::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, #d5dfec, transparent); }
+  @media (max-width: 1100px) { .ce-hero { grid-template-columns: 1fr; } .ce-hero-mid { border: 0; padding: 0; } .ce-kpis { grid-template-columns: repeat(2, 1fr); } .ce-linha { grid-template-columns: 1fr; } }
 </style>
 
-<div class="ce-topo">
-  <div>
-    <h1 class="page-heading">{{ tab.name_pt if lang == 'pt' else tab.name_es }}</h1>
-    <div class="ce-status" id="ceStatus">Consultando o TOTVS…</div>
+<div class="ce">
+  <div class="ce-topo">
+    <div>
+      <h1>{{ tab.name_pt if lang == 'pt' else tab.name_es }}</h1>
+      <div class="ce-sub" id="ceStatus">Consultando o TOTVS…</div>
+    </div>
+    <button type="button" class="btn-small ticket-btn-outline" id="ceAtualizar">⟳ Atualizar agora</button>
   </div>
-  <button type="button" class="btn-small ticket-btn-outline" id="ceAtualizar">⟳ Atualizar agora</button>
-</div>
+  <div id="ceAviso"></div>
+  <div id="ceCorpo"></div>
 
-<div id="ceAviso"></div>
-<div id="ceIndicadores"></div>
-
-<h2 class="ex-secao">Relação de matéria-prima · Almoxarifado</h2>
-<div class="prod-filters">
-  <input type="text" id="buscaAlmox" class="prod-search" placeholder="Pesquisar matéria-prima (código ou descrição)" autocomplete="off">
-</div>
-<div class="table-card" style="margin-top:10px;">
-  <div class="table-scroll">
-    <table class="data-table prod-table" id="tabelaAlmox">
-      <thead><tr><th>Código</th><th>Descrição</th><th>Origem</th><th>Un.</th><th class="cme-num">Saldo em estoque</th><th class="cme-num">Saídas 30 d</th><th class="cme-num">Saídas 90 d</th><th class="cme-num">Cobertura</th><th>Situação</th></tr></thead>
-      <tbody id="almoxCorpo"><tr><td colspan="9" class="prod-table-empty">Carregando…</td></tr></tbody>
-    </table>
+  <div class="ce-sec">Relação de matéria-prima</div>
+  <div class="prod-filters"><input type="text" id="buscaAlmox" class="prod-search" placeholder="Pesquisar matéria-prima (código ou descrição)" autocomplete="off"></div>
+  <div class="table-card" style="margin-top:10px;">
+    <div class="table-scroll">
+      <table class="data-table prod-table">
+        <thead><tr><th>Código</th><th>Descrição</th><th>Origem</th><th class="cme-num">Saldo (kg)</th><th class="cme-num">Consumo 30 d</th><th class="cme-num">Consumo 90 d</th><th class="cme-num">Cobertura</th><th>Situação</th></tr></thead>
+        <tbody id="almoxCorpo"><tr><td colspan="8" class="prod-table-empty">Carregando…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
 <script>
 (function () {
-  var URL_DADOS = '/estoque-almox/dados', URL_IND = '/estoque-almox/indicadores', URL_ATU = '/estoque-almox/atualizar';
   var $ = function (id) { return document.getElementById(id); }, dados = null, ind = null, graf = {};
   function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
-  function nf(v, d) { return v === null || v === undefined ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d === undefined ? 0 : d }); }
-  function kg(v) { return nf(v, 0) + ' kg'; }
+  function nf(v, d) { return v === null || v === undefined ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
   function pct(v, d) { return v === null || v === undefined ? '—' : nf(v * 100, d === undefined ? 1 : d) + '%'; }
   function dh(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + ' ' + iso.slice(11, 16) : '—'; }
-  function card(o) {
-    var c = el('div', 'ex-card'); c.style.setProperty('--ex-cor', o.cor || '#2f7fe0');
-    var h = el('div', 'ex-rot'); h.appendChild(el('span', null, o.rotulo)); if (o.tag) h.appendChild(el('span', 'ex-tag' + (o.vivo ? ' vivo' : ''), o.tag)); c.appendChild(h);
-    c.appendChild(el('div', 'ex-val', o.valor));
-    if (o.delta !== undefined && o.delta !== null) c.appendChild(el('div', 'ex-delta ' + (o.deltaBom ? 'up' : 'down'), (o.delta >= 0 ? '▲ +' : '▼ ') + nf(o.delta * 100, 1) + '% ' + (o.deltaRef || '')));
-    (o.linhas || []).forEach(function (l) { c.appendChild(el('div', 'ex-sub', l)); });
-    return c;
-  }
+  function curto(t, n) { return t.length > n ? t.slice(0, n - 1) + '…' : t; }
+  function pill(cls, txt) { return el('span', 'ce-pill ' + cls, txt); }
+  function situacao(i) { if (!i) return el('span'); if (i.out90 === 0) return i.saldo > 0 ? pill('par', 'PARADO') : pill('ok', '—'); if (i.cobertura !== null && i.cobertura < 15) return pill('crit', 'CRÍTICO'); if (i.cobertura !== null && i.cobertura < 30) return pill('aten', 'ATENÇÃO'); return pill('ok', 'OK'); }
+  function kpi(rot, val, sub, cor) { var k = el('div', 'ce-kpi'); k.style.setProperty('--c', cor); k.appendChild(el('div', 'ce-kpi-rot', rot)); k.appendChild(el('div', 'ce-kpi-val', val)); k.appendChild(el('div', 'ce-kpi-sub', sub)); return k; }
+  function cartao(titulo, meta) { var c = el('div', 'ce-card'); c.appendChild(el('h3', null, titulo)); c.appendChild(el('p', 'm', meta)); return c; }
+  function graficoEm(card) { var w = el('div', 'ce-graf'), cv = document.createElement('canvas'); w.appendChild(cv); card.appendChild(w); return cv; }
   function tabela(cols, linhas, vazio) {
-    if (!linhas.length) return el('p', 'ce-vazio', vazio);
+    if (!linhas.length) return el('div', 'ce-vazio', vazio);
     var w = el('div', 'table-scroll'), t = el('table', 'data-table prod-table'), th = el('thead'), tr = el('tr');
     cols.forEach(function (c) { tr.appendChild(el('th', c.num ? 'cme-num' : null, c.t)); }); th.appendChild(tr); t.appendChild(th);
-    var b = el('tbody'); linhas.forEach(function (l) { var r = el('tr'); cols.forEach(function (c) { var td = el('td', c.num ? 'cme-num' : null); var v = c.f(l); if (v instanceof Node) td.appendChild(v); else td.textContent = v; r.appendChild(td); }); b.appendChild(r); });
+    var b = el('tbody'); linhas.forEach(function (l) { var r = el('tr'); cols.forEach(function (c) { var td = el('td', c.num ? 'cme-num' : null), v = c.f(l); if (v instanceof Node) td.appendChild(v); else td.textContent = v; r.appendChild(td); }); b.appendChild(r); });
     t.appendChild(b); w.appendChild(t); return w;
   }
-  function secao(titulo) { return el('h2', 'ex-secao', titulo); }
-  function pill(cls, txt) { return el('span', 'ce-pill ' + cls, txt); }
-  function situacao(i) { if (i.out90 === 0) return i.saldo > 0 ? pill('aten', 'Parado 90 d') : pill('ok', '—'); if (i.cobertura !== null && i.cobertura < 15) return pill('crit', 'Crítico'); if (i.cobertura !== null && i.cobertura < 30) return pill('aten', 'Atenção'); return pill('ok', 'OK'); }
+  var EIXO = { grid: { color: 'rgba(120,130,150,.15)' }, border: { display: false } };
 
-  function desenharIndicadores() {
-    var box = $('ceIndicadores'); box.textContent = '';
+  function classes() {
+    var c = { crit: 0, aten: 0, ok: 0, par: 0 };
+    ((ind && ind.todos) || []).forEach(function (i) { if (i.out90 === 0) { if (i.saldo > 0) c.par++; else c.ok++; } else if (i.cobertura !== null && i.cobertura < 15) c.crit++; else if (i.cobertura !== null && i.cobertura < 30) c.aten++; else c.ok++; });
+    return c;
+  }
+
+  function desenhar() {
+    var box = $('ceCorpo'); box.textContent = '';
     Object.keys(graf).forEach(function (k) { try { graf[k].destroy(); } catch (e) {} }); graf = {};
-    if (!ind || !ind.pronto) { return; }
-    var c = ind.cards;
-    box.appendChild(secao('Visão executiva · matéria-prima do ' + (ind.estoque_nome || 'almoxarifado')));
-    var g = el('div', 'ex-grid');
-    g.appendChild(card({ rotulo: 'Estoque de matéria-prima', tag: ind.estoque_nome || ('estoque ' + ind.estoque), vivo: true, valor: kg(c.saldo_total), linhas: [c.n_itens + ' matérias-primas com saldo'], cor: '#1f4e79' }));
-    g.appendChild(card({ rotulo: 'Consumo · últimos 30 dias', valor: kg(c.saidas30), delta: c.var30, deltaBom: c.var30 !== null && c.var30 <= 0, deltaRef: 'vs 30 dias anteriores', linhas: ['média de ' + kg(c.consumo_diario) + ' por dia (90 d)'], cor: '#2f7fe0' }));
-    g.appendChild(card({ rotulo: 'Cobertura do estoque', valor: c.cobertura_geral === null ? '—' : nf(c.cobertura_geral, 0) + ' dias', linhas: ['estoque atual ÷ consumo médio diário (90 d)'], cor: c.cobertura_geral !== null && c.cobertura_geral < 20 ? '#c0272d' : '#1f9d55' }));
-    g.appendChild(card({ rotulo: 'Itens críticos', valor: String(c.n_criticos), linhas: ['cobertura abaixo de 15 dias', c.n_atencao + ' em atenção (15 a 30 dias)'], cor: c.n_criticos ? '#c0272d' : '#1f9d55' }));
-    g.appendChild(card({ rotulo: 'Alta rotatividade (classe A)', valor: String(c.n_classe_a) + ' itens', linhas: ['concentram ' + pct(c.pct_consumo_a, 0) + ' das saídas em 90 dias'], cor: '#8a5fe0' }));
-    g.appendChild(card({ rotulo: 'Estoque parado', valor: kg(c.kg_parados), linhas: [c.n_parados + (c.n_parados === 1 ? ' item' : ' itens') + ' sem saída em 90 dias', pct(c.pct_parados, 1) + ' do estoque'], cor: c.n_parados ? '#e0972f' : '#1f9d55' }));
-    box.appendChild(g);
+    if (!dados || !dados.itens || !dados.itens.length) { box.appendChild(el('div', 'ce-card ce-vazio', dados && dados.atualizado ? 'Nenhuma matéria-prima com saldo no almoxarifado.' : 'Aguardando a primeira consulta ao TOTVS…')); return; }
+    var itens = dados.itens, saldoTotal = itens.reduce(function (s, i) { return s + i.saldo; }, 0), pronto = ind && ind.pronto && !ind.aviso, c = pronto ? ind.cards : null, cl = pronto ? classes() : null;
+    var prop = itens.filter(function (i) { return (i.origem || '').toUpperCase().indexOf('PROP') === 0; }).length;
 
-    var linha = el('div', 'ce-grid2'); linha.style.marginTop = '16px';
-    var c1 = el('div', 'table-card'); c1.appendChild(el('h3', null, 'Maiores consumos · curva ABC (90 dias)')); c1.appendChild(el('p', 'cme-meta', 'As 15 matérias-primas que mais saem do almoxarifado; a linha mostra o acumulado do consumo total'));
-    var w1 = el('div', 'ce-chart'), cv1 = document.createElement('canvas'); w1.appendChild(cv1); c1.appendChild(w1); linha.appendChild(c1);
-    var c2 = el('div', 'table-card'); c2.appendChild(el('h3', null, 'Entradas × saídas por mês')); c2.appendChild(el('p', 'cme-meta', 'Últimos 6 meses, soma de todas as matérias-primas (kg)'));
-    var w2 = el('div', 'ce-chart'), cv2 = document.createElement('canvas'); w2.appendChild(cv2); c2.appendChild(w2); linha.appendChild(c2);
-    box.appendChild(linha);
+    var h = el('div', 'ce-hero');
+    var a = el('div'); a.appendChild(el('div', 'ce-hero-rot', 'Estoque de matéria-prima')); var big = el('div', 'ce-hero-big', nf(saldoTotal)); big.appendChild(el('small', null, 'kg')); a.appendChild(big);
+    a.appendChild(el('div', 'ce-hero-txt', itens.length + ' itens · ' + (dados.estoque_nome || 'Almoxarifado') + (prop ? ' · ' + prop + ' de produção própria' : '')));
+    h.appendChild(a);
+    var m = el('div', 'ce-hero-mid');
+    function metrica(rot, val, un, extra) { var d = el('div'); d.appendChild(el('div', 'ce-hero-rot', rot)); var v = el('div', 'ce-m-val', val); if (un) v.appendChild(el('small', null, un)); d.appendChild(v); if (extra) d.appendChild(extra); return d; }
+    if (c) {
+      var dl = null; if (c.var30 !== null && c.var30 !== undefined) { dl = el('span', 'ce-delta ' + (c.var30 <= 0 ? 'bom' : 'ruim'), (c.var30 >= 0 ? '▲ +' : '▼ ') + nf(c.var30 * 100, 1) + '% vs 30 d anteriores'); }
+      m.appendChild(metrica('Consumo · 30 dias', nf(c.saidas30), 'kg', dl));
+      m.appendChild(metrica('Consumo médio / dia', nf(c.consumo_diario), 'kg', el('div', 'ce-hero-txt', 'média dos últimos 90 dias')));
+      m.appendChild(metrica('Cobertura', c.cobertura_geral === null ? '—' : nf(c.cobertura_geral), 'dias', el('div', 'ce-hero-txt', 'estoque ÷ consumo diário')));
+    } else {
+      var esp = el('div', 'ce-hero-txt', ind && ind.aviso ? 'O kardex ainda não trouxe consumo (veja o aviso acima).' : 'Lendo o kardex de cada matéria-prima no TOTVS' + (ind && ind.estado && ind.estado.rodando ? ' (' + ind.estado.feitos + ' de ' + ind.estado.total + ')' : '') + '… o consumo e a cobertura aparecem em seguida.');
+      esp.style.gridColumn = '1 / -1'; m.appendChild(esp);
+    }
+    h.appendChild(m);
+    var sa = el('div', 'ce-saude'), cvS = null;
+    if (cl) {
+      var gw = el('div', 'ce-saude-graf'); cvS = document.createElement('canvas'); gw.appendChild(cvS);
+      var ct = el('div', 'ce-saude-centro'); ct.appendChild(el('b', null, String(cl.crit + cl.aten))); ct.appendChild(el('span', null, 'em alerta')); gw.appendChild(ct); sa.appendChild(gw);
+      var lg = el('div', 'ce-leg'); [['#3ddc84', 'Saudável', cl.ok], ['#ffc247', 'Atenção', cl.aten], ['#ff6b6b', 'Crítico', cl.crit], ['#8aa0ba', 'Parado', cl.par]].forEach(function (x) { var r = el('div'); var i = el('i'); i.style.background = x[0]; r.appendChild(i); r.appendChild(document.createTextNode(x[1])); r.appendChild(el('b', null, String(x[2]))); lg.appendChild(r); }); sa.appendChild(lg);
+    } else { sa.appendChild(el('div', 'ce-hero-txt', 'Saúde do estoque: aguardando o consumo.')); }
+    h.appendChild(sa); box.appendChild(h);
+    if (cvS) graf.saude = new Chart(cvS, { type: 'doughnut', data: { labels: ['Saudável', 'Atenção', 'Crítico', 'Parado'], datasets: [{ data: [cl.ok, cl.aten, cl.crit, cl.par], backgroundColor: ['#3ddc84', '#ffc247', '#ff6b6b', '#8aa0ba'], borderWidth: 0 }] }, options: { cutout: '74%', plugins: { legend: { display: false } }, maintainAspectRatio: false } });
 
-    var top = ind.top_consumo;
-    graf.pareto = new Chart(cv1, { data: { labels: top.map(function (x) { return x.nome.length > 22 ? x.nome.slice(0, 21) + '…' : x.nome; }), datasets: [
-      { type: 'bar', label: 'Saídas 90 d (kg)', data: top.map(function (x) { return Math.round(x.out90); }), backgroundColor: top.map(function (x) { return x.classe === 'A' ? '#2f7fe0' : (x.classe === 'B' ? '#9aa6bc' : '#cfd6e2'); }), borderRadius: 4, yAxisID: 'y' },
-      { type: 'line', label: '% acumulado', data: top.map(function (x) { return Math.round(x.pct_acum * 1000) / 10; }), borderColor: '#e0972f', backgroundColor: '#e0972f', tension: .25, pointRadius: 3, yAxisID: 'y1' }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,.15)' } }, y1: { position: 'right', min: 0, max: 100, grid: { display: false }, ticks: { callback: function (v) { return v + '%'; } } }, x: { ticks: { maxRotation: 60, minRotation: 40, font: { size: 10 } } } } } });
-    var sm = ind.serie_mensal;
-    graf.serie = new Chart(cv2, { type: 'bar', data: { labels: sm.map(function (x) { return x.mes.slice(5) + '/' + x.mes.slice(2, 4); }), datasets: [
-      { label: 'Entradas', data: sm.map(function (x) { return Math.round(x.entradas); }), backgroundColor: '#1f9d55', borderRadius: 4 },
-      { label: 'Saídas', data: sm.map(function (x) { return Math.round(x.saidas); }), backgroundColor: '#2f7fe0', borderRadius: 4 }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,.15)' } } } } });
+    if (c) {
+      var kp = el('div', 'ce-kpis');
+      kp.appendChild(kpi('Itens críticos', String(cl.crit), 'cobertura abaixo de 15 dias', cl.crit ? '#c0272d' : '#1f9d55'));
+      kp.appendChild(kpi('Em atenção', String(cl.aten), 'cobertura entre 15 e 30 dias', cl.aten ? '#e0972f' : '#1f9d55'));
+      kp.appendChild(kpi('Alta rotatividade · classe A', c.n_classe_a + ' itens', 'concentram ' + pct(c.pct_consumo_a, 0) + ' do consumo em 90 dias', '#2f7fe0'));
+      kp.appendChild(kpi('Estoque parado', nf(c.kg_parados) + ' kg', c.n_parados + ' itens sem consumo em 90 dias · ' + pct(c.pct_parados, 1) + ' do estoque', '#8a5fe0'));
+      box.appendChild(kp);
+    }
 
-    var cr = el('div', 'table-card'); cr.style.marginTop = '16px'; cr.appendChild(el('h3', null, 'Atenção imediata · menor cobertura')); cr.appendChild(el('p', 'cme-meta', 'Matérias-primas que acabam primeiro no ritmo atual de consumo (cobertura em dias)'));
-    cr.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return x.nome; } }, { t: 'Saldo', num: 1, f: function (x) { return kg(x.saldo); } }, { t: 'Consumo/dia', num: 1, f: function (x) { return kg(x.diario); } }, { t: 'Cobertura', num: 1, f: function (x) { return nf(x.cobertura, 1) + ' dias'; } }, { t: 'Situação', f: function (x) { return situacao(x); } }], ind.criticos, 'Nenhuma matéria-prima com menos de 15 dias de cobertura. 👍'));
-    box.appendChild(cr);
+    var l1 = el('div', 'ce-linha'); l1.style.marginTop = c ? '0' : '14px';
+    var c1 = cartao('Maiores saldos em estoque', '10 matérias-primas com mais quilos no almoxarifado'), cv1 = graficoEm(c1); l1.appendChild(c1);
+    var top = itens.slice().sort(function (x, y) { return y.saldo - x.saldo; }).slice(0, 10);
+    graf.saldos = new Chart(cv1, { type: 'bar', data: { labels: top.map(function (x) { return curto(x.nome, 34); }), datasets: [{ data: top.map(function (x) { return Math.round(x.saldo); }), backgroundColor: '#2f7fe0', borderRadius: 5, barThickness: 18 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 60 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v / 1000) + ' t'; } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
+      plugins: [{ id: 'rot', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(top[i].saldo / 1000, 1) + ' t', e.x + 6, e.y); }); x.restore(); } }] });
+    var c2;
+    if (c && ind.top_consumo && ind.top_consumo.some(function (x) { return x.out90 > 0; })) {
+      c2 = cartao('Maiores consumos · últimos 90 dias', 'Saídas do almoxarifado para a produção (operação 2011); cor = classe ABC');
+      var cv2 = graficoEm(c2), tc = ind.top_consumo.slice(0, 10), cor = { A: '#2f7fe0', B: '#9aa6bc', C: '#cfd6e2' };
+      graf.consumo = new Chart(cv2, { type: 'bar', data: { labels: tc.map(function (x) { return curto(x.nome, 34); }), datasets: [{ data: tc.map(function (x) { return Math.round(x.out90); }), backgroundColor: tc.map(function (x) { return cor[x.classe]; }), borderRadius: 5, barThickness: 18 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 60 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · acumulado ' + pct(tc[x.dataIndex].pct_acum, 0); } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v / 1000) + ' t'; } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
+        plugins: [{ id: 'rot2', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(tc[i].out90 / 1000, 1) + ' t', e.x + 6, e.y); }); x.restore(); } }] });
+    } else { c2 = cartao('Maiores consumos · últimos 90 dias', 'Saídas do almoxarifado para a produção'); c2.appendChild(el('div', 'ce-vazio', 'Aguardando o kardex do TOTVS.')); }
+    l1.appendChild(c2); box.appendChild(l1);
 
-    var l2 = el('div', 'ce-grid2'); l2.style.marginTop = '16px';
-    var ar = el('div', 'table-card'); ar.appendChild(el('h3', null, 'Alta rotatividade · mais movimentadas')); ar.appendChild(el('p', 'cme-meta', 'Classe A: itens que somam até 80% das saídas em 90 dias'));
-    ar.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return x.nome; } }, { t: 'Saídas 90 d', num: 1, f: function (x) { return kg(x.out90); } }, { t: 'Giro', num: 1, f: function (x) { return x.giro === null ? '—' : nf(x.giro, 1) + '×'; } }, { t: 'Movim.', num: 1, f: function (x) { return nf(x.n90); } }], ind.alta_rotatividade, 'Sem dados.'));
-    l2.appendChild(ar);
-    var pa = el('div', 'table-card'); pa.appendChild(el('h3', null, 'Estoque parado')); pa.appendChild(el('p', 'cme-meta', 'Com saldo e sem nenhuma saída nos últimos 90 dias'));
-    pa.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return x.nome; } }, { t: 'Saldo', num: 1, f: function (x) { return kg(x.saldo); } }, { t: 'Última saída', f: function (x) { return x.ultima_saida ? x.ultima_saida.slice(8, 10) + '/' + x.ultima_saida.slice(5, 7) : 'há mais de 6 meses'; } }], ind.parados, 'Nenhum item parado. 👍'));
-    l2.appendChild(pa); box.appendChild(l2);
-    box.appendChild(el('p', 'ce-nota', 'Giro = saídas de 90 dias ÷ estoque atual. Cobertura = estoque atual ÷ consumo médio diário dos últimos 90 dias. "Saídas" são as quantidades que saem do almoxarifado (kardex do TOTVS). Saldo atualizado em ' + dh(ind.saldo_atualizado) + ' · kardex em ' + dh(ind.kardex_atualizado) + '.'));
+    if (c && ind.serie_mensal && ind.serie_mensal.length) {
+      var l2 = el('div', 'ce-linha');
+      var c3 = cartao('Entradas × consumo por mês', 'Últimos 6 meses, todas as matérias-primas (toneladas)'), cv3 = graficoEm(c3), sm = ind.serie_mensal; l2.appendChild(c3);
+      graf.mensal = new Chart(cv3, { type: 'bar', data: { labels: sm.map(function (x) { return x.mes.slice(5) + '/' + x.mes.slice(2, 4); }), datasets: [{ label: 'Entradas', data: sm.map(function (x) { return Math.round(x.entradas / 100) / 10; }), backgroundColor: '#1f9d55', borderRadius: 5 }, { label: 'Consumo (produção)', data: sm.map(function (x) { return Math.round(x.saidas / 100) / 10; }), backgroundColor: '#2f7fe0', borderRadius: 5 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: function (x) { return x.dataset.label + ': ' + nf(x.raw, 1) + ' t'; } } } }, scales: { y: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return v + ' t'; } } }, EIXO), x: { grid: { display: false } } } } });
+      var c4 = cartao('Atenção imediata · menor cobertura', 'Quanto tempo o estoque atual dura no ritmo de consumo dos últimos 90 dias');
+      c4.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return curto(x.nome, 36); } }, { t: 'Saldo', num: 1, f: function (x) { return nf(x.saldo) + ' kg'; } }, { t: 'Consumo/dia', num: 1, f: function (x) { return nf(x.diario) + ' kg'; } }, { t: 'Cobertura', num: 1, f: function (x) { return nf(x.cobertura, 1) + ' d'; } }, { t: '', f: function (x) { return situacao(x); } }], ind.criticos.slice(0, 8), 'Nenhuma matéria-prima com menos de 15 dias de cobertura.'));
+      l2.appendChild(c4); box.appendChild(l2);
+
+      var l3 = el('div', 'ce-linha');
+      var c5 = cartao('Alta rotatividade · mais movimentadas', 'Classe A: itens que somam até 80% do consumo em 90 dias');
+      c5.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return curto(x.nome, 36); } }, { t: 'Consumo 90 d', num: 1, f: function (x) { return nf(x.out90) + ' kg'; } }, { t: 'Giro', num: 1, f: function (x) { return x.giro === null ? '—' : nf(x.giro, 1) + '×'; } }, { t: 'Saldo', num: 1, f: function (x) { return nf(x.saldo) + ' kg'; } }], ind.alta_rotatividade.slice(0, 10), 'Sem dados.'));
+      l3.appendChild(c5);
+      var c6 = cartao('Estoque parado', 'Com saldo e nenhum consumo nos últimos 90 dias');
+      c6.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return curto(x.nome, 36); } }, { t: 'Saldo', num: 1, f: function (x) { return nf(x.saldo) + ' kg'; } }, { t: 'Último consumo', f: function (x) { return x.ultima_saida ? x.ultima_saida.slice(8, 10) + '/' + x.ultima_saida.slice(5, 7) : '> 6 meses'; } }], ind.parados.slice(0, 10), 'Nenhum item parado.'));
+      l3.appendChild(c6); box.appendChild(l3);
+      box.appendChild(el('p', 'ce-nota', 'Consumo = quilos que saem do almoxarifado para a produção (operação 2011 – transferência almoxarifado → produção). Giro = consumo de 90 dias ÷ saldo atual. Cobertura = saldo atual ÷ consumo médio diário (90 dias). Itens ativos em KG, tipo matéria-prima. Saldo atualizado em ' + dh(ind.saldo_atualizado) + ' · kardex em ' + dh(ind.kardex_atualizado) + '.'));
+    }
   }
 
   function desenharTabela() {
     var corpo = $('almoxCorpo'); corpo.textContent = '';
     var mapa = {}; ((ind && ind.pronto) ? (ind.todos || []) : []).forEach(function (x) { mapa[x.codigo] = x; });
     var q = ($('buscaAlmox').value || '').trim().toLowerCase(), lista = ((dados && dados.itens) || []).filter(function (i) { return !q || String(i.codigo).indexOf(q) >= 0 || (i.nome || '').toLowerCase().indexOf(q) >= 0; });
-    if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', dados && dados.itens && dados.itens.length ? 'Nenhuma matéria-prima encontrada.' : 'Nenhuma matéria-prima com saldo no almoxarifado (ou ainda não consultado).'); c0.colSpan = 9; r0.appendChild(c0); corpo.appendChild(r0); return; }
+    if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', 'Nenhuma matéria-prima encontrada.'); c0.colSpan = 8; r0.appendChild(c0); corpo.appendChild(r0); return; }
     lista.forEach(function (i) {
       var k = mapa[i.codigo], r = el('tr');
-      [[i.codigo], [i.nome], [i.origem || ''], [i.unidade || ''], [nf(i.saldo, 3), 'cme-num'], [k ? nf(k.out30, 1) : '—', 'cme-num'], [k ? nf(k.out90, 1) : '—', 'cme-num'], [k && k.cobertura !== null ? nf(k.cobertura, 1) + ' d' : '—', 'cme-num']].forEach(function (c) { r.appendChild(el('td', c[1], String(c[0]))); });
+      [[i.codigo], [i.nome], [i.origem || ''], [nf(i.saldo, 1), 'cme-num'], [k ? nf(k.out30, 1) : '—', 'cme-num'], [k ? nf(k.out90, 1) : '—', 'cme-num'], [k && k.cobertura !== null ? nf(k.cobertura, 1) + ' d' : '—', 'cme-num']].forEach(function (c) { r.appendChild(el('td', c[1], String(c[0]))); });
       var ts = el('td'); if (k) ts.appendChild(situacao(k)); r.appendChild(ts); corpo.appendChild(r);
     });
   }
 
   function status() {
-    var s = [];
-    if (dados && dados.atualizado) s.push('<b>● TOTVS</b> · ' + dados.n_materia_prima + ' matérias-primas com saldo em ' + (dados.estoque_nome || 'almoxarifado') + ' · saldo atualizado ' + dh(dados.atualizado) + (dados.filtro_mp ? ' · filtro: ' + dados.filtro_mp : ''));
-    if (ind && ind.kardex_atualizado) s.push('giro e cobertura (kardex 180 d) atualizados ' + dh(ind.kardex_atualizado));
-    $('ceStatus').innerHTML = s.length ? s.join(' · ') : 'Consultando o TOTVS…';
+    var s = $('ceStatus'); s.textContent = '';
+    if (dados && dados.atualizado) {
+      var a = el('span'); a.appendChild(el('span', 'ce-dot')); a.appendChild(document.createTextNode('TOTVS · ao vivo')); s.appendChild(a);
+      s.appendChild(el('span', null, 'Saldo atualizado ' + dh(dados.atualizado)));
+      if (ind && ind.kardex_atualizado) s.appendChild(el('span', null, 'Consumo (kardex) atualizado ' + dh(ind.kardex_atualizado)));
+      if (dados.filtro_mp) s.appendChild(el('span', null, 'Filtro: ' + dados.filtro_mp));
+    } else s.textContent = 'Consultando o TOTVS…';
     var av = $('ceAviso'); av.textContent = '';
     if (dados && !dados.configurado) av.appendChild(el('div', 'ce-aviso', 'TOTVS não configurado no arquivo .env.'));
     else if (dados && dados.estado && dados.estado.erro) av.appendChild(el('div', 'ce-aviso', '⚠ Falha ao consultar o saldo no TOTVS: ' + dados.estado.erro));
     else if (ind && ind.estado && ind.estado.erro) av.appendChild(el('div', 'ce-aviso', '⚠ Falha ao ler o kardex no TOTVS: ' + ind.estado.erro));
     else if (ind && ind.pronto && ind.aviso) av.appendChild(el('div', 'ce-aviso', '⚠ ' + ind.aviso));
-    else if (dados && dados.configurado && !dados.atualizado) av.appendChild(el('div', 'ce-aviso', 'Primeira consulta ao TOTVS em andamento — a lista aparece em alguns minutos.'));
-    else if (ind && !ind.pronto && dados && dados.atualizado) av.appendChild(el('div', 'ce-aviso', 'Lendo o kardex de cada matéria-prima no TOTVS (180 dias) para montar giro e cobertura — os indicadores aparecem em alguns minutos' + (ind.estado && ind.estado.rodando ? ' (' + ind.estado.feitos + ' de ' + ind.estado.total + ' lidas)' : '') + '.'));
   }
 
   function carregar() {
-    Promise.all([fetch(URL_DADOS, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }), fetch(URL_IND, { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })])
-      .then(function (x) { var novo = JSON.stringify(x[1] && x[1].cards) + (x[1] && x[1].kardex_atualizado); var mudou = !ind || novo !== ($('ceIndicadores').dataset.sig || ''); dados = x[0]; ind = x[1]; status(); desenharTabela(); if (mudou) { $('ceIndicadores').dataset.sig = novo; desenharIndicadores(); } })
-      .catch(function (e) { $('ceStatus').textContent = 'Não consegui carregar (' + e.message + ').'; });
+    Promise.all([fetch('/estoque-almox/dados', { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }), fetch('/estoque-almox/indicadores', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })])
+      .then(function (x) {
+        var sig = (x[0].atualizado || '') + '|' + (x[1] && x[1].kardex_atualizado || '') + '|' + (x[1] && x[1].estado && x[1].estado.feitos || '') + '|' + (x[1] && x[1].pronto);
+        var mudou = sig !== $('ceCorpo').dataset.sig; dados = x[0]; ind = x[1]; status(); desenharTabela(); if (mudou) { $('ceCorpo').dataset.sig = sig; desenhar(); }
+      }).catch(function (e) { $('ceStatus').textContent = 'Não consegui carregar (' + e.message + ').'; });
   }
-  $('buscaAlmox').addEventListener('input', function () { desenharTabela(); });
-  $('ceAtualizar').addEventListener('click', function () { $('ceStatus').textContent = 'Consultando o TOTVS…'; fetch(URL_ATU, { method: 'POST', credentials: 'same-origin' }).then(function () { setTimeout(carregar, 5000); }); });
+  $('buscaAlmox').addEventListener('input', desenharTabela);
+  $('ceAtualizar').addEventListener('click', function () { $('ceStatus').textContent = 'Consultando o TOTVS…'; fetch('/estoque-almox/atualizar', { method: 'POST', credentials: 'same-origin' }).then(function () { setTimeout(carregar, 5000); }); });
   carregar(); setInterval(carregar, 30000);
 })();
 </script>
