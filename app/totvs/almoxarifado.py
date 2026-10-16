@@ -20,10 +20,11 @@ BASE_URL = api.BASE_URL
 BALANCES_URL = f'{BASE_URL}/api/totvsmoda/product/v2/balances/search'
 PRODUCTS_URL = f'{BASE_URL}/api/totvsmoda/product/v2/products/search'
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
-ESTOQUE = int(os.getenv('ALMOX_ESTOQUE', '34'))
+ESTOQUE_FIXO = os.getenv('ALMOX_ESTOQUE', '').strip()                # opcional: codigo do estoque; sem ele, acha pelo NOME (ALMOX_NOME, padrao ALMOXARIFADO)
+NOME_ESTOQUE = os.getenv('ALMOX_NOME', 'ALMOXARIFADO').strip().upper()
 INTERVALO_MIN = max(1, int(os.getenv('ALMOX_INTERVALO_MIN', '5')))
 KARDEX_URL = f'{BASE_URL}/api/totvsmoda/product/v2/kardex-movement'
-BALANCE_TYPE = int(os.getenv('ALMOX_TIPO_SALDO', str(ESTOQUE)))     # "tipo de saldo" do kardex (PRDFL017); padrao = o proprio codigo do estoque
+TIPO_SALDO_FIXO = os.getenv('ALMOX_TIPO_SALDO', '').strip()           # "tipo de saldo" do kardex (PRDFL017); padrao = o proprio codigo do estoque
 KARDEX_DIAS = 179                                                  # a API limita a janela a 180 dias
 KARDEX_INTERVALO_MIN = max(5, int(os.getenv('ALMOX_KARDEX_MIN', '15')))
 ARQUIVO = api.OUT_DIR / 'almoxarifado.json'
@@ -54,6 +55,51 @@ def _paginar(cli, url, corpo, tam=1000):
         pag += 1
 
 
+_RES = {}                                                          # {'codigo', 'nome', 'estoques': {codigo: descricao}}
+
+
+def descobrir_estoques(cli) -> dict:
+    """Lista os estoques que o TOTVS devolve nos saldos ({codigo: descricao}) olhando ate ~2000 produtos com saldo."""
+    achados = {}
+    for pag in range(1, 5):
+        r = cli.post(BALANCES_URL, dict(filter=dict(hasStock=True, branchStockCode=EMPRESA), option=dict(balances=[dict(branchCode=EMPRESA)]), page=pag, pageSize=500))
+        if r.status_code != 200:
+            raise RuntimeError(f'estoques: HTTP {r.status_code} {r.text[:200]}')
+        j = r.json()
+        for x in j.get('items') or []:
+            for b in x.get('balances') or []:
+                if b.get('stockCode') is not None:
+                    achados.setdefault(b['stockCode'], str(b.get('stockDescription') or '').strip())
+        if not j.get('hasNext'):
+            break
+    return achados
+
+
+def resolver_estoque(cli) -> tuple:
+    """(codigo, nome) do estoque do almoxarifado: ALMOX_ESTOQUE do .env, ou o estoque cujo nome traz ALMOX_NOME."""
+    if ESTOQUE_FIXO.isdigit():
+        _RES.update(codigo=int(ESTOQUE_FIXO), nome=_RES.get('nome') or f'estoque {ESTOQUE_FIXO}')
+        return _RES['codigo'], _RES['nome']
+    if _RES.get('codigo') is not None:
+        return _RES['codigo'], _RES['nome']
+    est = descobrir_estoques(cli)
+    _RES['estoques'] = est
+    cand = [(c, d) for c, d in est.items() if NOME_ESTOQUE in d.upper()]
+    if not cand:
+        raise RuntimeError(f'Nao achei um estoque com "{NOME_ESTOQUE}" no nome. Estoques que o TOTVS devolveu: ' + '; '.join(f'{c}={d}' for c, d in sorted(est.items())[:30]))
+    cand.sort(key=lambda cd: (cd[1].upper() != NOME_ESTOQUE, len(cd[1])))      # nome exato primeiro
+    _RES.update(codigo=cand[0][0], nome=cand[0][1])
+    return _RES['codigo'], _RES['nome']
+
+
+def estoque_atual() -> int:
+    return _RES.get('codigo') if _RES.get('codigo') is not None else (int(ESTOQUE_FIXO) if ESTOQUE_FIXO.isdigit() else None)
+
+
+def tipo_saldo() -> int:
+    return int(TIPO_SALDO_FIXO) if TIPO_SALDO_FIXO.isdigit() else (estoque_atual() or 0)
+
+
 def ler() -> dict:
     try:
         return json.loads(ARQUIVO.read_text(encoding='utf-8'))
@@ -73,6 +119,7 @@ def buscar(cli=None, amostra: bool = False) -> dict:
     if cli is None:
         cli = api.TotvsModaClient()
         cli.autenticar()
+    ESTOQUE, NOME = resolver_estoque(cli)
     opcao = dict(balances=[dict(branchCode=EMPRESA, stockCodeList=[ESTOQUE])])
     saldos = _paginar(cli, BALANCES_URL, dict(filter=dict(hasStock=True, branchStockCode=EMPRESA, stockCode=ESTOQUE), option=opcao), tam=50 if amostra else 1000) if not amostra else \
         cli.post(BALANCES_URL, dict(filter=dict(hasStock=True, branchStockCode=EMPRESA, stockCode=ESTOQUE), option=opcao, page=1, pageSize=5)).json().get('items') or []
@@ -88,7 +135,7 @@ def buscar(cli=None, amostra: bool = False) -> dict:
         for p in _paginar(cli, PRODUCTS_URL, dict(filter=dict(productCodeList=codigos[i:i + 200]), option=dict(branchInfoCode=EMPRESA)), tam=500):
             produtos[p.get('productCode')] = p
     if amostra:
-        return dict(estoque=ESTOQUE, saldos_amostra=saldos[:3], produtos_amostra=list(produtos.values())[:3], n_saldos=len(saldos))
+        return dict(estoque=ESTOQUE, estoque_nome=NOME, estoques_no_totvs={str(c): d for c, d in sorted((_RES.get('estoques') or descobrir_estoques(cli)).items())}, saldos_amostra=saldos[:3], produtos_amostra=list(produtos.values())[:3], n_saldos=len(saldos))
     itens = []
     for cod, v in por_prod.items():
         p = produtos.get(cod) or {}
@@ -98,7 +145,7 @@ def buscar(cli=None, amostra: bool = False) -> dict:
                           disponivel=round(v['disponivel'], 3), entradas=round(v['entradas'], 3), saidas=round(v['saidas'], 3),
                           minimo=_num(p.get('minimumStockAmount')), maximo=_num(p.get('maximumStockAmount')), ideal=_num(p.get('idealStockAmount')), bloqueado=bool(p.get('isBlocked'))))
     itens.sort(key=lambda x: x['nome'])
-    return dict(versao=VERSAO, estoque=ESTOQUE, atualizado=datetime.now().isoformat(timespec='seconds'), itens=itens,
+    return dict(versao=VERSAO, estoque=ESTOQUE, estoque_nome=NOME, atualizado=datetime.now().isoformat(timespec='seconds'), itens=itens,
                 n_com_saldo=len(por_prod), n_materia_prima=len(itens))
 
 
@@ -109,7 +156,7 @@ def atualizar() -> bool:
     try:
         d = buscar()
         _gravar(d)
-        ESTADO.update(ultima=d['atualizado'], msg=f"{d['n_materia_prima']} materias-primas no local {ESTOQUE}")
+        ESTADO.update(ultima=d['atualizado'], msg=f"{d['n_materia_prima']} materias-primas em {d['estoque_nome']}")
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         ESTADO.update(erro=str(e)[:300], msg='Falha ao consultar - mantive os dados anteriores')
@@ -197,7 +244,7 @@ def atualizar_kardex() -> bool:
         produtos, erros = {}, []
 
         def um(cod):
-            r = cli.get(KARDEX_URL, dict(ProductCode=cod, BranchCode=EMPRESA, StartDate=f'{ini}T00:00:00', EndDate=f'{hoje.isoformat()}T23:59:59', BalanceType=BALANCE_TYPE))
+            r = cli.get(KARDEX_URL, dict(ProductCode=cod, BranchCode=EMPRESA, StartDate=f'{ini}T00:00:00', EndDate=f'{hoje.isoformat()}T23:59:59', BalanceType=tipo_saldo()))
             if r.status_code != 200:
                 raise RuntimeError(f'kardex {cod}: HTTP {r.status_code} {r.text[:120]}')
             j = r.json()
@@ -271,7 +318,7 @@ def indicadores() -> dict:
     serie = [dict(mes=m, entradas=round(v[0], 1), saidas=round(v[1], 1), movimentos=v[2]) for m, v in sorted(meses.items())][-6:]
     consumo_diario = tot_out90 / 90.0
     return dict(
-        pronto=True, kardex_atualizado=k.get('atualizado'), saldo_atualizado=base.get('atualizado'), estoque=base.get('estoque'), n_materia_prima=len(itens), kardex_erros=k.get('erros', 0),
+        pronto=True, kardex_atualizado=k.get('atualizado'), saldo_atualizado=base.get('atualizado'), estoque=base.get('estoque'), estoque_nome=base.get('estoque_nome'), n_materia_prima=len(itens), kardex_erros=k.get('erros', 0),
         cards=dict(saldo_total=round(saldo_total, 1), n_itens=len(itens), saidas30=round(out30, 1), saidas30_ant=round(ant30, 1),
                    var30=round(out30 / ant30 - 1, 4) if ant30 else None, consumo_diario=round(consumo_diario, 1),
                    cobertura_geral=round(saldo_total / consumo_diario, 1) if consumo_diario else None,

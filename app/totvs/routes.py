@@ -709,7 +709,7 @@ def _autorizar_almox():
 def almox_dados():
     _autorizar_almox()
     d = almoxarifado.ler()
-    return _json({**{k: v for k, v in d.items() if k != 'versao'}, 'configurado': almoxarifado.configurado(), 'estado': dict(almoxarifado.ESTADO), 'estoque': almoxarifado.ESTOQUE})
+    return _json({**{k: v for k, v in d.items() if k != 'versao'}, 'configurado': almoxarifado.configurado(), 'estado': dict(almoxarifado.ESTADO), 'estoque': d.get('estoque') or almoxarifado.estoque_atual(), 'estoques_no_totvs': almoxarifado._RES.get('estoques')})
 
 
 @almox_bp.route('/atualizar', methods=['POST'])
@@ -758,10 +758,10 @@ def almox_diag_kardex():
         cli.autenticar()
         hoje = date.today()
         r = cli.get(almoxarifado.KARDEX_URL, dict(ProductCode=cod, BranchCode=almoxarifado.EMPRESA, StartDate=f'{(hoje - timedelta(days=30)).isoformat()}T00:00:00',
-                                                  EndDate=f'{hoje.isoformat()}T23:59:59', BalanceType=almoxarifado.BALANCE_TYPE))
+                                                  EndDate=f'{hoje.isoformat()}T23:59:59', BalanceType=almoxarifado.tipo_saldo()))
         j = r.json() if r.status_code == 200 else r.text[:400]
         if isinstance(j, list) and j:
             j[0]['movements'] = (j[0].get('movements') or [])[:8]
-        return _json(dict(http=r.status_code, tipo_saldo=almoxarifado.BALANCE_TYPE, produto=cod, resposta=j))
+        return _json(dict(http=r.status_code, tipo_saldo=almoxarifado.tipo_saldo(), produto=cod, resposta=j))
     except Exception as e:  # noqa: BLE001
         return _json(dict(erro=str(e)[:400])), 502
