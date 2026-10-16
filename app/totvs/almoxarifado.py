@@ -22,12 +22,12 @@ PRODUCTS_URL = f'{BASE_URL}/api/totvsmoda/product/v2/products/search'
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
 ESTOQUE_FIXO = os.getenv('ALMOX_ESTOQUE', '').strip()                # opcional: codigo do estoque; sem ele, acha pelo NOME (ALMOX_NOME, padrao ALMOXARIFADO)
 NOME_ESTOQUE = os.getenv('ALMOX_NOME', 'ALMOXARIFADO').strip().upper()
-INTERVALO_MIN = max(1, int(os.getenv('ALMOX_INTERVALO_MIN', '5')))
+INTERVALO_SEG = max(20, int(os.getenv('ALMOX_INTERVALO_SEG', '60')))      # saldo: a cada 1 min
 KARDEX_URL = f'{BASE_URL}/api/totvsmoda/product/v2/kardex-movement'
 TIPO_SALDO_FIXO = os.getenv('ALMOX_TIPO_SALDO', '').strip()           # "tipo de saldo" do kardex (PRDFL017); padrao = o proprio codigo do estoque
 OPERACOES_SAIDA = {x.strip() for x in os.getenv('ALMOX_OPERACOES_SAIDA', '2011').split(',') if x.strip()}      # consumo = saida do almoxarifado para a PRODUCAO (op. 2011: transferencia almox para prod)
 KARDEX_DIAS = 179                                                  # a API limita a janela a 180 dias
-KARDEX_INTERVALO_MIN = max(5, int(os.getenv('ALMOX_KARDEX_MIN', '15')))
+KARDEX_INTERVALO_MIN = max(2, int(os.getenv('ALMOX_KARDEX_MIN', '5')))
 ARQUIVO = api.OUT_DIR / 'almoxarifado.json'
 ARQ_KARDEX = api.OUT_DIR / 'almoxarifado_kardex.json'
 VERSAO = 1
@@ -137,6 +137,8 @@ def estoque_atual() -> int:
     return _RES.get('codigo') if _RES.get('codigo') is not None else (int(ESTOQUE_FIXO) if ESTOQUE_FIXO.isdigit() else None)
 
 
+_PROD, _PROD_TS = {}, [0.0]                                         # cache do cadastro dos produtos
+PRODUTOS_CACHE_SEG = int(os.getenv('ALMOX_CADASTRO_MIN', '30')) * 60
 _AUTO = {}                                                          # {'tipo_saldo', 'so_data'}: o que funcionou na sondagem do kardex
 
 
@@ -201,10 +203,14 @@ def buscar(cli=None, amostra: bool = False) -> dict:
                 por_prod[x.get('productCode')] = dict(nome=x.get('productName'), saldo=_num(b.get('stock')), disponivel=_num(b.get('stock')) - _num(b.get('salesOrder')),
                                                        entradas=_num(b.get('inputTransaction')), saidas=_num(b.get('outputTransaction')))
     codigos = sorted(c for c in por_prod if c is not None)
-    produtos = {}
-    for i in range(0, len(codigos), 200):
-        for p in _paginar(cli, PRODUCTS_URL, dict(filter=dict(productCodeList=codigos[i:i + 200]), option=dict(branchInfoCode=EMPRESA), expand='classifications'), tam=500):
-            produtos[p.get('productCode')] = p
+    if time.time() - _PROD_TS[0] > PRODUTOS_CACHE_SEG:                  # cadastro (MP, unidade, classificacao) muda pouco: relê a cada 30 min
+        _PROD.clear()
+        _PROD_TS[0] = time.time()
+    faltam = [c for c in codigos if c not in _PROD]
+    for i in range(0, len(faltam), 200):
+        for p in _paginar(cli, PRODUCTS_URL, dict(filter=dict(productCodeList=faltam[i:i + 200]), option=dict(branchInfoCode=EMPRESA), expand='classifications'), tam=500):
+            _PROD[p.get('productCode')] = p
+    produtos = {c: _PROD[c] for c in codigos if c in _PROD}
     if amostra:
         return dict(estoque=ESTOQUE, estoque_nome=NOME, classificacao_mp=CLASSIF_MP, classificacoes_amostra=_amostra_classif(produtos), tipos_de_classificacao=_tipos_classif(cli), estoques_no_totvs={str(c): d for c, d in sorted((_RES.get('estoques') or descobrir_estoques(cli)).items())}, saldos_amostra=saldos[:3], produtos_amostra=list(produtos.values())[:3], n_saldos=len(saldos))
     # materia-prima = "Tipo de produto M.P." do cadastro (o mesmo filtro do PRDFC014/PRDFF005) OU a classificacao MP (tipo 512)
@@ -254,7 +260,7 @@ def iniciar_agendador(app) -> None:
                 atualizar()
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
-            time.sleep(INTERVALO_MIN * 60)
+            time.sleep(INTERVALO_SEG)
     threading.Thread(target=loop, daemon=True, name='totvs-almoxarifado').start()
 
 
@@ -432,3 +438,23 @@ def iniciar_agendador_kardex(app) -> None:
                 traceback.print_exc()
             time.sleep(KARDEX_INTERVALO_MIN * 60)
     threading.Thread(target=loop, daemon=True, name='totvs-almox-kardex').start()
+
+
+def consumo_mensal() -> dict:
+    """Fios com mais saida para a producao (operacao 2011) em cada um dos ultimos meses: top 15 por mes + total do mes."""
+    base, k = ler(), ler_kardex()
+    prod = k.get('produtos') or {}
+    nomes = {str(i['codigo']): i for i in base.get('itens', [])}
+    meses = sorted({m for r in prod.values() for m in r.get('meses', {})})[-6:]
+    saida = {}
+    for m in meses:
+        linhas = []
+        for cod, r in prod.items():
+            v = (r.get('meses') or {}).get(m)
+            if v and v[1] > 0 and cod in nomes:
+                linhas.append(dict(codigo=int(cod), nome=nomes[cod]['nome'], kg=round(v[1], 1), movimentos=v[2], saldo=nomes[cod]['saldo']))
+        linhas.sort(key=lambda x: -x['kg'])
+        saida[m] = dict(total=round(sum(x['kg'] for x in linhas), 1), n_itens=len(linhas), itens=linhas[:15])
+    por_item = {cod: {m: round((r.get('meses') or {}).get(m, [0, 0, 0])[1], 1) for m in meses} for cod, r in prod.items() if cod in nomes}
+    return dict(pronto=bool(meses), meses=meses, por_mes=saida, por_item=por_item, kardex_atualizado=k.get('atualizado'), sem_mov=k.get('sem_mov', 0), n_itens=len(prod), erros=k.get('erros', 0),
+                aviso=(None if any(v['total'] for v in saida.values()) else 'O kardex ainda nao trouxe nenhuma saida para a producao (operacao 2011) nos ultimos meses.') if meses else None)

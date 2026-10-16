@@ -70,8 +70,8 @@
   <div class="table-card" style="margin-top:10px;">
     <div class="table-scroll">
       <table class="data-table prod-table">
-        <thead><tr><th>Código</th><th>Descrição</th><th>Origem</th><th>Un.</th><th class="cme-num">Saldo</th></tr></thead>
-        <tbody id="almoxCorpo"><tr><td colspan="5" class="prod-table-empty">Carregando…</td></tr></tbody>
+        <thead><tr><th>Código</th><th>Descrição</th><th>Origem</th><th>Un.</th><th class="cme-num">Saldo</th><th class="cme-num">Saída p/ produção no mês</th></tr></thead>
+        <tbody id="almoxCorpo"><tr><td colspan="6" class="prod-table-empty">Carregando…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -80,7 +80,7 @@
 <script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
 <script>
 (function () {
-  var $ = function (id) { return document.getElementById(id); }, dados = null, ind = null, graf = {};
+  var $ = function (id) { return document.getElementById(id); }, dados = null, cons = null, mesSel = null, graf = {};
   function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
   function nf(v, d) { return v === null || v === undefined ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
   function pct(v, d) { return v === null || v === undefined ? '—' : nf(v * 100, d === undefined ? 1 : d) + '%'; }
@@ -142,10 +142,7 @@
     graf.saldos = new Chart(cv1, { type: 'bar', data: { labels: top10.map(function (x) { return curto(x.nome, 34); }), datasets: [{ data: top10.map(function (x) { return Math.round(x.saldo); }), backgroundColor: top10.map(function (x) { return grupo(x) === 'terc' ? '#5eb0ff' : '#2f7fe0'; }), borderRadius: 5, barThickness: 18 }] },
       options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 60 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + pct(total ? x.raw / total : 0, 1) + ' do estoque'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v / 1000) + ' t'; } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
       plugins: [{ id: 'rot', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(top10[i].saldo / 1000, 1) + ' t', e.x + 6, e.y); }); x.restore(); } }] });
-    var c2 = cartao('Concentração do estoque · curva ABC', 'Quanto do estoque total cada quantidade de itens representa (itens ordenados do maior para o menor saldo)'), cv2 = graficoEm(c2); l1.appendChild(c2);
-    var cum = 0, pts = itens.map(function (i, k) { cum += i.saldo; return { x: k + 1, y: Math.round(cum / total * 1000) / 10 }; });
-    graf.abc = new Chart(cv2, { type: 'line', data: { datasets: [{ data: pts, borderColor: '#2f7fe0', backgroundColor: 'rgba(47,127,224,.14)', fill: true, tension: .25, pointRadius: 0, borderWidth: 2.5 }] },
-      options: { responsive: true, maintainAspectRatio: false, parsing: false, plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (x) { return x[0].raw.x + ' maiores itens'; }, label: function (x) { return x.raw.y + '% do estoque'; } } } }, scales: { x: { type: 'linear', min: 1, max: itens.length, title: { display: true, text: 'quantidade de itens (do maior saldo para o menor)' }, grid: { display: false } }, y: Object.assign({ min: 0, max: 100, ticks: { callback: function (v) { return v + '%'; } } }, EIXO) } } });
+    var c2 = el('div', 'ce-card'); c2.id = 'ceConsumo'; l1.appendChild(c2); desenharConsumo(c2);
     box.appendChild(l1);
 
     var l2 = el('div', 'ce-linha');
@@ -156,15 +153,40 @@
     var c4 = cartao('Maiores saldos · detalhe', 'Os 10 itens que mais pesam no estoque');
     c4.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return curto(x.nome, 38); } }, { t: 'Origem', f: function (x) { return x.origem || ''; } }, { t: 'Saldo', num: 1, f: function (x) { return nf(x.saldo) + ' kg'; } }, { t: '% do total', num: 1, f: function (x) { return pct(total ? x.saldo / total : 0, 1); } }], top10, 'Sem dados.'));
     l2.appendChild(c4); box.appendChild(l2);
-    box.appendChild(el('p', 'ce-nota', 'Saldo do ' + (dados.estoque_nome || 'almoxarifado') + ' direto do TOTVS (consulta a cada 5 minutos). Itens ativos, em KG, tipo matéria-prima. Atualizado em ' + dh(dados.atualizado) + '.'));
+    box.appendChild(el('p', 'ce-nota', 'Saldo do ' + (dados.estoque_nome || 'almoxarifado') + ' direto do TOTVS (consulta a cada minuto). Itens ativos, em KG, tipo matéria-prima. Atualizado em ' + dh(dados.atualizado) + '.'));
+  }
+
+  var NOMES_MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  function rotMes(m) { return NOMES_MES[+m.slice(5, 7) - 1] + '/' + m.slice(2, 4); }
+  function desenharConsumo(card) {
+    card = card || $('ceConsumo'); if (!card) return;
+    if (graf.consumo) { try { graf.consumo.destroy(); } catch (e) {} graf.consumo = null; }
+    card.textContent = '';
+    card.appendChild(el('h3', null, 'Fios com mais saída para a produção'));
+    card.appendChild(el('p', 'm', 'Quilos transferidos do almoxarifado para a produção (operação 2011), por mês'));
+    if (!cons || !cons.pronto) { card.appendChild(el('div', 'ce-vazio', cons && cons.estado && cons.estado.erro ? '⚠ ' + cons.estado.erro : ('Lendo o kardex do TOTVS' + (cons && cons.estado && cons.estado.rodando ? ' (' + cons.estado.feitos + ' de ' + cons.estado.total + ')' : '') + '… as saídas aparecem em seguida.'))); return; }
+    if (!mesSel || cons.meses.indexOf(mesSel) < 0) mesSel = cons.meses[cons.meses.length - 1];
+    var pills = el('div'); pills.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px';
+    cons.meses.forEach(function (m) { var b = el('button', 'cme-grupo' + (m === mesSel ? ' active' : ''), rotMes(m)); b.type = 'button'; b.addEventListener('click', function () { mesSel = m; desenharConsumo(card); }); pills.appendChild(b); });
+    card.appendChild(pills);
+    var d = cons.por_mes[mesSel], ant = cons.meses.indexOf(mesSel) > 0 ? cons.por_mes[cons.meses[cons.meses.indexOf(mesSel) - 1]] : null;
+    var resumo = el('div', 'ce-sub'); resumo.style.margin = '0 0 8px';
+    resumo.appendChild(el('b', null, nf(d.total) + ' kg')); resumo.appendChild(document.createTextNode(' enviados à produção em ' + rotMes(mesSel) + ' · ' + d.n_itens + ' fios'));
+    if (ant && ant.total) { var v = d.total / ant.total - 1; resumo.appendChild(el('span', 'ce-pill ' + (v <= 0 ? 'ok' : 'aten'), (v >= 0 ? '▲ +' : '▼ ') + nf(v * 100, 1) + '% vs mês anterior')); }
+    card.appendChild(resumo);
+    if (!d.itens.length) { card.appendChild(el('div', 'ce-vazio', 'Nenhuma saída para a produção neste mês.')); return; }
+    var top = d.itens.slice(0, 10), w = el('div', 'ce-graf'), cv = document.createElement('canvas'); w.appendChild(cv); card.appendChild(w);
+    graf.consumo = new Chart(cv, { type: 'bar', data: { labels: top.map(function (x) { return curto(x.nome, 34); }), datasets: [{ data: top.map(function (x) { return Math.round(x.kg); }), backgroundColor: '#1f9d55', borderRadius: 5, barThickness: 18 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 60 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + pct(d.total ? x.raw / d.total : 0, 1) + ' do mês · ' + top[x.dataIndex].movimentos + ' transferências'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v / 1000) + ' t'; } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
+      plugins: [{ id: 'rotc', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(top[i].kg / 1000, 1) + ' t', e.x + 6, e.y); }); x.restore(); } }] });
   }
 
   function desenharTabela() {
     var corpo = $('almoxCorpo'); corpo.textContent = '';
     var q = ($('buscaAlmox').value || '').trim().toLowerCase(), lista = ((dados && dados.itens) || []).filter(function (i) { return !q || String(i.codigo).indexOf(q) >= 0 || (i.nome || '').toLowerCase().indexOf(q) >= 0; }).sort(function (x, y) { return y.saldo - x.saldo; });
-    if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', 'Nenhuma matéria-prima encontrada.'); c0.colSpan = 5; r0.appendChild(c0); corpo.appendChild(r0); return; }
+    if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', 'Nenhuma matéria-prima encontrada.'); c0.colSpan = 6; r0.appendChild(c0); corpo.appendChild(r0); return; }
     lista.forEach(function (i) {
-      var r = el('tr'); [[i.codigo], [i.nome], [i.origem || ''], [i.unidade || ''], [nf(i.saldo, 1), 'cme-num']].forEach(function (c) { r.appendChild(el('td', c[1], String(c[0]))); }); corpo.appendChild(r);
+      var r = el('tr'); [[i.codigo], [i.nome], [i.origem || ''], [i.unidade || ''], [nf(i.saldo, 1), 'cme-num'], [cons && cons.pronto && cons.por_item && cons.por_item[i.codigo] && cons.por_item[i.codigo][mesSel] ? nf(cons.por_item[i.codigo][mesSel], 1) : '—', 'cme-num']].forEach(function (c) { r.appendChild(el('td', c[1], String(c[0]))); }); corpo.appendChild(r);
     });
   }
 
@@ -173,21 +195,29 @@
     if (dados && dados.atualizado) {
       var a = el('span'); a.appendChild(el('span', 'ce-dot')); a.appendChild(document.createTextNode('TOTVS · ao vivo')); s.appendChild(a);
       s.appendChild(el('span', null, 'Saldo atualizado ' + dh(dados.atualizado)));
+      if (cons && cons.kardex_atualizado) s.appendChild(el('span', null, 'Saídas p/ produção atualizadas ' + dh(cons.kardex_atualizado)));
       if (dados.filtro_mp) s.appendChild(el('span', null, 'Filtro: ' + dados.filtro_mp));
     } else s.textContent = 'Consultando o TOTVS…';
     var av = $('ceAviso'); av.textContent = '';
     if (dados && !dados.configurado) av.appendChild(el('div', 'ce-aviso', 'TOTVS não configurado no arquivo .env.'));
     else if (dados && dados.estado && dados.estado.erro) av.appendChild(el('div', 'ce-aviso', '⚠ Falha ao consultar o saldo no TOTVS: ' + dados.estado.erro));
+    else if (cons && cons.estado && cons.estado.erro) av.appendChild(el('div', 'ce-aviso', '⚠ Falha ao ler as saídas (kardex) no TOTVS: ' + cons.estado.erro));
+    else if (cons && cons.pronto && cons.aviso) av.appendChild(el('div', 'ce-aviso', '⚠ ' + cons.aviso + ' Se isso não for verdade, abra /estoque-almox/diagnostico-kardex como administrador.'));
   }
 
   function carregar() {
-    fetch('/estoque-almox/dados', { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(function (d) { var sig = (d.atualizado || '') + '|' + ((d.estado && d.estado.erro) || ''); var mudou = sig !== $('ceCorpo').dataset.sig; dados = d; status(); desenharTabela(); if (mudou) { $('ceCorpo').dataset.sig = sig; desenhar(); } })
-      .catch(function (e) { $('ceStatus').textContent = 'Não consegui carregar (' + e.message + ').'; });
+    Promise.all([fetch('/estoque-almox/dados', { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }), fetch('/estoque-almox/consumo-mensal', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })])
+      .then(function (x) {
+        var d = x[0], c = x[1], sig = (d.atualizado || '') + '|' + ((d.estado && d.estado.erro) || '');
+        var csig = (c && c.kardex_atualizado || '') + '|' + (c && c.estado && c.estado.feitos || '') + '|' + (c && c.pronto), mudouC = csig !== $('ceCorpo').dataset.csig, mudou = sig !== $('ceCorpo').dataset.sig;
+        dados = d; cons = c; status();
+        if (mudou) { $('ceCorpo').dataset.sig = sig; $('ceCorpo').dataset.csig = csig; desenhar(); } else if (mudouC) { $('ceCorpo').dataset.csig = csig; desenharConsumo(); }
+        desenharTabela();
+      }).catch(function (e) { $('ceStatus').textContent = 'Não consegui carregar (' + e.message + ').'; });
   }
   $('buscaAlmox').addEventListener('input', desenharTabela);
   $('ceAtualizar').addEventListener('click', function () { $('ceStatus').textContent = 'Consultando o TOTVS…'; fetch('/estoque-almox/atualizar', { method: 'POST', credentials: 'same-origin' }).then(function () { setTimeout(carregar, 5000); }); });
-  carregar(); setInterval(carregar, 30000);
+  carregar(); setInterval(carregar, 15000);
 })();
 </script>
 {% endblock %}

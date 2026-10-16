@@ -718,7 +718,7 @@ def almox_atualizar():
     _autorizar_almox()
     if not almoxarifado.configurado():
         return _json(dict(ok=False, erro='TOTVS não configurado no .env.')), 400
-    threading.Thread(target=almoxarifado.atualizar, daemon=True, name='almox-agora').start()
+    threading.Thread(target=lambda: (almoxarifado.atualizar(), almoxarifado.atualizar_kardex()), daemon=True, name='almox-agora').start()
     return _json(dict(ok=True))
 
 
@@ -789,3 +789,10 @@ def almox_diag_kardex():
         if outro != ts:
             v.append(tenta(f'BalanceType={outro}, 90 dias', StartDate=dt(hoje - timedelta(days=90)), EndDate=dt(hoje, True), BalanceType=outro))
     return _json(dict(produto=cod, tipo_saldo_configurado=ts, operacoes_de_saida_contadas=sorted(almoxarifado.OPERACOES_SAIDA), tentativas=v))
+
+
+@almox_bp.route('/consumo-mensal')
+@login_required
+def almox_consumo_mensal():
+    _autorizar_almox()
+    return _json({**almoxarifado.consumo_mensal(), 'estado': dict(almoxarifado.ESTADO_K)})
