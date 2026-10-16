@@ -872,3 +872,42 @@ def json_curto(obj, limite=1800):
     import json
     t = json.dumps(obj, ensure_ascii=False, default=str)
     return t[:limite] + ('…' if len(t) > limite else '')
+
+
+@almox_bp.route('/diagnostico-nf')
+@login_required
+def almox_diag_nf():
+    """So administrador: acha a nota (?fatura=595206&data=2026-10-15) e mostra os campos de operador/usuario que a API fiscal devolve."""
+    if not current_user.is_admin:
+        abort(403)
+    import re
+    fatura = request.args.get('fatura', '')
+    data = request.args.get('data') or None
+    try:
+        cli = almoxarifado.api.TotvsModaClient()
+        cli.autenticar()
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(erro=str(e)[:400])), 502
+    saida = {}
+    try:
+        r = cli.get(f'{almoxarifado.BASE_URL}/api/totvsmoda/fiscal/v2/swagger/v1/swagger.json', {})
+        if r.status_code == 200:
+            d = r.json()
+            chaves = re.compile(r'operator|user|update|usuario', re.I)
+            saida['swagger_fiscal'] = dict(campos={k: [p for p in (v.get('properties') or {}) if chaves.search(p)] for k, v in (d.get('components', {}).get('schemas', {}) or {}).items() if any(chaves.search(p) for p in (v.get('properties') or {}))})
+        else:
+            saida['swagger_fiscal'] = f'HTTP {r.status_code}'
+    except Exception as e:  # noqa: BLE001
+        saida['swagger_fiscal'] = str(e)[:120]
+    if fatura:
+        try:
+            nota = almoxarifado._buscar_nota(cli, fatura, data)
+            saida['nota_encontrada'] = bool(nota)
+            if nota:
+                saida['operador_detectado'] = almoxarifado._campo_operador(nota)
+                saida['campos_da_nota'] = sorted(nota.keys())
+                saida['amostra'] = json_curto({k: v for k, v in nota.items() if not isinstance(v, (list, dict))}, 2500)
+        except Exception as e:  # noqa: BLE001
+            saida['erro_nota'] = str(e)[:200]
+    saida['nomes_configurados'] = almoxarifado.NOMES_OPERADORES
+    return _json(saida)
