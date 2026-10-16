@@ -364,6 +364,8 @@ def alterados() -> dict:
         ins, mud = str(p.get('insertDate') or '')[:19], str(p.get('maxChangeFilterDate') or '')[:19]
         if ins and mud and mud <= (datetime.fromisoformat(ins) + timedelta(minutes=10)).isoformat():
             continue                                                   # so foi lancado, nao foi alterado depois
+        if str(p.get('orderDate') or '')[:7] != ini.isoformat()[:7]:
+            continue                                                   # so pedidos do proprio mes (pedido de mes anterior alterado agora nao entra)
         cod = str(p.get('orderCode'))
         valor, metros = _valor(p), round(_num(p.get('quantity')), 2)
         b = base.get(cod)
