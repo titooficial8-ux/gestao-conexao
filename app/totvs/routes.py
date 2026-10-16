@@ -718,7 +718,7 @@ def almox_atualizar():
     _autorizar_almox()
     if not almoxarifado.configurado():
         return _json(dict(ok=False, erro='TOTVS não configurado no .env.')), 400
-    threading.Thread(target=lambda: (almoxarifado.atualizar(), almoxarifado.atualizar_kardex()), daemon=True, name='almox-agora').start()
+    threading.Thread(target=lambda: (almoxarifado.atualizar(), almoxarifado.atualizar_transferencias()), daemon=True, name='almox-agora').start()
     return _json(dict(ok=True))
 
 
@@ -796,3 +796,24 @@ def almox_diag_kardex():
 def almox_consumo_mensal():
     _autorizar_almox()
     return _json({**almoxarifado.consumo_mensal(), 'estado': dict(almoxarifado.ESTADO_K)})
+
+
+@almox_bp.route('/diagnostico-transferencias')
+@login_required
+def almox_diag_transf():
+    """So administrador: mostra transacoes cruas da operacao de saida para a producao (ultimos 7 dias) para conferir os campos."""
+    if not current_user.is_admin:
+        abort(403)
+    from datetime import date, timedelta
+    try:
+        cli = almoxarifado.api.TotvsModaClient()
+        cli.autenticar()
+        hoje = date.today()
+        ops = [int(o) for o in almoxarifado.OPERACOES_SAIDA if o.isdigit()] or [2011]
+        r = cli.post(almoxarifado.TRX_URL, dict(branchCodeList=[almoxarifado.EMPRESA], operationCodeList=ops, startChangeDate=f'{(hoje - timedelta(days=7)).isoformat()}T00:00:00',
+                                                endChangeDate=f'{(hoje + timedelta(days=1)).isoformat()}T00:00:00', page=1, pageSize=5))
+        j = r.json() if r.status_code == 200 else r.text[:400]
+        return _json(dict(http=r.status_code, operacoes=ops, total=(j.get('totalItems') if isinstance(j, dict) else None), amostra=(j.get('items') if isinstance(j, dict) else j), arquivo=dict(
+            transacoes=len(almoxarifado.ler_transf().get('transacoes') or {}), atualizado=almoxarifado.ler_transf().get('atualizado'))))
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(erro=str(e)[:400])), 502

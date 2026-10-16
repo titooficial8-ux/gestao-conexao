@@ -30,6 +30,8 @@ KARDEX_DIAS = 179                                                  # a API limit
 KARDEX_INTERVALO_MIN = max(2, int(os.getenv('ALMOX_KARDEX_MIN', '5')))
 ARQUIVO = api.OUT_DIR / 'almoxarifado.json'
 ARQ_KARDEX = api.OUT_DIR / 'almoxarifado_kardex.json'
+ARQ_TRANSF = api.OUT_DIR / 'almoxarifado_transferencias.json'
+TRX_URL = f'{BASE_URL}/api/totvsmoda/general/v2/transactions/search'
 VERSAO = 1
 ESTADO = dict(rodando=False, ultima=None, erro=None, msg='')
 _trava = threading.Lock()
@@ -460,28 +462,110 @@ def iniciar_agendador_kardex(app) -> None:
             time.sleep(15)
         while True:
             try:
-                atualizar_kardex()
+                atualizar_transferencias()
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
             time.sleep(KARDEX_INTERVALO_MIN * 60)
     threading.Thread(target=loop, daemon=True, name='totvs-almox-kardex').start()
 
 
+# ---------------------------------------------------------------------------
+# Saidas para a PRODUCAO = transacoes da operacao 2011 (transferencia almoxarifado -> producao), direto das transacoes do TOTVS
+# ---------------------------------------------------------------------------
+def ler_transf() -> dict:
+    try:
+        return json.loads(ARQ_TRANSF.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def _cancelada(t: dict) -> bool:
+    return any(t.get(k) is True for k in ('isCanceled', 'canceled', 'isCancelled', 'cancelled'))
+
+
+def atualizar_transferencias() -> bool:
+    """Busca as transacoes da operacao 2011 (so as novas/alteradas depois da ultima vez; na 1a vez, 180 dias) e guarda produto x kg por transacao."""
+    if not _trava_k.acquire(blocking=False):
+        return False
+    ESTADO_K.update(rodando=True, erro=None, msg='Lendo as transferencias para a producao...', feitos=0, total=0)
+    try:
+        d = ler_transf()
+        trans = d.get('transacoes', {})
+        hoje = date.today()
+        ops = [int(o) for o in OPERACOES_SAIDA if o.isdigit()] or [2011]
+        ult = d.get('ultima_mudanca')
+        ini = (date.fromisoformat(ult[:10]) - timedelta(days=2)) if ult else hoje - timedelta(days=KARDEX_DIAS)
+        cli = api.TotvsModaClient()
+        cli.autenticar()
+        mais_recente, novas = ult or '', 0
+        a = ini
+        while a <= hoje:
+            b = min(hoje, a + timedelta(days=14))
+            pag = 1
+            while True:
+                r = cli.post(TRX_URL, dict(branchCodeList=[EMPRESA], operationCodeList=ops, startChangeDate=f'{a.isoformat()}T00:00:00', endChangeDate=f'{(b + timedelta(days=1)).isoformat()}T00:00:00', page=pag, pageSize=500))
+                if r.status_code != 200:
+                    raise RuntimeError(f'transferencias {a}..{b}: HTTP {r.status_code} {r.text[:200]}')
+                j = r.json()
+                for t in j.get('items') or []:
+                    cod = str(t.get('transactionCode'))
+                    mud = str(t.get('lastchangeDate') or '')[:19]
+                    mais_recente = max(mais_recente, mud)
+                    if _cancelada(t):
+                        trans.pop(cod, None)
+                        continue
+                    itens = []
+                    for it in t.get('items') or []:
+                        if UNIDADE and str(it.get('measuredUnit') or '').strip().upper() != UNIDADE:
+                            continue
+                        kg = abs(_num(it.get('quantity')))
+                        if kg and it.get('productCode') is not None:
+                            itens.append([it['productCode'], round(kg, 3)])
+                    if cod not in trans:
+                        novas += 1
+                    trans[cod] = [str(t.get('transactionDate') or '')[:10], itens]
+                ESTADO_K['feitos'] += 1
+                if not j.get('hasNext') or pag >= 60:
+                    break
+                pag += 1
+            a = b + timedelta(days=1)
+        limite = (hoje - timedelta(days=200)).isoformat()
+        trans = {c: v for c, v in trans.items() if v[0] >= limite}
+        ARQ_TRANSF.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ARQ_TRANSF.with_suffix('.tmp')
+        tmp.write_text(json.dumps(dict(versao=1, atualizado=datetime.now().isoformat(timespec='seconds'), ultima_mudanca=mais_recente or ult, operacoes=ops, transacoes=trans), ensure_ascii=False), encoding='utf-8')
+        tmp.replace(ARQ_TRANSF)
+        ESTADO_K.update(ultima=datetime.now().isoformat(timespec='seconds'), msg=f'{len(trans)} transferencias para a producao ({novas} novas)')
+    except Exception as e:  # noqa: BLE001
+        traceback.print_exc()
+        ESTADO_K.update(erro=str(e)[:300], msg='Falha ao ler as transferencias - mantive os dados anteriores')
+    finally:
+        ESTADO_K['rodando'] = False
+        _trava_k.release()
+    return ESTADO_K['erro'] is None
+
+
 def consumo_mensal() -> dict:
-    """Fios com mais saida para a producao (operacao 2011) em cada um dos ultimos meses: top 15 por mes + total do mes."""
-    base, k = ler(), ler_kardex()
-    prod = k.get('produtos') or {}
+    """Fios com mais saida para a producao em cada um dos ultimos meses: top 15 por mes + total do mes (a partir das transferencias da operacao 2011)."""
+    base, d = ler(), ler_transf()
     nomes = {str(i['codigo']): i for i in base.get('itens', [])}
-    meses = sorted({m for r in prod.values() for m in r.get('meses', {})})[-6:]
+    por_item, n_mov = {}, {}
+    for _cod, (data, itens) in (d.get('transacoes') or {}).items():
+        if len(data) < 7:
+            continue
+        for prod, kg in itens:
+            c = str(prod)
+            if c not in nomes:
+                continue
+            por_item.setdefault(c, {})
+            por_item[c][data[:7]] = por_item[c].get(data[:7], 0) + kg
+            n_mov[(c, data[:7])] = n_mov.get((c, data[:7]), 0) + 1
+    meses = sorted({m for v in por_item.values() for m in v})[-6:]
     saida = {}
     for m in meses:
-        linhas = []
-        for cod, r in prod.items():
-            v = (r.get('meses') or {}).get(m)
-            if v and v[1] > 0 and cod in nomes:
-                linhas.append(dict(codigo=int(cod), nome=nomes[cod]['nome'], kg=round(v[1], 1), movimentos=v[2], saldo=nomes[cod]['saldo']))
+        linhas = [dict(codigo=int(c), nome=nomes[c]['nome'], kg=round(v[m], 1), movimentos=n_mov.get((c, m), 0), saldo=nomes[c]['saldo']) for c, v in por_item.items() if v.get(m, 0) > 0]
         linhas.sort(key=lambda x: -x['kg'])
         saida[m] = dict(total=round(sum(x['kg'] for x in linhas), 1), n_itens=len(linhas), itens=linhas[:15])
-    por_item = {cod: {m: round((r.get('meses') or {}).get(m, [0, 0, 0])[1], 1) for m in meses} for cod, r in prod.items() if cod in nomes}
-    return dict(pronto=bool(meses), meses=meses, por_mes=saida, por_item=por_item, kardex_atualizado=k.get('atualizado'), sem_mov=k.get('sem_mov', 0), n_itens=len(prod), erros=k.get('erros', 0), ops_saida=k.get('ops_saida', []),
-                aviso=(None if any(v['total'] for v in saida.values()) else 'O kardex ainda nao trouxe nenhuma saida para a producao (operacao 2011) nos ultimos meses.') if meses else None)
+    return dict(pronto=bool(meses), meses=meses, por_mes=saida, por_item={c: {m: round(v.get(m, 0), 1) for m in meses} for c, v in por_item.items()},
+                kardex_atualizado=d.get('atualizado'), n_transacoes=len(d.get('transacoes') or {}), operacoes=d.get('operacoes'),
+                aviso=None if meses else ('Nenhuma transferencia da operacao ' + ', '.join(sorted(OPERACOES_SAIDA)) + ' com matéria-prima em KG foi encontrada nos ultimos 180 dias.' if d.get('atualizado') else None))
