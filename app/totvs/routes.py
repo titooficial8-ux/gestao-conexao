@@ -901,7 +901,10 @@ def almox_diag_nf():
         saida['swagger_fiscal'] = str(e)[:120]
     if fatura:
         try:
-            nota = almoxarifado._buscar_nota(cli, fatura, data)
+            tent = []
+            nota = almoxarifado._buscar_nota(cli, fatura, data, tent)
+            saida['filtros_da_api_fiscal'] = almoxarifado._props_filtro_fiscal(cli)
+            saida['tentativas'] = tent[:12]
             saida['nota_encontrada'] = bool(nota)
             if nota:
                 saida['operador_detectado'] = almoxarifado._campo_operador(nota)
