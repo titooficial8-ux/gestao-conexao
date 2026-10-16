@@ -55,6 +55,7 @@ def _paginar(cli, url, corpo, tam=1000):
         pag += 1
 
 
+UNIDADE = os.getenv('ALMOX_UNIDADE', 'KG').strip().upper()                 # so itens nesta unidade (KG); vazio = todas
 CLASSIF_MP = os.getenv('ALMOX_CLASSIFICACAO', 'MP').strip().upper()      # nome/codigo da classificacao de produto que marca materia-prima
 TIPO_CLASSIF = os.getenv('ALMOX_TIPO_CLASSIFICACAO', '512').strip()       # codigo do TIPO de classificacao "MP" no TOTVS (512 = MP: materia prima de terceiro ou proprio)
 
@@ -179,17 +180,19 @@ def buscar(cli=None, amostra: bool = False) -> dict:
     por_tipo = {c for c, p in produtos.items() if p.get('isRawMaterial')}
     por_classif = {c for c, p in produtos.items() if _eh_mp_classif(p)}
     eh_mp = por_tipo | por_classif
+    em_unidade = {c for c, p in produtos.items() if not UNIDADE or str(p.get('measuredUnit') or '').strip().upper() == UNIDADE}
+    sem_mp = not (eh_mp & em_unidade)                                  # nenhuma MP na unidade: mostra tudo que esta na unidade (e avisa)
     itens = []
     for cod, v in por_prod.items():
         p = produtos.get(cod) or {}
-        if cod not in eh_mp or p.get('isActive') is False:                  # como o PRDFC014: so produtos ativos
+        if cod not in em_unidade or (cod not in eh_mp and not sem_mp) or p.get('isActive') is False:      # so KG, so MP, so ativos (como o PRDFC014)
             continue
         itens.append(dict(codigo=cod, nome=(p.get('productName') or v['nome'] or '')[:120], unidade=p.get('measuredUnit'), saldo=round(v['saldo'], 3),
                           disponivel=round(v['disponivel'], 3), entradas=round(v['entradas'], 3), saidas=round(v['saidas'], 3),
                           origem=_classif(p, 512), tipo_mp=_classif(p, 501), minimo=_num(p.get('minimumStockAmount')), maximo=_num(p.get('maximumStockAmount')), ideal=_num(p.get('idealStockAmount')), bloqueado=bool(p.get('isBlocked'))))
     itens.sort(key=lambda x: x['nome'])
     return dict(versao=VERSAO, estoque=ESTOQUE, estoque_nome=NOME, atualizado=datetime.now().isoformat(timespec='seconds'), itens=itens,
-                n_com_saldo=len(por_prod), n_materia_prima=len(itens), n_tipo_mp=len(por_tipo), n_classif_mp=len(por_classif), filtro_mp='tipo M.P. do cadastro ou classificacao MP')
+                n_com_saldo=len(por_prod), n_materia_prima=len(itens), n_tipo_mp=len(por_tipo), n_classif_mp=len(por_classif), n_em_unidade=len(em_unidade & set(por_prod)), filtro_mp=(('unidade ' + UNIDADE + ' · ') if UNIDADE else '') + ('so itens da unidade (nenhum marcado como MP)' if sem_mp else 'tipo M.P. do cadastro ou classificacao MP'))
 
 
 def atualizar() -> bool:
