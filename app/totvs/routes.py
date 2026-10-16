@@ -749,6 +749,10 @@ def almox_diag_kardex():
         abort(403)
     from datetime import date, timedelta
     cod = request.args.get('produto', type=int) or ((almoxarifado.ler().get('itens') or [{}])[0].get('codigo'))
+    if not cod:
+        d = almoxarifado.ler()
+        return _json(dict(erro='A lista de matérias-primas do local está vazia, então não há produto para testar o kardex.', n_com_saldo=d.get('n_com_saldo'), n_materia_prima=d.get('n_materia_prima'), atualizado=d.get('atualizado'),
+                          dica='Abra /estoque-almox/diagnostico para ver o que o TOTVS devolve no saldo do local, ou use ?produto=CODIGO.')), 200
     try:
         cli = almoxarifado.api.TotvsModaClient()
         cli.autenticar()
