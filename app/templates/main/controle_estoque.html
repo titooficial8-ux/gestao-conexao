@@ -37,8 +37,8 @@
 <div class="table-card" style="margin-top:10px;">
   <div class="table-scroll">
     <table class="data-table prod-table" id="tabelaAlmox">
-      <thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th class="cme-num">Saldo em estoque</th><th class="cme-num">Saídas 30 d</th><th class="cme-num">Saídas 90 d</th><th class="cme-num">Cobertura</th><th>Situação</th></tr></thead>
-      <tbody id="almoxCorpo"><tr><td colspan="8" class="prod-table-empty">Carregando…</td></tr></tbody>
+      <thead><tr><th>Código</th><th>Descrição</th><th>Origem</th><th>Un.</th><th class="cme-num">Saldo em estoque</th><th class="cme-num">Saídas 30 d</th><th class="cme-num">Saídas 90 d</th><th class="cme-num">Cobertura</th><th>Situação</th></tr></thead>
+      <tbody id="almoxCorpo"><tr><td colspan="9" class="prod-table-empty">Carregando…</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -123,10 +123,10 @@
     var corpo = $('almoxCorpo'); corpo.textContent = '';
     var mapa = {}; ((ind && ind.pronto) ? (ind.todos || []) : []).forEach(function (x) { mapa[x.codigo] = x; });
     var q = ($('buscaAlmox').value || '').trim().toLowerCase(), lista = ((dados && dados.itens) || []).filter(function (i) { return !q || String(i.codigo).indexOf(q) >= 0 || (i.nome || '').toLowerCase().indexOf(q) >= 0; });
-    if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', dados && dados.itens && dados.itens.length ? 'Nenhuma matéria-prima encontrada.' : 'Nenhuma matéria-prima com saldo no almoxarifado (ou ainda não consultado).'); c0.colSpan = 8; r0.appendChild(c0); corpo.appendChild(r0); return; }
+    if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', dados && dados.itens && dados.itens.length ? 'Nenhuma matéria-prima encontrada.' : 'Nenhuma matéria-prima com saldo no almoxarifado (ou ainda não consultado).'); c0.colSpan = 9; r0.appendChild(c0); corpo.appendChild(r0); return; }
     lista.forEach(function (i) {
       var k = mapa[i.codigo], r = el('tr');
-      [[i.codigo], [i.nome], [i.unidade || ''], [nf(i.saldo, 3), 'cme-num'], [k ? nf(k.out30, 1) : '—', 'cme-num'], [k ? nf(k.out90, 1) : '—', 'cme-num'], [k && k.cobertura !== null ? nf(k.cobertura, 1) + ' d' : '—', 'cme-num']].forEach(function (c) { r.appendChild(el('td', c[1], String(c[0]))); });
+      [[i.codigo], [i.nome], [i.origem || ''], [i.unidade || ''], [nf(i.saldo, 3), 'cme-num'], [k ? nf(k.out30, 1) : '—', 'cme-num'], [k ? nf(k.out90, 1) : '—', 'cme-num'], [k && k.cobertura !== null ? nf(k.cobertura, 1) + ' d' : '—', 'cme-num']].forEach(function (c) { r.appendChild(el('td', c[1], String(c[0]))); });
       var ts = el('td'); if (k) ts.appendChild(situacao(k)); r.appendChild(ts); corpo.appendChild(r);
     });
   }

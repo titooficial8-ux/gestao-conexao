@@ -56,17 +56,22 @@ def _paginar(cli, url, corpo, tam=1000):
 
 
 CLASSIF_MP = os.getenv('ALMOX_CLASSIFICACAO', 'MP').strip().upper()      # nome/codigo da classificacao de produto que marca materia-prima
-TIPO_CLASSIF = os.getenv('ALMOX_TIPO_CLASSIFICACAO', '').strip()          # opcional: codigo do TIPO de classificacao (ex.: 506) para nao confundir com outras
+TIPO_CLASSIF = os.getenv('ALMOX_TIPO_CLASSIFICACAO', '512').strip()       # codigo do TIPO de classificacao "MP" no TOTVS (512 = MP: materia prima de terceiro ou proprio)
 
 
 def _eh_mp_classif(p: dict) -> bool:
+    """Materia-prima = o produto tem uma classificacao do tipo MP (typeCode 512, ou tipo chamado "MP")."""
     for c in p.get('classifications') or []:
-        if TIPO_CLASSIF.isdigit() and c.get('typeCode') != int(TIPO_CLASSIF):
-            continue
-        cod, nome = str(c.get('code') or '').strip().upper(), str(c.get('name') or '').strip().upper()
-        if cod == CLASSIF_MP or nome == CLASSIF_MP or nome.startswith(CLASSIF_MP + ' ') or nome.startswith(CLASSIF_MP + '-'):
+        if (TIPO_CLASSIF.isdigit() and c.get('typeCode') == int(TIPO_CLASSIF)) or str(c.get('typeName') or '').strip().upper() == CLASSIF_MP:
             return True
     return False
+
+
+def _classif(p: dict, tipo: int):
+    for c in p.get('classifications') or []:
+        if c.get('typeCode') == tipo:
+            return (c.get('name') or c.get('code') or '').strip() or None
+    return None
 
 
 def _amostra_classif(produtos: dict) -> list:
@@ -179,10 +184,10 @@ def buscar(cli=None, amostra: bool = False) -> dict:
             continue
         itens.append(dict(codigo=cod, nome=(p.get('productName') or v['nome'] or '')[:120], unidade=p.get('measuredUnit'), saldo=round(v['saldo'], 3),
                           disponivel=round(v['disponivel'], 3), entradas=round(v['entradas'], 3), saidas=round(v['saidas'], 3),
-                          minimo=_num(p.get('minimumStockAmount')), maximo=_num(p.get('maximumStockAmount')), ideal=_num(p.get('idealStockAmount')), bloqueado=bool(p.get('isBlocked'))))
+                          origem=_classif(p, 512), tipo_mp=_classif(p, 501), minimo=_num(p.get('minimumStockAmount')), maximo=_num(p.get('maximumStockAmount')), ideal=_num(p.get('idealStockAmount')), bloqueado=bool(p.get('isBlocked'))))
     itens.sort(key=lambda x: x['nome'])
     return dict(versao=VERSAO, estoque=ESTOQUE, estoque_nome=NOME, atualizado=datetime.now().isoformat(timespec='seconds'), itens=itens,
-                n_com_saldo=len(por_prod), n_materia_prima=len(itens), filtro_mp='classificacao ' + CLASSIF_MP if usar_classif else 'campo materia-prima do cadastro (nenhum produto com classificacao ' + CLASSIF_MP + ')')
+                n_com_saldo=len(por_prod), n_materia_prima=len(itens), filtro_mp='classificacao ' + CLASSIF_MP if usar_classif else 'campo materia-prima do cadastro (nenhum produto com a classificacao MP, tipo ' + TIPO_CLASSIF + ')')
 
 
 def atualizar() -> bool:
