@@ -438,95 +438,6 @@ DASHBOARD_ESTOQUE_MODELO = {
     ],
 }
 
-# ---------------------------------------------------------------------------
-# MODELO / EXEMPLO — Controle do Estoque (Almoxarifado): posicao de materia
-# prima (fios) por artigo/fornecedor, so pra deixar a tela preenchida ate a
-# integracao com o sistema real de almoxarifado.
-# ---------------------------------------------------------------------------
-MATERIA_PRIMA_MODELO = [
-    {'cod_totvs': '40012', 'artigo': '150/48 Cru', 'kg': 32750, 'empenhado': 28500, 'fornecedor': 'Avanti', 'rotatividade': 'alta'},
-    {'cod_totvs': '40045', 'artigo': '167/48 Areia', 'kg': 17243, 'empenhado': 15800, 'fornecedor': 'Sinterama', 'rotatividade': 'alta'},
-    {'cod_totvs': '40078', 'artigo': '300/72x2 Enchimento', 'kg': 78456, 'empenhado': 42000, 'fornecedor': 'Unifi', 'rotatividade': 'alta'},
-    {'cod_totvs': '41002', 'artigo': '220/84 Mescla Azul', 'kg': 523, 'empenhado': 680, 'fornecedor': 'Unifi', 'rotatividade': 'baixa'},
-    {'cod_totvs': '40013', 'artigo': '150/48 Brilhante', 'kg': 124, 'empenhado': 90, 'fornecedor': 'Avanti', 'rotatividade': 'alta'},
-    {'cod_totvs': '40046', 'artigo': '167/48 Garapa', 'kg': 340, 'empenhado': 210, 'fornecedor': 'Sinterama', 'rotatividade': 'media'},
-    {'cod_totvs': '40047', 'artigo': '167/48 Brasil', 'kg': 124, 'empenhado': 150, 'fornecedor': 'Unifi', 'rotatividade': 'media'},
-    {'cod_totvs': '40014', 'artigo': '150/48 Brilhante Preto', 'kg': 345, 'empenhado': 200, 'fornecedor': 'Avanti', 'rotatividade': 'baixa'},
-    {'cod_totvs': '40015', 'artigo': '150/48 Brilhante Rosa', 'kg': 243, 'empenhado': 260, 'fornecedor': 'Avanti', 'rotatividade': 'baixa'},
-]
-
-# Modelo de "maiores saidas" (consumo do mes) — nao ha historico real ainda,
-# entao os valores seguem proporcionalmente o volume de estoque de cada fio.
-SAIDAS_MATERIA_PRIMA_MODELO = [
-    {'artigo': '300/72x2 Enchimento', 'kg': 18200},
-    {'artigo': '150/48 Cru', 'kg': 9450},
-    {'artigo': '167/48 Areia', 'kg': 6120},
-    {'artigo': '220/84 Mescla Azul', 'kg': 1240},
-    {'artigo': '167/48 Garapa', 'kg': 480},
-]
-
-
-def _montar_controle_estoque():
-    itens = sorted(MATERIA_PRIMA_MODELO, key=lambda x: x['kg'], reverse=True)
-    total_kg = sum(i['kg'] for i in itens)
-
-    por_rotatividade = {'alta': [], 'media': [], 'baixa': []}
-    for i in itens:
-        por_rotatividade[i['rotatividade']].append(i)
-
-    por_fornecedor = {}
-    for i in itens:
-        info = por_fornecedor.setdefault(i['fornecedor'], {'fornecedor': i['fornecedor'], 'kg': 0, 'itens': 0})
-        info['kg'] += i['kg']
-        info['itens'] += 1
-    ranking_fornecedores = sorted(por_fornecedor.values(), key=lambda x: x['kg'], reverse=True)
-
-    maior_fio = itens[0]
-    maior_fornecedor = ranking_fornecedores[0]
-
-    # Disponibilidade vs Empenho: quanto ja foi programado/empenhado em OP
-    # (consumo previsto) contra o que realmente tem em estoque de cada
-    # materia prima — mostra se vai faltar fio pra atender o que ja foi
-    # programado.
-    disponibilidade = []
-    for i in itens:
-        saldo = i['kg'] - i['empenhado']
-        if saldo < 0:
-            situacao = 'insuficiente'
-        elif i['kg'] and (saldo / i['kg']) < 0.15:
-            situacao = 'atencao'
-        else:
-            situacao = 'suficiente'
-        disponibilidade.append({
-            'cod_totvs': i['cod_totvs'], 'artigo': i['artigo'], 'estoque': i['kg'],
-            'empenhado': i['empenhado'], 'saldo': saldo, 'situacao': situacao,
-        })
-    disponibilidade.sort(key=lambda x: x['saldo'])
-    total_empenhado = sum(i['empenhado'] for i in itens)
-    materiais_em_deficit = sum(1 for d in disponibilidade if d['situacao'] == 'insuficiente')
-
-    kpis = [
-        {'label': 'Total de MP em Estoque', 'valor': f'{total_kg:,}'.replace(',', '.') + ' kg', 'icone': '📦'},
-        {'label': 'Fios Cadastrados', 'valor': f'{len(itens)} itens', 'icone': '🧵'},
-        {'label': 'Alta Rotatividade', 'valor': f"{len(por_rotatividade['alta'])} fios", 'icone': '🟢'},
-        {'label': 'Baixa Rotatividade', 'valor': f"{len(por_rotatividade['baixa'])} fios", 'icone': '🔴'},
-        {'label': 'Fio de Maior Volume', 'valor': maior_fio['artigo'], 'icone': '🏆'},
-        {'label': 'Fornecedor com Maior Volume', 'valor': maior_fornecedor['fornecedor'], 'icone': '🚚'},
-        {'label': 'Total Empenhado em OP', 'valor': f'{total_empenhado:,}'.replace(',', '.') + ' kg', 'icone': '📋'},
-        {'label': 'Materiais em Déficit', 'valor': f'{materiais_em_deficit} itens', 'icone': '🚨'},
-    ]
-
-    return {
-        'itens': itens,
-        'total_kg': total_kg,
-        'por_rotatividade': por_rotatividade,
-        'ranking_fornecedores': ranking_fornecedores,
-        'saidas': sorted(SAIDAS_MATERIA_PRIMA_MODELO, key=lambda x: x['kg'], reverse=True),
-        'disponibilidade': disponibilidade,
-        'kpis': kpis,
-    }
-
-
 DRAWING_SAVE_EMAILS = {
     'gustavo.bonfim@conexaomalhas.com.br', 'gustavo.bonfim@conexaoplanning.com.br',
     'gustavo.bonfim@conexao.com.br',
@@ -1190,7 +1101,7 @@ def view_tab(slug):
         return render_template('main/dashboard_estoque.html', tab=tab, **DASHBOARD_ESTOQUE_MODELO)
 
     if slug == 'controle-estoque':
-        return render_template('main/controle_estoque.html', tab=tab, **_montar_controle_estoque())
+        return render_template('main/controle_estoque.html', tab=tab)
 
     if slug == 'dashboard-tempo-real':
         return render_template('main/dashboard_tempo_real.html', tab=tab)

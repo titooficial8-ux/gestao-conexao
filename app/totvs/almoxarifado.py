@@ -3,11 +3,13 @@
   product/balances/search -> produtos com saldo no estoque 34 (ALMOX_ESTOQUE no .env, padrao 34)
   product/products/search -> dados do produto (isRawMaterial, unidade, nome); so fica quem e materia-prima
 
-Atualiza sozinho a cada ALMOX_INTERVALO_MIN minutos (padrao 10) e guarda em instance/totvs/almoxarifado.json.
+Atualiza sozinho: saldo a cada ALMOX_INTERVALO_MIN minutos (padrao 5) e kardex a cada ALMOX_KARDEX_MIN (padrao 15) e guarda em instance/totvs/almoxarifado.json.
 """
 import json
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, timedelta
 import time
 import traceback
 from datetime import datetime
@@ -19,8 +21,13 @@ BALANCES_URL = f'{BASE_URL}/api/totvsmoda/product/v2/balances/search'
 PRODUCTS_URL = f'{BASE_URL}/api/totvsmoda/product/v2/products/search'
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
 ESTOQUE = int(os.getenv('ALMOX_ESTOQUE', '34'))
-INTERVALO_MIN = max(1, int(os.getenv('ALMOX_INTERVALO_MIN', '10')))
+INTERVALO_MIN = max(1, int(os.getenv('ALMOX_INTERVALO_MIN', '5')))
+KARDEX_URL = f'{BASE_URL}/api/totvsmoda/product/v2/kardex-movement'
+BALANCE_TYPE = int(os.getenv('ALMOX_TIPO_SALDO', str(ESTOQUE)))     # "tipo de saldo" do kardex (PRDFL017); padrao = o proprio codigo do estoque
+KARDEX_DIAS = 179                                                  # a API limita a janela a 180 dias
+KARDEX_INTERVALO_MIN = max(5, int(os.getenv('ALMOX_KARDEX_MIN', '15')))
 ARQUIVO = api.OUT_DIR / 'almoxarifado.json'
+ARQ_KARDEX = api.OUT_DIR / 'almoxarifado_kardex.json'
 VERSAO = 1
 ESTADO = dict(rodando=False, ultima=None, erro=None, msg='')
 _trava = threading.Lock()
@@ -117,7 +124,7 @@ def iniciar_agendador(app) -> None:
         return
 
     def loop():
-        time.sleep(30)
+        time.sleep(10)
         while True:
             try:
                 atualizar()
@@ -125,3 +132,166 @@ def iniciar_agendador(app) -> None:
                 traceback.print_exc()
             time.sleep(INTERVALO_MIN * 60)
     threading.Thread(target=loop, daemon=True, name='totvs-almoxarifado').start()
+
+
+# ---------------------------------------------------------------------------
+# Kardex por produto -> giro, cobertura, curva ABC, tendencia mensal
+# ---------------------------------------------------------------------------
+_trava_k = threading.Lock()
+ESTADO_K = dict(rodando=False, ultima=None, erro=None, msg='', feitos=0, total=0)
+
+
+def ler_kardex() -> dict:
+    try:
+        return json.loads(ARQ_KARDEX.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def _resumir(resp: dict, hoje: date) -> dict:
+    """Agrega as movimentacoes de um produto: por mes (entradas, saidas, n), saidas 30/60/90 dias, ultima saida."""
+    meses, out30, out60, out90, in90, n30, n90, ult_saida, ult_mov = {}, 0.0, 0.0, 0.0, 0.0, 0, 0, None, None
+    for m in resp.get('movements') or []:
+        d = str(m.get('movementDate') or '')[:10]
+        if not d:
+            continue
+        ent, sai = _num(m.get('inQuantity')), _num(m.get('outQuantity'))
+        mm = meses.setdefault(d[:7], [0.0, 0.0, 0])
+        mm[0] += ent
+        mm[1] += sai
+        mm[2] += 1
+        ult_mov = max(ult_mov or d, d)
+        dias = (hoje - date.fromisoformat(d)).days
+        if sai > 0:
+            ult_saida = max(ult_saida or d, d)
+            if dias < 30:
+                out30 += sai
+            if dias < 60:
+                out60 += sai
+            if dias < 90:
+                out90 += sai
+        if dias < 90:
+            in90 += ent
+        if dias < 30:
+            n30 += 1
+        if dias < 90:
+            n90 += 1
+    return dict(meses={k: [round(v[0], 3), round(v[1], 3), v[2]] for k, v in meses.items()}, out30=round(out30, 3), out60=round(out60, 3), out90=round(out90, 3), in90=round(in90, 3),
+                n30=n30, n90=n90, ultima_saida=ult_saida, ultima_mov=ult_mov, saldo_anterior=_num(resp.get('previousBalance')))
+
+
+def atualizar_kardex() -> bool:
+    """Kardex (180 dias) de cada materia-prima com saldo no local; so leitura. Roda em ate 3 consultas ao mesmo tempo."""
+    if not _trava_k.acquire(blocking=False):
+        return False
+    base = ler()
+    codigos = [i['codigo'] for i in base.get('itens', [])]
+    ESTADO_K.update(rodando=True, erro=None, msg='Lendo o kardex das materias-primas...', feitos=0, total=len(codigos))
+    try:
+        if not codigos:
+            raise RuntimeError('Ainda nao ha lista de materias-primas (aguarde a consulta do almoxarifado).')
+        cli = api.TotvsModaClient()
+        cli.autenticar()
+        hoje = date.today()
+        ini = (hoje - timedelta(days=KARDEX_DIAS)).isoformat()
+        produtos, erros = {}, []
+
+        def um(cod):
+            r = cli.get(KARDEX_URL, dict(ProductCode=cod, BranchCode=EMPRESA, StartDate=f'{ini}T00:00:00', EndDate=f'{hoje.isoformat()}T23:59:59', BalanceType=BALANCE_TYPE))
+            if r.status_code != 200:
+                raise RuntimeError(f'kardex {cod}: HTTP {r.status_code} {r.text[:120]}')
+            j = r.json()
+            return cod, _resumir(j[0] if isinstance(j, list) and j else (j if isinstance(j, dict) else {}), hoje)
+
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            for fut in [ex.submit(um, c) for c in codigos]:
+                try:
+                    cod, res = fut.result()
+                    produtos[str(cod)] = res
+                except Exception as e:  # noqa: BLE001
+                    erros.append(str(e)[:160])
+                ESTADO_K['feitos'] += 1
+        if not produtos:
+            raise RuntimeError('Nenhum kardex lido: ' + (erros[0] if erros else 'sem resposta'))
+        ARQ_KARDEX.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ARQ_KARDEX.with_suffix('.tmp')
+        tmp.write_text(json.dumps(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), dias=KARDEX_DIAS + 1, produtos=produtos, erros=len(erros), amostra_erro=erros[:2]), ensure_ascii=False), encoding='utf-8')
+        tmp.replace(ARQ_KARDEX)
+        ESTADO_K.update(ultima=datetime.now().isoformat(timespec='seconds'), msg=f'{len(produtos)} kardex lidos' + (f' ({len(erros)} com erro)' if erros else ''))
+    except Exception as e:  # noqa: BLE001
+        traceback.print_exc()
+        ESTADO_K.update(erro=str(e)[:300], msg='Falha ao ler o kardex - mantive os dados anteriores')
+    finally:
+        ESTADO_K['rodando'] = False
+        _trava_k.release()
+    return ESTADO_K['erro'] is None
+
+
+def indicadores() -> dict:
+    """Indicadores para diretoria/CEO a partir do saldo atual e do kardex (180 dias)."""
+    base, k = ler(), ler_kardex()
+    prod = k.get('produtos') or {}
+    itens = []
+    for i in base.get('itens', []):
+        r = prod.get(str(i['codigo']))
+        if not r:
+            continue
+        saldo, out30, out90 = i['saldo'], r['out30'], r['out90']
+        diario = out90 / 90.0 if out90 else 0.0
+        itens.append(dict(codigo=i['codigo'], nome=i['nome'], unidade=i.get('unidade'), saldo=saldo, out30=out30, out60=r['out60'], out90=out90, in90=r['in90'], n90=r['n90'],
+                          diario=round(diario, 3), cobertura=round(saldo / diario, 1) if diario else None, giro=round(out90 / saldo, 2) if saldo > 0 else None,
+                          ultima_saida=r['ultima_saida'], minimo=i.get('minimo') or 0))
+    if not itens:
+        return dict(pronto=False, kardex_atualizado=k.get('atualizado'), n_materia_prima=len(base.get('itens', [])))
+    tot_out90 = sum(x['out90'] for x in itens)
+    # curva ABC pelas saidas de 90 dias: A = ate 80% do consumo, B = ate 95%, C = resto
+    acum, ordenados = 0.0, sorted(itens, key=lambda x: -x['out90'])
+    for x in ordenados:
+        acum += x['out90']
+        pct = acum / tot_out90 if tot_out90 else 1
+        x['classe'] = 'A' if (x['out90'] > 0 and pct - x['out90'] / tot_out90 < 0.80) else ('B' if x['out90'] > 0 and pct - x['out90'] / tot_out90 < 0.95 else 'C')
+        x['pct_acum'] = round(pct, 4)
+    parados = [x for x in itens if x['saldo'] > 0 and x['out90'] == 0]
+    criticos = sorted([x for x in itens if x['cobertura'] is not None and x['cobertura'] < 15 and x['out90'] > 0], key=lambda x: x['cobertura'])
+    atencao = [x for x in itens if x['cobertura'] is not None and 15 <= x['cobertura'] < 30]
+    saldo_total = sum(x['saldo'] for x in itens)
+    out30, out60 = sum(x['out30'] for x in itens), sum(x['out60'] for x in itens)
+    ant30 = out60 - out30                                              # saidas dos 30 dias anteriores aos ultimos 30
+    classe_a = [x for x in itens if x['classe'] == 'A']
+    # tendencia mensal (6 meses): entradas x saidas, somando todas as materias-primas
+    meses = {}
+    for cod, r in prod.items():
+        if cod not in {str(x['codigo']) for x in itens}:
+            continue
+        for mes, (e, sa, n) in r['meses'].items():
+            m = meses.setdefault(mes, [0.0, 0.0, 0])
+            m[0] += e
+            m[1] += sa
+            m[2] += n
+    serie = [dict(mes=m, entradas=round(v[0], 1), saidas=round(v[1], 1), movimentos=v[2]) for m, v in sorted(meses.items())][-6:]
+    consumo_diario = tot_out90 / 90.0
+    return dict(
+        pronto=True, kardex_atualizado=k.get('atualizado'), saldo_atualizado=base.get('atualizado'), estoque=base.get('estoque'), n_materia_prima=len(itens), kardex_erros=k.get('erros', 0),
+        cards=dict(saldo_total=round(saldo_total, 1), n_itens=len(itens), saidas30=round(out30, 1), saidas30_ant=round(ant30, 1),
+                   var30=round(out30 / ant30 - 1, 4) if ant30 else None, consumo_diario=round(consumo_diario, 1),
+                   cobertura_geral=round(saldo_total / consumo_diario, 1) if consumo_diario else None,
+                   n_criticos=len(criticos), n_atencao=len(atencao), n_classe_a=len(classe_a), pct_consumo_a=round(sum(x['out90'] for x in classe_a) / tot_out90, 4) if tot_out90 else 0,
+                   n_parados=len(parados), kg_parados=round(sum(x['saldo'] for x in parados), 1), pct_parados=round(sum(x['saldo'] for x in parados) / saldo_total, 4) if saldo_total else 0),
+        top_consumo=[dict(codigo=x['codigo'], nome=x['nome'], out90=x['out90'], pct_acum=x['pct_acum'], classe=x['classe']) for x in ordenados[:15]],
+        todos=[dict(codigo=x['codigo'], out30=x['out30'], out90=x['out90'], cobertura=x['cobertura'], saldo=x['saldo']) for x in itens], criticos=criticos[:12], alta_rotatividade=[x for x in ordenados if x['classe'] == 'A'][:15], parados=sorted(parados, key=lambda x: -x['saldo'])[:10], serie_mensal=serie)
+
+
+def iniciar_agendador_kardex(app) -> None:
+    if not configurado():
+        return
+
+    def loop():
+        while not ler().get('itens'):                                   # espera a 1a lista de materias-primas
+            time.sleep(15)
+        while True:
+            try:
+                atualizar_kardex()
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+            time.sleep(KARDEX_INTERVALO_MIN * 60)
+    threading.Thread(target=loop, daemon=True, name='totvs-almox-kardex').start()
