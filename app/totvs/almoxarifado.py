@@ -55,6 +55,33 @@ def _paginar(cli, url, corpo, tam=1000):
         pag += 1
 
 
+CLASSIF_MP = os.getenv('ALMOX_CLASSIFICACAO', 'MP').strip().upper()      # nome/codigo da classificacao de produto que marca materia-prima
+TIPO_CLASSIF = os.getenv('ALMOX_TIPO_CLASSIFICACAO', '').strip()          # opcional: codigo do TIPO de classificacao (ex.: 506) para nao confundir com outras
+
+
+def _eh_mp_classif(p: dict) -> bool:
+    for c in p.get('classifications') or []:
+        if TIPO_CLASSIF.isdigit() and c.get('typeCode') != int(TIPO_CLASSIF):
+            continue
+        cod, nome = str(c.get('code') or '').strip().upper(), str(c.get('name') or '').strip().upper()
+        if cod == CLASSIF_MP or nome == CLASSIF_MP or nome.startswith(CLASSIF_MP + ' ') or nome.startswith(CLASSIF_MP + '-'):
+            return True
+    return False
+
+
+def _amostra_classif(produtos: dict) -> list:
+    return [dict(produto=c, nome=p.get('productName'), isRawMaterial=p.get('isRawMaterial'), classificacoes=[dict(tipo=x.get('typeCode'), tipo_nome=x.get('typeName'), codigo=x.get('code'), nome=x.get('name')) for x in (p.get('classifications') or [])])
+            for c, p in list(produtos.items())[:12]]
+
+
+def _tipos_classif(cli):
+    try:
+        r = cli.get(f'{BASE_URL}/api/totvsmoda/product/v2/classificationType', {})
+        return r.json() if r.status_code == 200 else f'HTTP {r.status_code}'
+    except Exception as e:  # noqa: BLE001
+        return str(e)[:120]
+
+
 _RES = {}                                                          # {'codigo', 'nome', 'estoques': {codigo: descricao}}
 
 
@@ -139,21 +166,23 @@ def buscar(cli=None, amostra: bool = False) -> dict:
     codigos = sorted(c for c in por_prod if c is not None)
     produtos = {}
     for i in range(0, len(codigos), 200):
-        for p in _paginar(cli, PRODUCTS_URL, dict(filter=dict(productCodeList=codigos[i:i + 200]), option=dict(branchInfoCode=EMPRESA)), tam=500):
+        for p in _paginar(cli, PRODUCTS_URL, dict(filter=dict(productCodeList=codigos[i:i + 200]), option=dict(branchInfoCode=EMPRESA), expand='classifications'), tam=500):
             produtos[p.get('productCode')] = p
     if amostra:
-        return dict(estoque=ESTOQUE, estoque_nome=NOME, estoques_no_totvs={str(c): d for c, d in sorted((_RES.get('estoques') or descobrir_estoques(cli)).items())}, saldos_amostra=saldos[:3], produtos_amostra=list(produtos.values())[:3], n_saldos=len(saldos))
+        return dict(estoque=ESTOQUE, estoque_nome=NOME, classificacao_mp=CLASSIF_MP, classificacoes_amostra=_amostra_classif(produtos), tipos_de_classificacao=_tipos_classif(cli), estoques_no_totvs={str(c): d for c, d in sorted((_RES.get('estoques') or descobrir_estoques(cli)).items())}, saldos_amostra=saldos[:3], produtos_amostra=list(produtos.values())[:3], n_saldos=len(saldos))
+    por_classif = {c for c, p in produtos.items() if _eh_mp_classif(p)}
+    usar_classif = bool(por_classif)                                   # MP e uma CLASSIFICACAO do produto; sem nenhuma, cai no campo "materia-prima" do cadastro
     itens = []
     for cod, v in por_prod.items():
         p = produtos.get(cod) or {}
-        if not p.get('isRawMaterial'):
+        if not ((cod in por_classif) if usar_classif else p.get('isRawMaterial')):
             continue
         itens.append(dict(codigo=cod, nome=(p.get('productName') or v['nome'] or '')[:120], unidade=p.get('measuredUnit'), saldo=round(v['saldo'], 3),
                           disponivel=round(v['disponivel'], 3), entradas=round(v['entradas'], 3), saidas=round(v['saidas'], 3),
                           minimo=_num(p.get('minimumStockAmount')), maximo=_num(p.get('maximumStockAmount')), ideal=_num(p.get('idealStockAmount')), bloqueado=bool(p.get('isBlocked'))))
     itens.sort(key=lambda x: x['nome'])
     return dict(versao=VERSAO, estoque=ESTOQUE, estoque_nome=NOME, atualizado=datetime.now().isoformat(timespec='seconds'), itens=itens,
-                n_com_saldo=len(por_prod), n_materia_prima=len(itens))
+                n_com_saldo=len(por_prod), n_materia_prima=len(itens), filtro_mp='classificacao ' + CLASSIF_MP if usar_classif else 'campo materia-prima do cadastro (nenhum produto com classificacao ' + CLASSIF_MP + ')')
 
 
 def atualizar() -> bool:

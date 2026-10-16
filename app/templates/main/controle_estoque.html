@@ -133,7 +133,7 @@
 
   function status() {
     var s = [];
-    if (dados && dados.atualizado) s.push('<b>● TOTVS</b> · ' + dados.n_materia_prima + ' matérias-primas com saldo em ' + (dados.estoque_nome || 'almoxarifado') + ' · saldo atualizado ' + dh(dados.atualizado));
+    if (dados && dados.atualizado) s.push('<b>● TOTVS</b> · ' + dados.n_materia_prima + ' matérias-primas com saldo em ' + (dados.estoque_nome || 'almoxarifado') + ' · saldo atualizado ' + dh(dados.atualizado) + (dados.filtro_mp ? ' · filtro: ' + dados.filtro_mp : ''));
     if (ind && ind.kardex_atualizado) s.push('giro e cobertura (kardex 180 d) atualizados ' + dh(ind.kardex_atualizado));
     $('ceStatus').innerHTML = s.length ? s.join(' · ') : 'Consultando o TOTVS…';
     var av = $('ceAviso'); av.textContent = '';
