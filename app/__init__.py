@@ -147,7 +147,7 @@ def create_app():
             aba_me.name_pt = aba_me.name_es = 'Comercial ME'
             db.session.commit()
         # nomes das abas do Comercial
-        renomear = {'dashboard-comercial': 'BI COMERCIAL', 'pedidos-comercial-mi': 'COMERCIAL MI'}
+        renomear = {'dashboard-comercial': 'BI Comercial', 'pedidos-comercial-mi': 'Comercial MI'}
         mudou = False
         for slug, nome in renomear.items():
             aba = Tab.query.filter_by(slug=slug).first()
@@ -155,6 +155,12 @@ def create_app():
                 aba.name_pt = aba.name_es = nome
                 mudou = True
         if mudou:
+            db.session.commit()
+        # a aba 'Dashboard Tempo Real' saiu da Producao
+        aba_dash = Tab.query.filter_by(slug='dashboard-tempo-real').first()
+        if aba_dash:
+            aba_dash.sectors = []
+            db.session.delete(aba_dash)
             db.session.commit()
         # contas iniciais por setor (idempotente)
         from app.usuarios_padrao import criar_usuarios_padrao

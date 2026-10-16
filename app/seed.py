@@ -60,7 +60,6 @@ CATEGORIES_DATA = [
             ('gestao-malharia', 'Gestão da Malharia', 'Gestión de Tejeduría', '\U0001F9F6', '#1f9d8f', False),
             ('controle-producao', 'Controle de Produção', 'Control de Producción', '\U0001F39B', '#2f7fe0', False),
             ('relatorios-producao', 'Relatórios', 'Informes', '\U0001F4C4', '#5c6bc0', True),
-            ('dashboard-tempo-real', 'Dashboard Tempo Real', 'Panel en Tiempo Real', '⏱', '#e5484d', True),
         ],
     },
     {
@@ -71,8 +70,8 @@ CATEGORIES_DATA = [
         'order': 2,
         'sector': 'Comercial',
         'tabs': [
-            ('dashboard-comercial', 'BI COMERCIAL', 'BI COMERCIAL', '\U0001F4CA', '#2f7fe0', True),
-            ('pedidos-comercial-mi', 'COMERCIAL MI', 'COMERCIAL MI', '\U0001F1E7\U0001F1F7', '#3fa34d', True),
+            ('dashboard-comercial', 'BI Comercial', 'BI Comercial', '\U0001F4CA', '#2f7fe0', True),
+            ('pedidos-comercial-mi', 'Comercial MI', 'Comercial MI', '\U0001F1E7\U0001F1F7', '#3fa34d', True),
             ('pedidos-comercial-me', 'Comercial ME', 'Comercial ME', '\U0001F30E', '#e0972f', True),
         ],
     },
