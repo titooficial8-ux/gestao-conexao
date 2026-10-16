@@ -32,6 +32,9 @@ TRANSF_INTERVALO_SEG = max(20, int(os.getenv('ALMOX_TRANSF_SEG', '60')))        
 ARQUIVO = api.OUT_DIR / 'almoxarifado.json'
 ARQ_KARDEX = api.OUT_DIR / 'almoxarifado_kardex.json'
 ARQ_TRANSF = api.OUT_DIR / 'almoxarifado_transferencias.json'
+ARQ_ACERTOS = api.OUT_DIR / 'almoxarifado_acertos.json'
+OPS_ACERTO = {'entrada': int(os.getenv('ALMOX_OP_ACERTO_ENTRADA', '2040')), 'saida': int(os.getenv('ALMOX_OP_ACERTO_SAIDA', '2041'))}      # BALFM015: 2040 ajuste de estoque fisico (entrada) / 2041 (saida)
+ACUR_DIAS = int(os.getenv('ALMOX_ACUR_DIAS', '180'))
 TRX_URL = f'{BASE_URL}/api/totvsmoda/general/v2/transactions/search'
 VERSAO = 1
 ESTADO = dict(rodando=False, ultima=None, erro=None, msg='')
@@ -454,6 +457,9 @@ def indicadores() -> dict:
         todos=[dict(codigo=x['codigo'], out30=x['out30'], out90=x['out90'], cobertura=x['cobertura'], saldo=x['saldo']) for x in itens], criticos=criticos[:12], alta_rotatividade=[x for x in ordenados if x['classe'] == 'A'][:15], parados=sorted(parados, key=lambda x: -x['saldo'])[:10], serie_mensal=serie)
 
 
+_ULT_ACERTOS = [0.0]
+
+
 def iniciar_agendador_kardex(app) -> None:
     if not configurado():
         return
@@ -464,6 +470,9 @@ def iniciar_agendador_kardex(app) -> None:
         while True:
             try:
                 atualizar_transferencias()
+                if time.time() - _ULT_ACERTOS[0] > 1800:
+                    _ULT_ACERTOS[0] = time.time()
+                    atualizar_acertos()
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
             time.sleep(TRANSF_INTERVALO_SEG)
@@ -592,3 +601,77 @@ def movimentacoes(n: int = 25) -> dict:
     hoje = date.today().isoformat()
     do_dia = [x for x in linhas if x['data'] == hoje]
     return dict(atualizado=d.get('atualizado'), itens=linhas[:n], hoje_kg=round(sum(x['total'] for x in do_dia), 1), hoje_n=len(do_dia), tem_usuario=any(x['usuario'] for x in linhas[:50]))
+
+
+# ---------------------------------------------------------------------------
+# Acuracidade do estoque: ajustes de inventario (BALFM015) = operacoes 2040 (entrada) e 2041 (saida)
+# ---------------------------------------------------------------------------
+def ler_acertos() -> dict:
+    try:
+        return json.loads(ARQ_ACERTOS.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def atualizar_acertos() -> bool:
+    """Ajustes de inventario dos ultimos ACUR_DIAS dias (so leitura): guarda produto, kg e sentido de cada acerto."""
+    try:
+        cli = api.TotvsModaClient()
+        cli.autenticar()
+        hoje = date.today()
+        a, trans = hoje - timedelta(days=ACUR_DIAS), {}
+        while a <= hoje:
+            b = min(hoje, a + timedelta(days=29))
+            pag = 1
+            while True:
+                r = cli.post(TRX_URL, dict(branchCodeList=[EMPRESA], operationCodeList=list(OPS_ACERTO.values()), startChangeDate=f'{a.isoformat()}T00:00:00', endChangeDate=f'{(b + timedelta(days=1)).isoformat()}T00:00:00', page=pag, pageSize=500))
+                if r.status_code != 200:
+                    raise RuntimeError(f'acertos {a}..{b}: HTTP {r.status_code} {r.text[:200]}')
+                j = r.json()
+                for t in j.get('items') or []:
+                    if _cancelada(t):
+                        continue
+                    sinal = 1 if str(t.get('operationCode')) == str(OPS_ACERTO['entrada']) else -1
+                    itens = [[it['productCode'], round(abs(_num(it.get('quantity'))) * sinal, 3)] for it in t.get('items') or []
+                             if it.get('productCode') is not None and (not UNIDADE or str(it.get('measuredUnit') or '').strip().upper() == UNIDADE) and _num(it.get('quantity'))]
+                    trans[str(t.get('transactionCode'))] = [str(t.get('transactionDate') or '')[:10], itens]
+                if not j.get('hasNext') or pag >= 60:
+                    break
+                pag += 1
+            a = b + timedelta(days=1)
+        ARQ_ACERTOS.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ARQ_ACERTOS.with_suffix('.tmp')
+        tmp.write_text(json.dumps(dict(versao=1, atualizado=datetime.now().isoformat(timespec='seconds'), dias=ACUR_DIAS, transacoes=trans), ensure_ascii=False), encoding='utf-8')
+        tmp.replace(ARQ_ACERTOS)
+        return True
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+        return False
+
+
+def acuracidade() -> dict:
+    """Taxa de acuracidade = 1 - (kg ajustados no inventario / estoque atual); mostra tambem quantos itens tiveram ajuste e a data do ultimo inventario."""
+    base, d = ler(), ler_acertos()
+    if not d.get('atualizado'):
+        return dict(taxa=None, texto='lendo os ajustes de inventário no TOTVS…')
+    saldos = {str(i['codigo']): i['saldo'] for i in base.get('itens', [])}
+    total = sum(saldos.values())
+    ajust_kg, itens_aj, ultimo = 0.0, set(), ''
+    for _cod, (data, itens) in (d.get('transacoes') or {}).items():
+        usou = False
+        for prod, kg in itens:
+            if str(prod) in saldos:
+                ajust_kg += abs(kg)
+                itens_aj.add(str(prod))
+                usou = True
+        if usou:
+            ultimo = max(ultimo, data)
+    if not itens_aj:
+        return dict(taxa=1.0 if total else None, texto=f'nenhum ajuste de inventário em {d.get("dias", ACUR_DIAS)} dias · {len(saldos)} itens', n_ajustados=0, n_itens=len(saldos), kg_ajustado=0, ultimo_inventario=None)
+    taxa = max(0.0, 1 - ajust_kg / total) if total else None
+    return dict(taxa=round(taxa, 4) if taxa is not None else None, n_ajustados=len(itens_aj), n_itens=len(saldos), kg_ajustado=round(ajust_kg, 1), ultimo_inventario=ultimo,
+                texto=f'{len(itens_aj)} de {len(saldos)} itens com ajuste · {nf_kg(ajust_kg)} kg ajustados · último inventário {ultimo[8:10]}/{ultimo[5:7]}')
+
+
+def nf_kg(v: float) -> str:
+    return f'{v:,.0f}'.replace(',', '.')
