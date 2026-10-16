@@ -215,6 +215,7 @@ def resumo(mes: int | None = None) -> dict:
     for d, valor, metros, local, cliente in plan.get('pedidos', []):
         if int(d[:4]) not in ANOS_TOTVS:
             registros.append((d, valor, metros, local, normalize_client_name(cliente) or 'SEM CLIENTE'))
+    taxas_mes = {}                                    # ano -> PTAX usadas nos pedidos ME do mes
     usd_mes = {}                                      # ano -> US$ dos pedidos ME do mes escolhido (valor R$ / PTAX do dia do pedido)
     for d, valor, metros, local, nome in registros:
         a, m, dia = int(d[:4]), int(d[5:7]), int(d[8:10])
@@ -229,6 +230,9 @@ def resumo(mes: int | None = None) -> dict:
             c[0] += valor; c[1] += 1; c[2] += metros
             if local == 'ME':
                 u = cotacao.para_usd(valor, d) or 0.0
+                tx = cotacao.taxa(d)
+                if tx:
+                    taxas_mes.setdefault(a, []).append(tx)
                 c[3] += u
                 usd_mes[a] = usd_mes.get(a, 0.0) + u
     # 2023, 2024 e 2025: o VALOR de cada dia vem da tabela 'Pedido de Venda - Carteira' da planilha (como ela mostra); pedidos/ME seguem da lista de pedidos
@@ -292,7 +296,8 @@ def resumo(mes: int | None = None) -> dict:
         grupos = {}
         for loc in ('MI', 'ME'):
             itens = sorted(([n, round(v[0], 2), v[1], round(v[2], 2), round(v[3], 2)] for (n, l), v in por_cliente[a].items() if l == loc), key=lambda x: -x[1])
-            grupos[loc] = dict(total=round(sum(i[1] for i in itens), 2), n=sum(i[2] for i in itens), metros=round(sum(i[3] for i in itens), 2), total_usd=round(sum(i[4] for i in itens), 2), itens=itens)
+            grupos[loc] = dict(total=round(sum(i[1] for i in itens), 2), n=sum(i[2] for i in itens), metros=round(sum(i[3] for i in itens), 2), total_usd=round(sum(i[4] for i in itens), 2), itens=itens,
+                                ptax=(dict(min=min(taxas_mes[a]), max=max(taxas_mes[a])) if loc == 'ME' and taxas_mes.get(a) else None))
         clientes_loc[str(a)] = grupos
     ultimos = sorted(((cod, v) for cod, v in pedidos.items() if v[5]), key=lambda x: x[1][5], reverse=True)[:10]
     ultimos = [dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), metros=round(v[2]), me=v[3] == 'ME', usd=cotacao.para_usd(v[1], v[0]) if v[3] == 'ME' else None,
