@@ -690,6 +690,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     } else { cp.appendChild(ui.el('p', 'cme-meta', ES ? 'Sin pedidos en este mes.' : 'Nenhum pedido neste mês.')); }
     corpo.appendChild(cp);
     desenharAlterados(corpo);
+    desenharPrecos(corpo);
   }
   // pedidos alterados (secao separada): do 1o dia do mes ate ontem, filtro de alteracao da API do TOTVS
   var altCache = null;
@@ -718,6 +719,42 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     corpoAlt.appendChild(ui.el('p', 'cme-meta', ES ? 'Consultando el TOTVS…' : 'Consultando o TOTVS…'));
     fetch('/bi-comercial/pedidos-alterados', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { altCache = { t: Date.now(), d: d }; mostrar(d); })
       .catch(function () { corpoAlt.textContent = ''; corpoAlt.appendChild(ui.el('p', 'cme-meta', ES ? 'Falla de conexión.' : 'Falha de conexão ao consultar.')); });
+  }
+  // precos divergentes: preco unitario (por metro) do item do pedido x preco da tabela de precos do pedido
+  var precosCache = null;
+  function desenharPrecos(corpo) {
+    var card = ui.el('div', 'table-card pd-card'); card.appendChild(ui.el('h3', null, ES ? 'Precios divergentes' : 'Preços divergentes'));
+    var corpoP = ui.el('div'); card.appendChild(corpoP); corpo.appendChild(card);
+    function fmtD(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : ''; }
+    function p2(v) { return 'R$ ' + ui.nf(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function sinal(v) { return (v < 0 ? '−' : '+') + 'R$ ' + rs(Math.abs(v)); }
+    function mostrar(a) {
+      corpoP.textContent = '';
+      if (!a.ok) { corpoP.appendChild(ui.el('p', 'cme-meta', (ES ? 'No se pudo consultar: ' : 'Não consegui consultar o TOTVS: ') + (a.erro || ''))); return; }
+      corpoP.appendChild(ui.el('p', 'cme-meta', (ES ? 'Precio unitario por metro del pedido vs. tabla de precios, de ' : 'Preço unitário por metro do pedido x tabela de preços, de ') + fmtD(a.inicio) + (ES ? ' al ' : ' até ') + fmtD(a.fim) + ' · ' + a.itens_comparados + (ES ? ' ítems comparados en ' : ' itens comparados em ') + a.n_pedidos_total + ' pedidos'));
+      var pctMts = a.metros_total ? a.metros_divergentes / a.metros_total : 0, ok = !a.itens.length, g = ui.el('div', 'ex-grid');
+      g.appendChild(execCard({ rotulo: ES ? 'PEDIDOS DIVERGENTES' : 'PEDIDOS DIVERGENTES', valor: String(a.n_pedidos), linhas: [a.itens.length + (ES ? ' ítems fuera de la tabla' : ' itens fora da tabela') + ' · ' + (a.n_pedidos_total ? ui.nf(a.n_pedidos / a.n_pedidos_total * 100, { maximumFractionDigits: 1 }) : 0) + '% dos pedidos'], cor: ok ? '#1f9d55' : '#e0972f', barra: a.n_pedidos_total ? a.n_pedidos / a.n_pedidos_total : 0 }));
+      g.appendChild(execCard({ rotulo: ES ? 'ABAJO DE LA TABLA' : 'ABAIXO DA TABELA', valor: a.abaixo.n ? sinal(a.abaixo.impacto) : 'R$ 0', linhas: [a.abaixo.n + (ES ? ' ítems · ' : ' itens · ') + rs(a.abaixo.metros) + ' mts', ES ? 'receita que se deja de ganar' : 'receita deixada de ganhar'], cor: '#c0272d' }));
+      g.appendChild(execCard({ rotulo: ES ? 'ARRIBA DE LA TABLA' : 'ACIMA DA TABELA', valor: a.acima.n ? sinal(a.acima.impacto) : 'R$ 0', linhas: [a.acima.n + (ES ? ' ítems · ' : ' itens · ') + rs(a.acima.metros) + ' mts', ES ? 'receita adicional' : 'receita adicional'], cor: '#1f9d55' }));
+      g.appendChild(execCard({ rotulo: ES ? 'METRAJE AFECTADO' : 'METRAGEM AFETADA', valor: rs(a.metros_divergentes) + ' mts', barra: pctMts, linhas: [ui.nf(pctMts * 100, { maximumFractionDigits: 1 }) + '% de ' + rs(a.metros_total) + ' mts em pedidos'], cor: '#2f7fe0' }));
+      corpoP.appendChild(g);
+      if (ok) { corpoP.appendChild(ui.el('div', 'pd-ok', ES ? '✔ Todos los precios están de acuerdo con la tabla de precios.' : '✔ Todos os preços dos pedidos estão de acordo com a tabela de preços.')); return; }
+      var w = ui.el('div', 'table-scroll'), tb = ui.el('table', 'data-table sl-tab'), th = ui.el('thead'), tr = ui.el('tr');
+      ['Pedido', 'Cliente', 'Produto', 'Tabela', 'Metros', 'Preço pedido', 'Preço tabela', 'Diferença', 'Desvio', 'Impacto'].forEach(function (h, i) { tr.appendChild(ui.el('th', i > 3 ? 'cme-num' : null, h)); });
+      th.appendChild(tr); tb.appendChild(th); var bd = ui.el('tbody'), mx = Math.max.apply(null, a.itens.map(function (x) { return Math.abs(x.pct); })) || 1;
+      a.itens.forEach(function (x) {
+        var baixo = x.dif < 0, r = ui.el('tr'), pill = ui.el('span', 'pd-pill ' + (baixo ? 'down' : 'up'), (baixo ? '▼ ' : '▲ ') + (x.pct > 0 ? '+' : '−') + ui.nf(Math.abs(x.pct) * 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%');
+        r.appendChild(ui.el('td', null, x.pedido)); r.appendChild(ui.el('td', null, x.cliente + (x.local === 'ME' ? ' (ME)' : ''))); r.appendChild(ui.el('td', null, x.produto + (x.cor && x.cor !== 'DV' ? ' · ' + x.cor : ''))); r.appendChild(ui.el('td', null, String(x.tabela)));
+        r.appendChild(ui.el('td', 'cme-num', rs(x.metros))); r.appendChild(ui.el('td', 'cme-num', p2(x.preco))); r.appendChild(ui.el('td', 'cme-num', p2(x.preco_tabela)));
+        r.appendChild(ui.el('td', 'cme-num ' + (baixo ? 'sl-down' : 'sl-up'), (baixo ? '−' : '+') + p2(Math.abs(x.dif))));
+        var tdp = ui.el('td', 'cme-num'); tdp.appendChild(pill); var bar = ui.el('div', 'pd-bar'), sp = ui.el('span', baixo ? 'down' : 'up'); sp.style.width = Math.max(Math.abs(x.pct) / mx * 100, 6) + '%'; bar.appendChild(sp); tdp.appendChild(bar); r.appendChild(tdp);
+        r.appendChild(ui.el('td', 'cme-num ' + (baixo ? 'sl-down' : 'sl-up'), sinal(x.impacto))); bd.appendChild(r); });
+      tb.appendChild(bd); w.appendChild(tb); corpoP.appendChild(w);
+    }
+    if (precosCache && Date.now() - precosCache.t < 300000) { mostrar(precosCache.d); return; }
+    corpoP.appendChild(ui.el('p', 'cme-meta', ES ? 'Consultando el TOTVS…' : 'Consultando o TOTVS e a tabela de preços…'));
+    fetch('/bi-comercial/precos-divergentes', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { precosCache = { t: Date.now(), d: d }; mostrar(d); })
+      .catch(function () { corpoP.textContent = ''; corpoP.appendChild(ui.el('p', 'cme-meta', ES ? 'Falla de conexión.' : 'Falha de conexão ao consultar.')); });
   }
   function mudarVisao(v) {
     Array.prototype.forEach.call(document.querySelectorAll('#biVisoes [data-visao]'), function (b) { b.classList.toggle('active', b.dataset.visao === v); });
