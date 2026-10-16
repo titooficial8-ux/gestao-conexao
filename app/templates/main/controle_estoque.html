@@ -58,7 +58,10 @@
   .ce-feed-tit { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #46586e; }
   .ce-feed-res { font-size: 12px; color: #6a7b90; }
   .ce-feed-res b { color: #0f2540; }
-  .ce-feed-lista { max-height: 244px; overflow-y: auto; }
+  .ce-feed-lista { max-height: 300px; overflow-y: auto; }
+  .ce-feed-btn { border: 1px solid #d5dfec; background: #f5f8fc; color: #2a5da8; font-size: 12px; font-weight: 800; padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+  .ce-feed-btn:hover { background: #e9f0fa; }
+  .ce-feed.fechado .ce-feed-top { border-bottom: 0; }
   .ce-mov { display: grid; grid-template-columns: 96px minmax(120px, 1fr) minmax(140px, 2fr) 110px; gap: 12px; align-items: center; padding: 9px 2px; border-bottom: 1px solid #f0f3f8; font-size: 13px; }
   .ce-mov:last-child { border-bottom: 0; }
   .ce-mov.novo { animation: ceNovo 2.4s ease-out; }
@@ -123,7 +126,8 @@
     return w.join(' ') || String(nome || '');
   }
   function fornCurto(c) { return c ? curto(c, 28) : ''; }
-  var fornSel = null, feed = null, feedVisto = {};
+  var fornSel = null, feed = null, feedVisto = {}, feedAberto = false;
+  try { feedAberto = localStorage.getItem('ceFeedAberto') === '1'; } catch (e) {}
   function pill(cls, txt) { return el('span', 'ce-pill ' + cls, txt); }
   function situacao(i) { if (!i) return el('span'); if (i.out90 === 0) return i.saldo > 0 ? pill('par', 'PARADO') : pill('ok', '—'); if (i.cobertura !== null && i.cobertura < 15) return pill('crit', 'CRÍTICO'); if (i.cobertura !== null && i.cobertura < 30) return pill('aten', 'ATENÇÃO'); return pill('ok', 'OK'); }
   function kpi(rot, val, sub, cor) { var k = el('div', 'ce-kpi'); k.style.setProperty('--c', cor); k.appendChild(el('div', 'ce-kpi-rot', rot)); k.appendChild(el('div', 'ce-kpi-val', val)); k.appendChild(el('div', 'ce-kpi-sub', sub)); return k; }
@@ -239,11 +243,14 @@
     var fd = $('ceFeed'); if (!fd) return; fd.textContent = '';
     var top = el('div', 'ce-feed-top'), t = el('div', 'ce-feed-tit'); t.appendChild(el('span', 'ce-dot')); t.appendChild(document.createTextNode('Movimentações para a produção · ao vivo')); top.appendChild(t);
     var r = el('div', 'ce-feed-res'); if (feed) { r.appendChild(document.createTextNode('Hoje: ')); r.appendChild(el('b', null, nf(feed.hoje_kg) + ' kg')); r.appendChild(document.createTextNode(' em ' + feed.hoje_n + ' transferências')); } top.appendChild(r); fd.appendChild(top);
-    var lista = el('div', 'ce-feed-lista');
+    var btn = el('button', 'ce-feed-btn', feedAberto ? '▴ Recolher' : '▾ Ver todas' + (feed && feed.itens.length > 1 ? ' (' + feed.itens.length + ')' : '')); btn.type = 'button'; btn.title = feedAberto ? 'Recolher a lista' : 'Mostrar todas as movimentações';
+    btn.addEventListener('click', function () { feedAberto = !feedAberto; try { localStorage.setItem('ceFeedAberto', feedAberto ? '1' : '0'); } catch (e) {} desenharFeed(); });
+    if (feed && feed.itens.length > 1) top.appendChild(btn);
+    var lista = el('div', 'ce-feed-lista' + (feedAberto ? '' : ' fechada'));
     if (!feed || !feed.itens.length) lista.appendChild(el('div', 'ce-vazio', feed && feed.atualizado ? 'Nenhuma transferência para a produção encontrada ainda.' : 'Lendo as transferências no TOTVS…'));
-    else feed.itens.forEach(function (x) {
+    else (feedAberto ? feed.itens : feed.itens.slice(0, 1)).forEach(function (x) {
       var row = el('div', 'ce-mov' + (feedVisto.pronto && !feedVisto[x.id] ? ' novo' : '')), h = quandoTxt(x.quando), hh = el('div', 'ce-mov-h', h[0] || h[1]); if (h[0]) hh.appendChild(el('small', null, h[1])); row.appendChild(hh);
-      row.appendChild(el('div', 'ce-mov-u', x.usuario || (feed.tem_usuario ? '—' : 'usuário não informado')));
+      row.appendChild(el('div', 'ce-mov-u', x.usuario || (x.documento ? 'Documento ' + x.documento : '')));
       var nomes = x.itens.map(function (i) { return nomeCurto(i.nome); }); row.appendChild(el('div', 'ce-mov-m', nomes.length > 1 ? nomes[0] + ' +' + (nomes.length - 1) : nomes[0])); row.title = x.itens.map(function (i) { return i.nome + ' · ' + nf(i.kg, 1) + ' kg'; }).join('\n');
       row.appendChild(el('div', 'ce-mov-k', nf(x.total, 1) + ' kg')); lista.appendChild(row);
     });
