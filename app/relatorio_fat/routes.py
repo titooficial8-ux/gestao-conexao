@@ -131,8 +131,9 @@ def enviar():
     j = request.get_json(silent=True) or {}
     if not envio.configurado():
         return jsonify(ok=False, erro='E-mail ainda não configurado neste computador. Preencha no arquivo .env: ' + ', '.join(envio.faltando()) + ' (veja o .env.example) e reinicie o Gestão.'), 400
+    pedidos_ = j.get('visao') == 'pedidos'
     try:
-        destinos = envio.validar(j.get('para'))
+        destinos = envio.validar(agenda.configuracao()['destinos'] if pedidos_ else j.get('para'))        # Entrada de Pedidos: sempre a lista do relatorio de faturamento
     except ValueError as e:
         return jsonify(ok=False, erro=str(e)), 400
     pedidos = j.get('visao') == 'pedidos'
@@ -150,7 +151,7 @@ def enviar():
     try:
         titulo = 'Relatório de Entrada de Pedidos' if pedidos else 'Relatório de Faturamento'
         envio.enviar(destinos, f'{"Entrada de Pedidos" if pedidos else "Relatório de Faturamento"} — {ref}',
-                     envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), titulo=titulo), anexos)
+                     envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), titulo=titulo), anexos, prioridade_alta=pedidos)
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=f'Não foi possível enviar: {e}'), 502
     return jsonify(ok=True, enviado_para=destinos, anexos=[a[0] for a in anexos])

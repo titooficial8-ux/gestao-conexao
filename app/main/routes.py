@@ -1094,8 +1094,10 @@ def view_tab(slug):
         return redirect(url_for('admin.users'))
 
     if slug == 'dashboard-comercial':
+        from app.relatorio_fat import agenda
         from app.relatorio_fat.routes import pode_gerar
-        return render_template('main/bi_comercial.html', tab=tab, pode_relatorio=pode_gerar(current_user))
+        destinos_ped = [x.strip() for x in agenda.configuracao()['destinos'].replace(';', ',').split(',') if x.strip()]
+        return render_template('main/bi_comercial.html', tab=tab, pode_relatorio=pode_gerar(current_user), destinos_pedidos=destinos_ped)
 
     if slug == 'dashboard-estoque':
         return render_template('main/dashboard_estoque.html', tab=tab, **DASHBOARD_ESTOQUE_MODELO)
