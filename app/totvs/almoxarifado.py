@@ -59,19 +59,26 @@ _RES = {}                                                          # {'codigo', 
 
 
 def descobrir_estoques(cli) -> dict:
-    """Lista os estoques que o TOTVS devolve nos saldos ({codigo: descricao}) olhando ate ~2000 produtos com saldo."""
-    achados = {}
-    for pag in range(1, 5):
-        r = cli.post(BALANCES_URL, dict(filter=dict(hasStock=True, branchStockCode=EMPRESA), option=dict(balances=[dict(branchCode=EMPRESA)]), page=pag, pageSize=500))
+    """Estoques que tem saldo ({codigo: descricao}). A API exige o codigo do estoque no filtro, entao testa os codigos 1..ALMOX_VARRER (padrao 150), 1 produto cada."""
+    limite = int(os.getenv('ALMOX_VARRER', '150'))
+
+    def um(cod):
+        r = cli.post(BALANCES_URL, dict(filter=dict(hasStock=True, branchStockCode=EMPRESA, stockCode=cod), option=dict(balances=[dict(branchCode=EMPRESA, stockCodeList=[cod])]), page=1, pageSize=1))
         if r.status_code != 200:
-            raise RuntimeError(f'estoques: HTTP {r.status_code} {r.text[:200]}')
-        j = r.json()
-        for x in j.get('items') or []:
+            return cod, None
+        for x in r.json().get('items') or []:
             for b in x.get('balances') or []:
-                if b.get('stockCode') is not None:
-                    achados.setdefault(b['stockCode'], str(b.get('stockDescription') or '').strip())
-        if not j.get('hasNext'):
-            break
+                if b.get('stockCode') == cod:
+                    return cod, str(b.get('stockDescription') or '').strip()
+        return cod, None
+
+    achados = {}
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        for cod, desc in ex.map(um, range(1, limite + 1)):
+            if desc is not None:
+                achados[cod] = desc
+    if not achados:
+        raise RuntimeError('Nenhum estoque com saldo foi encontrado nos codigos 1 a %d (veja ALMOX_VARRER / ALMOX_ESTOQUE no .env).' % limite)
     return achados
 
 
