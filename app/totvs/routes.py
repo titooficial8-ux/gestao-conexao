@@ -817,3 +817,58 @@ def almox_diag_transf():
             transacoes=len(almoxarifado.ler_transf().get('transacoes') or {}), atualizado=almoxarifado.ler_transf().get('atualizado'))))
     except Exception as e:  # noqa: BLE001
         return _json(dict(erro=str(e)[:400])), 502
+
+
+@almox_bp.route('/movimentacoes')
+@login_required
+def almox_movimentacoes():
+    _autorizar_almox()
+    return _json({**almoxarifado.movimentacoes(), 'estado': dict(almoxarifado.ESTADO_K)})
+
+
+@almox_bp.route('/diagnostico-op')
+@login_required
+def almox_diag_op():
+    """So administrador: o que o TOTVS devolve de uma OP (?op=NUMERO) e quais campos de materia-prima/empenho o servico de producao oferece."""
+    if not current_user.is_admin:
+        abort(403)
+    import re
+    from . import movimentos
+    try:
+        cli = almoxarifado.api.TotvsModaClient()
+        cli.autenticar()
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(erro=str(e)[:400])), 502
+    op = request.args.get('op', type=int)
+    saida = {}
+    base = almoxarifado.BASE_URL
+    for nome in ('production-order', 'production'):
+        try:
+            r = cli.get(f'{base}/api/totvsmoda/{nome}/v2/swagger/v1/swagger.json', {})
+            if r.status_code == 200:
+                d = r.json()
+                chaves = re.compile(r'component|material|consum|empenh|input|insumo|requirement|composition|struct', re.I)
+                saida[f'swagger_{nome}'] = dict(
+                    caminhos=[c for c in d.get('paths', {}) if chaves.search(c)][:30],
+                    campos={k: [p for p in (v.get('properties') or {}) if chaves.search(p)][:25] for k, v in (d.get('components', {}).get('schemas', {}) or {}).items() if any(chaves.search(p) for p in (v.get('properties') or {}))},
+                    expand=[(p.get('description') or '')[:300] for c, pv in d.get('paths', {}).items() if c.endswith('orders/search') for m, x in pv.items() for p in (x.get('parameters') or []) if p.get('name') == 'expand'])
+            else:
+                saida[f'swagger_{nome}'] = f'HTTP {r.status_code}'
+        except Exception as e:  # noqa: BLE001
+            saida[f'swagger_{nome}'] = str(e)[:120]
+    if op:
+        for exp in ('items', 'items,components', 'items,materials', 'items,inputs', 'items,components,materials,inputs,consumptions'):
+            try:
+                r = cli.post(movimentos.OPS_URL, dict(filter=dict(branchCodeList=[almoxarifado.EMPRESA], cycleCodeList=[13], orderCodeList=[op]), expand=exp, pageSize=1, page=1))
+                j = r.json() if r.status_code == 200 else r.text[:200]
+                it = (j.get('items') or [{}])[0] if isinstance(j, dict) else {}
+                saida[f'op_expand_{exp}'] = dict(http=r.status_code, campos=sorted(it.keys()) if isinstance(it, dict) else None, itens_campos=sorted(((it.get('items') or [{}])[0]).keys()) if isinstance(it, dict) and it.get('items') else None, amostra=json_curto(it))
+            except Exception as e:  # noqa: BLE001
+                saida[f'op_expand_{exp}'] = str(e)[:120]
+    return _json(saida)
+
+
+def json_curto(obj, limite=1800):
+    import json
+    t = json.dumps(obj, ensure_ascii=False, default=str)
+    return t[:limite] + ('…' if len(t) > limite else '')

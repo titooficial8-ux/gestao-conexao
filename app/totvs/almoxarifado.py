@@ -28,6 +28,7 @@ TIPO_SALDO_FIXO = os.getenv('ALMOX_TIPO_SALDO', '').strip()           # "tipo de
 OPERACOES_SAIDA = {x.strip() for x in os.getenv('ALMOX_OPERACOES_SAIDA', '2011').split(',') if x.strip()}      # consumo = saida do almoxarifado para a PRODUCAO (op. 2011: transferencia almox para prod)
 KARDEX_DIAS = 179                                                  # a API limita a janela a 180 dias
 KARDEX_INTERVALO_MIN = max(2, int(os.getenv('ALMOX_KARDEX_MIN', '5')))
+TRANSF_INTERVALO_SEG = max(20, int(os.getenv('ALMOX_TRANSF_SEG', '60')))        # transferencias para a producao: a cada 1 min (tempo real)
 ARQUIVO = api.OUT_DIR / 'almoxarifado.json'
 ARQ_KARDEX = api.OUT_DIR / 'almoxarifado_kardex.json'
 ARQ_TRANSF = api.OUT_DIR / 'almoxarifado_transferencias.json'
@@ -465,7 +466,7 @@ def iniciar_agendador_kardex(app) -> None:
                 atualizar_transferencias()
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
-            time.sleep(KARDEX_INTERVALO_MIN * 60)
+            time.sleep(TRANSF_INTERVALO_SEG)
     threading.Thread(target=loop, daemon=True, name='totvs-almox-kardex').start()
 
 
@@ -490,6 +491,8 @@ def atualizar_transferencias() -> bool:
     ESTADO_K.update(rodando=True, erro=None, msg='Lendo as transferencias para a producao...', feitos=0, total=0)
     try:
         d = ler_transf()
+        if d.get('versao') != 2:
+            d = {}                                                     # formato antigo (sem usuario/hora): le de novo
         trans = d.get('transacoes', {})
         hoje = date.today()
         ops = [int(o) for o in OPERACOES_SAIDA if o.isdigit()] or [2011]
@@ -523,7 +526,9 @@ def atualizar_transferencias() -> bool:
                             itens.append([it['productCode'], round(kg, 3)])
                     if cod not in trans:
                         novas += 1
-                    trans[cod] = [str(t.get('transactionDate') or '')[:10], itens]
+                    quando = str(t.get('insertDate') or t.get('lastchangeDate') or t.get('transactionDate') or '')[:19]
+                    usuario = next((str(t[k]).strip() for k in ('userName', 'userLogin', 'user', 'lastchangeUserName', 'insertUserName', 'userCode', 'insertUser', 'lastchangeUser') if t.get(k)), '')
+                    trans[cod] = [str(t.get('transactionDate') or '')[:10], itens, quando, usuario[:40], str(t.get('documentNumber') or t.get('documentCode') or '')[:20]]
                 ESTADO_K['feitos'] += 1
                 if not j.get('hasNext') or pag >= 60:
                     break
@@ -533,7 +538,7 @@ def atualizar_transferencias() -> bool:
         trans = {c: v for c, v in trans.items() if v[0] >= limite}
         ARQ_TRANSF.parent.mkdir(parents=True, exist_ok=True)
         tmp = ARQ_TRANSF.with_suffix('.tmp')
-        tmp.write_text(json.dumps(dict(versao=1, atualizado=datetime.now().isoformat(timespec='seconds'), ultima_mudanca=mais_recente or ult, operacoes=ops, transacoes=trans), ensure_ascii=False), encoding='utf-8')
+        tmp.write_text(json.dumps(dict(versao=2, atualizado=datetime.now().isoformat(timespec='seconds'), ultima_mudanca=mais_recente or ult, operacoes=ops, transacoes=trans), ensure_ascii=False), encoding='utf-8')
         tmp.replace(ARQ_TRANSF)
         ESTADO_K.update(ultima=datetime.now().isoformat(timespec='seconds'), msg=f'{len(trans)} transferencias para a producao ({novas} novas)')
     except Exception as e:  # noqa: BLE001
@@ -550,7 +555,8 @@ def consumo_mensal() -> dict:
     base, d = ler(), ler_transf()
     nomes = {str(i['codigo']): i for i in base.get('itens', [])}
     por_item, n_mov = {}, {}
-    for _cod, (data, itens) in (d.get('transacoes') or {}).items():
+    for _cod, v in (d.get('transacoes') or {}).items():
+        data, itens = v[0], v[1]
         if len(data) < 7:
             continue
         for prod, kg in itens:
@@ -569,3 +575,20 @@ def consumo_mensal() -> dict:
     return dict(pronto=bool(meses), meses=meses, por_mes=saida, por_item={c: {m: round(v.get(m, 0), 1) for m in meses} for c, v in por_item.items()},
                 kardex_atualizado=d.get('atualizado'), n_transacoes=len(d.get('transacoes') or {}), operacoes=d.get('operacoes'),
                 aviso=None if meses else ('Nenhuma transferencia da operacao ' + ', '.join(sorted(OPERACOES_SAIDA)) + ' com matéria-prima em KG foi encontrada nos ultimos 180 dias.' if d.get('atualizado') else None))
+
+
+def movimentacoes(n: int = 25) -> dict:
+    """Ultimas transferencias do almoxarifado para a producao (quem, quando, o que, quantos kg): alimenta o painel ao vivo."""
+    base, d = ler(), ler_transf()
+    nomes = {str(i['codigo']): i['nome'] for i in base.get('itens', [])}
+    linhas = []
+    for cod, v in (d.get('transacoes') or {}).items():
+        itens = [dict(codigo=p, nome=nomes[str(p)], kg=kg) for p, kg in v[1] if str(p) in nomes]
+        if not itens:
+            continue
+        quando = (v[2] if len(v) > 2 and v[2] else v[0]) or ''
+        linhas.append(dict(id=cod, quando=quando, data=v[0], usuario=(v[3] if len(v) > 3 else ''), documento=(v[4] if len(v) > 4 else ''), itens=itens, total=round(sum(i['kg'] for i in itens), 1)))
+    linhas.sort(key=lambda x: (x['quando'], x['id']), reverse=True)
+    hoje = date.today().isoformat()
+    do_dia = [x for x in linhas if x['data'] == hoje]
+    return dict(atualizado=d.get('atualizado'), itens=linhas[:n], hoje_kg=round(sum(x['total'] for x in do_dia), 1), hoje_n=len(do_dia), tem_usuario=any(x['usuario'] for x in linhas[:50]))
