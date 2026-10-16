@@ -709,7 +709,7 @@ def _autorizar_almox():
 def almox_dados():
     _autorizar_almox()
     d = almoxarifado.ler()
-    return _json(dict(configurado=almoxarifado.configurado(), estado=dict(almoxarifado.ESTADO), estoque=almoxarifado.ESTOQUE, **{k: v for k, v in d.items() if k != 'versao'}))
+    return _json({**{k: v for k, v in d.items() if k != 'versao'}, 'configurado': almoxarifado.configurado(), 'estado': dict(almoxarifado.ESTADO), 'estoque': almoxarifado.ESTOQUE})
 
 
 @almox_bp.route('/atualizar', methods=['POST'])
@@ -718,7 +718,7 @@ def almox_atualizar():
     _autorizar_almox()
     if not almoxarifado.configurado():
         return _json(dict(ok=False, erro='TOTVS não configurado no .env.')), 400
-    threading.Thread(target=almoxarifado.atualizar, daemon=True, name='almox-agora').start()
+    threading.Thread(target=lambda: (almoxarifado.atualizar(), almoxarifado.atualizar_kardex()), daemon=True, name='almox-agora').start()
     return _json(dict(ok=True))
 
 
@@ -730,5 +730,34 @@ def almox_diagnostico():
         abort(403)
     try:
         return _json(almoxarifado.buscar(amostra=True))
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(erro=str(e)[:400])), 502
+
+
+@almox_bp.route('/indicadores')
+@login_required
+def almox_indicadores():
+    _autorizar_almox()
+    return _json({**almoxarifado.indicadores(), 'configurado': almoxarifado.configurado(), 'estado': dict(almoxarifado.ESTADO_K)})
+
+
+@almox_bp.route('/diagnostico-kardex')
+@login_required
+def almox_diag_kardex():
+    """So administrador: kardex cru de 1 produto (?produto=CODIGO) para conferir os campos e o tipo de saldo."""
+    if not current_user.is_admin:
+        abort(403)
+    from datetime import date, timedelta
+    cod = request.args.get('produto', type=int) or ((almoxarifado.ler().get('itens') or [{}])[0].get('codigo'))
+    try:
+        cli = almoxarifado.api.TotvsModaClient()
+        cli.autenticar()
+        hoje = date.today()
+        r = cli.get(almoxarifado.KARDEX_URL, dict(ProductCode=cod, BranchCode=almoxarifado.EMPRESA, StartDate=f'{(hoje - timedelta(days=30)).isoformat()}T00:00:00',
+                                                  EndDate=f'{hoje.isoformat()}T23:59:59', BalanceType=almoxarifado.BALANCE_TYPE))
+        j = r.json() if r.status_code == 200 else r.text[:400]
+        if isinstance(j, list) and j:
+            j[0]['movements'] = (j[0].get('movements') or [])[:8]
+        return _json(dict(http=r.status_code, tipo_saldo=almoxarifado.BALANCE_TYPE, produto=cod, resposta=j))
     except Exception as e:  # noqa: BLE001
         return _json(dict(erro=str(e)[:400])), 502
