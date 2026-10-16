@@ -11,7 +11,7 @@ from flask_login import current_user, login_required
 from app.comercial_me.routes import idioma_atual
 from app.models import Tab
 
-from . import base, entrada, movimentos, painel, pedidos, planilha_pedidos, servico, slide
+from . import almoxarifado, base, entrada, movimentos, painel, pedidos, planilha_pedidos, servico, slide
 
 bi_bp = Blueprint('bi_comercial', __name__, url_prefix='/bi-comercial')
 SLUG = 'dashboard-comercial'
@@ -690,3 +690,45 @@ def movimentos_op(op):
         resumo=dict(pecas=resumo.pecas, metros=resumo.metros, no_local=resumo.no_local, saiu=resumo.saiu, quantidade_op=resumo.quantidade_op,
                     atualizado_em=resumo.atualizado_em.isoformat(timespec='seconds') + 'Z'),
     ))
+
+
+# ---------------------------------------------------------------------------
+# Controle do Estoque (Almoxarifado): materia-prima do local 34, direto do TOTVS
+# ---------------------------------------------------------------------------
+almox_bp = Blueprint('almoxarifado_totvs', __name__, url_prefix='/estoque-almox')
+
+
+def _autorizar_almox():
+    tab = Tab.query.filter_by(slug='controle-estoque').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+
+
+@almox_bp.route('/dados')
+@login_required
+def almox_dados():
+    _autorizar_almox()
+    d = almoxarifado.ler()
+    return _json(dict(configurado=almoxarifado.configurado(), estado=dict(almoxarifado.ESTADO), estoque=almoxarifado.ESTOQUE, **{k: v for k, v in d.items() if k != 'versao'}))
+
+
+@almox_bp.route('/atualizar', methods=['POST'])
+@login_required
+def almox_atualizar():
+    _autorizar_almox()
+    if not almoxarifado.configurado():
+        return _json(dict(ok=False, erro='TOTVS não configurado no .env.')), 400
+    threading.Thread(target=almoxarifado.atualizar, daemon=True, name='almox-agora').start()
+    return _json(dict(ok=True))
+
+
+@almox_bp.route('/diagnostico')
+@login_required
+def almox_diagnostico():
+    """So para o administrador: mostra exemplos crus do que o TOTVS devolve (para conferir os campos)."""
+    if not current_user.is_admin:
+        abort(403)
+    try:
+        return _json(almoxarifado.buscar(amostra=True))
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(erro=str(e)[:400])), 502

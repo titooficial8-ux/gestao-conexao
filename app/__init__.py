@@ -52,7 +52,7 @@ def create_app():
     from app.admin.routes import admin_bp
     from app.chamados.routes import chamados_bp
     from app.comercial_me.routes import comercial_me_bp
-    from app.totvs.routes import bi_bp, mov_bp, pedidos_bp
+    from app.totvs.routes import almox_bp, bi_bp, mov_bp, pedidos_bp
     app.register_blueprint(gateway_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -62,6 +62,7 @@ def create_app():
     app.register_blueprint(bi_bp)
     app.register_blueprint(pedidos_bp)
     app.register_blueprint(mov_bp)
+    app.register_blueprint(almox_bp)
     from app.relatorio_fat.routes import rel_fat_bp
     app.register_blueprint(rel_fat_bp)
 
@@ -186,6 +187,8 @@ def create_app():
         iniciar_entrada(app)      # entrada de pedidos por dia (2024-2026): a cada 2 min
         from app.totvs.movimentos import iniciar_agendador as iniciar_movimentos
         iniciar_movimentos(app)   # pesagens da malharia (local 23) das OPs da Programacao: a cada 2 min
+        from app.totvs.almoxarifado import iniciar_agendador as iniciar_almox
+        iniciar_almox(app)        # materia-prima do almoxarifado (local 34): a cada 10 min
         from app.relatorio_fat.agenda import iniciar_agendador as iniciar_envio_relatorio
         iniciar_envio_relatorio(app)   # Relatorio de Faturamento por e-mail, 1x por dia (08:30)
 

@@ -9,6 +9,47 @@
   <button type="button" class="btn-small comercial-btn-integracao" disabled>&#8987; {{ t('aguardando_integracao') }}</button>
 </div>
 
+<h2 class="vg-section-title" style="margin-top:18px;">Matérias-primas do almoxarifado · local 34 <span class="badge-ok" style="font-size:11px;">TOTVS</span></h2>
+<p class="presel-subtitle" id="almoxInfo" style="margin:0 0 8px;">Consultando o TOTVS…</p>
+<div class="prod-filters">
+  <input type="text" id="buscaAlmox" class="prod-search" placeholder="Pesquisar matéria-prima (código ou descrição)" autocomplete="off">
+  <button type="button" class="btn-small ticket-btn-outline" id="almoxAtualizar">⟳ Atualizar agora</button>
+</div>
+<div class="table-card" style="margin-top:10px;">
+  <div class="table-scroll">
+    <table class="data-table prod-table" id="tabelaAlmox">
+      <thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th class="cme-num">Saldo no local 34</th><th class="cme-num">Disponível</th><th class="cme-num">Entradas</th><th class="cme-num">Saídas</th></tr></thead>
+      <tbody id="almoxCorpo"><tr><td colspan="7" class="prod-table-empty">Carregando…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<script>
+(function () {
+  var corpo = document.getElementById('almoxCorpo'), info = document.getElementById('almoxInfo'), busca = document.getElementById('buscaAlmox'), dados = null;
+  function nf(v) { return Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 }); }
+  function td(t, c) { var e = document.createElement('td'); if (c) e.className = c; e.textContent = t; return e; }
+  function desenhar() {
+    corpo.textContent = '';
+    var q = (busca.value || '').trim().toLowerCase(), lista = (dados.itens || []).filter(function (i) { return !q || String(i.codigo).indexOf(q) >= 0 || (i.nome || '').toLowerCase().indexOf(q) >= 0; });
+    if (!lista.length) { var r0 = document.createElement('tr'), c0 = td(dados.itens && dados.itens.length ? 'Nenhuma matéria-prima encontrada.' : 'Nenhuma matéria-prima com saldo no local ' + dados.estoque + ' (ou ainda não consultado).', 'prod-table-empty'); c0.colSpan = 7; r0.appendChild(c0); corpo.appendChild(r0); return; }
+    lista.forEach(function (i) { var r = document.createElement('tr'); r.appendChild(td(i.codigo)); r.appendChild(td(i.nome)); r.appendChild(td(i.unidade || '')); r.appendChild(td(nf(i.saldo), 'cme-num')); r.appendChild(td(nf(i.disponivel), 'cme-num')); r.appendChild(td(nf(i.entradas), 'cme-num')); r.appendChild(td(nf(i.saidas), 'cme-num')); corpo.appendChild(r); });
+  }
+  function carregar() {
+    fetch('/estoque-almox/dados', { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (d) {
+      dados = d;
+      if (!d.configurado) { info.textContent = 'TOTVS não configurado no .env.'; }
+      else if (d.estado && d.estado.erro) { info.textContent = '⚠ Falha ao consultar o TOTVS: ' + d.estado.erro; }
+      else if (d.atualizado) { info.textContent = d.n_materia_prima + ' matérias-primas com saldo no local ' + d.estoque + ' · atualizado ' + d.atualizado.slice(8, 10) + '/' + d.atualizado.slice(5, 7) + ' ' + d.atualizado.slice(11, 19) + ' · só matéria-prima (produto acabado e outros ficam de fora)'; }
+      else { info.textContent = (d.estado && d.estado.rodando) ? 'Consultando o TOTVS… (a primeira vez demora um pouco)' : 'Ainda não consultado — aguarde alguns minutos ou clique em Atualizar agora.'; }
+      desenhar();
+    }).catch(function (e) { info.textContent = 'Não consegui carregar (' + e.message + ').'; });
+  }
+  busca.addEventListener('input', function () { if (dados) desenhar(); });
+  document.getElementById('almoxAtualizar').addEventListener('click', function () { info.textContent = 'Consultando o TOTVS…'; fetch('/estoque-almox/atualizar', { method: 'POST', credentials: 'same-origin' }).then(function () { setTimeout(carregar, 4000); }); });
+  carregar(); setInterval(carregar, 30000);
+})();
+</script>
+
 <div class="comercial-modelo-tag">{{ t('modelo_exemplo_tag') }}</div>
 
 <div class="vg-cards-grid" style="margin-top:14px;">
