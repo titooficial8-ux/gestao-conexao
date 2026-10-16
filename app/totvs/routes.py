@@ -182,6 +182,29 @@ def pedidos_alterados():
         return _json(dict(ok=False, erro=str(e)[:300])), 502
 
 
+@bi_bp.route('/diagnostico-pedido')
+@login_required
+def diagnostico_pedido():
+    """So administrador: campos de valor/quantidade/itens de um pedido no TOTVS (ex.: ?codigo=11564&data=2026-10-15)."""
+    if not current_user.is_admin:
+        abort(403)
+    from datetime import date as _d, timedelta as _td
+    cod = request.args.get('codigo', type=int)
+    dia = _d.fromisoformat(request.args.get('data') or _d.today().isoformat())
+    try:
+        cli = entrada.api.TotvsModaClient()
+        cli.autenticar()
+        itens = entrada._buscar(cli, dia - _td(days=2), dia + _td(days=1))
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(erro=str(e)[:400])), 502
+    achados = [p for p in itens if str(p.get('orderCode')) == str(cod)]
+    if not achados:
+        return _json(dict(erro='pedido nao encontrado nessa data', pedidos_no_periodo=len(itens)))
+    p = achados[0]
+    return _json(dict(numericos={k: v for k, v in p.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}, operacao=p.get('operationName'), status=p.get('statusOrder'),
+                      chaves=sorted(p.keys()), itens=json_curto(p.get('items'), 2500)))
+
+
 @bi_bp.route('/ultimo-pedido')
 @login_required
 def ultimo_pedido():
