@@ -33,6 +33,9 @@ ARQUIVO = api.OUT_DIR / 'almoxarifado.json'
 ARQ_KARDEX = api.OUT_DIR / 'almoxarifado_kardex.json'
 ARQ_TRANSF = api.OUT_DIR / 'almoxarifado_transferencias.json'
 ARQ_ACERTOS = api.OUT_DIR / 'almoxarifado_acertos.json'
+ARQ_OPERADORES = api.OUT_DIR / 'almoxarifado_operadores.json'
+INVOICES_URL = api.INVOICES_URL
+NOMES_OPERADORES = {k.strip(): v.strip() for k, _, v in (x.partition('=') for x in os.getenv('ALMOX_OPERADORES', '').split(';') if '=' in x)}      # "103=MARCOS;104=JULIA": codigo do operador (FISFL031) -> nome
 OPS_ACERTO = {'entrada': int(os.getenv('ALMOX_OP_ACERTO_ENTRADA', '2040')), 'saida': int(os.getenv('ALMOX_OP_ACERTO_SAIDA', '2041'))}      # BALFM015: 2040 ajuste de estoque fisico (entrada) / 2041 (saida)
 ACUR_DIAS = int(os.getenv('ALMOX_ACUR_DIAS', '180'))
 TRX_URL = f'{BASE_URL}/api/totvsmoda/general/v2/transactions/search'
@@ -551,6 +554,10 @@ def atualizar_transferencias() -> bool:
         tmp = ARQ_TRANSF.with_suffix('.tmp')
         tmp.write_text(json.dumps(dict(versao=3, atualizado=datetime.now().isoformat(timespec='seconds'), ultima_mudanca=mais_recente or ult, operacoes=ops, transacoes=trans), ensure_ascii=False), encoding='utf-8')
         tmp.replace(ARQ_TRANSF)
+        try:
+            enriquecer_operadores(cli)
+        except Exception:  # noqa: BLE001  - o operador e um extra: sem ele o painel mostra so o documento
+            traceback.print_exc()
         ESTADO_K.update(ultima=datetime.now().isoformat(timespec='seconds'), msg=f'{len(trans)} transferencias para a producao ({novas} novas)')
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
@@ -598,7 +605,8 @@ def movimentacoes(n: int = 25) -> dict:
         if not itens:
             continue
         quando = (v[2] if len(v) > 2 and v[2] else v[0]) or ''
-        linhas.append(dict(id=cod, quando=quando, data=v[0], usuario=(v[3] if len(v) > 3 else ''), documento=(v[4] if len(v) > 4 else ''), itens=itens, total=round(sum(i['kg'] for i in itens), 1)))
+        doc = v[4] if len(v) > 4 else ''
+        linhas.append(dict(id=cod, quando=quando, data=v[0], usuario=nome_operador(doc), documento=doc, itens=itens, total=round(sum(i['kg'] for i in itens), 1)))
     linhas.sort(key=lambda x: (x['quando'], x['id']), reverse=True)
     hoje = date.today().isoformat()
     do_dia = [x for x in linhas if x['data'] == hoje]
@@ -677,3 +685,80 @@ def acuracidade() -> dict:
 
 def nf_kg(v: float) -> str:
     return f'{v:,.0f}'.replace(',', '.')
+
+
+# ---------------------------------------------------------------------------
+# Operador da transferencia: o "Operador/Atualizacao" da capa da nota fiscal (FISFL031) do documento da transferencia
+# ---------------------------------------------------------------------------
+def _ler_operadores() -> dict:
+    try:
+        return json.loads(ARQ_OPERADORES.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def _campo_operador(nota: dict):
+    """Acha na nota o codigo/nome do operador (campos cujo nome traz operator/user), no nivel principal."""
+    cod = nome = None
+    for k, v in nota.items():
+        kl = k.lower()
+        if v in (None, '') or isinstance(v, (dict, list)):
+            continue
+        if ('operator' in kl or 'user' in kl or 'update' in kl) and 'date' not in kl:
+            if 'name' in kl:
+                nome = nome or str(v)
+            else:
+                cod = cod or str(v)
+    return cod, nome
+
+
+def _buscar_nota(cli, seq: str, data: str):
+    """Procura a nota (fatura) da transferencia na API fiscal, por varias formas de filtro; devolve o dict da nota ou None."""
+    d0 = data or date.today().isoformat()
+    variantes = [
+        dict(branchCodeList=[EMPRESA], startInvoiceDate=f'{d0}T00:00:00', endInvoiceDate=f'{d0}T23:59:59'),
+        dict(branchCodeList=[EMPRESA], startIssueDate=f'{d0}T00:00:00', endIssueDate=f'{d0}T23:59:59'),
+        dict(branchCodeList=[EMPRESA], startMovementDate=f'{d0}T00:00:00', endMovementDate=f'{d0}T23:59:59'),
+    ]
+    for filtro in variantes:
+        pag = 1
+        while pag <= 6:
+            r = cli.post(INVOICES_URL, dict(filter=filtro, page=pag, pageSize=500))
+            if r.status_code != 200:
+                break
+            j = r.json()
+            for n in j.get('items') or []:
+                if str(n.get('invoiceSequence') or n.get('invoiceCode') or '') == str(seq):
+                    return n
+            if not j.get('hasNext'):
+                break
+            pag += 1
+    return None
+
+
+def enriquecer_operadores(cli, limite: int = 25) -> int:
+    """Descobre o operador das transferencias mais recentes (cache por documento); devolve quantos foram resolvidos agora."""
+    d = ler_transf()
+    trans = d.get('transacoes') or {}
+    cache = _ler_operadores()
+    agora = time.time()
+    recentes = sorted(trans.items(), key=lambda kv: (kv[1][2] if len(kv[1]) > 2 else '', kv[0]), reverse=True)[:limite]
+    novos = 0
+    for cod, v in recentes:
+        fatura = v[4] if len(v) > 4 else ''
+        if not fatura or fatura in cache and (cache[fatura].get('codigo') or agora - cache[fatura].get('tentativa', 0) < 6 * 3600):
+            continue
+        nota = _buscar_nota(cli, fatura, v[0])
+        cod_op, nome = _campo_operador(nota) if nota else (None, None)
+        cache[fatura] = dict(codigo=cod_op, nome=nome, tentativa=agora)
+        if cod_op or nome:
+            novos += 1
+    ARQ_OPERADORES.parent.mkdir(parents=True, exist_ok=True)
+    ARQ_OPERADORES.write_text(json.dumps(cache, ensure_ascii=False), encoding='utf-8')
+    return novos
+
+
+def nome_operador(fatura: str) -> str:
+    info = _ler_operadores().get(str(fatura)) or {}
+    cod = str(info.get('codigo') or '')
+    return (info.get('nome') or NOMES_OPERADORES.get(cod) or (f'Operador {cod}' if cod else '')).strip()

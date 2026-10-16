@@ -62,16 +62,19 @@
   .ce-feed-btn { border: 1px solid #d5dfec; background: #f5f8fc; color: #2a5da8; font-size: 12px; font-weight: 800; padding: 5px 12px; border-radius: 999px; cursor: pointer; }
   .ce-feed-btn:hover { background: #e9f0fa; }
   .ce-feed.fechado .ce-feed-top { border-bottom: 0; }
-  .ce-mov { display: grid; grid-template-columns: 96px minmax(120px, 1fr) minmax(140px, 2fr) 110px; gap: 12px; align-items: center; padding: 9px 2px; border-bottom: 1px solid #f0f3f8; font-size: 13px; }
+  .ce-mov { display: grid; grid-template-columns: 96px minmax(160px, 2fr) minmax(180px, 1.5fr) 110px; gap: 12px; align-items: center; padding: 9px 2px; border-bottom: 1px solid #f0f3f8; font-size: 13px; }
   .ce-mov:last-child { border-bottom: 0; }
   .ce-mov.novo { animation: ceNovo 2.4s ease-out; }
   @keyframes ceNovo { 0% { background: #e3f5ea; } 100% { background: transparent; } }
   .ce-mov-h { color: #0f2540; font-weight: 700; font-variant-numeric: tabular-nums; }
   .ce-mov-h small { display: block; font-weight: 500; color: #7c8ca1; font-size: 11px; }
-  .ce-mov-u { color: #46586e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ce-mov-c { color: #5d6e84; font-weight: 700; font-variant-numeric: tabular-nums; font-size: 12.5px; }
+  .ce-mov-u { color: #0f2540; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ce-mov-u b { display: block; font-weight: 700; }
+  .ce-mov-u small { display: block; font-weight: 500; font-size: 11px; color: #7c8ca1; }
   .ce-mov-m { color: #0f2540; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ce-mov-k { text-align: right; font-weight: 800; color: #1f9d55; font-variant-numeric: tabular-nums; }
-  @media (max-width: 800px) { .ce-mov { grid-template-columns: 80px 1fr 90px; } .ce-mov-u { display: none; } }
+  @media (max-width: 800px) { .ce-mov { grid-template-columns: 70px 1fr 90px; } .ce-mov-u { display: none; } }
 
   .ce-baixos { max-height: 372px; overflow-y: auto; margin-top: 4px; }
   .ce-bx { display: grid; grid-template-columns: minmax(150px, 1.6fr) minmax(110px, 1.2fr) 86px; gap: 12px; align-items: center; padding: 10px 4px; border-bottom: 1px solid #f0f3f8; }
@@ -249,9 +252,11 @@
     var lista = el('div', 'ce-feed-lista' + (feedAberto ? '' : ' fechada'));
     if (!feed || !feed.itens.length) lista.appendChild(el('div', 'ce-vazio', feed && feed.atualizado ? 'Nenhuma transferência para a produção encontrada ainda.' : 'Lendo as transferências no TOTVS…'));
     else (feedAberto ? feed.itens : feed.itens.slice(0, 1)).forEach(function (x) {
-      var row = el('div', 'ce-mov' + (feedVisto.pronto && !feedVisto[x.id] ? ' novo' : '')), h = quandoTxt(x.quando), hh = el('div', 'ce-mov-h', h[0] || h[1]); if (h[0]) hh.appendChild(el('small', null, h[1])); row.appendChild(hh);
-      row.appendChild(el('div', 'ce-mov-u', x.usuario || (x.documento ? 'Documento ' + x.documento : '')));
-      var nomes = x.itens.map(function (i) { return nomeCurto(i.nome); }); row.appendChild(el('div', 'ce-mov-m', nomes.length > 1 ? nomes[0] + ' +' + (nomes.length - 1) : nomes[0])); row.title = x.itens.map(function (i) { return i.nome + ' · ' + nf(i.kg, 1) + ' kg'; }).join('\n');
+      var row = el('div', 'ce-mov' + (feedVisto.pronto && !feedVisto[x.id] ? ' novo' : '')), h = quandoTxt(x.quando), quando = (h[1] ? h[1] + ' ' : '') + (h[0] || '');
+      var i0 = x.itens[0], mais = x.itens.length > 1 ? ' +' + (x.itens.length - 1) : '';
+      row.appendChild(el('div', 'ce-mov-c', String(i0.codigo) + mais));
+      var d = el('div', 'ce-mov-m', nomeCurto(i0.nome) + mais); d.title = x.itens.map(function (i) { return i.codigo + ' · ' + i.nome + ' · ' + nf(i.kg, 1) + ' kg'; }).join('\n'); row.appendChild(d);
+      var q = el('div', 'ce-mov-u'); q.appendChild(el('b', null, x.usuario || (x.documento ? 'Documento ' + x.documento : '—'))); q.appendChild(el('small', null, quando + (x.usuario && x.documento ? ' · doc. ' + x.documento : ''))); row.appendChild(q);
       row.appendChild(el('div', 'ce-mov-k', nf(x.total, 1) + ' kg')); lista.appendChild(row);
     });
     fd.appendChild(lista);
