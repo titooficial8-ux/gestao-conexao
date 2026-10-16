@@ -101,7 +101,7 @@ def _resumo_envio_automatico() -> str:
             f'Ligado: {"SIM" if cfg["ativo"] else "NAO"}\n'
             f'Horario (Brasilia): {cfg["hora"][0]:02d}:{cfg["hora"][1]:02d} (se o Gestao ligar depois de {cfg["ate"][0]:02d}:{cfg["ate"][1]:02d}, pula o dia)\n'
             f'Dias: {dias}\n'
-            f'Formato: {cfg["formato"]}\n'
+            f'Formato: {cfg["formato"]}' + (' + PDF da Entrada de Pedidos (alta prioridade)' if os.getenv('RELATORIO_FAT_ENVIO_PEDIDOS', '1') != '0' else '') + '\n'
             f'Destinatarios ({len(cfg["destinos"].split(","))}): {cfg["destinos"]}\n'
             f'Origem da lista: {"RELATORIO_FAT_DESTINOS do arquivo .env" if os.getenv("RELATORIO_FAT_DESTINOS") else "lista padrao do sistema"}\n'
             f'Ultimo envio: {est.get("enviado_em") or "nenhum ainda"}' + (f' para {", ".join(est.get("para") or [])}' if est.get('para') else '') + '\n'
