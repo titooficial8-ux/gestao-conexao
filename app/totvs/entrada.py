@@ -257,10 +257,11 @@ def resumo(mes: int | None = None) -> dict:
     mt = (plan.get('metas') or {}).get(str(mes))
     if mt and mt.get('meta'):
         ano = ANOS[-1]
-        saldo, meta = mt.get('saldo') or 0.0, mt['meta']
+        meta = mt['meta']
+        # a meta parte de 1o de janeiro (ex.: 2.937.000 mts) e desce todo dia: meta do dia = meta do dia anterior - Real do dia (conta da planilha, feita sozinha)
+        saldo = meta - sum(por_mes[ano][i][2] for i in range(mes - 1))
         saldo_ini = saldo
-        pct = mt.get('pct')                                  # %Meta herdado (AE1 da planilha): igual a planilha, desconta o %mts de cada dia
-        pct_ini = pct if pct is not None else saldo / meta
+        pct_ini = saldo / meta
         linhas, sum_m = {}, 0.0
         ultimo = hoje.day if (hoje.year == ano and hoje.month == mes) else (31 if mes in (1, 3, 5, 7, 8, 10, 12) else (30 if mes != 2 else 29))
         for dd in range(1, ultimo + 1):                      # todos os dias (sem pedido o saldo e o % ficam iguais, como na planilha)
