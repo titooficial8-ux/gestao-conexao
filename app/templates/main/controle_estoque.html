@@ -30,14 +30,14 @@
 <div id="ceAviso"></div>
 <div id="ceIndicadores"></div>
 
-<h2 class="ex-secao">Relação de matéria-prima · local 34</h2>
+<h2 class="ex-secao">Relação de matéria-prima · Almoxarifado</h2>
 <div class="prod-filters">
   <input type="text" id="buscaAlmox" class="prod-search" placeholder="Pesquisar matéria-prima (código ou descrição)" autocomplete="off">
 </div>
 <div class="table-card" style="margin-top:10px;">
   <div class="table-scroll">
     <table class="data-table prod-table" id="tabelaAlmox">
-      <thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th class="cme-num">Saldo no local 34</th><th class="cme-num">Saídas 30 d</th><th class="cme-num">Saídas 90 d</th><th class="cme-num">Cobertura</th><th>Situação</th></tr></thead>
+      <thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th class="cme-num">Saldo em estoque</th><th class="cme-num">Saídas 30 d</th><th class="cme-num">Saídas 90 d</th><th class="cme-num">Cobertura</th><th>Situação</th></tr></thead>
       <tbody id="almoxCorpo"><tr><td colspan="8" class="prod-table-empty">Carregando…</td></tr></tbody>
     </table>
   </div>
@@ -77,9 +77,9 @@
     Object.keys(graf).forEach(function (k) { try { graf[k].destroy(); } catch (e) {} }); graf = {};
     if (!ind || !ind.pronto) { return; }
     var c = ind.cards;
-    box.appendChild(secao('Visão executiva · matéria-prima do local ' + ind.estoque));
+    box.appendChild(secao('Visão executiva · matéria-prima do ' + (ind.estoque_nome || 'almoxarifado')));
     var g = el('div', 'ex-grid');
-    g.appendChild(card({ rotulo: 'Estoque de matéria-prima', tag: 'local ' + ind.estoque, vivo: true, valor: kg(c.saldo_total), linhas: [c.n_itens + ' matérias-primas com saldo'], cor: '#1f4e79' }));
+    g.appendChild(card({ rotulo: 'Estoque de matéria-prima', tag: ind.estoque_nome || ('estoque ' + ind.estoque), vivo: true, valor: kg(c.saldo_total), linhas: [c.n_itens + ' matérias-primas com saldo'], cor: '#1f4e79' }));
     g.appendChild(card({ rotulo: 'Consumo · últimos 30 dias', valor: kg(c.saidas30), delta: c.var30, deltaBom: c.var30 !== null && c.var30 <= 0, deltaRef: 'vs 30 dias anteriores', linhas: ['média de ' + kg(c.consumo_diario) + ' por dia (90 d)'], cor: '#2f7fe0' }));
     g.appendChild(card({ rotulo: 'Cobertura do estoque', valor: c.cobertura_geral === null ? '—' : nf(c.cobertura_geral, 0) + ' dias', linhas: ['estoque atual ÷ consumo médio diário (90 d)'], cor: c.cobertura_geral !== null && c.cobertura_geral < 20 ? '#c0272d' : '#1f9d55' }));
     g.appendChild(card({ rotulo: 'Itens críticos', valor: String(c.n_criticos), linhas: ['cobertura abaixo de 15 dias', c.n_atencao + ' em atenção (15 a 30 dias)'], cor: c.n_criticos ? '#c0272d' : '#1f9d55' }));
@@ -88,7 +88,7 @@
     box.appendChild(g);
 
     var linha = el('div', 'ce-grid2'); linha.style.marginTop = '16px';
-    var c1 = el('div', 'table-card'); c1.appendChild(el('h3', null, 'Maiores consumos · curva ABC (90 dias)')); c1.appendChild(el('p', 'cme-meta', 'As 15 matérias-primas que mais saem do local ' + ind.estoque + '; a linha mostra o acumulado do consumo total'));
+    var c1 = el('div', 'table-card'); c1.appendChild(el('h3', null, 'Maiores consumos · curva ABC (90 dias)')); c1.appendChild(el('p', 'cme-meta', 'As 15 matérias-primas que mais saem do almoxarifado; a linha mostra o acumulado do consumo total'));
     var w1 = el('div', 'ce-chart'), cv1 = document.createElement('canvas'); w1.appendChild(cv1); c1.appendChild(w1); linha.appendChild(c1);
     var c2 = el('div', 'table-card'); c2.appendChild(el('h3', null, 'Entradas × saídas por mês')); c2.appendChild(el('p', 'cme-meta', 'Últimos 6 meses, soma de todas as matérias-primas (kg)'));
     var w2 = el('div', 'ce-chart'), cv2 = document.createElement('canvas'); w2.appendChild(cv2); c2.appendChild(w2); linha.appendChild(c2);
@@ -116,14 +116,14 @@
     var pa = el('div', 'table-card'); pa.appendChild(el('h3', null, 'Estoque parado')); pa.appendChild(el('p', 'cme-meta', 'Com saldo e sem nenhuma saída nos últimos 90 dias'));
     pa.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return x.nome; } }, { t: 'Saldo', num: 1, f: function (x) { return kg(x.saldo); } }, { t: 'Última saída', f: function (x) { return x.ultima_saida ? x.ultima_saida.slice(8, 10) + '/' + x.ultima_saida.slice(5, 7) : 'há mais de 6 meses'; } }], ind.parados, 'Nenhum item parado. 👍'));
     l2.appendChild(pa); box.appendChild(l2);
-    box.appendChild(el('p', 'ce-nota', 'Giro = saídas de 90 dias ÷ estoque atual. Cobertura = estoque atual ÷ consumo médio diário dos últimos 90 dias. "Saídas" são as quantidades que saem do local ' + ind.estoque + ' (kardex do TOTVS). Saldo atualizado em ' + dh(ind.saldo_atualizado) + ' · kardex em ' + dh(ind.kardex_atualizado) + '.'));
+    box.appendChild(el('p', 'ce-nota', 'Giro = saídas de 90 dias ÷ estoque atual. Cobertura = estoque atual ÷ consumo médio diário dos últimos 90 dias. "Saídas" são as quantidades que saem do almoxarifado (kardex do TOTVS). Saldo atualizado em ' + dh(ind.saldo_atualizado) + ' · kardex em ' + dh(ind.kardex_atualizado) + '.'));
   }
 
   function desenharTabela() {
     var corpo = $('almoxCorpo'); corpo.textContent = '';
     var mapa = {}; ((ind && ind.pronto) ? (ind.todos || []) : []).forEach(function (x) { mapa[x.codigo] = x; });
     var q = ($('buscaAlmox').value || '').trim().toLowerCase(), lista = ((dados && dados.itens) || []).filter(function (i) { return !q || String(i.codigo).indexOf(q) >= 0 || (i.nome || '').toLowerCase().indexOf(q) >= 0; });
-    if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', dados && dados.itens && dados.itens.length ? 'Nenhuma matéria-prima encontrada.' : 'Nenhuma matéria-prima com saldo no local ' + (dados ? dados.estoque : 34) + ' (ou ainda não consultado).'); c0.colSpan = 8; r0.appendChild(c0); corpo.appendChild(r0); return; }
+    if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', dados && dados.itens && dados.itens.length ? 'Nenhuma matéria-prima encontrada.' : 'Nenhuma matéria-prima com saldo no almoxarifado (ou ainda não consultado).'); c0.colSpan = 8; r0.appendChild(c0); corpo.appendChild(r0); return; }
     lista.forEach(function (i) {
       var k = mapa[i.codigo], r = el('tr');
       [[i.codigo], [i.nome], [i.unidade || ''], [nf(i.saldo, 3), 'cme-num'], [k ? nf(k.out30, 1) : '—', 'cme-num'], [k ? nf(k.out90, 1) : '—', 'cme-num'], [k && k.cobertura !== null ? nf(k.cobertura, 1) + ' d' : '—', 'cme-num']].forEach(function (c) { r.appendChild(el('td', c[1], String(c[0]))); });
@@ -133,7 +133,7 @@
 
   function status() {
     var s = [];
-    if (dados && dados.atualizado) s.push('<b>● TOTVS</b> · ' + dados.n_materia_prima + ' matérias-primas com saldo no local ' + dados.estoque + ' · saldo atualizado ' + dh(dados.atualizado));
+    if (dados && dados.atualizado) s.push('<b>● TOTVS</b> · ' + dados.n_materia_prima + ' matérias-primas com saldo em ' + (dados.estoque_nome || 'almoxarifado') + ' · saldo atualizado ' + dh(dados.atualizado));
     if (ind && ind.kardex_atualizado) s.push('giro e cobertura (kardex 180 d) atualizados ' + dh(ind.kardex_atualizado));
     $('ceStatus').innerHTML = s.length ? s.join(' · ') : 'Consultando o TOTVS…';
     var av = $('ceAviso'); av.textContent = '';
