@@ -31,9 +31,10 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   .bi-overlay { display: none !important; }
   #biPedCorpo { display: flex; flex-direction: column; }
   #biPedidos .ped-carteira { order: 9; break-before: page; page-break-before: always; break-inside: avoid; page-break-inside: avoid; }      /* tabela diaria: anexo, sozinha numa pagina */
-  #biPedidos .ped-carteira { padding: 4px 10px; box-shadow: none; }
+  #biPedidos .ped-carteira { padding: 4px 10px 0; box-shadow: none; margin: 0 !important; }
   #biPedidos .ped-carteira table { width: 100%; }
-  #biPedidos .ped-carteira td, #biPedidos .ped-carteira th { font-size: 10px; padding: 0 10px; line-height: 1.1; height: 3.8mm; }
+  #biPedidos .ped-carteira td, #biPedidos .ped-carteira th { font-size: 10.3px; padding: 0.4px 10px; line-height: 1.1; height: auto; }
+  #biPedidos .sl-pivo td, #biPedidos .sl-pivo th { padding-top: 3px; padding-bottom: 3px; }
   #biPedidos .ped-carteira h3 { margin: 0 0 2px; font-size: 14px; }
   .ex-como, .pr-oculto { display: none !important; }
   #biPedidos .ped-carteira thead { display: table-header-group; }
@@ -672,7 +673,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     // grafico por cliente (mes escolhido, um ano por vez)
     var c4 = ui.el('div', 'table-card sl-grafico'), t4 = ui.el('div', 'sl-g-topo'), tt4 = ui.el('div');
     tt4.appendChild(ui.el('h3', null, (ES ? 'Pedidos por cliente' : 'Pedidos por cliente') + ' — ' + MESES[d.mes - 1] + '/' + pedSel.anoCli));
-    tt4.appendChild(ui.el('p', 'cme-meta', ES ? 'Valor en R$ mil · los 12 mayores clientes del mes (el resto en "Otros")' : 'Valor em R$ mil · os 12 maiores clientes do mês (o resto em "Outros")')); t4.appendChild(tt4);
+    t4.appendChild(tt4);
     var sel4 = ui.el('div', 'sl-chips'); d.anos.slice().reverse().forEach(function (a) { var bb = ui.el('button', 'cme-grupo' + (pedSel.anoCli === a ? ' active' : ''), a); bb.type = 'button'; bb.addEventListener('click', function () { pedSel.anoCli = a; pedAssinatura = pedAssin(pedDados); desenharPedidos(pedDados); }); sel4.appendChild(bb); });
     t4.appendChild(sel4); c4.appendChild(t4);
     var lista = (d.clientes[pedSel.anoCli] || []), topo = lista.slice(0, 12), resto = lista.slice(12), totalCli = lista.reduce(function (s_, x) { return s_ + x[1]; }, 0);
@@ -691,7 +692,6 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     // pivo por cliente: MI e ME, com total (como a tabela dinamica da planilha)
     var gl = (d.clientes_loc || {})[pedSel.anoCli], cp = ui.el('div', 'table-card');
     cp.appendChild(ui.el('h3', null, (ES ? 'Pedidos por cliente — detalle' : 'Pedidos por cliente — detalhe') + ' — ' + MESES[d.mes - 1] + '/' + pedSel.anoCli));
-    cp.appendChild(ui.el('p', 'cme-meta', ES ? 'Soma de VALOR R$ por mercado (MI = interno, ME = externo) y por cliente' : 'Soma de VALOR R$, metragem total e ticket médio (R$ por metro) por mercado (MI = interno, ME = externo) e por cliente'));
     if (gl && gl.ME.ptax) { var px = gl.ME.ptax, f4 = function (v) { return ui.nf(v, { minimumFractionDigits: 4, maximumFractionDigits: 4 }); };
       cp.appendChild(ui.el('p', 'cme-meta', (ES ? 'PTAX utilizada (venta, Banco Central, del día del pedido): ' : 'PTAX utilizada (venda, Banco Central, do dia do pedido): ') + (px.min === px.max ? 'R$ ' + f4(px.min) : 'R$ ' + f4(px.min) + ' a R$ ' + f4(px.max)))); }
     if (gl && (gl.MI.itens.length || gl.ME.itens.length)) {
