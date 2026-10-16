@@ -698,9 +698,9 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     function mostrar(a) {
       corpoAlt.textContent = '';
       if (!a.ok) { corpoAlt.appendChild(ui.el('p', 'cme-meta', (ES ? 'No se pudo consultar: ' : 'Não consegui consultar o TOTVS: ') + (a.erro || ''))); return; }
-      corpoAlt.appendChild(ui.el('p', 'cme-meta', (ES ? 'Alterados después de registrados, del ' : 'Alterados depois de lançados, de ') + fmtD(a.inicio) + (ES ? ' al ' : ' até ') + fmtD(a.fim) + ' · ' + a.total + (ES ? ' pedidos' : ' pedidos') + ' · ' + a.mudaram + (ES ? ' con valor/metros cambiados' : ' com valor ou metragem diferente do que o Gestão viu antes')
+      corpoAlt.appendChild(ui.el('p', 'cme-meta', (ES ? 'Solo pedidos con valor o cantidad cambiados, del ' : 'Só pedidos com valor ou quantidade alterados, de ') + fmtD(a.inicio) + (ES ? ' al ' : ' até ') + fmtD(a.fim) + ' · ' + a.total + (ES ? ' pedidos' : ' pedidos')
         + (a.base_desde ? ' · ' + (ES ? 'el valor anterior existe desde ' : 'o valor anterior só existe desde ') + fmtD(a.base_desde) + (ES ? ' (cuando el Gestão empezó a guardarlo)' : ' (quando o Gestão passou a guardar)') : '')));
-      if (!a.itens.length) { corpoAlt.appendChild(ui.el('p', 'cme-meta', ES ? 'Ningún pedido alterado en el período.' : 'Nenhum pedido alterado no período.')); return; }
+      if (!a.itens.length) { corpoAlt.appendChild(ui.el('p', 'cme-meta', ES ? 'Ningún pedido con valor o cantidad cambiados.' : 'Nenhum pedido com valor ou quantidade alterados no período.')); return; }
       var w = ui.el('div', 'table-scroll'), tb = ui.el('table', 'data-table sl-tab'), th = ui.el('thead'), tr = ui.el('tr');
       ['Pedido', 'Cliente', 'Data PV', 'Alterado em', 'Valor antes', 'Valor agora', 'Δ valor', 'Mts antes', 'Mts agora', 'Δ mts'].forEach(function (h, i) { tr.appendChild(ui.el('th', i > 3 ? 'cme-num' : null, h)); });
       th.appendChild(tr); tb.appendChild(th); var bd = ui.el('tbody');

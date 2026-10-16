@@ -356,8 +356,10 @@ def alterados() -> dict:
                           cliente=(fantasia.get(str(p.get('customerCode'))) or str(p.get('customerName') or ''))[:60], situacao=p.get('statusOrder'),
                           valor=valor, metros=metros, valor_ant=b[0] if b else None, metros_ant=b[1] if b else None,
                           mudou=bool(b) and (abs(b[0] - valor) > 0.5 or abs(b[1] - metros) > 0.5)))
+    analisados = len(itens)
+    itens = [x for x in itens if x['mudou']]                              # so os que mudaram de valor ou quantidade (metros)
     itens.sort(key=lambda x: x['alterado'], reverse=True)
-    res = dict(inicio=ini.isoformat(), fim=fim.isoformat(), itens=itens, total=len(itens), com_valor_anterior=sum(1 for x in itens if x['valor_ant'] is not None),
+    res = dict(analisados=analisados, inicio=ini.isoformat(), fim=fim.isoformat(), itens=itens, total=len(itens), com_valor_anterior=sum(1 for x in itens if x['valor_ant'] is not None),
                mudaram=sum(1 for x in itens if x['mudou']), base_desde=min([v[2] for v in base.values()] or [''])[:10])
     _ALT_CACHE[chave] = (time.time(), res)
     return res
