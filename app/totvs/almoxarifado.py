@@ -712,18 +712,59 @@ def _campo_operador(nota: dict):
     return cod, nome
 
 
-def _buscar_nota(cli, seq: str, data: str):
-    """Procura a nota (fatura) da transferencia na API fiscal, por varias formas de filtro; devolve o dict da nota ou None."""
+_FISCAL = {}                                                          # propriedades do filtro de invoices/search (lidas do swagger)
+
+
+def _props_filtro_fiscal(cli) -> list:
+    """Nomes dos campos do filtro da busca de notas, lidos do swagger do servico fiscal (para nao adivinhar)."""
+    if 'props' in _FISCAL:
+        return _FISCAL['props']
+    props = []
+    try:
+        r = cli.get(f'{BASE_URL}/api/totvsmoda/fiscal/v2/swagger/v1/swagger.json', {})
+        if r.status_code == 200:
+            d = r.json()
+            sch = d.get('components', {}).get('schemas', {})
+
+            def resolve(n):
+                return sch.get((n or {}).get('$ref', '').split('/')[-1], n or {})
+            op = (d.get('paths', {}).get('/api/totvsmoda/fiscal/v2/invoices/search') or {}).get('post') or {}
+            corpo = resolve(((op.get('requestBody') or {}).get('content') or {}).get('application/json', {}).get('schema'))
+            filtro = resolve((corpo.get('properties') or {}).get('filter'))
+            props = list((filtro.get('properties') or {}).keys())
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+    _FISCAL['props'] = props
+    return props
+
+
+def _variantes_nota(cli, seq: str, d0: str) -> list:
+    props = _props_filtro_fiscal(cli)
+    out = []
+    if seq.isdigit():
+        for k in props:
+            kl = k.lower()
+            if ('sequence' in kl or kl in ('invoicecodelist', 'invoicenumberlist')) and kl.endswith('list'):
+                out.append(dict(branchCodeList=[EMPRESA], **{k: [int(seq)]}))
+    for k in props:
+        if k.lower().startswith('start') and 'date' in k.lower():
+            fim = 'end' + k[5:]
+            if fim in props:
+                out.append(dict(branchCodeList=[EMPRESA], **{k: f'{d0}T00:00:00', fim: f'{d0}T23:59:59'}))
+    if not out:                                                        # swagger indisponivel: formas comuns
+        out = [dict(branchCodeList=[EMPRESA], startInvoiceDate=f'{d0}T00:00:00', endInvoiceDate=f'{d0}T23:59:59'), dict(branchCodeList=[EMPRESA], startIssueDate=f'{d0}T00:00:00', endIssueDate=f'{d0}T23:59:59')]
+    return out
+
+
+def _buscar_nota(cli, seq: str, data: str, tentativas: list = None):
+    """Procura a nota (fatura) da transferencia na API fiscal; devolve o dict da nota ou None. `tentativas` (opcional) recebe o log de cada filtro."""
     d0 = data or date.today().isoformat()
-    variantes = [
-        dict(branchCodeList=[EMPRESA], startInvoiceDate=f'{d0}T00:00:00', endInvoiceDate=f'{d0}T23:59:59'),
-        dict(branchCodeList=[EMPRESA], startIssueDate=f'{d0}T00:00:00', endIssueDate=f'{d0}T23:59:59'),
-        dict(branchCodeList=[EMPRESA], startMovementDate=f'{d0}T00:00:00', endMovementDate=f'{d0}T23:59:59'),
-    ]
-    for filtro in variantes:
+    for filtro in _variantes_nota(cli, str(seq), d0):
         pag = 1
         while pag <= 6:
             r = cli.post(INVOICES_URL, dict(filter=filtro, page=pag, pageSize=500))
+            if tentativas is not None:
+                tentativas.append(dict(filtro={k: str(v)[:40] for k, v in filtro.items()}, pagina=pag, http=r.status_code, erro=(r.text[:140] if r.status_code != 200 else None)))
             if r.status_code != 200:
                 break
             j = r.json()
