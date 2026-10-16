@@ -164,18 +164,12 @@ def create_app():
             aba_dash.sectors = []
             db.session.delete(aba_dash)
             db.session.commit()
-        # aba 'Planejamento de Materia-Prima' (categoria Estoque): bancos ja criados nao passam pelo seed
-        from app.models import Category
-        if not Tab.query.filter_by(slug='planejamento-mp').first():
-            cat = Category.query.filter_by(slug='estoque').first()
-            irma = Tab.query.filter_by(slug='controle-estoque').first()
-            if cat:
-                nova = Tab(category_id=cat.id, slug='planejamento-mp', name_pt='Planejamento de Matéria-Prima', name_es='Planificación de Materia Prima', icon='\U0001F9F5', icon_color='#8a5fe0', is_new=True,
-                           order=(max([t.order or 0 for t in cat.tabs] or [0]) + 1) if hasattr(cat, 'tabs') else 9)
-                if irma:
-                    nova.sectors = list(irma.sectors)
-                db.session.add(nova)
-                db.session.commit()
+        # o dashboard de materia-prima fica dentro da Programacao: remove a aba avulsa criada antes
+        aba_mp = Tab.query.filter_by(slug='planejamento-mp').first()
+        if aba_mp:
+            aba_mp.sectors = []
+            db.session.delete(aba_mp)
+            db.session.commit()
         # contas iniciais por setor (idempotente)
         from app.usuarios_padrao import criar_usuarios_padrao
         criar_usuarios_padrao()

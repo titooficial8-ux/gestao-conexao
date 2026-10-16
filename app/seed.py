@@ -107,7 +107,6 @@ CATEGORIES_DATA = [
         'tabs': [
             ('dashboard-estoque', 'Supply Chain', 'Supply Chain', '\U0001F4CA', '#8a5fe0', True),
             ('controle-estoque', 'Controle do Estoque (Almoxarifado)', 'Control de Stock (Almacén)', '\U0001F3D7\U0000FE0F', '#3fa34d', True),
-            ('planejamento-mp', 'Planejamento de Matéria-Prima', 'Planificación de Materia Prima', '\U0001F9F5', '#8a5fe0', True),
         ],
     },
     {

@@ -1103,9 +1103,6 @@ def view_tab(slug):
     if slug == 'controle-estoque':
         return render_template('main/controle_estoque.html', tab=tab)
 
-    if slug == 'planejamento-mp':
-        return render_template('main/planejamento_mp.html', tab=tab)
-
     if slug == 'dashboard-tempo-real':
         return render_template('main/dashboard_tempo_real.html', tab=tab)
 

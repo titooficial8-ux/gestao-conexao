@@ -927,7 +927,7 @@ mp_bp = Blueprint('planejamento_mp', __name__, url_prefix='/planejamento-mp')
 
 
 def _autorizar_mp():
-    tab = Tab.query.filter_by(slug='planejamento-mp').first_or_404()
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
     if not tab.visible_to(current_user):
         abort(403)
 
@@ -954,27 +954,27 @@ def mp_atualizar():
 @mp_bp.route('/diagnostico')
 @login_required
 def mp_diagnostico():
-    """So administrador: esquemas dos endpoints de consumo de materia-prima, a requisicao montada e a resposta do TOTVS para 2 OPs."""
+    """So administrador: resposta crua dos endpoints de consumo de materia-prima (pendente, lotes e materiais da OP)."""
     if not current_user.is_admin:
         abort(403)
+    from . import almoxarifado
     try:
         cli = empenho.api.TotvsModaClient()
         cli.autenticar()
     except Exception as e:  # noqa: BLE001
         return _json(dict(erro=str(e)[:400])), 502
+    codigos = [i['codigo'] for i in almoxarifado.ler().get('itens', [])]
     ops = empenho.ops_da_programacao(current_app._get_current_object())[:2]
-    saida = dict(ops_testadas=ops, ciclo=empenho.CICLO, empresa=empenho.EMPRESA)
-    for nome, servico, caminho in empenho.ENDPOINTS:
-        info = dict(caminho=caminho)
+    saida = dict(ops_testadas=ops, ciclo=empenho.CICLO, empresa=empenho.EMPRESA, n_codigos=len(codigos), exemplo_codigos=codigos[:5])
+    def chamar(url, corpo):
         try:
-            info['esquema'] = empenho.esquema(cli, servico, caminho)
-            if ops:
-                metodo, url, dados, unica = empenho.montar(cli, servico, caminho, ops[:1] if True else ops, 1)
-                info['requisicao_montada'] = dict(metodo=metodo, corpo=dados, uma_op_por_vez=unica)
-                r = empenho._enviar(cli, metodo, url, dados)
-                info['http'] = r.status_code
-                info['resposta'] = json_curto(r.json() if r.status_code == 200 else r.text[:500], 2800)
+            r = cli.post(url, corpo)
+            return dict(http=r.status_code, corpo=corpo if len(str(corpo)) < 600 else '(lista de codigos omitida)', resposta=json_curto(r.json() if r.status_code == 200 else r.text[:500], 2800))
         except Exception as e:  # noqa: BLE001
-            info['erro'] = str(e)[:300]
-        saida[nome] = info
+            return dict(erro=str(e)[:300])
+    if codigos:
+        saida['pendente'] = chamar(empenho.PEND_URL, dict(branchCode=empenho.EMPRESA, rawMaterialCodeList=codigos[:100], page=1, pageSize=1000))
+        saida['necessidade'] = chamar(empenho.REQ_URL, dict(branchCode=empenho.EMPRESA, cycleCode=empenho.CICLO, rawMaterialCodes=codigos[:100], pageNumber=1, pageSize=100))
+    if ops:
+        saida['materiais_op'] = chamar(empenho.OPS_URL, dict(filter=dict(branchCodeList=[empenho.EMPRESA], cycleCodeList=[empenho.CICLO], orderCodeList=ops[:1]), expand='materials', pageSize=1, page=1))
     return _json(saida)
