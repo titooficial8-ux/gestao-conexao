@@ -163,8 +163,9 @@
     m.appendChild(metrica('80% do estoque em', String(n80), 'itens', 'de ' + itens.length + ' matérias-primas'));
     h.appendChild(m);
     var sa = el('div', 'ce-acur'); sa.appendChild(el('div', 'ce-hero-rot', 'Acuracidade do estoque'));
-    var ac = dados.acuracidade; sa.appendChild(el('div', 'ce-m-val', ac && ac.taxa !== null && ac.taxa !== undefined ? pct(ac.taxa, 1) : '—'));
-    sa.appendChild(el('div', 'ce-hero-txt', ac && ac.texto ? ac.texto : 'aguardando a definição da fonte da contagem'));
+    var ac = dados.acuracidade, tx = ac && ac.taxa !== null && ac.taxa !== undefined ? ac.taxa : null, vv = el('div', 'ce-m-val', tx !== null ? pct(tx, 1) : '—'); if (tx !== null) vv.style.color = tx >= 0.98 ? '#7be0a6' : (tx >= 0.95 ? '#ffd37a' : '#ffb4b4'); sa.appendChild(vv);
+    if (tx !== null) { var bb = el('div'); bb.style.cssText = 'height:6px;border-radius:6px;background:rgba(255,255,255,.18);margin:4px 0 8px;overflow:hidden'; var bs = el('span'); bs.style.cssText = 'display:block;height:100%;border-radius:6px;width:' + Math.max(tx * 100, 2) + '%;background:' + (tx >= 0.98 ? '#3ddc84' : (tx >= 0.95 ? '#ffc247' : '#ff6b6b')); bb.appendChild(bs); sa.appendChild(bb); }
+    sa.appendChild(el('div', 'ce-hero-txt', ac && ac.texto ? ac.texto : 'aguardando os ajustes de inventário')); sa.title = 'Acuracidade = 1 − (kg ajustados nos inventários ÷ estoque atual), considerando os ajustes 2040 (entrada) e 2041 (saída) dos últimos 180 dias';
     h.appendChild(sa); box.appendChild(h);
     var fd = el('div', 'ce-feed'); fd.id = 'ceFeed'; box.appendChild(fd); desenharFeed();
 

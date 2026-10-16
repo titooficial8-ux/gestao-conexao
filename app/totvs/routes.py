@@ -709,7 +709,7 @@ def _autorizar_almox():
 def almox_dados():
     _autorizar_almox()
     d = almoxarifado.ler()
-    return _json({**{k: v for k, v in d.items() if k != 'versao'}, 'configurado': almoxarifado.configurado(), 'estado': dict(almoxarifado.ESTADO), 'estoque': d.get('estoque') or almoxarifado.estoque_atual(), 'estoques_no_totvs': almoxarifado._RES.get('estoques')})
+    return _json({**{k: v for k, v in d.items() if k != 'versao'}, 'configurado': almoxarifado.configurado(), 'estado': dict(almoxarifado.ESTADO), 'estoque': d.get('estoque') or almoxarifado.estoque_atual(), 'estoques_no_totvs': almoxarifado._RES.get('estoques'), 'acuracidade': almoxarifado.acuracidade()})
 
 
 @almox_bp.route('/atualizar', methods=['POST'])
@@ -718,7 +718,7 @@ def almox_atualizar():
     _autorizar_almox()
     if not almoxarifado.configurado():
         return _json(dict(ok=False, erro='TOTVS não configurado no .env.')), 400
-    threading.Thread(target=lambda: (almoxarifado.atualizar(), almoxarifado.atualizar_transferencias()), daemon=True, name='almox-agora').start()
+    threading.Thread(target=lambda: (almoxarifado.atualizar(), almoxarifado.atualizar_transferencias(), almoxarifado.atualizar_acertos()), daemon=True, name='almox-agora').start()
     return _json(dict(ok=True))
 
 
