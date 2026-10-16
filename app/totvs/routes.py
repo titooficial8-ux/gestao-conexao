@@ -214,6 +214,20 @@ def diagnostico_pedido():
                       itens=json_curto(p.get('items'), 3000), notas=json_curto(p.get('invoices'), 1500), ultimo_faturamento=p.get('lastBillingDate')))
 
 
+@bi_bp.route('/precos-divergentes')
+@login_required
+def precos_divergentes():
+    """Itens dos pedidos do mes com preco diferente da tabela de precos do pedido."""
+    _autorizar()
+    if not entrada.configurado():
+        return _json(dict(ok=False, erro='TOTVS não configurado no .env.')), 400
+    try:
+        from . import precos
+        return _json(dict(ok=True, **precos.divergentes()))
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(ok=False, erro=str(e)[:300])), 502
+
+
 @bi_bp.route('/ultimo-pedido')
 @login_required
 def ultimo_pedido():
