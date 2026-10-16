@@ -30,8 +30,10 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   .sl-card, .sl-grafico, .sl-prog, .table-card, .cme-kpigrid { break-inside: avoid; page-break-inside: avoid; }
   .bi-overlay { display: none !important; }
   #biPedCorpo { display: flex; flex-direction: column; }
-  #biPedidos .ped-carteira { order: 9; break-inside: auto; page-break-inside: auto; }      /* tabela diaria vai para o fim, como anexo */
-  #biPedidos .ped-carteira td, #biPedidos .ped-carteira th { font-size: 9.5px; padding: 2px 7px; }
+  #biPedidos .ped-carteira { order: 9; break-before: page; page-break-before: always; break-inside: avoid; page-break-inside: avoid; }      /* tabela diaria: anexo, sozinha numa pagina */
+  #biPedidos .ped-carteira td, #biPedidos .ped-carteira th { font-size: 8.5px; padding: 1px 7px; line-height: 1.15; }
+  #biPedidos .ped-carteira h3 { margin: 0 0 3px; font-size: 13px; }
+  .ex-como, .pr-oculto { display: none !important; }
   #biPedidos .ped-carteira thead { display: table-header-group; }
   #biPedidos .ped-carteira tr { break-inside: avoid; }
   .bi-relatorio, #biPedFiltros, .ped-status, .sl-chips, .pd-card .btn-small { display: none !important; }
@@ -715,7 +717,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     function fmtD(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : ''; }
     function fmtDH(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + ' ' + iso.slice(11, 16) : '—'; }
     function mostrar(a) {
-      corpoAlt.textContent = ''; corpoAlt.dataset.pronto = '1';
+      corpoAlt.textContent = ''; corpoAlt.dataset.pronto = '1'; card.classList.toggle('pr-oculto', !(a.ok && a.itens && a.itens.length));      // no PDF so entra se houver pedido alterado no mes
       if (!a.ok) { corpoAlt.appendChild(ui.el('p', 'cme-meta', (ES ? 'No se pudo consultar: ' : 'Não consegui consultar o TOTVS: ') + (a.erro || ''))); return; }
       corpoAlt.appendChild(ui.el('p', 'cme-meta', (ES ? 'Solo pedidos con valor o cantidad cambiados, del ' : 'Só pedidos com valor ou quantidade alterados, de ') + fmtD(a.inicio) + (ES ? ' al ' : ' até ') + fmtD(a.fim) + ' · ' + a.total + (ES ? ' pedidos' : ' pedidos')
         + (a.base_desde ? ' · ' + (ES ? 'el valor anterior existe desde ' : 'o valor anterior só existe desde ') + fmtD(a.base_desde) + (ES ? ' (cuando el Gestão empezó a guardarlo)' : ' (quando o Gestão passou a guardar)') : '')));
