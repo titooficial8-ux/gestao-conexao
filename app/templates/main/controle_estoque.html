@@ -171,7 +171,7 @@
     card.textContent = '';
     card.appendChild(el('h3', null, 'Fios com mais saída para a produção'));
     card.appendChild(el('p', 'm', 'Quilos transferidos do almoxarifado para a produção (operação 2011), por mês'));
-    if (!cons || !cons.pronto) { card.appendChild(el('div', 'ce-vazio', cons && cons.estado && cons.estado.erro ? '⚠ ' + cons.estado.erro : ('Lendo o kardex do TOTVS' + (cons && cons.estado && cons.estado.rodando ? ' (' + cons.estado.feitos + ' de ' + cons.estado.total + ')' : '') + '… as saídas aparecem em seguida.'))); return; }
+    if (!cons || !cons.pronto) { card.appendChild(el('div', 'ce-vazio', cons && cons.aviso ? cons.aviso : cons && cons.estado && cons.estado.erro ? '⚠ ' + cons.estado.erro : ('Lendo o kardex do TOTVS' + (cons && cons.estado && cons.estado.rodando ? ' (' + cons.estado.feitos + ' de ' + cons.estado.total + ')' : '') + '… as saídas aparecem em seguida.'))); return; }
     if (!mesSel || cons.meses.indexOf(mesSel) < 0) mesSel = cons.meses[cons.meses.length - 1];
     var pills = el('div'); pills.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px';
     cons.meses.forEach(function (m) { var b = el('button', 'cme-grupo' + (m === mesSel ? ' active' : ''), rotMes(m)); b.type = 'button'; b.addEventListener('click', function () { mesSel = m; desenharConsumo(card); }); pills.appendChild(b); });
@@ -207,7 +207,7 @@
     if (dados && !dados.configurado) av.appendChild(el('div', 'ce-aviso', 'TOTVS não configurado no arquivo .env.'));
     else if (dados && dados.estado && dados.estado.erro) av.appendChild(el('div', 'ce-aviso', '⚠ Falha ao consultar o saldo no TOTVS: ' + dados.estado.erro));
     else if (cons && cons.estado && cons.estado.erro) av.appendChild(el('div', 'ce-aviso', '⚠ Falha ao ler as saídas (kardex) no TOTVS: ' + cons.estado.erro));
-    else if (cons && cons.pronto && cons.aviso) av.appendChild(el('div', 'ce-aviso', '⚠ ' + cons.aviso + (cons.ops_saida && cons.ops_saida.length ? ' Saídas que o TOTVS informou: ' + cons.ops_saida.map(function (o) { return 'op. ' + o.operacao + ' ' + (o.nome || o.historico) + ' (' + o.n + ')'; }).join('; ') + '.' : '') + ' Se isso não for verdade, abra /estoque-almox/diagnostico-kardex como administrador.'));
+
   }
 
   function carregar() {
