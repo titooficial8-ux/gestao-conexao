@@ -26,7 +26,7 @@
         document.getElementById('gcVivoCli').textContent = u.unidade ? u.cliente + ' · ' + u.unidade : u.cliente;
         document.getElementById('gcVivoMt').textContent = nf(u.metros) + ' mts';
         document.getElementById('gcVivoImp').textContent = {{ ('implementación de pedido en el sistema' if lang == 'es' else 'implementação de pedido em sistema')|tojson }};
-        document.getElementById('gcVivoVal').textContent = 'R$ ' + nf(u.valor) + (u.me ? ' (ME)' : '');
+        document.getElementById('gcVivoVal').textContent = 'R$ ' + nf(u.valor) + (u.me && u.usd ? ' · US$ ' + nf(u.usd) : '') + (u.me ? ' (ME)' : '');
         box.hidden = false;
         if (ultimo !== null && ultimo !== u.codigo) { box.classList.remove('novo'); void box.offsetWidth; box.classList.add('novo'); }     // pedido novo: pisca
         ultimo = u.codigo;

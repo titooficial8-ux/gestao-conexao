@@ -13,7 +13,7 @@ import time
 import traceback
 from datetime import date, datetime, timedelta
 
-from . import api, planilha_pedidos
+from . import api, cotacao, planilha_pedidos
 
 ORDERS_URL = f'{api.BASE_URL}/api/totvsmoda/sales-order/v2/orders/search'
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
@@ -215,6 +215,7 @@ def resumo(mes: int | None = None) -> dict:
     for d, valor, metros, local, cliente in plan.get('pedidos', []):
         if int(d[:4]) not in ANOS_TOTVS:
             registros.append((d, valor, metros, local, normalize_client_name(cliente) or 'SEM CLIENTE'))
+    usd_mes = {}                                      # ano -> US$ dos pedidos ME do mes escolhido (valor R$ / PTAX do dia do pedido)
     for d, valor, metros, local, nome in registros:
         a, m, dia = int(d[:4]), int(d[5:7]), int(d[8:10])
         if a not in por_mes:
@@ -224,8 +225,12 @@ def resumo(mes: int | None = None) -> dict:
         if m == mes:
             y = por_dia[a].setdefault(dia, [0.0, 0, 0.0, 0.0])
             y[0] += valor; y[1] += 1; y[2] += metros; y[3] += valor if local == 'ME' else 0
-            c = por_cliente[a].setdefault((nome, local), [0.0, 0, 0.0])
+            c = por_cliente[a].setdefault((nome, local), [0.0, 0, 0.0, 0.0])
             c[0] += valor; c[1] += 1; c[2] += metros
+            if local == 'ME':
+                u = cotacao.para_usd(valor, d) or 0.0
+                c[3] += u
+                usd_mes[a] = usd_mes.get(a, 0.0) + u
     # 2023, 2024 e 2025: o VALOR de cada dia vem da tabela 'Pedido de Venda - Carteira' da planilha (como ela mostra); pedidos/ME seguem da lista de pedidos
     for a in planilha_pedidos.ANOS:
         for mk, dias_c in (plan.get('carteira', {}).get(str(a)) or {}).items():
@@ -255,7 +260,7 @@ def resumo(mes: int | None = None) -> dict:
         v = [sum(por_dia[a].get(d, [0, 0, 0, 0])[i] for d in por_dia[a]) for i in range(4)]
         base = por_mes[a][mes - 1]                       # pedidos, metros e ME: da lista de pedidos do mes
         valor_total = por_mes[a][mes - 1][0] if a in planilha_pedidos.ANOS and (plan.get('carteira', {}).get(str(a)) or {}).get(str(mes)) else v[0]   # 2023/2024: total da planilha; 2026: soma do TOTVS
-        tot[str(a)] = dict(valor=round(valor_total, 2), n=int(base[1]), metros=round(base[2], 2), me=round(base[3], 2), mi=round(valor_total - base[3], 2))
+        tot[str(a)] = dict(valor=round(valor_total, 2), n=int(base[1]), metros=round(base[2], 2), me=round(base[3], 2), mi=round(valor_total - base[3], 2), me_usd=round(usd_mes.get(a, 0.0), 2))
     # metas em metros (mesma conta da planilha, com os metros do TOTVS de 2026): ticket medio, real, %mts e %meta por dia
     metas = None
     mt = (plan.get('metas') or {}).get(str(mes))
@@ -286,11 +291,11 @@ def resumo(mes: int | None = None) -> dict:
         clientes[str(a)] = sorted(([n, round(v[0], 2), v[1]] for n, v in junto.items()), key=lambda x: -x[1])
         grupos = {}
         for loc in ('MI', 'ME'):
-            itens = sorted(([n, round(v[0], 2), v[1], round(v[2], 2)] for (n, l), v in por_cliente[a].items() if l == loc), key=lambda x: -x[1])
-            grupos[loc] = dict(total=round(sum(i[1] for i in itens), 2), n=sum(i[2] for i in itens), metros=round(sum(i[3] for i in itens), 2), itens=itens)
+            itens = sorted(([n, round(v[0], 2), v[1], round(v[2], 2), round(v[3], 2)] for (n, l), v in por_cliente[a].items() if l == loc), key=lambda x: -x[1])
+            grupos[loc] = dict(total=round(sum(i[1] for i in itens), 2), n=sum(i[2] for i in itens), metros=round(sum(i[3] for i in itens), 2), total_usd=round(sum(i[4] for i in itens), 2), itens=itens)
         clientes_loc[str(a)] = grupos
     ultimos = sorted(((cod, v) for cod, v in pedidos.items() if v[5]), key=lambda x: x[1][5], reverse=True)[:10]
-    ultimos = [dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), metros=round(v[2]), me=v[3] == 'ME',
+    ultimos = [dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), metros=round(v[2]), me=v[3] == 'ME', usd=cotacao.para_usd(v[1], v[0]) if v[3] == 'ME' else None,
                     cliente=normalize_client_name(fantasia.get(str(v[4])) or v[6]) or 'SEM CLIENTE',
                     unidade=(fantasia.get(str(v[4])) or v[6]) if normalize_client_name(fantasia.get(str(v[4])) or v[6]) == 'ORTOBOM' else '') for cod, v in ultimos]
     return dict(mes=mes, anos=list(ANOS), clientes=clientes, clientes_loc=clientes_loc, metas=metas, ultimos=ultimos,
@@ -310,6 +315,7 @@ def ultimo() -> dict | None:
     nome = dados.get('clientes', {}).get(str(v[4])) or v[6]
     cliente = normalize_client_name(nome) or 'SEM CLIENTE'
     return dict(codigo=cod, data=v[0], hora=v[5][11:16], valor=round(v[1], 2), metros=round(v[2]), me=v[3] == 'ME', cliente=cliente,
+                usd=cotacao.para_usd(v[1], v[0]) if v[3] == 'ME' else None, taxa=cotacao.taxa(v[0]) if v[3] == 'ME' else None,
                 unidade=nome if cliente == 'ORTOBOM' else '')
 
 

@@ -533,7 +533,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   }
   function pedChipsDia(d) {
     var box = ui.el('div', 'sl-chips'), mes = MESES[d.mes - 1].slice(0, 3);
-    d.anos.forEach(function (a) { var t = d.total[a]; box.appendChild(pedChip(a + ' · ' + mes, 'R$ ' + mi(t.valor), t.n + ' pedidos' + (t.metros ? ' · ' + rs(t.metros) + ' mts' : '') + (t.me ? ' · ME R$ ' + mi(t.me) : ''))); });
+    d.anos.forEach(function (a) { var t = d.total[a]; box.appendChild(pedChip(a + ' · ' + mes, 'R$ ' + mi(t.valor), t.n + ' pedidos' + (t.metros ? ' · ' + rs(t.metros) + ' mts' : '') + (t.me ? ' · ME R$ ' + mi(t.me) + (t.me_usd ? ' / US$ ' + mi(t.me_usd) : '') : ''))); });
     var atual = d.anos[d.anos.length - 1], ant = d.anos[d.anos.length - 2], ate = []; ate.tipo = 'dia';
     var corrente = d.hoje.slice(0, 4) === String(atual) && +d.hoje.slice(5, 7) === d.mes, limite = corrente ? +d.hoje.slice(8, 10) : 31;
     d.dias.forEach(function (x, i) { if (x.dia <= limite) ate.push(i); });
@@ -580,7 +580,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     d.anos.forEach(function (a, i) {
       var t = d.total[a], ant = i ? d.total[d.anos[i - 1]] : null, atual = i === d.anos.length - 1;
       var linhasSub = [t.n + (ES ? ' pedidos' : ' pedidos') + (t.metros ? ' · ' + rs(t.metros) + ' mts' : '')];
-      if (t.me) linhasSub.push((ES ? 'Mercado externo: ' : 'Mercado externo: ') + 'R$ ' + mi(t.me));
+      if (t.me) linhasSub.push('Mercado externo: R$ ' + mi(t.me) + (t.me_usd ? ' · US$ ' + mi(t.me_usd) : ''));
       K.appendChild(execCard({ rotulo: MESES[d.mes - 1].slice(0, 3).toUpperCase() + '/' + a, tag: atual ? (ES ? 'TOTVS · en vivo' : 'TOTVS · ao vivo') : (ES ? 'Planilla' : 'Planilha'), vivo: atual,
         valor: 'R$ ' + rs(t.valor), delta: ant && ant.valor ? t.valor / ant.valor - 1 : null, deltaRef: ant ? d.anos[i - 1] : null, linhas: linhasSub, destaque: atual, cor: atual ? '#2f7fe0' : '#aab6c8' }));
     });
@@ -675,14 +675,14 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     cp.appendChild(ui.el('p', 'cme-meta', ES ? 'Soma de VALOR R$ por mercado (MI = interno, ME = externo) y por cliente' : 'Soma de VALOR R$, metragem total e ticket médio (R$ por metro) por mercado (MI = interno, ME = externo) e por cliente'));
     if (gl && (gl.MI.itens.length || gl.ME.itens.length)) {
       var wp = ui.el('div', 'table-scroll'), tp2 = ui.el('table', 'data-table sl-tab sl-pivo'); wp.appendChild(tp2);
-      var hp = ui.el('thead'), hr = ui.el('tr'); hr.appendChild(ui.el('th', null, ES ? 'Rótulos de Fila' : 'Rótulos de Linha')); hr.appendChild(ui.el('th', 'cme-num', 'Soma de VALOR R$')); hr.appendChild(ui.el('th', 'cme-num', ES ? 'Metraje total' : 'Metragem total')); hr.appendChild(ui.el('th', 'cme-num', ES ? 'Ticket medio (R$/mt)' : 'Ticket médio (R$/mt)')); hp.appendChild(hr); tp2.appendChild(hp);
+      var hp = ui.el('thead'), hr = ui.el('tr'); hr.appendChild(ui.el('th', null, ES ? 'Rótulos de Fila' : 'Rótulos de Linha')); hr.appendChild(ui.el('th', 'cme-num', 'Soma de VALOR R$')); hr.appendChild(ui.el('th', 'cme-num', ES ? 'Valor US$ (ME)' : 'Valor US$ (ME)')); hr.appendChild(ui.el('th', 'cme-num', ES ? 'Metraje total' : 'Metragem total')); hr.appendChild(ui.el('th', 'cme-num', ES ? 'Ticket medio (R$/mt)' : 'Ticket médio (R$/mt)')); hp.appendChild(hr); tp2.appendChild(hp);
       var bp = ui.el('tbody');
       function mtsTxt(m) { return m ? rs(m) + ' mts' : '-'; }
       function ticketTxt(v, m) { return m ? 'R$ ' + ui.nf(v / m, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'; }      // ticket medio = valor / metros (como a planilha)
       ['MI', 'ME'].forEach(function (loc) { var g = gl[loc]; if (!g.itens.length) return;
-        var rr = ui.el('tr', 'sl-pivo-grupo'); rr.appendChild(ui.el('td', null, '⊟ ' + loc)); rr.appendChild(ui.el('td', 'cme-num', rs(g.total))); rr.appendChild(ui.el('td', 'cme-num', mtsTxt(g.metros))); rr.appendChild(ui.el('td', 'cme-num', ticketTxt(g.total, g.metros))); bp.appendChild(rr);
-        g.itens.forEach(function (x) { var r2 = ui.el('tr'); r2.appendChild(ui.el('td', 'sl-pivo-item', x[0])); r2.appendChild(ui.el('td', 'cme-num', rs(x[1]))); r2.appendChild(ui.el('td', 'cme-num', mtsTxt(x[3]))); r2.appendChild(ui.el('td', 'cme-num', ticketTxt(x[1], x[3]))); bp.appendChild(r2); }); });
-      var rg = ui.el('tr', 'sl-total'), mTot = gl.MI.metros + gl.ME.metros, vTot = gl.MI.total + gl.ME.total; rg.appendChild(ui.el('td', null, 'Total Geral')); rg.appendChild(ui.el('td', 'cme-num', rs(vTot))); rg.appendChild(ui.el('td', 'cme-num', mtsTxt(mTot))); rg.appendChild(ui.el('td', 'cme-num', ticketTxt(vTot, mTot))); bp.appendChild(rg);
+        var rr = ui.el('tr', 'sl-pivo-grupo'); rr.appendChild(ui.el('td', null, '⊟ ' + loc)); rr.appendChild(ui.el('td', 'cme-num', rs(g.total))); rr.appendChild(ui.el('td', 'cme-num', loc === 'ME' && g.total_usd ? 'US$ ' + rs(g.total_usd) : '')); rr.appendChild(ui.el('td', 'cme-num', mtsTxt(g.metros))); rr.appendChild(ui.el('td', 'cme-num', ticketTxt(g.total, g.metros))); bp.appendChild(rr);
+        g.itens.forEach(function (x) { var r2 = ui.el('tr'); r2.appendChild(ui.el('td', 'sl-pivo-item', x[0])); r2.appendChild(ui.el('td', 'cme-num', rs(x[1]))); r2.appendChild(ui.el('td', 'cme-num', loc === 'ME' && x[4] ? 'US$ ' + rs(x[4]) : '')); r2.appendChild(ui.el('td', 'cme-num', mtsTxt(x[3]))); r2.appendChild(ui.el('td', 'cme-num', ticketTxt(x[1], x[3]))); bp.appendChild(r2); }); });
+      var rg = ui.el('tr', 'sl-total'), mTot = gl.MI.metros + gl.ME.metros, vTot = gl.MI.total + gl.ME.total; rg.appendChild(ui.el('td', null, 'Total Geral')); rg.appendChild(ui.el('td', 'cme-num', rs(vTot))); rg.appendChild(ui.el('td', 'cme-num', gl.ME.total_usd ? 'US$ ' + rs(gl.ME.total_usd) : '')); rg.appendChild(ui.el('td', 'cme-num', mtsTxt(mTot))); rg.appendChild(ui.el('td', 'cme-num', ticketTxt(vTot, mTot))); bp.appendChild(rg);
       tp2.appendChild(bp); cp.appendChild(wp);
     } else { cp.appendChild(ui.el('p', 'cme-meta', ES ? 'Sin pedidos en este mes.' : 'Nenhum pedido neste mês.')); }
     corpo.appendChild(cp);
