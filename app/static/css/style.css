@@ -2891,3 +2891,6 @@ textarea.ticket-input { resize: vertical; }
 .pd-bar span { display: block; height: 100%; border-radius: 5px; }
 .pd-bar span.down { background: linear-gradient(90deg, #ff8a8a, #c0272d); }
 .pd-bar span.up { background: linear-gradient(90deg, #7ddba0, #1f9d55); }
+.pd-pill.dup { background: #fff3dc; color: #9a6200; }
+.cd-card .cd-det { font-size: 12px; color: #5d6e84; white-space: normal; max-width: 360px; }
+.cd-card .ex-grid { margin: 6px 0 16px; }

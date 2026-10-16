@@ -228,6 +228,19 @@ def precos_divergentes():
         return _json(dict(ok=False, erro=str(e)[:300])), 502
 
 
+@bi_bp.route('/cancelados-duplicados')
+@login_required
+def cancelados_duplicados():
+    """Pedidos de venda do mes atual cancelados e duplicados."""
+    _autorizar()
+    if not entrada.configurado():
+        return _json(dict(ok=False, erro='TOTVS não configurado no .env.')), 400
+    try:
+        return _json(dict(ok=True, **entrada.cancelados_duplicados()))
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(ok=False, erro=str(e)[:300])), 502
+
+
 @bi_bp.route('/ultimo-pedido')
 @login_required
 def ultimo_pedido():

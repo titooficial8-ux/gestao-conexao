@@ -46,8 +46,8 @@ def _gerar(sync_playwright, base_url: str, user_id: int, ano, mes, visao: str = 
         try:
             pg = nav.new_page(viewport={'width': 1400, 'height': 900})
             pg.goto(f'{base}/relatorio-faturamento/entrar?t={novo_token(user_id)}{q}', wait_until='domcontentloaded', timeout=60000)
-            if visao == 'pedidos':                                          # Entrada de pedidos: espera os graficos e as duas secoes consultadas no TOTVS (alterados e precos divergentes)
-                pg.wait_for_function("document.querySelectorAll('[data-pronto=\"1\"]').length >= 2 && document.querySelector('#biPedCorpo canvas')", timeout=180000)
+            if visao == 'pedidos':                                          # Entrada de pedidos: espera os graficos e as duas secoes consultadas no TOTVS (alterados, precos divergentes e cancelados/duplicados)
+                pg.wait_for_function("document.querySelectorAll('[data-pronto=\"1\"]').length >= 3 && document.querySelector('#biPedCorpo canvas')", timeout=180000)
             else:
                 pg.wait_for_selector('#sl-int', timeout=90000)             # a ultima tabela do slide so existe depois dos dados carregarem
             pg.wait_for_load_state('networkidle', timeout=60000)
