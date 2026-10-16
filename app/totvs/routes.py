@@ -840,7 +840,11 @@ def almox_diag_op():
     except Exception as e:  # noqa: BLE001
         return _json(dict(erro=str(e)[:400])), 502
     op = request.args.get('op', type=int)
-    saida = {}
+    if not op:                                                          # sem ?op=: usa uma OP que esta produzindo agora na Programacao
+        from app.models import Sequencia
+        sq = Sequencia.query.filter_by(status='PRODUZINDO').first() or Sequencia.query.first()
+        op = int(sq.op) if sq and str(sq.op).isdigit() else None
+    saida = dict(op_testada=op)
     base = almoxarifado.BASE_URL
     for nome in ('production-order', 'production'):
         try:
