@@ -9,8 +9,8 @@
   .ce-dot { width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; display: inline-block; margin-right: 6px; animation: biPonto 1.4s ease-in-out infinite; }
   .ce-aviso { margin: 0 0 14px; padding: 12px 16px; border-radius: 12px; background: #fff7e6; border: 1px solid #f3d9a4; color: #7a5200; font-size: 13px; }
 
-  .ce-hero { display: grid; grid-template-columns: 1.1fr 1.6fr 1fr; gap: 28px; padding: 26px 28px; border-radius: 18px; color: #fff; align-items: center;
-    background: linear-gradient(120deg, #0a2540 0%, #0f3a66 55%, #16508a 100%); box-shadow: 0 12px 32px rgba(10, 37, 64, .25); }
+  .ce-hero { --fundo: url('/static/img/fundo-estoque.jpg'); display: grid; grid-template-columns: 1.1fr 1.6fr 1fr; gap: 28px; padding: 26px 28px; border-radius: 18px; color: #fff; align-items: center;
+    background: linear-gradient(100deg, rgba(8, 24, 44, .82) 0%, rgba(10, 37, 64, .66) 55%, rgba(14, 50, 88, .5) 100%), var(--fundo) center / cover no-repeat, linear-gradient(120deg, #0a2540 0%, #0f3a66 55%, #16508a 100%); box-shadow: 0 12px 32px rgba(10, 37, 64, .25); }
   .ce-hero-rot { font-size: 10.5px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #8fb4dc; }
   .ce-hero-big { font-size: 44px; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; margin: 8px 0 6px; font-variant-numeric: tabular-nums; }
   .ce-hero-big small { font-size: 18px; font-weight: 700; color: #b9d0ea; margin-left: 6px; }
@@ -21,6 +21,7 @@
   .ce-delta { display: inline-block; font-size: 11.5px; font-weight: 800; padding: 2px 9px; border-radius: 999px; }
   .ce-delta.bom { background: rgba(61, 220, 132, .18); color: #7be0a6; }
   .ce-delta.ruim { background: rgba(255, 107, 107, .2); color: #ffb4b4; }
+  .ce-acur { text-align: left; }
   .ce-saude { display: flex; align-items: center; gap: 16px; }
   .ce-saude-graf { position: relative; width: 118px; height: 118px; flex: none; }
   .ce-saude-centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
@@ -51,6 +52,35 @@
   .ce-nota { font-size: 11.5px; color: #7c8ca1; margin: 6px 2px 18px; line-height: 1.5; }
   .ce-sec { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #46586e; margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; }
   .ce-sec::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, #d5dfec, transparent); }
+
+  .ce-feed { margin: 12px 0 0; background: #fff; border: 1px solid #e1e9f3; border-radius: 14px; padding: 12px 16px 6px; box-shadow: 0 1px 2px rgba(16, 38, 63, .04), 0 8px 20px rgba(16, 38, 63, .05); }
+  .ce-feed-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid #edf1f7; }
+  .ce-feed-tit { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #46586e; }
+  .ce-feed-res { font-size: 12px; color: #6a7b90; }
+  .ce-feed-res b { color: #0f2540; }
+  .ce-feed-lista { max-height: 244px; overflow-y: auto; }
+  .ce-mov { display: grid; grid-template-columns: 96px minmax(120px, 1fr) minmax(140px, 2fr) 110px; gap: 12px; align-items: center; padding: 9px 2px; border-bottom: 1px solid #f0f3f8; font-size: 13px; }
+  .ce-mov:last-child { border-bottom: 0; }
+  .ce-mov.novo { animation: ceNovo 2.4s ease-out; }
+  @keyframes ceNovo { 0% { background: #e3f5ea; } 100% { background: transparent; } }
+  .ce-mov-h { color: #0f2540; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ce-mov-h small { display: block; font-weight: 500; color: #7c8ca1; font-size: 11px; }
+  .ce-mov-u { color: #46586e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ce-mov-m { color: #0f2540; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ce-mov-k { text-align: right; font-weight: 800; color: #1f9d55; font-variant-numeric: tabular-nums; }
+  @media (max-width: 800px) { .ce-mov { grid-template-columns: 80px 1fr 90px; } .ce-mov-u { display: none; } }
+
+  .ce-baixos { max-height: 372px; overflow-y: auto; margin-top: 4px; }
+  .ce-bx { display: grid; grid-template-columns: minmax(150px, 1.6fr) minmax(110px, 1.2fr) 86px; gap: 12px; align-items: center; padding: 10px 4px; border-bottom: 1px solid #f0f3f8; }
+  .ce-bx:last-child { border-bottom: 0; }
+  .ce-bx-n { font-size: 13px; font-weight: 700; color: #0f2540; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ce-bx-n small { display: block; font-weight: 500; font-size: 11px; color: #7c8ca1; overflow: hidden; text-overflow: ellipsis; }
+  .ce-bx-b { height: 8px; border-radius: 8px; background: #edf1f7; overflow: hidden; }
+  .ce-bx-b span { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, #e0972f, #f3c26b); }
+  .ce-bx-k { text-align: right; font-weight: 800; font-size: 13px; color: #0f2540; font-variant-numeric: tabular-nums; }
+  .ce-fpan { margin-bottom: 14px; }
+  .ce-fchip { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 5px 12px; border-radius: 999px; background: #efe9fb; color: #5b3aa8; font-size: 12px; font-weight: 800; cursor: pointer; border: 0; }
+  .ce-dica { font-size: 11.5px; color: #8a97a8; margin-top: 6px; }
   @media (max-width: 1100px) { .ce-hero { grid-template-columns: 1fr; } .ce-hero-mid { border: 0; padding: 0; } .ce-kpis { grid-template-columns: repeat(2, 1fr); } .ce-linha { grid-template-columns: 1fr; } }
 </style>
 
@@ -86,6 +116,14 @@
   function pct(v, d) { return v === null || v === undefined ? '—' : nf(v * 100, d === undefined ? 1 : d) + '%'; }
   function dh(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + ' ' + iso.slice(11, 16) : '—'; }
   function curto(t, n) { return t.length > n ? t.slice(0, n - 1) + '…' : t; }
+  function nomeCurto(nome) {                                       // "100% POLIESTER 150/48 150/48 CRU U" -> "150/48 CRU"
+    var t = String(nome || '').toUpperCase().replace(/^\s*100\s*%?\s*(POLIESTER|POLYESTER)\s*/, '').replace(/\s+U\s*$/, '').replace(/\s+/g, ' ').trim();
+    var w = t.split(' ');
+    for (var n = 3; n >= 1; n--) { for (var i = 0; i + 2 * n <= w.length; ) { if (w.slice(i, i + n).join(' ') === w.slice(i + n, i + 2 * n).join(' ')) w.splice(i + n, n); else i++; } }
+    return w.join(' ') || String(nome || '');
+  }
+  function fornCurto(c) { return c ? curto(c, 28) : ''; }
+  var fornSel = null, feed = null, feedVisto = {};
   function pill(cls, txt) { return el('span', 'ce-pill ' + cls, txt); }
   function situacao(i) { if (!i) return el('span'); if (i.out90 === 0) return i.saldo > 0 ? pill('par', 'PARADO') : pill('ok', '—'); if (i.cobertura !== null && i.cobertura < 15) return pill('crit', 'CRÍTICO'); if (i.cobertura !== null && i.cobertura < 30) return pill('aten', 'ATENÇÃO'); return pill('ok', 'OK'); }
   function kpi(rot, val, sub, cor) { var k = el('div', 'ce-kpi'); k.style.setProperty('--c', cor); k.appendChild(el('div', 'ce-kpi-rot', rot)); k.appendChild(el('div', 'ce-kpi-val', val)); k.appendChild(el('div', 'ce-kpi-sub', sub)); return k; }
@@ -120,15 +158,15 @@
     a.appendChild(el('div', 'ce-hero-txt', itens.length + ' itens ativos em KG · ' + (dados.estoque_nome || 'Almoxarifado'))); h.appendChild(a);
     var m = el('div', 'ce-hero-mid');
     function metrica(rot, val, un, extra) { var d = el('div'); d.appendChild(el('div', 'ce-hero-rot', rot)); var v = el('div', 'ce-m-val', val); if (un) v.appendChild(el('small', null, un)); d.appendChild(v); if (extra) d.appendChild(el('div', 'ce-hero-txt', extra)); return d; }
-    m.appendChild(metrica('Maior saldo', nf(maior.saldo), 'kg', curto(maior.nome, 30)));
+    m.appendChild(metrica('Maior saldo', nf(maior.saldo), 'kg', nomeCurto(maior.nome)));
     m.appendChild(metrica('Top 10 concentram', pct(pTop10, 0), '', 'do estoque total'));
     m.appendChild(metrica('80% do estoque em', String(n80), 'itens', 'de ' + itens.length + ' matérias-primas'));
     h.appendChild(m);
-    var sa = el('div', 'ce-saude'), gw = el('div', 'ce-saude-graf'), cvS = document.createElement('canvas'); gw.appendChild(cvS);
-    var ct = el('div', 'ce-saude-centro'); ct.appendChild(el('b', null, pct(total ? soma.prop / total : 0, 0))); ct.appendChild(el('span', null, 'próprio')); gw.appendChild(ct); sa.appendChild(gw);
-    var lg = el('div', 'ce-leg'); [['#3ddc84', 'Próprio', soma.prop], ['#5eb0ff', 'Terceiros', soma.terc], ['#8aa0ba', 'Sem origem', soma.sem]].forEach(function (x) { if (!x[2] && x[0] === '#8aa0ba') return; var r = el('div'); var i = el('i'); i.style.background = x[0]; r.appendChild(i); r.appendChild(document.createTextNode(x[1])); r.appendChild(el('b', null, nf(x[2]) + ' kg')); lg.appendChild(r); }); sa.appendChild(lg);
+    var sa = el('div', 'ce-acur'); sa.appendChild(el('div', 'ce-hero-rot', 'Acuracidade do estoque'));
+    var ac = dados.acuracidade; sa.appendChild(el('div', 'ce-m-val', ac && ac.taxa !== null && ac.taxa !== undefined ? pct(ac.taxa, 1) : '—'));
+    sa.appendChild(el('div', 'ce-hero-txt', ac && ac.texto ? ac.texto : 'aguardando a definição da fonte da contagem'));
     h.appendChild(sa); box.appendChild(h);
-    graf.origem = new Chart(cvS, { type: 'doughnut', data: { labels: ['Próprio', 'Terceiros', 'Sem origem'], datasets: [{ data: [soma.prop, soma.terc, soma.sem], backgroundColor: ['#3ddc84', '#5eb0ff', '#8aa0ba'], borderWidth: 0 }] }, options: { cutout: '74%', plugins: { legend: { display: false } }, maintainAspectRatio: false } });
+    var fd = el('div', 'ce-feed'); fd.id = 'ceFeed'; box.appendChild(fd); desenharFeed();
 
     // ---- cartoes de gestao
     var kp = el('div', 'ce-kpis');
@@ -141,25 +179,32 @@
     // ---- graficos
     var l1 = el('div', 'ce-linha');
     var c1 = cartao('Maiores saldos em estoque', 'Top 10 matérias-primas com mais KG no estoque'), cv1 = graficoEm(c1); l1.appendChild(c1);
-    graf.saldos = new Chart(cv1, { type: 'bar', data: { labels: top10.map(function (x) { return curto(x.nome, 34); }), datasets: [{ data: top10.map(function (x) { return Math.round(x.saldo); }), backgroundColor: top10.map(function (x) { return grupo(x) === 'terc' ? '#5eb0ff' : '#2f7fe0'; }), borderRadius: 5, barThickness: 18 }] },
+    graf.saldos = new Chart(cv1, { type: 'bar', data: { labels: top10.map(function (x) { return nomeCurto(x.nome); }), datasets: [{ data: top10.map(function (x) { return Math.round(x.saldo); }), backgroundColor: top10.map(function (x) { return grupo(x) === 'terc' ? '#5eb0ff' : '#2f7fe0'; }), borderRadius: 5, barThickness: 18 }] },
       options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 78 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + pct(total ? x.raw / total : 0, 1) + ' do estoque'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v); } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
       plugins: [{ id: 'rot', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(top10[i].saldo) + ' kg', e.x + 6, e.y); }); x.restore(); } }] });
     var c2 = el('div', 'ce-card'); c2.id = 'ceConsumo'; l1.appendChild(c2); desenharConsumo(c2);
     box.appendChild(l1);
 
     var l2 = el('div', 'ce-linha');
-    var c3 = cartao('Menores saldos · atenção à reposição', temMin ? 'Itens com saldo abaixo do estoque mínimo cadastrado' : 'Itens com menos de 100 kg em estoque');
-    var lista = baixos.slice().sort(function (x, y) { return x.saldo - y.saldo; }).slice(0, 10);
-    c3.appendChild(tabela([{ t: 'Matéria-prima', f: function (x) { return curto(x.nome, 38); } }, { t: 'Fornecedor', f: function (x) { return x.fornecedor || ''; } }, { t: 'Saldo', num: 1, f: function (x) { return nf(x.saldo, 1) + ' kg'; } }].concat(temMin ? [{ t: 'Mínimo', num: 1, f: function (x) { return x.minimo ? nf(x.minimo) + ' kg' : '—'; } }] : []), lista, 'Nenhum item com saldo baixo.'));
-    l2.appendChild(c3);
-    var c4 = cartao('Estoque por fornecedor', 'Quilos em estoque por fornecedor da matéria-prima (cadastro do produto)');
+    var c3 = cartao('Menores saldos · atenção à reposição', temMin ? 'Itens abaixo do estoque mínimo cadastrado' : 'Itens com menos de 100 kg em estoque · ' + baixos.length + ' itens');
+    var lista = baixos.slice().sort(function (x, y) { return y.saldo - x.saldo; }), maxB = lista.length ? lista[0].saldo || 1 : 1, lb = el('div', 'ce-baixos');
+    if (!lista.length) lb.appendChild(el('div', 'ce-vazio', 'Nenhum item com saldo baixo.'));
+    lista.forEach(function (x) { var r = el('div', 'ce-bx'), n = el('div', 'ce-bx-n', nomeCurto(x.nome)); if (x.fornecedor) n.appendChild(el('small', null, fornCurto(x.fornecedor))); r.appendChild(n);
+      var b = el('div', 'ce-bx-b'), sp = el('span'); sp.style.width = Math.max(x.saldo / maxB * 100, 3) + '%'; b.appendChild(sp); r.appendChild(b); r.appendChild(el('div', 'ce-bx-k', nf(x.saldo, 1) + ' kg')); lb.appendChild(r); });
+    c3.appendChild(lb); l2.appendChild(c3);
+    var c4 = cartao('Estoque por fornecedor', 'Do maior para o menor · clique em um fornecedor para ver só as matérias-primas dele');
+    var tf = fornTodos.slice();
     if (forn.length) {
-      var cv4 = graficoEm(c4), tf = fornTodos.slice(0, 8);
-      graf.forn = new Chart(cv4, { type: 'bar', data: { labels: tf.map(function (x) { return curto(x.nome, 30); }), datasets: [{ data: tf.map(function (x) { return Math.round(x.kg); }), backgroundColor: tf.map(function (x) { return x.nome === 'Sem fornecedor' ? '#cfd6e2' : '#8a5fe0'; }), borderRadius: 5, barThickness: 18 }] },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 78 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + tf[x.dataIndex].itens + ' itens · ' + pct(total ? x.raw / total : 0, 1) + ' do estoque'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v); } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
+      var wf = el('div', 'ce-graf'), cv4 = document.createElement('canvas'); wf.style.height = Math.max(250, Math.min(tf.length, 12) * 30 + 50) + 'px'; wf.appendChild(cv4); c4.appendChild(wf); tf = tf.slice(0, 12);
+      var corF = function () { return tf.map(function (x) { return fornSel && x.nome !== fornSel ? '#d8cdf0' : (x.nome === 'Sem fornecedor' ? '#cfd6e2' : '#8a5fe0'); }); };
+      graf.forn = new Chart(cv4, { type: 'bar', data: { labels: tf.map(function (x) { return curto(x.nome, 30); }), datasets: [{ data: tf.map(function (x) { return Math.round(x.kg); }), backgroundColor: corF(), borderRadius: 5, barThickness: 18 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 78 } }, onHover: function (e, a) { e.native.target.style.cursor = a.length ? 'pointer' : 'default'; },
+          onClick: function (e, a) { if (!a.length) return; var nome = tf[a[0].index].nome; fornSel = fornSel === nome ? null : nome; graf.forn.data.datasets[0].backgroundColor = corF(); graf.forn.update(); desenharFornecedor(); desenharTabela(); },
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + tf[x.dataIndex].itens + ' itens · ' + pct(total ? x.raw / total : 0, 1) + ' do estoque'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v); } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
         plugins: [{ id: 'rotf', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(tf[i].kg) + ' kg', e.x + 6, e.y); }); x.restore(); } }] });
-    } else c4.appendChild(el('div', 'ce-vazio', 'O TOTVS não trouxe fornecedor no cadastro dos produtos. Se os fornecedores (UNIFI, AVANTI…) ficam em outro lugar, me diga onde.'));
+    } else c4.appendChild(el('div', 'ce-vazio', 'O TOTVS não trouxe fornecedor no cadastro dos produtos.'));
     l2.appendChild(c4); box.appendChild(l2);
+    var fp = el('div', 'ce-fpan'); fp.id = 'ceFornPainel'; box.appendChild(fp); desenharFornecedor();
     box.appendChild(el('p', 'ce-nota', 'Saldo do ' + (dados.estoque_nome || 'almoxarifado') + ' direto do TOTVS (consulta a cada minuto). Itens ativos, em KG, tipo matéria-prima. Atualizado em ' + dh(dados.atualizado) + '.'));
   }
 
@@ -183,14 +228,41 @@
     card.appendChild(resumo);
     if (!d.itens.length) { card.appendChild(el('div', 'ce-vazio', 'Nenhuma saída para a produção neste mês.')); return; }
     var top = d.itens.slice(0, 10), w = el('div', 'ce-graf'), cv = document.createElement('canvas'); w.appendChild(cv); card.appendChild(w);
-    graf.consumo = new Chart(cv, { type: 'bar', data: { labels: top.map(function (x) { return curto(x.nome, 34); }), datasets: [{ data: top.map(function (x) { return Math.round(x.kg); }), backgroundColor: '#1f9d55', borderRadius: 5, barThickness: 18 }] },
+    graf.consumo = new Chart(cv, { type: 'bar', data: { labels: top.map(function (x) { return nomeCurto(x.nome); }), datasets: [{ data: top.map(function (x) { return Math.round(x.kg); }), backgroundColor: '#1f9d55', borderRadius: 5, barThickness: 18 }] },
       options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 78 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + pct(d.total ? x.raw / d.total : 0, 1) + ' do mês · ' + top[x.dataIndex].movimentos + ' transferências'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v); } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
       plugins: [{ id: 'rotc', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(top[i].kg) + ' kg', e.x + 6, e.y); }); x.restore(); } }] });
   }
 
+  function quandoTxt(q) { if (!q) return ['—', '']; var d = q.slice(8, 10) + '/' + q.slice(5, 7); return [q.length > 11 ? q.slice(11, 16) : '', d]; }
+  function desenharFeed() {
+    var fd = $('ceFeed'); if (!fd) return; fd.textContent = '';
+    var top = el('div', 'ce-feed-top'), t = el('div', 'ce-feed-tit'); t.appendChild(el('span', 'ce-dot')); t.appendChild(document.createTextNode('Movimentações para a produção · ao vivo')); top.appendChild(t);
+    var r = el('div', 'ce-feed-res'); if (feed) { r.appendChild(document.createTextNode('Hoje: ')); r.appendChild(el('b', null, nf(feed.hoje_kg) + ' kg')); r.appendChild(document.createTextNode(' em ' + feed.hoje_n + ' transferências')); } top.appendChild(r); fd.appendChild(top);
+    var lista = el('div', 'ce-feed-lista');
+    if (!feed || !feed.itens.length) lista.appendChild(el('div', 'ce-vazio', feed && feed.atualizado ? 'Nenhuma transferência para a produção encontrada ainda.' : 'Lendo as transferências no TOTVS…'));
+    else feed.itens.forEach(function (x) {
+      var row = el('div', 'ce-mov' + (feedVisto.pronto && !feedVisto[x.id] ? ' novo' : '')), h = quandoTxt(x.quando), hh = el('div', 'ce-mov-h', h[0] || h[1]); if (h[0]) hh.appendChild(el('small', null, h[1])); row.appendChild(hh);
+      row.appendChild(el('div', 'ce-mov-u', x.usuario || (feed.tem_usuario ? '—' : 'usuário não informado')));
+      var nomes = x.itens.map(function (i) { return nomeCurto(i.nome); }); row.appendChild(el('div', 'ce-mov-m', nomes.length > 1 ? nomes[0] + ' +' + (nomes.length - 1) : nomes[0])); row.title = x.itens.map(function (i) { return i.nome + ' · ' + nf(i.kg, 1) + ' kg'; }).join('\n');
+      row.appendChild(el('div', 'ce-mov-k', nf(x.total, 1) + ' kg')); lista.appendChild(row);
+    });
+    fd.appendChild(lista);
+    if (feed) { feed.itens.forEach(function (x) { feedVisto[x.id] = 1; }); feedVisto.pronto = true; }
+  }
+  function desenharFornecedor() {
+    var p = $('ceFornPainel'); if (!p) return; p.textContent = '';
+    if (!fornSel) return;
+    var itens = ((dados && dados.itens) || []).filter(function (i) { return (i.fornecedor || 'Sem fornecedor') === fornSel; }).sort(function (x, y) { return y.saldo - x.saldo; }), tot = itens.reduce(function (s, i) { return s + i.saldo; }, 0);
+    var c = el('div', 'ce-card'), b = el('button', 'ce-fchip', '✕ Fornecedor: ' + fornSel); b.type = 'button'; b.addEventListener('click', function () { fornSel = null; if (graf.forn) { graf.forn.data.datasets[0].backgroundColor = graf.forn.data.labels.map(function (l) { return l === 'Sem fornecedor' ? '#cfd6e2' : '#8a5fe0'; }); graf.forn.update(); } desenharFornecedor(); desenharTabela(); }); c.appendChild(b);
+    c.appendChild(el('h3', null, itens.length + ' matérias-primas · ' + nf(tot) + ' kg em estoque'));
+    var mx = itens.length ? itens[0].saldo || 1 : 1, lb = el('div', 'ce-baixos'); lb.style.marginTop = '8px';
+    itens.forEach(function (x) { var r = el('div', 'ce-bx'), n = el('div', 'ce-bx-n', nomeCurto(x.nome)); n.title = x.nome; r.appendChild(n); var bb = el('div', 'ce-bx-b'), sp = el('span'); sp.style.background = 'linear-gradient(90deg,#8a5fe0,#b99cf0)'; sp.style.width = Math.max(x.saldo / mx * 100, 2) + '%'; bb.appendChild(sp); r.appendChild(bb); r.appendChild(el('div', 'ce-bx-k', nf(x.saldo, 1) + ' kg')); lb.appendChild(r); });
+    c.appendChild(lb); p.appendChild(c);
+  }
+
   function desenharTabela() {
     var corpo = $('almoxCorpo'); corpo.textContent = '';
-    var q = ($('buscaAlmox').value || '').trim().toLowerCase(), lista = ((dados && dados.itens) || []).filter(function (i) { return !q || String(i.codigo).indexOf(q) >= 0 || (i.nome || '').toLowerCase().indexOf(q) >= 0; }).sort(function (x, y) { return y.saldo - x.saldo; });
+    var q = ($('buscaAlmox').value || '').trim().toLowerCase(), lista = ((dados && dados.itens) || []).filter(function (i) { return (!fornSel || (i.fornecedor || 'Sem fornecedor') === fornSel) && (!q || String(i.codigo).indexOf(q) >= 0 || (i.nome || '').toLowerCase().indexOf(q) >= 0); }).sort(function (x, y) { return y.saldo - x.saldo; });
     if (!lista.length) { var r0 = el('tr'), c0 = el('td', 'prod-table-empty', 'Nenhuma matéria-prima encontrada.'); c0.colSpan = 7; r0.appendChild(c0); corpo.appendChild(r0); return; }
     lista.forEach(function (i) {
       var r = el('tr'); [[i.codigo], [i.nome], [i.fornecedor || ''], [i.origem || ''], [i.unidade || ''], [nf(i.saldo, 1), 'cme-num'], [cons && cons.pronto && cons.por_item && cons.por_item[i.codigo] && cons.por_item[i.codigo][mesSel] ? nf(cons.por_item[i.codigo][mesSel], 1) : '—', 'cme-num']].forEach(function (c) { r.appendChild(el('td', c[1], String(c[0]))); }); corpo.appendChild(r);
@@ -211,18 +283,18 @@
   }
 
   function carregar() {
-    Promise.all([fetch('/estoque-almox/dados', { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }), fetch('/estoque-almox/consumo-mensal', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })])
+    Promise.all([fetch('/estoque-almox/dados', { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }), fetch('/estoque-almox/consumo-mensal', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }), fetch('/estoque-almox/movimentacoes', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })])
       .then(function (x) {
         var d = x[0], c = x[1], sig = (d.atualizado || '') + '|' + ((d.estado && d.estado.erro) || '');
         var csig = (c && c.kardex_atualizado || '') + '|' + (c && c.estado && c.estado.feitos || '') + '|' + (c && c.pronto), mudouC = csig !== $('ceCorpo').dataset.csig, mudou = sig !== $('ceCorpo').dataset.sig;
-        dados = d; cons = c; status();
+        dados = d; cons = c; feed = x[2]; status();
         if (mudou) { $('ceCorpo').dataset.sig = sig; $('ceCorpo').dataset.csig = csig; desenhar(); } else if (mudouC) { $('ceCorpo').dataset.csig = csig; desenharConsumo(); }
-        desenharTabela();
+        desenharFeed(); desenharTabela();
       }).catch(function (e) { $('ceStatus').textContent = 'Não consegui carregar (' + e.message + ').'; });
   }
   $('buscaAlmox').addEventListener('input', desenharTabela);
   $('ceAtualizar').addEventListener('click', function () { $('ceStatus').textContent = 'Consultando o TOTVS…'; fetch('/estoque-almox/atualizar', { method: 'POST', credentials: 'same-origin' }).then(function () { setTimeout(carregar, 5000); }); });
-  carregar(); setInterval(carregar, 15000);
+  carregar(); setInterval(carregar, 10000);
 })();
 </script>
 {% endblock %}
