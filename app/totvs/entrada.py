@@ -39,6 +39,15 @@ def _num(v):
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
+def _valor(p: dict) -> float:
+    """Valor liquido do pedido; se o TOTVS devolver 0 (comum em exportacao recem-lancada), cai para o valor bruto/total."""
+    for k in ('netValue', 'grossValue', 'totalValue', 'productValue'):
+        v = _num(p.get(k))
+        if v:
+            return round(v, 2)
+    return 0.0
+
+
 def classificar(p: dict):
     """(entra?, 'MI'|'ME') de um pedido."""
     nome = str(p.get('operationName') or '').upper()
@@ -139,7 +148,7 @@ def atualizar(rapida: bool = False) -> bool:
             for p in novos:
                 entra, local = classificar(p)
                 if entra and p.get('orderDate'):
-                    pedidos[str(p['orderCode'])] = [str(p['orderDate'])[:10], round(_num(p.get('netValue')), 2), round(_num(p.get('quantity')), 2), local,
+                    pedidos[str(p['orderCode'])] = [str(p['orderDate'])[:10], _valor(p), round(_num(p.get('quantity')), 2), local,
                                                     p.get('customerCode'), str(p.get('insertDate') or '')[:19], str(p.get('customerName') or '')[:60]]
         try:
             fantasia = _fantasias(cli, {v[4] for v in pedidos.values()}, fantasia)
@@ -340,7 +349,7 @@ def alterados() -> dict:
         if ins and mud and mud <= (datetime.fromisoformat(ins) + timedelta(minutes=10)).isoformat():
             continue                                                   # so foi lancado, nao foi alterado depois
         cod = str(p.get('orderCode'))
-        valor, metros = round(_num(p.get('netValue')), 2), round(_num(p.get('quantity')), 2)
+        valor, metros = _valor(p), round(_num(p.get('quantity')), 2)
         b = base.get(cod)
         itens.append(dict(codigo=cod, data=str(p.get('orderDate') or '')[:10], inserido=ins, alterado=mud, local=local,
                           cliente=(fantasia.get(str(p.get('customerCode'))) or str(p.get('customerName') or ''))[:60], situacao=p.get('statusOrder'),
