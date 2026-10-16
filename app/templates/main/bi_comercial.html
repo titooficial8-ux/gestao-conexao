@@ -673,6 +673,8 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     var gl = (d.clientes_loc || {})[pedSel.anoCli], cp = ui.el('div', 'table-card');
     cp.appendChild(ui.el('h3', null, (ES ? 'Pedidos por cliente — detalle' : 'Pedidos por cliente — detalhe') + ' — ' + MESES[d.mes - 1] + '/' + pedSel.anoCli));
     cp.appendChild(ui.el('p', 'cme-meta', ES ? 'Soma de VALOR R$ por mercado (MI = interno, ME = externo) y por cliente' : 'Soma de VALOR R$, metragem total e ticket médio (R$ por metro) por mercado (MI = interno, ME = externo) e por cliente'));
+    if (gl && gl.ME.ptax) { var px = gl.ME.ptax, f4 = function (v) { return ui.nf(v, { minimumFractionDigits: 4, maximumFractionDigits: 4 }); };
+      cp.appendChild(ui.el('p', 'cme-meta', (ES ? 'PTAX utilizada (venta, Banco Central, del día del pedido): ' : 'PTAX utilizada (venda, Banco Central, do dia do pedido): ') + (px.min === px.max ? 'R$ ' + f4(px.min) : 'R$ ' + f4(px.min) + ' a R$ ' + f4(px.max)))); }
     if (gl && (gl.MI.itens.length || gl.ME.itens.length)) {
       var wp = ui.el('div', 'table-scroll'), tp2 = ui.el('table', 'data-table sl-tab sl-pivo'); wp.appendChild(tp2);
       var hp = ui.el('thead'), hr = ui.el('tr'); hr.appendChild(ui.el('th', null, ES ? 'Rótulos de Fila' : 'Rótulos de Linha')); hr.appendChild(ui.el('th', 'cme-num', 'Soma de VALOR R$')); hr.appendChild(ui.el('th', 'cme-num', ES ? 'Valor US$ (ME)' : 'Valor US$ (ME)')); hr.appendChild(ui.el('th', 'cme-num', ES ? 'Metraje total' : 'Metragem total')); hr.appendChild(ui.el('th', 'cme-num', ES ? 'Ticket medio (R$/mt)' : 'Ticket médio (R$/mt)')); hp.appendChild(hr); tp2.appendChild(hp);
