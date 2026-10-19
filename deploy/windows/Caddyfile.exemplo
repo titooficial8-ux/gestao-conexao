@@ -1,0 +1,6 @@
+# Bloco do Gestao Conexao para o Caddyfile que JA esta rodando na VPS (um Caddy so, varios sites).
+# Troque gestao.seudominio.com.br pelo endereco real (o DNS precisa apontar para o IP da VPS).
+gestao.seudominio.com.br {
+	encode gzip
+	reverse_proxy 127.0.0.1:5000
+}
