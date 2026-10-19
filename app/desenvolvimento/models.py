@@ -108,3 +108,23 @@ class CampanhaDesenho(db.Model):
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     responsavel = db.relationship('User', foreign_keys=[responsavel_id])
+
+
+class DevArquivo(db.Model):
+    """Biblioteca de arquivos do Desenvolvimento: laudos, produtos tecnologicos (PDF e videos) e material institucional (post de agencia etc.)."""
+    __tablename__ = 'dev_arquivos'
+
+    id = db.Column(db.Integer, primary_key=True)
+    secao = db.Column(db.String(20), nullable=False, index=True)       # laudos | produtos_pdf | produtos_video | institucional
+    titulo = db.Column(db.String(200), nullable=False)
+    descricao = db.Column(db.Text)
+    categoria = db.Column(db.String(60))
+    referencia = db.Column(db.String(200))                              # artigo / cliente ao qual o arquivo se refere
+    nome_original = db.Column(db.String(255), nullable=False)
+    caminho = db.Column(db.String(400), nullable=False)                 # relativo a instance/dev_arquivos
+    tamanho = db.Column(db.BigInteger, default=0)
+    mimetype = db.Column(db.String(120))
+    enviado_por_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    enviado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    enviado_por = db.relationship('User', foreign_keys=[enviado_por_id])

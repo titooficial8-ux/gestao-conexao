@@ -35,6 +35,7 @@ def create_app():
     caminho_db = os.environ.get('GESTAO_DB') or os.path.join(BASE_DIR, 'gestao_conexao.db')       # GESTAO_DB: guardar o banco em outra pasta (ex.: disco local)
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + caminho_db
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['MAX_CONTENT_LENGTH'] = int(2.1 * 1024 ** 3)           # upload de ate 2 GB (material institucional / videos)
 
     # varias threads gravam no banco o dia todo (pesagens, pedidos, baixas): sem WAL elas travam a leitura das telas
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'connect_args': {'timeout': 30}}

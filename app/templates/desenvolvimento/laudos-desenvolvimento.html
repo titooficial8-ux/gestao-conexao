@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dev.css') }}">
+<div class="dv">
+  <div class="dv-topo"><div><h1>Laudos Desenvolvimento</h1><div class="dv-sub">Laudos técnicos e de testes dos artigos desenvolvidos</div></div></div>
+  <div id="bib"></div>
+</div>
+<script src="{{ url_for('static', filename='js/dev.js') }}"></script>
+<script>
+DV.api('/dev/eu').then(function (eu) { return DV.biblioteca({ raiz: document.getElementById('bib'), eu: eu, secoes: [{ id: 'laudos', rotulo: 'Laudos', aceita: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.zip', maximo: '300 MB', referencia: true, categorias: ['Laudo técnico', 'Laudo de teste', 'Ficha técnica', 'Certificado', 'Outros'] }] }); })
+  .catch(function (e) { document.getElementById('bib').appendChild(DV.el('div', 'dv-aviso', e.message)); });
+</script>
+{% endblock %}

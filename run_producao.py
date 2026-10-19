@@ -22,4 +22,4 @@ app = create_app()
 if __name__ == '__main__':
     porta = int(os.getenv('PORTA', '5000'))
     print(f'Gestao Conexao em producao: http://0.0.0.0:{porta}', flush=True)
-    serve(app, host='0.0.0.0', port=porta, threads=int(os.getenv('THREADS', '16')))
+    serve(app, host='0.0.0.0', port=porta, threads=int(os.getenv('THREADS', '16')), max_request_body_size=int(2.2 * 1024 ** 3))      # uploads de ate 2 GB
