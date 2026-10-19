@@ -80,3 +80,11 @@ schtasks /run /tn "GestaoConexao"
 - **Só uma cópia do Gestão deve rodar com os agendadores ligados** (e-mail das 08h, pesagens, pedidos). Quando a VPS assumir, **pare** o `python run.py` do computador antigo, senão o e-mail das 08h pode sair duas vezes.
 - O site fica público na internet: use senhas fortes nos usuários e mantenha a `SECRET_KEY` secreta.
 - O IP da VPS precisa conseguir acessar `apitotvsmoda.bhan.com.br` (a TOTVS pode exigir liberar o IP novo).
+
+## Gestão em pasta de rede (ex.: `Z:\Rede-PCP\...\GestaoConexao`)
+- Use sempre o caminho entre aspas: `cd /d "Z:\Rede-PCP\06- PCP - COLCHÃO\Christian\GestaoConexao"`.
+- A pasta `venv` não sobrevive a mudança de lugar: apague-a e crie de novo (`python -m venv venv` e `venv\Scripts\python -m pip install -r requirements.txt`).
+- Se o Git reclamar de "dubious ownership": `git config --global --add safe.directory "Z:/Rede-PCP/06- PCP - COLCHÃO/Christian/GestaoConexao"`.
+- **Banco SQLite em rede é arriscado.** O Gestão detecta pasta de rede e desliga o modo WAL sozinho, mas o ideal é deixar o banco em disco local: no `.env`, `GESTAO_DB=C:\GestaoConexaoDados\gestao_conexao.db` (copie o `gestao_conexao.db` para lá).
+- Tarefa agendada (SYSTEM) **não enxerga a letra `Z:`**; use o caminho de rede completo (`\\servidor\Rede-PCP\...`) ou rode a tarefa com o usuário que tem o mapeamento.
+- Rode o Gestão em **um só computador** por vez (e-mail das 08h, pesagens e pedidos).
