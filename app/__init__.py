@@ -83,6 +83,8 @@ def create_app():
     app.register_blueprint(mov_bp)
     app.register_blueprint(almox_bp)
     app.register_blueprint(mp_bp)
+    from app.pcphub import pcphub_bp
+    app.register_blueprint(pcphub_bp)
     from app.desenvolvimento.routes import dev_bp
     app.register_blueprint(dev_bp)
     from app.relatorio_fat.routes import rel_fat_bp
@@ -224,6 +226,8 @@ def create_app():
         iniciar_empenho(app)      # consumo de materia-prima das OPs da Programacao: a cada 10 min
         from app.totvs.almoxarifado import iniciar_agendador_kardex as iniciar_almox_kardex
         iniciar_almox_kardex(app)  # saidas para a producao (kardex, op. 2011) por mes: a cada 5 min
+        from app.pcphub import iniciar_agendador as iniciar_pcphub
+        iniciar_pcphub(app)       # Programacao ao vivo a partir do PCP Hub: a cada 5 min (precisa de PCPHUB_EMAIL/PCPHUB_PASSWORD)
         from app.relatorio_fat.agenda import iniciar_agendador as iniciar_envio_relatorio
         iniciar_envio_relatorio(app)   # Relatorio de Faturamento por e-mail, 1x por dia (08:30)
 

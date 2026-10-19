@@ -21,6 +21,9 @@
         <span class="badge-ok">{{ t('linha_ativa') }}</span>
       </div>
       <div class="prod-toolbar-meta">
+        <span id="pcpHubStatus" title="Programação lida do PCP Hub"></span>
+      </div>
+      <div class="prod-toolbar-meta">
         <span>{{ maquinas_ativas }} {{ t('maquinas_operantes') }}</span>
         <span>&bull;</span>
         <span>{{ total_sequencias }} {{ t('sequencias_meta') }}</span>
@@ -92,6 +95,21 @@
     clearTimeout(timer);
     timer = setTimeout(buscarSemRecarregar, 400);
   });
+})();
+</script>
+
+<script>
+(function () {
+  var el = document.getElementById('pcpHubStatus'); if (!el) return;
+  function hm(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + ' ' + iso.slice(11, 16) : ''; }
+  function ler() {
+    fetch('/pcp-hub/status', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
+      if (!s.configurado) { el.textContent = '🔌 PCP Hub: não conectado (usando a última importação)'; el.style.color = '#9a6200'; return; }
+      if (s.erro) { el.textContent = '⚠ PCP Hub: ' + s.erro; el.style.color = '#b62027'; return; }
+      el.textContent = s.ultima ? '🟢 PCP Hub ao vivo · atualizado ' + hm(s.ultima) + ' · ' + s.n + ' sequências' : '⏳ PCP Hub: lendo…'; el.style.color = '#11703c';
+    }).catch(function () {});
+  }
+  ler(); setInterval(ler, 30000);
 })();
 </script>
 
