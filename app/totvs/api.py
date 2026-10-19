@@ -125,10 +125,21 @@ class TotvsModaClient:
                 data["branch"] = LOGIN_BRANCH
         return data
 
+    def _post_token(self, data: dict, tentativas: int = 5) -> requests.Response:
+        """POST no endpoint de token com novas tentativas em falha de rede/DNS (a internet do PC as vezes cai por alguns segundos)."""
+        for n in range(1, tentativas + 1):
+            try:
+                return self.session.post(TOKEN_URL, data=data, timeout=60)
+            except requests.ConnectionError as e:
+                if n == tentativas:
+                    raise
+                espera = 3 * n
+                print(f"  ! sem conexao com o TOTVS ({str(e)[:80]}); nova tentativa em {espera}s")
+                time.sleep(espera)
+
     def autenticar(self, usar_refresh: bool = False) -> None:
         if usar_refresh and self.refresh_token:
-            r = self.session.post(TOKEN_URL, data={"grant_type": "refresh_token",
-                                                   "refresh_token": self.refresh_token}, timeout=60)
+            r = self._post_token({"grant_type": "refresh_token", "refresh_token": self.refresh_token})
             if r.status_code != 200:
                 return self.autenticar(usar_refresh=False)
         else:
@@ -138,7 +149,7 @@ class TotvsModaClient:
                 grants.append("password" if GRANT_TYPE != "password" else "client_credentials")
             erros = []
             for g in grants:
-                r = self.session.post(TOKEN_URL, data=self._dados_login(g), timeout=60)
+                r = self._post_token(self._dados_login(g))
                 if r.status_code == 200:
                     print(f"  ✔ autenticado via {g}")
                     break
