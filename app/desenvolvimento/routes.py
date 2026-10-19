@@ -8,11 +8,15 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from flask import Blueprint, abort, jsonify, request
+import mimetypes
+import os
+import uuid
+
+from flask import Blueprint, abort, current_app, jsonify, request, send_file
 from flask_login import current_user, login_required
 
 from app import db
-from app.desenvolvimento.models import CampanhaDesenho, Cotacao, CotacaoEvento, DevProjeto, DevTarefa
+from app.desenvolvimento.models import CampanhaDesenho, Cotacao, CotacaoEvento, DevArquivo, DevProjeto, DevTarefa
 from app.models import Tab, User
 
 dev_bp = Blueprint('desenvolvimento', __name__, url_prefix='/dev')
@@ -22,6 +26,9 @@ ABAS = {  # slug -> (nome pt, nome es, icone, cor, setores que veem)
     'cotacoes': ('Cotações', 'Cotizaciones', '\U0001F4B2', '#1f9d55', ('Desenvolvimento', 'Comercial', 'Diretoria')),
     'cronograma-amostras': ('Cronograma de Amostras', 'Cronograma de Muestras', '\U0001F9F5', '#e0972f', ('Desenvolvimento', 'Comercial', 'Diretoria')),
     'cronograma-projetos': ('Cronograma de Projetos', 'Cronograma de Proyectos', '\U0001F5C2', '#8a5fe0', ('Desenvolvimento', 'Comercial', 'Diretoria')),
+    'laudos-desenvolvimento': ('Laudos Desenvolvimento', 'Informes de Desarrollo', '\U0001F4CB', '#3fa34d', ('Desenvolvimento', 'Comercial', 'Diretoria')),
+    'produtos-tecnologicos': ('Produtos Tecnológicos', 'Productos Tecnológicos', '\U0001F52C', '#2f7fe0', ('Desenvolvimento', 'Comercial', 'Diretoria')),
+    'material-institucional': ('Material Institucional', 'Material Institucional', '\U0001F3A8', '#e0972f', ('Desenvolvimento', 'Comercial', 'Diretoria')),
 }
 
 
@@ -341,3 +348,118 @@ def amostras_dados():
         return jsonify(ok=True, **amostras.dados(forcar=request.args.get('atualizar') == '1'))
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=str(e)[:300]), 502
+
+
+# ------------------------------------------------------------------ biblioteca de arquivos (laudos, produtos tecnologicos, material institucional)
+GB = 1024 ** 3
+MB = 1024 ** 2
+VIDEO = {'mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv'}
+IMAGEM = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+DOCS = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'}
+SECOES = {  # secao -> (aba, extensoes permitidas, tamanho maximo por arquivo)
+    'laudos': ('laudos-desenvolvimento', DOCS | IMAGEM | {'zip'}, 300 * MB),
+    'produtos_pdf': ('produtos-tecnologicos', {'pdf'}, 500 * MB),
+    'produtos_video': ('produtos-tecnologicos', VIDEO, 2 * GB),
+    'institucional': ('material-institucional', DOCS | IMAGEM | VIDEO | {'zip', 'rar', '7z', 'psd', 'ai', 'indd', 'eps', 'svgz'}, 2 * GB),
+}
+INLINE = {'pdf'} | VIDEO | IMAGEM            # abrem no navegador; o resto so baixa (evita executar html/svg enviados)
+
+
+def _pasta() -> str:
+    p = os.path.join(current_app.instance_path, 'dev_arquivos')
+    os.makedirs(p, exist_ok=True)
+    return p
+
+
+def _ext(nome: str) -> str:
+    return nome.rsplit('.', 1)[-1].lower() if '.' in nome else ''
+
+
+def _arquivo(a: DevArquivo) -> dict:
+    return dict(id=a.id, secao=a.secao, titulo=a.titulo, descricao=a.descricao, categoria=a.categoria, referencia=a.referencia, nome=a.nome_original, ext=_ext(a.nome_original), tamanho=a.tamanho or 0,
+                enviado_por=_nome(a.enviado_por), enviado_em=a.enviado_em.isoformat(timespec='minutes') if a.enviado_em else None, inline=_ext(a.nome_original) in INLINE,
+                pode_excluir=bool(current_user.is_admin or (eh_dev() and a.enviado_por_id == current_user.id)))
+
+
+@dev_bp.route('/arquivos')
+@login_required
+def arquivos():
+    secao = request.args.get('secao', '')
+    if secao not in SECOES:
+        abort(400)
+    _autorizar(SECOES[secao][0])
+    return jsonify([_arquivo(a) for a in DevArquivo.query.filter_by(secao=secao).order_by(DevArquivo.enviado_em.desc()).all()])
+
+
+@dev_bp.route('/arquivos', methods=['POST'])
+@login_required
+def arquivo_enviar():
+    secao = request.form.get('secao', '')
+    if secao not in SECOES:
+        return jsonify(erro='Seção inválida.'), 400
+    aba, permitidas, maximo = SECOES[secao]
+    _autorizar(aba)
+    _exigir_dev()
+    f = request.files.get('arquivo')
+    titulo = (request.form.get('titulo') or '').strip()
+    if not f or not f.filename:
+        return jsonify(erro='Escolha um arquivo.'), 400
+    ext = _ext(f.filename)
+    if ext not in permitidas:
+        return jsonify(erro=f'Tipo de arquivo não permitido (.{ext}). Permitidos: ' + ', '.join(sorted(permitidas))), 400
+    if (request.content_length or 0) > maximo + 5 * MB:
+        return jsonify(erro=f'Arquivo maior que o limite de {maximo // MB if maximo < GB else maximo // GB} {"MB" if maximo < GB else "GB"}.'), 413
+    nome_seguro = ''.join(c if c.isalnum() or c in '._- ' else '_' for c in os.path.basename(f.filename))[:150]
+    rel = os.path.join(secao, f'{uuid.uuid4().hex}_{nome_seguro}')
+    destino = os.path.join(_pasta(), rel)
+    os.makedirs(os.path.dirname(destino), exist_ok=True)
+    f.save(destino)
+    tam = os.path.getsize(destino)
+    if tam > maximo:
+        os.remove(destino)
+        return jsonify(erro='Arquivo maior que o limite permitido.'), 413
+    a = DevArquivo(secao=secao, titulo=titulo or os.path.splitext(nome_seguro)[0], descricao=(request.form.get('descricao') or '').strip() or None, categoria=(request.form.get('categoria') or '').strip() or None,
+                   referencia=(request.form.get('referencia') or '').strip() or None, nome_original=nome_seguro, caminho=rel, tamanho=tam, mimetype=mimetypes.guess_type(nome_seguro)[0], enviado_por_id=current_user.id)
+    db.session.add(a)
+    db.session.commit()
+    return jsonify(_arquivo(a))
+
+
+def _enviar(aid: int, baixar: bool):
+    a = db.session.get(DevArquivo, aid) or abort(404)
+    _autorizar(SECOES[a.secao][0])
+    caminho = os.path.join(_pasta(), a.caminho)
+    if not os.path.isfile(caminho):
+        abort(404)
+    inline = _ext(a.nome_original) in INLINE and not baixar
+    r = send_file(caminho, mimetype=a.mimetype or 'application/octet-stream', as_attachment=not inline, download_name=a.nome_original, conditional=True, max_age=0)   # conditional = suporta Range (video)
+    r.headers['X-Content-Type-Options'] = 'nosniff'
+    return r
+
+
+@dev_bp.route('/arquivos/<int:aid>/ver')
+@login_required
+def arquivo_ver(aid):
+    return _enviar(aid, False)
+
+
+@dev_bp.route('/arquivos/<int:aid>/baixar')
+@login_required
+def arquivo_baixar(aid):
+    return _enviar(aid, True)
+
+
+@dev_bp.route('/arquivos/<int:aid>', methods=['DELETE'])
+@login_required
+def arquivo_excluir(aid):
+    a = db.session.get(DevArquivo, aid) or abort(404)
+    _autorizar(SECOES[a.secao][0])
+    if not (current_user.is_admin or (eh_dev() and a.enviado_por_id == current_user.id)):
+        abort(403)
+    try:
+        os.remove(os.path.join(_pasta(), a.caminho))
+    except OSError:
+        pass
+    db.session.delete(a)
+    db.session.commit()
+    return jsonify(ok=True)

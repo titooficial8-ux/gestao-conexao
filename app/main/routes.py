@@ -1102,7 +1102,7 @@ def view_tab(slug):
     if slug == 'dashboard-estoque':
         return render_template('main/dashboard_estoque.html', tab=tab, **DASHBOARD_ESTOQUE_MODELO)
 
-    if slug in ('cronograma-dev', 'cotacoes', 'cronograma-amostras', 'cronograma-projetos'):
+    if slug in ('cronograma-dev', 'cotacoes', 'cronograma-amostras', 'cronograma-projetos', 'laudos-desenvolvimento', 'produtos-tecnologicos', 'material-institucional'):
         return render_template(f'desenvolvimento/{slug}.html', tab=tab)
 
     if slug == 'controle-estoque':

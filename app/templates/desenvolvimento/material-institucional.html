@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dev.css') }}">
+<div class="dv">
+  <div class="dv-topo"><div><h1>Material Institucional</h1><div class="dv-sub">Posts da agência, logos, catálogos e demais materiais</div></div></div>
+  <div id="bib"></div>
+</div>
+<script src="{{ url_for('static', filename='js/dev.js') }}"></script>
+<script>
+DV.api('/dev/eu').then(function (eu) { return DV.biblioteca({ raiz: document.getElementById('bib'), eu: eu, secoes: [{ id: 'institucional', rotulo: 'Material Institucional', aceita: '', maximo: '2 GB', categorias: ['Post Agência', 'Logos e marca', 'Catálogos', 'Fotos', 'Vídeos institucionais', 'Outros'] }] }); })
+  .catch(function (e) { document.getElementById('bib').appendChild(DV.el('div', 'dv-aviso', e.message)); });
+</script>
+{% endblock %}
