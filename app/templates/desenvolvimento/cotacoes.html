@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dev.css') }}">
+<div class="dv">
+  <div class="dv-topo">
+    <div><h1>Cotações</h1><div class="dv-sub">Comercial solicita · Desenvolvimento cota · Comercial aprova ou pede alteração</div></div>
+    <div class="dv-acoes"><button class="dv-btn" id="ctNova" type="button" hidden>+ Solicitar cotação</button></div>
+  </div>
+  <div class="dv-bloco">O que vai ser feito</div>
+  <div class="dv-kpis" id="ctKpiFazer"></div>
+  <div class="dv-bloco">O que já foi feito</div>
+  <div class="dv-kpis" id="ctKpiFeito"></div>
+  <div class="dv-grupo" id="ctFiltros"></div>
+  <div class="dv-card" id="ctLista"></div>
+</div>
+<script src="{{ url_for('static', filename='js/dev.js') }}"></script>
+<script>
+(function () {
+  var D = DV, EU = null, LISTA = [], FILTRO = 'abertas';
+  var ST = { SOLICITADA: ['Solicitada', 'azul'], EM_ANALISE: ['Em análise', 'roxo'], COTADA: ['Aguardando aprovação', 'ambar'], APROVADA: ['Aprovada', 'verde'], REPROVADA: ['Reprovada', 'verm'], ALTERACAO: ['Alteração solicitada', 'ambar'], CANCELADA: ['Cancelada', 'cinza'] };
+  var ROT = { assumir: 'Assumir análise', cotar: 'Enviar cotação', aprovar: 'Aprovar', reprovar: 'Reprovar', pedir_alteracao: 'Pedir alteração', cancelar: 'Cancelar cotação' };
+  var CLS = { aprovar: 'ok', reprovar: 'perigo', cancelar: 'perigo', cotar: 'ok' };
+  var FILTROS = [['abertas', 'Em aberto'], ['SOLICITADA', 'Solicitadas'], ['EM_ANALISE', 'Em análise'], ['COTADA', 'Aguardando aprovação'], ['ALTERACAO', 'Alterações'], ['APROVADA', 'Aprovadas'], ['REPROVADA', 'Reprovadas'], ['todas', 'Todas']];
+  function n(s) { return LISTA.filter(function (c) { return c.status === s; }).length; }
+  function indicadores() {
+    var f = document.getElementById('ctKpiFazer'), g = document.getElementById('ctKpiFeito'); D.limpar(f); D.limpar(g);
+    var atr = LISTA.filter(function (c) { return c.atrasada; }).length, mes = D.hoje().slice(0, 7);
+    f.appendChild(D.kpi('Solicitadas', String(n('SOLICITADA')), 'aguardando o Desenvolvimento', '#2f7fe0')); f.appendChild(D.kpi('Em análise', String(n('EM_ANALISE')), 'sendo cotadas agora', '#8a5fe0'));
+    f.appendChild(D.kpi('Alterações pedidas', String(n('ALTERACAO')), 'voltaram para revisão', '#e0972f')); f.appendChild(D.kpi('Atrasadas', String(atr), atr ? 'passaram do prazo desejado' : 'tudo no prazo', atr ? '#c0272d' : '#1f9d55'));
+    var resp = LISTA.filter(function (c) { return c.horas_resposta !== null; }), med = resp.length ? resp.reduce(function (s, c) { return s + c.horas_resposta; }, 0) / resp.length : null;
+    g.appendChild(D.kpi('Aguardando aprovação', String(n('COTADA')), 'cotadas, esperando o Comercial', '#e0972f')); g.appendChild(D.kpi('Aprovadas', String(n('APROVADA')), LISTA.filter(function (c) { return c.status === 'APROVADA' && (c.decidido_em || '').slice(0, 7) === mes; }).length + ' neste mês', '#1f9d55'));
+    g.appendChild(D.kpi('Reprovadas', String(n('REPROVADA')), 'recusadas pelo Comercial', '#c0272d')); var dec = n('APROVADA') + n('REPROVADA');
+    g.appendChild(D.kpi('Taxa de aprovação', dec ? Math.round(n('APROVADA') / dec * 100) + '%' : '—', dec + ' decididas', '#0a3d8f')); g.appendChild(D.kpi('Tempo médio de resposta', med === null ? '—' : (med < 48 ? D.nf(med, 1) + ' h' : D.nf(med / 24, 1) + ' dias'), resp.length + ' cotações respondidas', '#8a5fe0'));
+  }
+  function filtrar() { return LISTA.filter(function (c) { return FILTRO === 'todas' || (FILTRO === 'abertas' ? ['SOLICITADA', 'EM_ANALISE', 'ALTERACAO', 'COTADA'].indexOf(c.status) >= 0 : c.status === FILTRO); }); }
+  function chips() { var b = document.getElementById('ctFiltros'); D.limpar(b); FILTROS.forEach(function (f) { var c = D.el('button', 'dv-chip' + (FILTRO === f[0] ? ' active' : ''), f[1]); c.type = 'button'; c.onclick = function () { FILTRO = f[0]; chips(); lista(); }; b.appendChild(c); }); }
+  function lista() {
+    var box = document.getElementById('ctLista'); D.limpar(box); var l = filtrar();
+    if (!l.length) { box.appendChild(D.el('div', 'dv-vazio', 'Nenhuma cotação neste filtro.')); return; }
+    var t = D.el('table', 'dv-tabela'), h = D.el('thead'), r = D.el('tr'); ['Código', 'Cliente', 'Artigo', 'Qtd', 'Prazo desejado', 'Situação', 'Solicitante', 'Responsável', 'Valor cotado'].forEach(function (x, i) { r.appendChild(D.el('th', i === 3 || i === 8 ? 'n' : null, x)); }); h.appendChild(r); t.appendChild(h);
+    var b = D.el('tbody'); l.forEach(function (c) {
+      var tr = D.el('tr', 'clic'); tr.appendChild(D.el('td', null, c.codigo)); tr.appendChild(D.el('td', null, c.cliente)); tr.appendChild(D.el('td', null, c.artigo)); tr.appendChild(D.el('td', 'n', c.quantidade ? D.nf(c.quantidade) + ' ' + c.unidade : '—'));
+      var td = D.el('td'); td.appendChild(document.createTextNode(D.dt(c.prazo_desejado) + ' ')); if (c.atrasada) td.appendChild(D.pill('⚠ atrasada', 'verm')); tr.appendChild(td);
+      var s = D.el('td'); s.appendChild(D.pill(ST[c.status][0], ST[c.status][1])); tr.appendChild(s); tr.appendChild(D.el('td', null, c.solicitante || '—')); tr.appendChild(D.el('td', null, c.responsavel || '—')); tr.appendChild(D.el('td', 'n', c.valor_cotado !== null ? D.brl(c.valor_cotado) : '—'));
+      tr.onclick = function () { detalhe(c.id); }; b.appendChild(tr); });
+    t.appendChild(b); box.appendChild(t);
+  }
+  function recarregar() { return D.api('/dev/cotacoes').then(function (l) { LISTA = l; indicadores(); lista(); }); }
+  function detalhe(id) {
+    D.api('/dev/cotacoes/' + id).then(function (c) {
+      var jan = D.janela(c.codigo + ' · ' + c.cliente, [], {}, []), m = jan.corpo, rodape = m.lastChild;
+      var lin = function (r, v) { var d = D.el('div'); d.style.cssText = 'display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #eef2f8;font-size:13px'; var a = D.el('b', null, r); a.style.cssText = 'min-width:150px;color:#5d6e84;font-size:11px;text-transform:uppercase;letter-spacing:.05em'; d.appendChild(a); d.appendChild(document.createTextNode(v || '—')); return d; };
+      var topo = D.el('div'); topo.appendChild(D.pill(ST[c.status][0], ST[c.status][1])); topo.style.marginBottom = '8px'; m.insertBefore(topo, rodape);
+      [['Artigo', c.artigo], ['Quantidade', c.quantidade ? D.nf(c.quantidade) + ' ' + c.unidade : ''], ['Prazo desejado', D.dt(c.prazo_desejado)], ['Solicitante', c.solicitante], ['Responsável', c.responsavel], ['Observações', c.observacoes],
+        ['Valor cotado', c.valor_cotado !== null ? D.brl(c.valor_cotado) : ''], ['Prazo de entrega', c.prazo_entrega ? D.dt(c.prazo_entrega) : ''], ['Resposta', c.resposta]].forEach(function (x) { m.insertBefore(lin(x[0], x[1]), rodape); });
+      m.insertBefore(D.bloco('Histórico'), rodape); var h = D.el('div', 'dv-hist'); c.eventos.forEach(function (e) { var d = D.el('div'); d.appendChild(D.el('b', null, e.usuario + ' · ' + ({ solicitou: 'solicitou', assumir: 'assumiu a análise', cotar: 'enviou a cotação', aprovar: 'aprovou', reprovar: 'reprovou', pedir_alteracao: 'pediu alteração', cancelar: 'cancelou' }[e.acao] || e.acao))); if (e.texto) d.appendChild(document.createTextNode(' — ' + e.texto)); d.appendChild(D.el('small', null, D.dh(e.em))); h.appendChild(d); }); m.insertBefore(h, rodape);
+      c.acoes.forEach(function (a) { var bt = D.el('button', 'dv-btn ' + (CLS[a] || ''), ROT[a]); bt.type = 'button'; bt.onclick = function () { jan.fechar(); acao(c, a); }; rodape.insertBefore(bt, rodape.firstChild); });
+    });
+  }
+  function acao(c, a) {
+    var cs = [];
+    if (a === 'cotar') cs = [{ k: 'valor', rotulo: 'Valor cotado (R$)', meia: true }, { k: 'prazo_entrega', rotulo: 'Prazo de entrega', tipo: 'date', meia: true }, { k: 'texto', rotulo: 'Resposta / detalhes da cotação', tipo: 'textarea' }];
+    else if (['reprovar', 'pedir_alteracao', 'cancelar'].indexOf(a) >= 0) cs = [{ k: 'texto', rotulo: a === 'pedir_alteracao' ? 'O que precisa mudar' : 'Motivo', tipo: 'textarea', obrigatorio: true }];
+    else cs = [{ k: 'texto', rotulo: 'Observação (opcional)', tipo: 'textarea' }];
+    D.janela(ROT[a] + ' · ' + c.codigo, cs, {}, [{ rotulo: ROT[a], cls: CLS[a] || '', fn: function (d) { d.acao = a; return D.api('/dev/cotacoes/' + c.id + '/acao', 'POST', d).then(recarregar); } }]);
+  }
+  document.getElementById('ctNova').onclick = function () {
+    D.janela('Solicitar cotação', [{ k: 'cliente', rotulo: 'Cliente', obrigatorio: true }, { k: 'artigo', rotulo: 'Artigo / descrição', obrigatorio: true }, { k: 'quantidade', rotulo: 'Quantidade', tipo: 'number', meia: true }, { k: 'unidade', rotulo: 'Unidade', tipo: 'select', meia: true, opcoes: [['mts', 'metros'], ['kg', 'quilos'], ['un', 'unidades']] },
+      { k: 'prazo_desejado', rotulo: 'Prazo desejado pelo cliente', tipo: 'date' }, { k: 'observacoes', rotulo: 'Observações', tipo: 'textarea' }], { unidade: 'mts' },
+      [{ rotulo: 'Enviar solicitação', fn: function (d) { return D.api('/dev/cotacoes', 'POST', d).then(recarregar); } }]);
+  };
+  D.api('/dev/eu').then(function (e) { EU = e; if (e.comercial || e.dev) document.getElementById('ctNova').hidden = false; chips(); return recarregar(); }).catch(function (e) { document.getElementById('ctLista').appendChild(D.el('div', 'dv-aviso', e.message)); });
+})();
+</script>
+{% endblock %}

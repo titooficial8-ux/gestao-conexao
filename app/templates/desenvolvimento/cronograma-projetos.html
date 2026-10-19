@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dev.css') }}">
+<div class="dv">
+  <div class="dv-topo">
+    <div><h1>Cronograma de Projetos</h1><div class="dv-sub">Projetos do Desenvolvimento · Coleção de Campanhas (Cronograma de Desenhos)</div></div>
+    <div class="dv-acoes"><button class="dv-btn" id="pjNovo" type="button" hidden>+ Novo</button></div>
+  </div>
+  <div class="dv-grupo" id="pjAbas"><button class="dv-chip active" data-v="proj" type="button">Projetos</button><button class="dv-chip" data-v="camp" type="button">Coleção de Campanhas · Cronograma de Desenhos</button></div>
+  <div id="pjAviso"></div>
+  <div class="dv-kpis" id="pjKpis"></div>
+  <div id="pjCorpo"></div>
+</div>
+<script src="{{ url_for('static', filename='js/dev.js') }}"></script>
+<script>
+(function () {
+  var D = DV, EU = null, DEVS = [], PROJ = [], DESE = [], VIS = 'proj';
+  var SP = { PLANEJADO: ['Planejado', 'cinza', '#8a9bb3'], EM_ANDAMENTO: ['Em andamento', 'azul', '#2f7fe0'], PAUSADO: ['Pausado', 'ambar', '#e0972f'], CONCLUIDO: ['Concluído', 'verde', '#1f9d55'] };
+  var SD = { A_FAZER: ['A fazer', 'cinza', '#8a9bb3'], EM_CRIACAO: ['Em criação', 'azul', '#2f7fe0'], APROVACAO: ['Em aprovação', 'ambar', '#e0972f'], APROVADO: ['Aprovado', 'verde', '#1f9d55'], SALVO: ['Salvo', 'roxo', '#8a5fe0'] };
+  var PR = { ALTA: ['Alta', 'verm'], MEDIA: ['Média', 'ambar'], BAIXA: ['Baixa', 'cinza'] };
+  function opts(o) { return Object.keys(o).map(function (k) { return [k, o[k][0]]; }); }
+  function respOpts() { return [['', '— sem responsável —']].concat(DEVS.map(function (d) { return [d.id, d.nome]; })); }
+  function kpiProj() { var k = document.getElementById('pjKpis'); D.limpar(k); var c = function (s) { return PROJ.filter(function (p) { return p.status === s; }).length; }, at = PROJ.filter(function (p) { return p.atrasado; }).length, pm = PROJ.length ? Math.round(PROJ.reduce(function (s, p) { return s + p.progresso; }, 0) / PROJ.length) : 0;
+    k.appendChild(D.kpi('Projetos', String(PROJ.length), c('EM_ANDAMENTO') + ' em andamento', '#0a3d8f')); k.appendChild(D.kpi('Concluídos', String(c('CONCLUIDO')), PROJ.length ? Math.round(c('CONCLUIDO') / PROJ.length * 100) + '% do total' : '', '#1f9d55')); k.appendChild(D.kpi('Atrasados', String(at), at ? 'prazo vencido' : 'tudo em dia', at ? '#c0272d' : '#1f9d55')); k.appendChild(D.kpi('Progresso médio', pm + '%', '', '#8a5fe0')); }
+  function kpiCamp() { var k = document.getElementById('pjKpis'); D.limpar(k); var camps = {}; DESE.forEach(function (d) { camps[d.campanha] = 1; }); var c = function (s) { return DESE.filter(function (d) { return d.status === s; }).length; }, at = DESE.filter(function (d) { return d.atrasado; }).length, ok = c('APROVADO') + c('SALVO');
+    k.appendChild(D.kpi('Campanhas', String(Object.keys(camps).length), DESE.length + ' desenhos', '#0a3d8f')); k.appendChild(D.kpi('Em criação', String(c('EM_CRIACAO')), c('A_FAZER') + ' a fazer', '#2f7fe0')); k.appendChild(D.kpi('Em aprovação', String(c('APROVACAO')), 'aguardando o cliente/Comercial', '#e0972f'));
+    k.appendChild(D.kpi('Aprovados / salvos', String(ok), DESE.length ? Math.round(ok / DESE.length * 100) + '% prontos' : '', '#1f9d55')); k.appendChild(D.kpi('Atrasados', String(at), at ? 'prazo vencido' : 'tudo em dia', at ? '#c0272d' : '#1f9d55')); }
+  function proj() {
+    kpiProj(); var box = document.getElementById('pjCorpo'); D.limpar(box);
+    var g = D.el('div', 'dv-card'); g.appendChild(D.el('h3', null, 'Linha do tempo')); g.appendChild(D.gantt(PROJ.map(function (p) { return { nome: p.nome, inicio: p.inicio, prazo: p.prazo, cor: p.atrasado ? '#c0272d' : SP[p.status][2], titulo: p.nome + ' · ' + p.progresso + '%' }; }))); box.appendChild(g);
+    var c = D.el('div', 'dv-card');
+    if (!PROJ.length) c.appendChild(D.el('div', 'dv-vazio', 'Nenhum projeto cadastrado ainda.')); else {
+      var t = D.el('table', 'dv-tabela'), h = D.el('thead'), r = D.el('tr'); ['Projeto', 'Responsável', 'Início', 'Prazo', 'Prioridade', 'Situação', 'Progresso'].forEach(function (x) { r.appendChild(D.el('th', null, x)); }); h.appendChild(r); t.appendChild(h); var b = D.el('tbody');
+      PROJ.forEach(function (p) { var tr = D.el('tr', 'clic'); tr.appendChild(D.el('td', null, p.nome)); tr.appendChild(D.el('td', null, p.responsavel || '—')); tr.appendChild(D.el('td', null, D.dt(p.inicio))); var pz = D.el('td'); pz.appendChild(document.createTextNode(D.dt(p.prazo) + ' ')); if (p.atrasado) pz.appendChild(D.pill('⚠', 'verm')); tr.appendChild(pz);
+        var a = D.el('td'); a.appendChild(D.pill(PR[p.prioridade][0], PR[p.prioridade][1])); tr.appendChild(a); var s = D.el('td'); s.appendChild(D.pill(SP[p.status][0], SP[p.status][1])); tr.appendChild(s); var pg = D.el('td'); pg.style.minWidth = '120px'; pg.appendChild(D.barra(p.progresso, p.status === 'CONCLUIDO' ? 'v' : (p.atrasado ? 'r' : ''))); tr.appendChild(pg); tr.onclick = function () { editarProj(p); }; b.appendChild(tr); });
+      t.appendChild(b); c.appendChild(t); }
+    box.appendChild(c);
+  }
+  function camp() {
+    kpiCamp(); var box = document.getElementById('pjCorpo'); D.limpar(box);
+    if (!DESE.length) { var v = D.el('div', 'dv-card'); v.appendChild(D.el('div', 'dv-vazio', 'Nenhum desenho cadastrado ainda. Use "+ Novo" para criar o primeiro.')); box.appendChild(v); return; }
+    var grupos = {}; DESE.forEach(function (d) { (grupos[d.campanha] = grupos[d.campanha] || []).push(d); });
+    Object.keys(grupos).sort().forEach(function (nome) {
+      var l = grupos[nome], c = D.el('div', 'dv-card'), pr = Math.round(l.filter(function (d) { return d.status === 'APROVADO' || d.status === 'SALVO'; }).length / l.length * 100), h = D.el('h3', null, nome + ' · ' + l.length + ' desenhos · ' + pr + '% prontos'); c.appendChild(h); var b0 = D.barra(pr, 'v'); b0.style.marginBottom = '10px'; c.appendChild(b0);
+      c.appendChild(D.gantt(l.map(function (d) { return { nome: d.desenho, inicio: d.inicio, prazo: d.prazo, cor: d.atrasado ? '#c0272d' : SD[d.status][2], titulo: d.desenho + ' · ' + SD[d.status][0] }; })));
+      var t = D.el('table', 'dv-tabela'), hd = D.el('thead'), r = D.el('tr'); ['Desenho', 'Cliente', 'Responsável', 'Prazo', 'Situação'].forEach(function (x) { r.appendChild(D.el('th', null, x)); }); hd.appendChild(r); t.appendChild(hd); var b = D.el('tbody');
+      l.forEach(function (d) { var tr = D.el('tr', 'clic'); tr.appendChild(D.el('td', null, d.desenho)); tr.appendChild(D.el('td', null, d.cliente || '—')); tr.appendChild(D.el('td', null, d.responsavel || '—')); var pz = D.el('td'); pz.appendChild(document.createTextNode(D.dt(d.prazo) + ' ')); if (d.atrasado) pz.appendChild(D.pill('⚠', 'verm')); tr.appendChild(pz); var s = D.el('td'); s.appendChild(D.pill(SD[d.status][0], SD[d.status][1])); tr.appendChild(s); tr.onclick = function () { editarDes(d); }; b.appendChild(tr); });
+      t.appendChild(b); c.appendChild(t); box.appendChild(c); });
+  }
+  function desenhar() { (VIS === 'proj' ? proj : camp)(); }
+  function recarregar() { return Promise.all([D.api('/dev/projetos'), D.api('/dev/campanha_desenhos')]).then(function (r) { PROJ = r[0]; DESE = r[1]; desenhar(); }); }
+  function camposProj() { return [{ k: 'nome', rotulo: 'Projeto', obrigatorio: true }, { k: 'responsavel_id', rotulo: 'Responsável', tipo: 'select', meia: true, opcoes: respOpts() }, { k: 'prioridade', rotulo: 'Prioridade', tipo: 'select', meia: true, opcoes: [['MEDIA', 'Média'], ['ALTA', 'Alta'], ['BAIXA', 'Baixa']] },
+    { k: 'inicio', rotulo: 'Início', tipo: 'date', meia: true }, { k: 'prazo', rotulo: 'Prazo', tipo: 'date', meia: true }, { k: 'status', rotulo: 'Situação', tipo: 'select', meia: true, opcoes: opts(SP) }, { k: 'progresso', rotulo: 'Progresso (%)', tipo: 'number', min: 0, max: 100, meia: true }, { k: 'descricao', rotulo: 'Descrição', tipo: 'textarea' }]; }
+  function camposDes() { return [{ k: 'campanha', rotulo: 'Coleção / campanha', obrigatorio: true }, { k: 'desenho', rotulo: 'Desenho', obrigatorio: true }, { k: 'cliente', rotulo: 'Cliente', meia: true }, { k: 'responsavel_id', rotulo: 'Responsável', tipo: 'select', meia: true, opcoes: respOpts() },
+    { k: 'inicio', rotulo: 'Início', tipo: 'date', meia: true }, { k: 'prazo', rotulo: 'Prazo', tipo: 'date', meia: true }, { k: 'status', rotulo: 'Situação', tipo: 'select', opcoes: opts(SD) }, { k: 'observacao', rotulo: 'Observação', tipo: 'textarea' }]; }
+  function janelaCad(titulo, campos, valores, url, id) {
+    var ro = !EU.dev, cs = campos.map(function (c) { c = Object.assign({}, c); if (ro) c.somenteLeitura = true; return c; });
+    var bt = ro ? [] : [{ rotulo: 'Salvar', fn: function (d) { return D.api(id ? url + '/' + id : url, 'POST', d).then(recarregar); } }].concat(id ? [{ rotulo: 'Excluir', cls: 'perigo', fn: function () { if (!confirm('Excluir?')) return Promise.reject(new Error('Cancelado.')); return D.api(url + '/' + id, 'DELETE').then(recarregar); } }] : []);
+    D.janela(titulo, cs, valores, bt);
+  }
+  function editarProj(p) { janelaCad('Projeto', camposProj(), p, '/dev/projetos', p.id); }
+  function editarDes(d) { janelaCad('Desenho', camposDes(), d, '/dev/campanha_desenhos', d.id); }
+  document.getElementById('pjNovo').onclick = function () { if (VIS === 'proj') janelaCad('Novo projeto', camposProj(), { status: 'PLANEJADO', prioridade: 'MEDIA', progresso: 0, responsavel_id: EU.id }, '/dev/projetos'); else janelaCad('Novo desenho', camposDes(), { status: 'A_FAZER', responsavel_id: EU.id }, '/dev/campanha_desenhos'); };
+  Array.prototype.forEach.call(document.querySelectorAll('#pjAbas .dv-chip'), function (b) { b.onclick = function () { VIS = b.dataset.v; Array.prototype.forEach.call(document.querySelectorAll('#pjAbas .dv-chip'), function (x) { x.classList.toggle('active', x === b); }); desenhar(); }; });
+  Promise.all([D.api('/dev/eu'), D.api('/dev/usuarios')]).then(function (r) { EU = r[0]; DEVS = r[1]; if (EU.dev) document.getElementById('pjNovo').hidden = false; else document.getElementById('pjAviso').appendChild(D.el('div', 'dv-leitura', 'Modo visualização: apenas o Desenvolvimento edita os cronogramas.')); return recarregar(); })
+    .catch(function (e) { document.getElementById('pjCorpo').appendChild(D.el('div', 'dv-aviso', e.message)); });
+})();
+</script>
+{% endblock %}
