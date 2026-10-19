@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dev.css') }}">
+<div class="dv">
+  <div class="dv-topo">
+    <div><h1>Cronograma</h1><div class="dv-sub" id="cgSub">Desenvolvimento · o que cada pessoa está realizando</div></div>
+    <div class="dv-acoes">
+      <select class="dv-sel" id="cgResp"></select>
+      <select class="dv-sel" id="cgVis"><option value="quadro">Quadro</option><option value="linha">Linha do tempo</option></select>
+      <button class="dv-btn" id="cgNova" type="button" hidden>+ Nova tarefa</button>
+    </div>
+  </div>
+  <div id="cgAviso"></div>
+  <div class="dv-kpis" id="cgKpis"></div>
+  <div id="cgCorpo"></div>
+</div>
+<script src="{{ url_for('static', filename='js/dev.js') }}"></script>
+<script>
+(function () {
+  var D = DV, EU = null, DEVS = [], TAREFAS = [];
+  var ST = [['A_FAZER', 'A fazer', '#8a9bb3', 'cinza'], ['EM_ANDAMENTO', 'Em andamento', '#2f7fe0', 'azul'], ['AGUARDANDO', 'Aguardando', '#e0972f', 'ambar'], ['CONCLUIDO', 'Concluído', '#1f9d55', 'verde']];
+  var PR = { ALTA: ['Alta', 'verm'], MEDIA: ['Média', 'ambar'], BAIXA: ['Baixa', 'cinza'] };
+  function stInfo(s) { return ST.filter(function (x) { return x[0] === s; })[0]; }
+  function filtradas() { var r = document.getElementById('cgResp').value; return TAREFAS.filter(function (t) { return r === 'todos' || String(t.responsavel_id) === r; }); }
+  function kpis(l) {
+    var k = document.getElementById('cgKpis'); D.limpar(k);
+    var c = function (s) { return l.filter(function (t) { return t.status === s; }).length; }, at = l.filter(function (t) { return t.atrasada; }).length, pct = l.length ? Math.round(l.reduce(function (s, t) { return s + (t.progresso || 0); }, 0) / l.length) : 0;
+    k.appendChild(D.kpi('Tarefas', String(l.length), 'no filtro atual', '#0a3d8f')); k.appendChild(D.kpi('Em andamento', String(c('EM_ANDAMENTO')), c('AGUARDANDO') + ' aguardando', '#2f7fe0'));
+    k.appendChild(D.kpi('Concluídas', String(c('CONCLUIDO')), l.length ? Math.round(c('CONCLUIDO') / l.length * 100) + '% do total' : '', '#1f9d55')); k.appendChild(D.kpi('Atrasadas', String(at), at ? 'prazo vencido' : 'tudo em dia', at ? '#c0272d' : '#1f9d55'));
+    k.appendChild(D.kpi('Progresso médio', pct + '%', 'das tarefas do filtro', '#8a5fe0'));
+  }
+  function cartao(t) {
+    var c = D.el('div', 'dv-tarefa' + (t.atrasada ? ' atras' : '')); c.style.setProperty('--c', stInfo(t.status)[2]);
+    c.appendChild(D.el('b', null, t.titulo)); var l1 = D.el('div'); var av = D.el('span', 'dv-avatar', D.iniciais(t.responsavel)); l1.appendChild(av); l1.appendChild(document.createTextNode(t.responsavel || 'Sem responsável')); c.appendChild(l1);
+    if (t.projeto) c.appendChild(D.el('small', null, '📁 ' + t.projeto));
+    var l2 = D.el('div'); l2.style.cssText = 'display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap'; l2.appendChild(D.pill(PR[t.prioridade][0], PR[t.prioridade][1])); if (t.prazo) l2.appendChild(D.pill((t.atrasada ? '⚠ ' : '📅 ') + D.dt(t.prazo), t.atrasada ? 'verm' : 'cinza')); c.appendChild(l2);
+    var b = D.barra(t.progresso, t.status === 'CONCLUIDO' ? 'v' : (t.atrasada ? 'r' : '')); b.style.marginTop = '8px'; c.appendChild(b);
+    c.onclick = function () { abrir(t); }; return c;
+  }
+  function desenhar() {
+    var l = filtradas(), corpo = document.getElementById('cgCorpo'); D.limpar(corpo); kpis(l);
+    if (document.getElementById('cgVis').value === 'linha') {
+      var card = D.el('div', 'dv-card'); card.appendChild(D.el('h3', null, 'Linha do tempo')); card.appendChild(D.gantt(l.map(function (t) { return { nome: (t.responsavel ? t.responsavel.split(' ')[0] + ' · ' : '') + t.titulo, inicio: t.inicio, prazo: t.prazo, cor: t.atrasada ? '#c0272d' : stInfo(t.status)[2], titulo: t.titulo + ' (' + t.progresso + '%)' }; }))); corpo.appendChild(card); return;
+    }
+    var q = D.el('div', 'dv-quadro');
+    ST.forEach(function (s) { var col = D.el('div', 'dv-col'), itens = l.filter(function (t) { return t.status === s[0]; }), h = D.el('h4'); h.appendChild(D.el('span', null, s[1])); h.appendChild(D.pill(String(itens.length), s[3])); col.appendChild(h);
+      if (!itens.length) col.appendChild(D.el('div', 'dv-vazio', 'Nada aqui')); itens.forEach(function (t) { col.appendChild(cartao(t)); }); q.appendChild(col); });
+    corpo.appendChild(q);
+  }
+  function campos() {
+    return [{ k: 'titulo', rotulo: 'Tarefa', obrigatorio: true }, { k: 'projeto', rotulo: 'Projeto', meia: true }, { k: 'prioridade', rotulo: 'Prioridade', tipo: 'select', meia: true, opcoes: [['MEDIA', 'Média'], ['ALTA', 'Alta'], ['BAIXA', 'Baixa']] },
+      { k: 'inicio', rotulo: 'Início', tipo: 'date', meia: true }, { k: 'prazo', rotulo: 'Prazo', tipo: 'date', meia: true },
+      { k: 'status', rotulo: 'Situação', tipo: 'select', meia: true, opcoes: ST.map(function (s) { return [s[0], s[1]]; }) }, { k: 'progresso', rotulo: 'Progresso (%)', tipo: 'number', min: 0, max: 100, meia: true },
+      { k: 'descricao', rotulo: 'Detalhes', tipo: 'textarea' }].concat(EU.admin ? [{ k: 'responsavel_id', rotulo: 'Responsável', tipo: 'select', opcoes: DEVS.map(function (d) { return [d.id, d.nome]; }) }] : []);
+  }
+  function recarregar() { return D.api('/dev/tarefas').then(function (l) { TAREFAS = l; desenhar(); }); }
+  function abrir(t) {
+    var v = Object.assign({}, t), edita = t.pode_editar;
+    var cs = campos().map(function (c) { c = Object.assign({}, c); if (!edita) c.somenteLeitura = true; return c; });
+    var botoes = edita ? [{ rotulo: 'Salvar', fn: function (d) { return D.api('/dev/tarefas/' + t.id, 'POST', d).then(recarregar); } },
+      { rotulo: 'Excluir', cls: 'perigo', fn: function () { if (!confirm('Excluir esta tarefa?')) return Promise.reject(new Error('Cancelado.')); return D.api('/dev/tarefas/' + t.id, 'DELETE').then(recarregar); } }] : [];
+    D.janela(edita ? 'Tarefa' : 'Tarefa (somente leitura)', cs, v, botoes);
+  }
+  document.getElementById('cgNova').onclick = function () {
+    D.janela('Nova tarefa', campos(), { prioridade: 'MEDIA', status: 'A_FAZER', progresso: 0, responsavel_id: EU.id }, [{ rotulo: 'Criar tarefa', fn: function (d) { return D.api('/dev/tarefas', 'POST', d).then(recarregar); } }]);
+  };
+  document.getElementById('cgResp').onchange = desenhar; document.getElementById('cgVis').onchange = desenhar;
+  Promise.all([D.api('/dev/eu'), D.api('/dev/usuarios')]).then(function (r) {
+    EU = r[0]; DEVS = r[1]; var s = document.getElementById('cgResp'); var o = D.el('option', null, 'Todos'); o.value = 'todos'; s.appendChild(o);
+    DEVS.forEach(function (d) { var op = D.el('option', null, d.nome + (d.id === EU.id ? ' (eu)' : '')); op.value = String(d.id); s.appendChild(op); });
+    if (EU.dev && DEVS.some(function (d) { return d.id === EU.id; })) s.value = String(EU.id);
+    if (EU.dev) document.getElementById('cgNova').hidden = false; else { var a = D.el('div', 'dv-leitura', 'Modo visualização: apenas o Desenvolvimento edita o cronograma.'); document.getElementById('cgAviso').appendChild(a); }
+    return recarregar();
+  }).catch(function (e) { document.getElementById('cgCorpo').appendChild(D.el('div', 'dv-aviso', e.message)); });
+})();
+</script>
+{% endblock %}

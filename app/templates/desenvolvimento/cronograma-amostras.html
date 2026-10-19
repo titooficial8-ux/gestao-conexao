@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dev.css') }}">
+<div class="dv">
+  <div class="dv-topo">
+    <div><h1>Cronograma de Amostras</h1><div class="dv-sub" id="amSub">Pedidos de amostra direto do TOTVS · prazo = previsão de faturamento</div></div>
+    <div class="dv-acoes"><button class="dv-btn sec" id="amAtualizar" type="button">⟳ Atualizar agora</button></div>
+  </div>
+  <div id="amAviso"></div>
+  <div class="dv-kpis" id="amKpis"></div>
+  <div class="dv-duas"><div class="dv-card"><h3>Pedidos de amostra por mês</h3><div class="dv-graf"><canvas id="amMes"></canvas></div></div><div class="dv-card"><h3>Em aberto por semana de previsão (mts)</h3><div class="dv-graf"><canvas id="amSem"></canvas></div></div></div>
+  <div class="dv-grupo" id="amFiltros"></div>
+  <div class="dv-card" id="amLista"></div>
+  <div class="dv-card"><h3>Clientes com mais pedidos de amostra</h3><div id="amCli"></div></div>
+</div>
+<script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dev.js') }}"></script>
+<script>
+(function () {
+  var D = DV, DADOS = null, FILTRO = 'abertos', G = {};
+  var NM = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  var FIL = [['abertos', 'Em aberto'], ['atrasados', 'Atrasados'], ['semana', 'Vencem em 7 dias'], ['atendidos', 'Atendidos'], ['cancelados', 'Cancelados'], ['todos', 'Todos']];
+  function kpis(k) {
+    var b = document.getElementById('amKpis'); D.limpar(b);
+    b.appendChild(D.kpi('Pedidos de amostra', String(k.total), 'últimos ' + DADOS.dias + ' dias (sem cancelados)', '#0a3d8f')); b.appendChild(D.kpi('Em aberto', String(k.abertos), D.nf(k.metros_abertos) + ' mts a entregar', '#2f7fe0'));
+    b.appendChild(D.kpi('Atrasados', String(k.atrasados), k.atrasados ? 'previsão vencida' : 'nenhum atraso', k.atrasados ? '#c0272d' : '#1f9d55')); b.appendChild(D.kpi('Vencem em 7 dias', String(k.vencem_7d), 'próxima semana', '#e0972f'));
+    b.appendChild(D.kpi('Atendidos', String(k.atendidos), Math.round(k.pct_atendido * 100) + '% do total', '#1f9d55')); b.appendChild(D.kpi('No prazo', Math.round(k.no_prazo * 100) + '%', 'dos pedidos em aberto', k.no_prazo >= 0.8 ? '#1f9d55' : '#c0272d'));
+    b.appendChild(k.ciclo_medio !== null ? D.kpi('Ciclo médio', D.nf(k.ciclo_medio, 1) + ' dias', 'pedido → faturamento', '#8a5fe0') : D.kpi('Idade média em aberto', k.idade_media_abertos === null ? '—' : D.nf(k.idade_media_abertos, 0) + ' dias', 'desde o pedido', '#8a5fe0')); b.appendChild(D.kpi('Cancelados', String(k.cancelados), 'no período', '#8a9bb3'));
+  }
+  function graficos() {
+    ['mes', 'sem'].forEach(function (k) { if (G[k]) G[k].destroy(); });
+    var m = DADOS.por_mes; G.mes = new Chart(document.getElementById('amMes'), { type: 'bar', data: { labels: m.map(function (x) { return NM[+x.mes.slice(5, 7) - 1] + '/' + x.mes.slice(2, 4); }), datasets: [{ label: 'Pedidos', data: m.map(function (x) { return x.pedidos; }), backgroundColor: '#2f7fe0', borderRadius: 5 }, { label: 'Atendidos', data: m.map(function (x) { return x.atendidos; }), backgroundColor: '#3ddc84', borderRadius: 5 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+    var s = DADOS.por_semana; G.sem = new Chart(document.getElementById('amSem'), { type: 'bar', data: { labels: s.map(function (x) { return D.dt(x.semana).slice(0, 5); }), datasets: [{ label: 'Metros', data: s.map(function (x) { return x.metros; }), backgroundColor: s.map(function (x) { return x.semana < D.hoje() ? '#c0272d' : '#e0972f'; }), borderRadius: 5 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { afterLabel: function (c) { return s[c.dataIndex].pedidos + ' pedidos'; } } } }, scales: { y: { beginAtZero: true } } } });
+  }
+  function filtrar() { return DADOS.itens.filter(function (x) { return FILTRO === 'todos' || (FILTRO === 'abertos' && x.aberto) || (FILTRO === 'atrasados' && x.atrasado) || (FILTRO === 'semana' && x.aberto && x.dias_para_prazo !== null && x.dias_para_prazo >= 0 && x.dias_para_prazo <= 7) || (FILTRO === 'atendidos' && x.status === 'Attended') || (FILTRO === 'cancelados' && x.status === 'Canceled'); }); }
+  function chips() { var b = document.getElementById('amFiltros'); D.limpar(b); FIL.forEach(function (f) { var c = D.el('button', 'dv-chip' + (FILTRO === f[0] ? ' active' : ''), f[1]); c.type = 'button'; c.onclick = function () { FILTRO = f[0]; chips(); lista(); }; b.appendChild(c); }); }
+  function lista() {
+    var box = document.getElementById('amLista'); D.limpar(box); var l = filtrar();
+    box.appendChild(D.el('h3', null, 'Cronograma · ' + l.length + ' pedidos'));
+    if (!l.length) { box.appendChild(D.el('div', 'dv-vazio', 'Nenhum pedido neste filtro.')); return; }
+    var t = D.el('table', 'dv-tabela'), h = D.el('thead'), r = D.el('tr'); ['Pedido', 'Cliente', 'Pedido em', 'Previsão', 'Prazo', 'Situação', 'Metros', 'PO'].forEach(function (x, i) { r.appendChild(D.el('th', i === 6 ? 'n' : null, x)); }); h.appendChild(r); t.appendChild(h);
+    var b = D.el('tbody'); l.slice(0, 300).forEach(function (x) {
+      var tr = D.el('tr'); tr.appendChild(D.el('td', null, x.pedido)); tr.appendChild(D.el('td', null, x.cliente)); tr.appendChild(D.el('td', null, D.dt(x.data))); tr.appendChild(D.el('td', null, D.dt(x.previsao)));
+      var p = D.el('td'); if (x.aberto && x.dias_para_prazo !== null) p.appendChild(x.atrasado ? D.pill('⚠ ' + Math.abs(x.dias_para_prazo) + ' d atrasado', 'verm') : D.pill(x.dias_para_prazo === 0 ? 'vence hoje' : 'em ' + x.dias_para_prazo + ' d', x.dias_para_prazo <= 7 ? 'ambar' : 'verde')); else if (x.faturado) p.appendChild(D.pill('faturado ' + D.dt(x.faturado), 'verde')); else p.textContent = '—'; tr.appendChild(p);
+      var s = D.el('td'); s.appendChild(D.pill(x.status_rot, x.status === 'Attended' ? 'verde' : (x.status === 'Canceled' ? 'cinza' : 'azul'))); tr.appendChild(s); tr.appendChild(D.el('td', 'n', D.nf(x.metros))); tr.appendChild(D.el('td', null, x.po || '—')); b.appendChild(tr); });
+    t.appendChild(b); box.appendChild(t);
+  }
+  function clientes() { var b = document.getElementById('amCli'); D.limpar(b); var mx = DADOS.por_cliente.length ? DADOS.por_cliente[0].pedidos : 1; DADOS.por_cliente.forEach(function (c) { var l = D.el('div'); l.style.cssText = 'display:grid;grid-template-columns:220px 1fr 50px;gap:10px;align-items:center;margin:5px 0;font-size:13px'; l.appendChild(D.el('span', null, c.cliente)); l.appendChild(D.barra(c.pedidos / mx * 100)); l.appendChild(D.el('b', null, String(c.pedidos))); b.appendChild(l); }); }
+  function carregar(forcar) {
+    document.getElementById('amSub').textContent = 'Consultando o TOTVS…';
+    return D.api('/dev/amostras/dados' + (forcar ? '?atualizar=1' : '')).then(function (d) {
+      DADOS = d; document.getElementById('amSub').textContent = 'Pedidos de amostra direto do TOTVS · prazo = previsão de faturamento · atualizado ' + D.dh(d.atualizado); kpis(d.kpis); graficos(); chips(); lista(); clientes();
+    }).catch(function (e) { document.getElementById('amSub').textContent = ''; var a = document.getElementById('amAviso'); D.limpar(a); a.appendChild(D.el('div', 'dv-aviso', '⚠ ' + e.message)); });
+  }
+  document.getElementById('amAtualizar').onclick = function () { carregar(true); };
+  carregar(false);
+})();
+</script>
+{% endblock %}
