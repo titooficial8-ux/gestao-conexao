@@ -15,10 +15,25 @@ def tab_url(tab):
     return url_for('main.view_tab', slug=tab.slug)
 
 
+def _em_rede(caminho: str) -> bool:
+    """True se o arquivo esta em pasta de rede (caminho \\\\servidor\\... ou unidade mapeada, ex.: Z:)."""
+    caminho = os.path.abspath(caminho)
+    if caminho.startswith('\\\\'):
+        return True
+    if os.name == 'nt':
+        try:
+            import ctypes
+            return ctypes.windll.kernel32.GetDriveTypeW(os.path.splitdrive(caminho)[0] + '\\') == 4        # DRIVE_REMOTE
+        except Exception:  # noqa: BLE001
+            return False
+    return False
+
+
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'conexao-gestao-chave-temporaria-trocar-em-producao')
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'gestao_conexao.db')
+    caminho_db = os.environ.get('GESTAO_DB') or os.path.join(BASE_DIR, 'gestao_conexao.db')       # GESTAO_DB: guardar o banco em outra pasta (ex.: disco local)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + caminho_db
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # varias threads gravam no banco o dia todo (pesagens, pedidos, baixas): sem WAL elas travam a leitura das telas
@@ -28,10 +43,13 @@ def create_app():
     with app.app_context():
         from sqlalchemy import event
 
+        usar_wal = os.environ.get('GESTAO_SQLITE_WAL') != '0' and not _em_rede(caminho_db)      # WAL nao funciona (e pode corromper) em pasta de rede
+
         @event.listens_for(db.engine, 'connect')
         def _sqlite_wal(conexao, _registro):
             c = conexao.cursor()
-            c.execute('PRAGMA journal_mode=WAL')
+            if usar_wal:
+                c.execute('PRAGMA journal_mode=WAL')
             c.execute('PRAGMA synchronous=NORMAL')
             c.execute('PRAGMA busy_timeout=30000')
             c.close()
