@@ -30,6 +30,8 @@ def _em_rede(caminho: str) -> bool:
 
 
 def create_app():
+    from app.dns_fallback import instalar as _dns_fallback
+    _dns_fallback()
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'conexao-gestao-chave-temporaria-trocar-em-producao')
     caminho_db = os.environ.get('GESTAO_DB') or os.path.join(BASE_DIR, 'gestao_conexao.db')       # GESTAO_DB: guardar o banco em outra pasta (ex.: disco local)
