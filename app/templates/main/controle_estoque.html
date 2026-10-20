@@ -43,6 +43,13 @@
   .ce-card h3 { margin: 0 0 2px; font-size: 15px; color: #0f2540; }
   .ce-card p.m { margin: 0 0 10px; font-size: 12px; color: var(--cinza); }
   .ce-graf { position: relative; height: 320px; }
+  .ce-ac-big { font-size: 46px; font-weight: 800; line-height: 1.1; margin: 8px 0 6px; }
+  .ce-ac-bar { position: relative; height: 10px; border-radius: 6px; background: #e8eef6; overflow: hidden; margin-bottom: 14px; }
+  .ce-ac-bar span { display: block; height: 100%; border-radius: 6px; }
+  .ce-ac-bar i { position: absolute; left: 98%; top: 0; bottom: 0; width: 2px; background: #0f2540; }
+  .ce-ac-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  .ce-ac-grid small { display: block; font-size: 11px; color: var(--cinza); }
+  .ce-ac-grid b { font-size: 16px; color: #0f2540; }
   .ce-vazio { color: var(--cinza); font-size: 13px; padding: 40px 10px; text-align: center; }
   .ce-pill { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 999px; letter-spacing: .03em; }
   .ce-pill.crit { background: #fdeaea; color: #b62027; }
@@ -200,19 +207,29 @@
     lista.forEach(function (x) { var r = el('div', 'ce-bx'), n = el('div', 'ce-bx-n', nomeCurto(x.nome)); if (x.fornecedor) n.appendChild(el('small', null, fornCurto(x.fornecedor))); r.appendChild(n);
       var b = el('div', 'ce-bx-b'), sp = el('span'); sp.style.width = Math.max(x.saldo / maxB * 100, 3) + '%'; b.appendChild(sp); r.appendChild(b); r.appendChild(el('div', 'ce-bx-k', nf(x.saldo, 1) + ' kg')); lb.appendChild(r); });
     c3.appendChild(lb); l2.appendChild(c3);
-    var c4 = cartao('Estoque por fornecedor', 'Do maior para o menor · clique em um fornecedor para ver só as matérias-primas dele');
-    var tf = fornTodos.slice();
-    if (forn.length) {
-      var wf = el('div', 'ce-graf'), cv4 = document.createElement('canvas'); wf.style.height = Math.max(250, Math.min(tf.length, 12) * 30 + 50) + 'px'; wf.appendChild(cv4); c4.appendChild(wf); tf = tf.slice(0, 12);
-      var corF = function () { return tf.map(function (x) { return fornSel && x.nome !== fornSel ? '#d8cdf0' : (x.nome === 'Sem fornecedor' ? '#cfd6e2' : '#8a5fe0'); }); };
-      graf.forn = new Chart(cv4, { type: 'bar', data: { labels: tf.map(function (x) { return curto(x.nome, 30); }), datasets: [{ data: tf.map(function (x) { return Math.round(x.kg); }), backgroundColor: corF(), borderRadius: 5, barThickness: 18 }] },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 78 } }, onHover: function (e, a) { e.native.target.style.cursor = a.length ? 'pointer' : 'default'; },
-          onClick: function (e, a) { if (!a.length) return; var nome = tf[a[0].index].nome; fornSel = fornSel === nome ? null : nome; graf.forn.data.datasets[0].backgroundColor = corF(); graf.forn.update(); desenharFornecedor(); desenharTabela(); },
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return nf(x.raw) + ' kg · ' + tf[x.dataIndex].itens + ' itens · ' + pct(total ? x.raw / total : 0, 1) + ' do estoque'; } } } }, scales: { x: Object.assign({ beginAtZero: true, ticks: { callback: function (v) { return nf(v); } } }, EIXO), y: { grid: { display: false }, ticks: { font: { size: 11 } } } } },
-        plugins: [{ id: 'rotf', afterDatasetsDraw: function (ch) { var x = ch.ctx; x.save(); x.font = '700 11px sans-serif'; x.fillStyle = '#10263F'; x.textBaseline = 'middle'; ch.getDatasetMeta(0).data.forEach(function (e, i) { x.fillText(nf(tf[i].kg) + ' kg', e.x + 6, e.y); }); x.restore(); } }] });
-    } else c4.appendChild(el('div', 'ce-vazio', 'O TOTVS não trouxe fornecedor no cadastro dos produtos.'));
-    l2.appendChild(c4); box.appendChild(l2);
-    var fp = el('div', 'ce-fpan'); fp.id = 'ceFornPainel'; box.appendChild(fp); desenharFornecedor();
+    var ac4 = dados.acuracidade || {}, tx4 = ac4.taxa !== null && ac4.taxa !== undefined ? ac4.taxa : null;
+    var c4 = cartao('Acuracidade do estoque', 'Ajustes de inventário (2040 entrada / 2041 saída) dos últimos ' + (ac4.dias || 180) + ' dias · meta 98%');
+    var big = el('div', 'ce-ac-big', tx4 !== null ? pct(tx4, 1) : '—'); big.style.color = tx4 === null ? '#94a3b8' : (tx4 >= 0.98 ? '#1f9d55' : (tx4 >= 0.95 ? '#d98a00' : '#d64545')); c4.appendChild(big);
+    var bar = el('div', 'ce-ac-bar'), bsp = el('span'); bsp.style.width = (tx4 === null ? 0 : Math.max(0, Math.min(1, tx4)) * 100) + '%'; bsp.style.background = big.style.color; bar.appendChild(bsp); var meta = el('i'); bar.appendChild(meta); c4.appendChild(bar);
+    var gr = el('div', 'ce-ac-grid');
+    [['Itens ajustados', ac4.n_ajustados !== undefined ? nf(ac4.n_ajustados) + ' de ' + nf(ac4.n_itens) : '—'], ['Kg ajustados', ac4.kg_ajustado !== undefined ? nf(ac4.kg_ajustado) + ' kg' : '—'], ['Último inventário', ac4.ultimo_inventario ? ac4.ultimo_inventario.slice(8, 10) + '/' + ac4.ultimo_inventario.slice(5, 7) : '—'], ['Divergência', tx4 === null ? '—' : pct(1 - tx4, 1)]].forEach(function (x) { var g = el('div'); g.appendChild(el('small', null, x[0])); g.appendChild(el('b', null, x[1])); gr.appendChild(g); });
+    c4.appendChild(gr); l2.appendChild(c4); box.appendChild(l2);
+
+    var l3 = el('div', 'ce-linha'), mot = (ac4.motivos || []).slice(0, 10);
+    var c5 = cartao('Motivos de inventário', 'Kg ajustados por motivo informado no TOTVS · entrada (verde) e saída (vermelho)');
+    if (mot.length) {
+      var w5 = el('div', 'ce-graf'), cv5 = document.createElement('canvas'); w5.style.height = Math.max(220, mot.length * 34 + 60) + 'px'; w5.appendChild(cv5); c5.appendChild(w5);
+      graf.mot = new Chart(cv5, { type: 'bar', data: { labels: mot.map(function (x) { return curto(x.motivo, 34); }), datasets: [{ label: 'Entrada (sobra)', data: mot.map(function (x) { return x.entrada; }), backgroundColor: '#2fb36b', borderRadius: 4, barThickness: 16 }, { label: 'Saída (falta)', data: mot.map(function (x) { return x.saida; }), backgroundColor: '#e05a5a', borderRadius: 4, barThickness: 16 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } }, tooltip: { callbacks: { label: function (x) { var m = mot[x.dataIndex]; return x.dataset.label + ': ' + nf(x.raw, 1) + ' kg · ' + m.ajustes + ' ajustes · ' + m.itens + ' itens'; } } } }, scales: { x: Object.assign({ beginAtZero: true, stacked: true, ticks: { callback: function (v) { return nf(v); } } }, EIXO), y: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 } } } } } });
+      if (!ac4.motivo_ok) c5.appendChild(el('div', 'ce-nota', 'O TOTVS não trouxe o motivo nesses ajustes; para ver os motivos, informe-os na observação do ajuste de inventário.'));
+    } else c5.appendChild(el('div', 'ce-vazio', ac4.taxa === null ? 'Lendo os ajustes de inventário no TOTVS…' : 'Nenhum ajuste de inventário no período.'));
+    l3.appendChild(c5);
+    var c6 = cartao('Itens com mais ajustes de inventário', 'Maiores divergências (kg) no período · sobra (+) e falta (−)'), its = ac4.itens_mais_ajustados || [];
+    if (its.length) {
+      var tb = el('table', 'data-table prod-table'), th = el('thead'), htr = el('tr'); ['Matéria-prima', 'Motivo', 'Ajustes', 'Saldo líquido'].forEach(function (h, i) { htr.appendChild(el('th', i > 1 ? 'cme-num' : null, h)); }); th.appendChild(htr); tb.appendChild(th);
+      var tbd = el('tbody'); its.slice(0, 10).forEach(function (x) { var r = el('tr'); r.appendChild(el('td', null, nomeCurto(x.nome))); r.appendChild(el('td', null, curto(x.motivo, 26))); r.appendChild(el('td', 'cme-num', String(x.ajustes))); var q = el('td', 'cme-num', (x.liquido > 0 ? '+' : '') + nf(x.liquido, 1) + ' kg'); q.style.color = x.liquido < 0 ? '#d64545' : '#1f9d55'; q.style.fontWeight = '700'; r.appendChild(q); tbd.appendChild(r); }); tb.appendChild(tbd); c6.appendChild(tb);
+    } else c6.appendChild(el('div', 'ce-vazio', 'Sem ajustes no período.'));
+    l3.appendChild(c6); box.appendChild(l3);
     box.appendChild(el('p', 'ce-nota', 'Saldo do ' + (dados.estoque_nome || 'almoxarifado') + ' direto do TOTVS (consulta a cada minuto). Itens ativos, em KG, tipo matéria-prima. Atualizado em ' + dh(dados.atualizado) + '.'));
   }
 
