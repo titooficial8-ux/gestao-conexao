@@ -1,15 +1,15 @@
 """Envio automatico do Relatorio de Faturamento por e-mail, uma vez por dia no horario combinado.
 
-Padrao: de segunda a sexta, as 08:00 (horario de Brasilia), em PDF, para os e-mails de RELATORIO_FAT_DESTINOS (lista abaixo). Ajustes no .env:
+Padrao: de segunda a sexta, as 08:00 e as 13:00 (horario de Brasilia), em PDF, para os e-mails de RELATORIO_FAT_DESTINOS (lista abaixo). Ajustes no .env:
   RELATORIO_FAT_ENVIO=1                  (0 desliga o envio automatico)
-  RELATORIO_FAT_ENVIO_HORA=08:00         (horario de Brasilia)
-  RELATORIO_FAT_ENVIO_ATE=12:00          (se o Gestao so ligar depois disso, pula o dia em vez de mandar tarde)
+  RELATORIO_FAT_ENVIO_HORA=08:00,13:00   (horarios de Brasilia, separados por virgula; um e-mail por horario)
+  RELATORIO_FAT_ENVIO_JANELA_H=4         (se o Gestao so ligar mais de 4 h depois do horario, pula aquele envio em vez de mandar tarde)
   RELATORIO_FAT_ENVIO_DIAS=0,1,2,3,4    (0 = segunda ... 6 = domingo)
   RELATORIO_FAT_ENVIO_FORMATO=pdf        (pdf, pptx ou ambos)
   RELATORIO_FAT_DESTINOS=a@x.com,b@y.com
   RELATORIO_FAT_ENVIO_PEDIDOS=1          (1 = manda junto o PDF da Entrada de Pedidos, em alta prioridade; 0 = so o faturamento)
-Nao repete no mesmo dia: a data do ultimo envio fica em instance/relatorio_fat_envio.json. Se o envio falhar (e-mail nao configurado, sem
-dados do TOTVS...), tenta de novo a cada 30 minutos ate o limite do dia (ENVIO_ATE).
+Nao repete o mesmo horario no mesmo dia: a data do ultimo envio de cada horario fica em instance/relatorio_fat_envio.json. Se o envio falhar (e-mail nao configurado, sem
+dados do TOTVS...), tenta de novo a cada 30 minutos ate o fim da janela do horario.
 """
 from __future__ import annotations
 
@@ -65,15 +65,26 @@ def _hm(txt, padrao):
         return padrao
 
 
+def _horarios(txt) -> list:
+    out = []
+    for parte in str(txt).split(','):
+        hm = _hm(parte, None) if parte.strip() else None
+        if hm and 0 <= hm[0] < 24 and 0 <= hm[1] < 60 and hm not in out:
+            out.append(hm)
+    return sorted(out) or [(8, 0), (13, 0)]
+
+
 def configuracao() -> dict:
-    h, m = _hm(os.getenv('RELATORIO_FAT_ENVIO_HORA', '08:00'), (8, 0))
     try:
         dias = {int(x) for x in os.getenv('RELATORIO_FAT_ENVIO_DIAS', '0,1,2,3,4').split(',') if x.strip() != ''}
     except ValueError:
         dias = {0, 1, 2, 3, 4}
-    return dict(ativo=os.getenv('RELATORIO_FAT_ENVIO', '1') != '0', hora=(h, m), dias=dias,
-                ate=_hm(os.getenv('RELATORIO_FAT_ENVIO_ATE', '12:00'), (12, 0)),
-                formato=os.getenv('RELATORIO_FAT_ENVIO_FORMATO', 'pdf').lower(),
+    try:
+        janela = float(os.getenv('RELATORIO_FAT_ENVIO_JANELA_H', '4'))
+    except ValueError:
+        janela = 4.0
+    return dict(ativo=os.getenv('RELATORIO_FAT_ENVIO', '1') != '0', horas=_horarios(os.getenv('RELATORIO_FAT_ENVIO_HORA', '08:00,13:00')), dias=dias,
+                janela=timedelta(hours=janela), formato=os.getenv('RELATORIO_FAT_ENVIO_FORMATO', 'pdf').lower(),
                 destinos=os.getenv('RELATORIO_FAT_DESTINOS', DESTINOS_PADRAO))
 
 
@@ -109,33 +120,44 @@ def enviar_agora(app) -> dict:
     return dict(ok=True, enviado_para=destinos)
 
 
-def _precisa_enviar(app, agora: datetime) -> bool:
+def _enviados(est: dict, cfg: dict) -> dict:
+    """Data do ultimo envio de cada horario ('HH:MM' -> 'AAAA-MM-DD'); aproveita o formato antigo (uma data so) como o 1o horario."""
+    env = dict(est.get('enviados') or {})
+    if not env and est.get('enviado_em'):
+        env[f'{cfg["horas"][0][0]:02d}:{cfg["horas"][0][1]:02d}'] = est['enviado_em']
+    return env
+
+
+def _horario_devido(app, agora: datetime):
+    """Devolve o horario ('HH:MM') que deve ser enviado agora, ou None."""
     cfg = configuracao()
     if not cfg['ativo'] or agora.weekday() not in cfg['dias']:
-        return False
-    alvo = agora.replace(hour=cfg['hora'][0], minute=cfg['hora'][1], second=0, microsecond=0)
-    if agora < alvo or agora > agora.replace(hour=cfg['ate'][0], minute=cfg['ate'][1], second=0, microsecond=0):
-        return False
+        return None
     est = _ler(app)
-    if est.get('enviado_em') == agora.date().isoformat():
-        return False
-    ult = est.get('tentativa')
-    if ult and est.get('erro') and (agora - datetime.fromisoformat(ult)) < timedelta(minutes=30):
-        return False
-    return True
+    env = _enviados(est, cfg)
+    for h, m in cfg['horas']:
+        chave = f'{h:02d}:{m:02d}'
+        alvo = agora.replace(hour=h, minute=m, second=0, microsecond=0)
+        if agora < alvo or agora > alvo + cfg['janela'] or env.get(chave) == agora.date().isoformat():
+            continue
+        ult = est.get('tentativa')
+        if ult and est.get('erro') and est.get('erro_horario') == chave and (agora - datetime.fromisoformat(ult)) < timedelta(minutes=30):
+            continue
+        return chave
+    return None
 
 
-def _reivindicar(dia) -> Path | None:
-    """Trava do dia, valida para todo o computador (mesmo com duas copias do Gestao abertas): so quem criar o arquivo envia.
+def _reivindicar(dia, chave: str) -> Path | None:
+    """Trava do horario no dia, valida para todo o computador (mesmo com duas copias do Gestao abertas): so quem criar o arquivo envia.
     Devolve o caminho da trava (para soltar se o envio falhar) ou None se outra copia ja esta enviando/enviou."""
     pasta = Path(tempfile.gettempdir())
     for velho in pasta.glob('gestao_relatorio_fat_*.lock'):            # limpa travas de dias anteriores
-        if not velho.name.endswith(f'{dia.isoformat()}.lock'):
+        if f'_{dia.isoformat()}_' not in velho.name:
             try:
                 velho.unlink()
             except OSError:
                 pass
-    caminho = pasta / f'gestao_relatorio_fat_{dia.isoformat()}.lock'
+    caminho = pasta / f'gestao_relatorio_fat_{dia.isoformat()}_{chave.replace(":", "")}.lock'
     for _ in range(2):
         try:
             fd = os.open(caminho, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -157,16 +179,19 @@ def _reivindicar(dia) -> Path | None:
 
 def _tick(app) -> None:
     agora = agora_brasilia()
-    if not _precisa_enviar(app, agora):
+    chave = _horario_devido(app, agora)
+    if not chave:
         return
     if not _trava.acquire(blocking=False):
         return
     trava_dia = None
     try:
+        cfg = configuracao()
         est = _ler(app)
-        if est.get('enviado_em') == agora.date().isoformat():           # outra copia acabou de enviar
+        env = _enviados(est, cfg)
+        if env.get(chave) == agora.date().isoformat():                  # outra copia acabou de enviar
             return
-        trava_dia = _reivindicar(agora.date())
+        trava_dia = _reivindicar(agora.date(), chave)
         if trava_dia is None:
             return
         try:
@@ -176,11 +201,12 @@ def _tick(app) -> None:
             r = dict(ok=False, erro=str(e)[:300])
         est['tentativa'] = agora.isoformat(timespec='seconds')
         if r['ok']:
-            est.update(enviado_em=agora.date().isoformat(), erro=None, para=r['enviado_para'])
-            print(f'[relatorio-faturamento] enviado automaticamente para {", ".join(r["enviado_para"])}', flush=True)
+            env[chave] = agora.date().isoformat()
+            est.update(enviados=env, enviado_em=agora.date().isoformat(), erro=None, erro_horario=None, para=r['enviado_para'])
+            print(f'[relatorio-faturamento] enviado automaticamente ({chave}) para {", ".join(r["enviado_para"])}', flush=True)
         else:
-            est['erro'] = r['erro']
-            print(f'[relatorio-faturamento] envio automatico falhou: {r["erro"]}', flush=True)
+            est.update(enviados=env, erro=r['erro'], erro_horario=chave)
+            print(f'[relatorio-faturamento] envio automatico ({chave}) falhou: {r["erro"]}', flush=True)
             try:
                 trava_dia.unlink()                                      # falhou: solta a trava para tentar de novo em 30 min
             except OSError:
