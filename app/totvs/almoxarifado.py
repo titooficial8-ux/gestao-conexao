@@ -623,13 +623,25 @@ def ler_acertos() -> dict:
         return {}
 
 
+_CAMPOS_MOTIVO = ('reason', 'motiv', 'justif', 'observ', 'histor', 'complement')
+
+
+def _motivo_acerto(t: dict) -> str:
+    """Motivo informado no ajuste de inventario: 1o campo de texto da transacao cujo nome lembra motivo/observacao."""
+    for pref in _CAMPOS_MOTIVO:
+        for k, v in t.items():
+            if pref in k.lower() and isinstance(v, (str, int)) and str(v).strip() and 'code' not in k.lower():
+                return ' '.join(str(v).split())[:80].upper()
+    return ''
+
+
 def atualizar_acertos() -> bool:
     """Ajustes de inventario dos ultimos ACUR_DIAS dias (so leitura): guarda produto, kg e sentido de cada acerto."""
     try:
         cli = api.TotvsModaClient()
         cli.autenticar()
         hoje = date.today()
-        a, trans = hoje - timedelta(days=ACUR_DIAS), {}
+        a, trans, amostra = hoje - timedelta(days=ACUR_DIAS), {}, {}
         while a <= hoje:
             b = min(hoje, a + timedelta(days=29))
             pag = 1
@@ -644,14 +656,16 @@ def atualizar_acertos() -> bool:
                     sinal = 1 if str(t.get('operationCode')) == str(OPS_ACERTO['entrada']) else -1
                     itens = [[it['productCode'], round(abs(_num(it.get('quantity'))) * sinal, 3)] for it in t.get('items') or []
                              if it.get('productCode') is not None and (not UNIDADE or str(it.get('measuredUnit') or '').strip().upper() == UNIDADE) and _num(it.get('quantity'))]
-                    trans[str(t.get('transactionCode'))] = [str(t.get('transactionDate') or '')[:10], itens]
+                    trans[str(t.get('transactionCode'))] = [str(t.get('transactionDate') or '')[:10], itens, _motivo_acerto(t), 'E' if sinal > 0 else 'S']
+                    if not amostra:
+                        amostra.update({k: (str(v)[:80] if not isinstance(v, (dict, list)) else type(v).__name__) for k, v in t.items()})
                 if not j.get('hasNext') or pag >= 60:
                     break
                 pag += 1
             a = b + timedelta(days=1)
         ARQ_ACERTOS.parent.mkdir(parents=True, exist_ok=True)
         tmp = ARQ_ACERTOS.with_suffix('.tmp')
-        tmp.write_text(json.dumps(dict(versao=1, atualizado=datetime.now().isoformat(timespec='seconds'), dias=ACUR_DIAS, transacoes=trans), ensure_ascii=False), encoding='utf-8')
+        tmp.write_text(json.dumps(dict(versao=2, atualizado=datetime.now().isoformat(timespec='seconds'), dias=ACUR_DIAS, transacoes=trans, amostra=amostra), ensure_ascii=False), encoding='utf-8')
         api.trocar_arquivo(tmp, ARQ_ACERTOS)
         return True
     except Exception:  # noqa: BLE001
@@ -660,27 +674,50 @@ def atualizar_acertos() -> bool:
 
 
 def acuracidade() -> dict:
-    """Taxa de acuracidade = 1 - (kg ajustados no inventario / estoque atual); mostra tambem quantos itens tiveram ajuste e a data do ultimo inventario."""
+    """Taxa de acuracidade = 1 - (kg ajustados no inventario / estoque atual); mostra tambem quantos itens tiveram ajuste, o ultimo inventario, os motivos e os itens mais ajustados."""
     base, d = ler(), ler_acertos()
     if not d.get('atualizado'):
         return dict(taxa=None, texto='lendo os ajustes de inventário no TOTVS…')
+    nomes = {str(i['codigo']): i['nome'] for i in base.get('itens', [])}
     saldos = {str(i['codigo']): i['saldo'] for i in base.get('itens', [])}
     total = sum(saldos.values())
     ajust_kg, itens_aj, ultimo = 0.0, set(), ''
-    for _cod, (data, itens) in (d.get('transacoes') or {}).items():
+    motivos, por_item, por_mes = {}, {}, {}
+    for _cod, tr in (d.get('transacoes') or {}).items():
+        data, itens = tr[0], tr[1]
+        motivo = (tr[2] if len(tr) > 2 else '') or 'SEM MOTIVO INFORMADO'
         usou = False
         for prod, kg in itens:
             if str(prod) in saldos:
                 ajust_kg += abs(kg)
                 itens_aj.add(str(prod))
                 usou = True
+                m = motivos.setdefault(motivo, dict(motivo=motivo, ajustes=0, kg=0.0, entrada=0.0, saida=0.0, itens=set(), ultimo=''))
+                m['kg'] += abs(kg)
+                m['entrada' if kg > 0 else 'saida'] += abs(kg)
+                m['itens'].add(str(prod))
+                m['ultimo'] = max(m['ultimo'], data)
+                it = por_item.setdefault(str(prod), dict(codigo=str(prod), nome=nomes.get(str(prod), ''), ajustes=0, entrada=0.0, saida=0.0, motivo={}, ultimo=''))
+                it['entrada' if kg > 0 else 'saida'] += abs(kg)
+                it['motivo'][motivo] = it['motivo'].get(motivo, 0) + abs(kg)
+                it['ultimo'] = max(it['ultimo'], data)
+                por_mes[data[:7]] = por_mes.get(data[:7], 0.0) + abs(kg)
         if usou:
             ultimo = max(ultimo, data)
+            for m in {motivo}:
+                motivos[m]['ajustes'] += 1
+            for prod, _kg in itens:
+                if str(prod) in por_item:
+                    por_item[str(prod)]['ajustes'] += 1
+    lista_m = sorted(({**m, 'itens': len(m['itens']), 'kg': round(m['kg'], 1), 'entrada': round(m['entrada'], 1), 'saida': round(m['saida'], 1)} for m in motivos.values()), key=lambda x: -x['kg'])
+    lista_i = sorted(({**i, 'entrada': round(i['entrada'], 1), 'saida': round(i['saida'], 1), 'liquido': round(i['entrada'] - i['saida'], 1), 'motivo': max(i['motivo'], key=i['motivo'].get)} for i in por_item.values()), key=lambda x: -(x['entrada'] + x['saida']))[:15]
+    extra = dict(motivos=lista_m, itens_mais_ajustados=lista_i, por_mes=[dict(mes=k, kg=round(v, 1)) for k, v in sorted(por_mes.items())],
+                 dias=d.get('dias', ACUR_DIAS), motivo_ok=any(m['motivo'] != 'SEM MOTIVO INFORMADO' for m in lista_m), amostra=d.get('amostra'))
     if not itens_aj:
-        return dict(taxa=1.0 if total else None, texto=f'nenhum ajuste de inventário em {d.get("dias", ACUR_DIAS)} dias · {len(saldos)} itens', n_ajustados=0, n_itens=len(saldos), kg_ajustado=0, ultimo_inventario=None)
+        return dict(taxa=1.0 if total else None, texto=f'nenhum ajuste de inventário em {d.get("dias", ACUR_DIAS)} dias · {len(saldos)} itens', n_ajustados=0, n_itens=len(saldos), kg_ajustado=0, ultimo_inventario=None, **extra)
     taxa = max(0.0, 1 - ajust_kg / total) if total else None
     return dict(taxa=round(taxa, 4) if taxa is not None else None, n_ajustados=len(itens_aj), n_itens=len(saldos), kg_ajustado=round(ajust_kg, 1), ultimo_inventario=ultimo,
-                texto=f'{len(itens_aj)} de {len(saldos)} itens com ajuste · {nf_kg(ajust_kg)} kg ajustados · último inventário {ultimo[8:10]}/{ultimo[5:7]}')
+                texto=f'{len(itens_aj)} de {len(saldos)} itens com ajuste · {nf_kg(ajust_kg)} kg ajustados · último inventário {ultimo[8:10]}/{ultimo[5:7]}', **extra)
 
 
 def nf_kg(v: float) -> str:
