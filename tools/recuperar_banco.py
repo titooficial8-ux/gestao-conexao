@@ -1,4 +1,4 @@
-"""Verifica e recupera o banco SQLite da Gestao ("database disk image is malformed").
+r"""Verifica e recupera o banco SQLite da Gestao ("database disk image is malformed").
 
 Uso (com a Gestao FECHADA):
     venv\Scripts\python tools\recuperar_banco.py                    -> so verifica (integrity_check)
