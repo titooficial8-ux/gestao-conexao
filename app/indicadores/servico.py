@@ -421,39 +421,13 @@ def _pin() -> str:
     return (os.getenv('SETUPS_TOKEN') or os.getenv('SETUPS_PIN') or '').strip()
 
 
-# formas de mandar o token, uma por vez (cabecalhos juntos podem confundir a API): a que der 200 fica guardada
-_FORMAS = [('X-API-Key', 'h', 'X-API-Key'), ('Bearer', 'h', 'Authorization', 'Bearer '), ('Authorization cru', 'h', 'Authorization'), ('X-Token', 'h', 'X-Token'),
-           ('Token', 'h', 'Token'), ('X-Auth-Token', 'h', 'X-Auth-Token'), ('?token=', 'q', 'token'), ('?api_key=', 'q', 'api_key'), ('?access_token=', 'q', 'access_token')]
-_forma_ok = {'i': None}
-
-
 def _get_setups(caminho: str, params: dict, tentativas: list = None):
-    """GET na API de setups com o token na forma que ela aceitar; devolve a resposta (a ultima tentativa se nenhuma der 200)."""
+    """GET na API de setups: autenticacao "Authorization: Bearer <token>" (descrita em /api/v1)."""
     import requests
-    t = _pin()
-    url = f'{SETUPS_URL}{caminho}'
-    base = {'Accept': 'application/json'}
-    if not t:
-        return requests.get(url, params=params, headers=base, timeout=15)
-    ordem = list(range(len(_FORMAS)))
-    if _forma_ok['i'] is not None:
-        ordem.remove(_forma_ok['i'])
-        ordem.insert(0, _forma_ok['i'])
-    r = None
-    for i in ordem:
-        f = _FORMAS[i]
-        h, q = dict(base), dict(params)
-        if f[1] == 'h':
-            h[f[2]] = (f[3] if len(f) > 3 else '') + t
-        else:
-            q[f[2]] = t
-        r = requests.get(url, params=q, headers=h, timeout=15)
-        if tentativas is not None:
-            tentativas.append(dict(forma=f[0], status=r.status_code))
-        if r.status_code not in (401, 403):
-            _forma_ok['i'] = i if r.status_code == 200 else _forma_ok['i']
-            return r
-    return r
+    h = {'Accept': 'application/json'}
+    if _pin():
+        h['Authorization'] = f'Bearer {_pin()}'
+    return requests.get(f'{SETUPS_URL}{caminho}', params=params, headers=h, timeout=15)
 
 
 def _lista(j) -> list:
@@ -486,24 +460,22 @@ def _quando(item: dict):
 
 
 def _setups_calc(ch: str) -> dict:
-    import requests
-    dia = date.fromisoformat(ch)
-    r = _get_setups('/setups', {'de': dia.isoformat(), 'ate': (dia + timedelta(days=1)).isoformat()})
+    """Setups do dia de producao `ch` (a API filtra de/ate pelo dia de producao 06h20 -> 06h19); o turno vem da hora de inicio, quando ela vier na resposta."""
+    r = _get_setups('/setups', {'de': ch, 'ate': ch, 'tipo': 'SETUP'})
     if r.status_code != 200:
         raise RuntimeError(f'HTTP {r.status_code} {r.text[:120]}')
-    n, maqs, turnos = 0, set(), [0, 0, 0]
+    n, maqs, turnos, com_hora = 0, set(), [0, 0, 0], 0
     for it in _lista(r.json()):
         tipo = str(it.get('tipo') or it.get('type') or 'SETUP').strip().upper()
         if tipo not in ('SETUP', ''):
             continue
-        h, com_hora = _quando(it)
-        if h is None or (dia_producao(h) if com_hora else h.date()) != dia:
-            continue
         n += 1
-        if com_hora:
+        h, tem_hora = _quando(it)
+        if h is not None and tem_hora:
             turnos[turno(h)] += 1
+            com_hora += 1
         maqs.add(str(it.get('maquina') or it.get('machine') or it.get('maquina_id') or ''))
-    return dict(n=n, turnos=turnos if sum(turnos) else None, maquinas=len(maqs - {''}))
+    return dict(n=n, turnos=turnos if n and com_hora == n else None, maquinas=len(maqs - {''}))
 
 
 def _setups_resumo(r) -> dict:
@@ -522,9 +494,8 @@ def setups_diagnostico() -> dict:
         r0 = requests.get(SETUPS_URL, headers={'Accept': 'application/json'}, timeout=15)
         out['descricao'] = dict(status=r0.status_code, corpo=r0.text[:1500])
         hoje = date.today()
-        tent = []
-        r = _get_setups('/setups', {'de': (hoje - timedelta(days=2)).isoformat(), 'ate': hoje.isoformat()}, tent)
-        out['setups'] = dict(status=r.status_code, tentativas=tent, forma_que_funcionou=_FORMAS[_forma_ok['i']][0] if _forma_ok['i'] is not None else None)
+        r = _get_setups('/setups', {'de': (hoje - timedelta(days=2)).isoformat(), 'ate': hoje.isoformat()})
+        out['setups'] = dict(status=r.status_code)
         if r.status_code == 200:
             j = r.json()
             itens = _lista(j)
