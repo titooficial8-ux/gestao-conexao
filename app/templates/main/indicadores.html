@@ -150,20 +150,27 @@
     retrabalho: ['Retrabalho (local 31)', 'Na planilha: peças aguardando, entradas e saídas (metros, peças e kg) por dia. A fonte na API está sendo mapeada.'],
     retalho: ['Retalho', 'Na planilha: kg de retalho por local (malharia, revisão cru, acabamento, retrabalho, gramatura), turno e máquina. Em análise.']
   };
+  var PRONTO = {};                                                // ultima resposta de cada aba/dia: ao voltar, aparece na hora e atualiza em segundo plano
+  function desenhar(d, meu, rolagem) {
+    if (meu !== req) return;
+    $('indSub').textContent = abaAtual === 'reuniao' ? 'Reunião diária de ' + dbr(d.data) + ' · semana ' + d.semana + (d.atualizado ? ' · acabamento atualizado ' + d.atualizado.slice(11, 16) : '') + (d.erro ? ' · ' + d.erro : '') : 'Mês ' + String(d.mes).padStart(2, '0') + '/' + d.ano;
+    var av = (d.avisos || []).join(' · '); if (av) $('indSub').textContent += ' · ATENÇÃO: ' + av;
+    $('indSub').textContent += ' · ao vivo: atualiza a cada 2 min (últ. ' + new Date().toTimeString().slice(0, 5) + ')';
+    if (abaAtual === 'reuniao') reuniao(d); else if (abaAtual === 'malharia') mensal(d, 'malharia', 'Malharia', true); else if (abaAtual === 'acabamento') mensal(d, 'acabamento', 'Acabamento', true); else if (abaAtual === 'reprova_cru') reprovaCru(d); else fatur(d);
+    window.scrollTo(0, rolagem);
+  }
   var req = 0;
   function carregar(silencioso) {
     var meu = ++req, rolagem = window.scrollY;
     if (silencioso !== true) $('indCorpo').textContent = '';
     if (TEXTOS[abaAtual]) { var c = $('indCorpo'), g = el('div', 'ind-grid'); g.appendChild(cartao(TEXTOS[abaAtual][0], 'cinza', analise(TEXTOS[abaAtual][1]), 12)); c.appendChild(g); $('indSub').textContent = 'Em análise · sem dados ainda'; return; }
+    var chaveC = abaAtual + '|' + (abaAtual === 'reuniao' ? $('indDia').value : $('indMes').value), pronto = PRONTO[chaveC];
+    if (pronto && silencioso !== true) { desenhar(pronto, meu, rolagem); silencioso = true; }
     var url = abaAtual === 'reuniao' ? '/indicadores/reuniao?dia=' + $('indDia').value : (abaAtual === 'reprova_cru' ? '/indicadores/reprova-cru?mes=' : '/indicadores/mensal?mes=') + $('indMes').value;
     if (silencioso !== true) $('indSub').textContent = 'Carregando…';
     fetch(url, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error('HTTP ' + r.status + (j.erro ? ' — ' + j.erro : '')); }); return r.json(); }).then(function (d) {
       if (meu !== req) return;                                    // resposta de uma aba que ja foi trocada
-      $('indSub').textContent = abaAtual === 'reuniao' ? 'Reunião diária de ' + dbr(d.data) + ' · semana ' + d.semana + (d.atualizado ? ' · acabamento atualizado ' + d.atualizado.slice(11, 16) : '') + (d.erro ? ' · ' + d.erro : '') : 'Mês ' + String(d.mes).padStart(2, '0') + '/' + d.ano;
-      var av = (d.avisos || []).join(' · '); if (av) $('indSub').textContent += ' · ATENÇÃO: ' + av;
-      $('indSub').textContent += ' · ao vivo: atualiza a cada 2 min (últ. ' + new Date().toTimeString().slice(0, 5) + ')';
-      if (abaAtual === 'reuniao') reuniao(d); else if (abaAtual === 'malharia') mensal(d, 'malharia', 'Malharia', true); else if (abaAtual === 'acabamento') mensal(d, 'acabamento', 'Acabamento', true); else if (abaAtual === 'reprova_cru') reprovaCru(d); else fatur(d);
-      window.scrollTo(0, rolagem);
+      PRONTO[chaveC] = d; desenhar(d, meu, rolagem);
     }).catch(function (e) { if (meu === req) $('indSub').textContent = 'Erro ao carregar: ' + e.message; });
   }
   $('indDia').addEventListener('change', carregar); $('indMes').addEventListener('change', carregar);

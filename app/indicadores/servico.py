@@ -31,6 +31,41 @@ INICIO_DIA = timedelta(hours=6, minutes=20)
 ESTADO = dict(ultima=None, erro=None, pecas=0)
 _trava = threading.Lock()
 _cache: dict = {}
+_vals: dict = {}                                                  # nome -> (quando, valor): resposta pronta, devolvida na hora
+_calc_em: set = set()
+_calc_trava = threading.Lock()
+
+
+def _swr(nome, ttl, fn, *args):
+    """Devolve na hora o ultimo valor calculado (mesmo velho) e recalcula em segundo plano quando passa de `ttl`; so a 1a vez espera."""
+    from flask import current_app
+    chave = (nome,) + args
+    app = current_app._get_current_object()
+
+    def calcular():
+        try:
+            with app.app_context():
+                v = fn(*args)
+            _vals[chave] = (time.time(), v)
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+        finally:
+            _calc_em.discard(chave)
+
+    ent = _vals.get(chave)
+    if ent is None:
+        with _calc_trava:                                          # 1a vez: espera (uma so thread calcula)
+            ent = _vals.get(chave)
+            if ent is None:
+                _calc_em.add(chave)
+                calcular()
+                ent = _vals.get(chave)
+                if ent is None:
+                    return fn(*args)
+    elif time.time() - ent[0] > ttl and chave not in _calc_em:
+        _calc_em.add(chave)
+        threading.Thread(target=calcular, daemon=True, name='indicadores-calc').start()
+    return ent[1]
 
 
 def dia_producao(h: datetime) -> date:
@@ -135,11 +170,13 @@ def atualizar_acabamento(app) -> bool:
 
 def iniciar_agendador(app) -> None:
     def loop():
-        time.sleep(60)
+        time.sleep(15)
+        aquecer(app)                                                  # tela pronta logo na partida
         while True:
             try:
                 atualizar_acabamento(app)
                 atualizar_reprova_cru(app)
+                aquecer(app)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
             time.sleep(INTERVALO_MIN * 60)
@@ -159,14 +196,9 @@ def _fechar(d: dict) -> dict:
     return d
 
 
-def malharia_por_dia() -> dict:
+def _malharia_calc() -> dict:
     """{data: {t:[3 turnos], total}} das pecas pesadas no local 23 (sem amostras), com a mesma conta do Controle de Producao."""
     from app.main.routes import _api_baixas, _hub_movimentos_json
-    from app.models import BaixaFio
-    chave = ('malharia', BaixaFio.query.count(), db.session.query(db.func.max(BaixaFio.mudou)).scalar())
-    quente = _cache.get(chave)
-    if quente and time.time() - quente[0] < 120:
-        return quente[1]
     linhas = json.loads('[' + _api_baixas(dict(_hub_movimentos_json())) + ']')
     dias = defaultdict(_vazio)
     for r in linhas:
@@ -178,11 +210,10 @@ def malharia_por_dia() -> dict:
         alvo['metros'] += r.get('metro_padrao') or 0
         alvo['kg'] += r.get('qt_pesos') or 0
     saida = {d.isoformat(): _fechar(v) for d, v in dias.items()}
-    _cache[chave] = (time.time(), saida)
     return saida
 
 
-def acabamento_por_dia() -> dict:
+def _acabamento_calc() -> dict:
     dias = defaultdict(_vazio)
     for r in IndAcabamento.query.order_by(IndAcabamento.mudou).all():
         alvo = dias[dia_producao(r.mudou)]['t'][turno(r.mudou)]
@@ -192,7 +223,7 @@ def acabamento_por_dia() -> dict:
     return {d.isoformat(): _fechar(v) for d, v in dias.items()}
 
 
-def faturamento_por_dia(ano: int, mes: int) -> dict:
+def _faturamento_calc(ano: int, mes: int) -> dict:
     """Metros = quantidade total das vendas (VDA) do dia; ticket = valor bruto / metros (como a planilha FATURAMENTO)."""
     from app.totvs import base, servico
     cols, linhas, _ = servico.linhas_armazem()
@@ -207,6 +238,33 @@ def faturamento_por_dia(ano: int, mes: int) -> dict:
         metros[d] += x['quant']
         valor[d] += x['bruta']
     return {d: dict(metros=round(metros[d], 1), valor=round(valor[d], 2), ticket=round(valor[d] / metros[d], 3) if metros[d] else 0) for d in sorted(metros)}
+
+
+def malharia_por_dia() -> dict:
+    return _swr('malharia', 60, _malharia_calc)
+
+
+def acabamento_por_dia() -> dict:
+    return _swr('acabamento', 60, _acabamento_calc)
+
+
+def faturamento_por_dia(ano: int, mes: int) -> dict:
+    return _swr('faturamento', 120, _faturamento_calc, ano, mes)
+
+
+def aquecer(app) -> None:
+    """Calcula tudo antes de alguem pedir (chamado a cada ciclo): a tela abre e troca de dia sem esperar."""
+    with app.app_context():
+        for fn in (malharia_por_dia, acabamento_por_dia):
+            try:
+                fn()
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+        hoje = date.today()
+        try:
+            faturamento_por_dia(hoje.year, hoje.month)
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
 
 
 def _seguro(fonte, fn, avisos: list, *args):
