@@ -431,11 +431,20 @@ def _get_setups(caminho: str, params: dict, tentativas: list = None):
 
 
 def _lista(j) -> list:
+    """Lista de setups da resposta: a propria lista, ou o 1o campo que seja uma lista (setups, items, data...)."""
     if isinstance(j, list):
         return j
-    for k in ('items', 'data', 'setups', 'results', 'dados', 'registros'):
-        if isinstance(j.get(k), list):
-            return j[k]
+    if isinstance(j, dict):
+        for k in ('setups', 'items', 'data', 'results', 'dados', 'registros', 'lista'):
+            if isinstance(j.get(k), list):
+                return j[k]
+        for v in j.values():
+            if isinstance(v, list) and (not v or isinstance(v[0], dict)):
+                return v
+            if isinstance(v, dict):
+                achou = _lista(v)
+                if achou:
+                    return achou
     return []
 
 
@@ -499,7 +508,7 @@ def setups_diagnostico() -> dict:
         if r.status_code == 200:
             j = r.json()
             itens = _lista(j)
-            out['setups'].update(total=len(itens), chaves=sorted(itens[0].keys()) if itens and isinstance(itens[0], dict) else None, exemplos=itens[:2])
+            out['setups'].update(total=len(itens), chaves=sorted(itens[0].keys()) if itens and isinstance(itens[0], dict) else None, exemplos=itens[:2], corpo_bruto=None if itens else r.text[:600], parametros=dict(de=(hoje - timedelta(days=2)).isoformat(), ate=hoje.isoformat()))
         else:
             out['setups']['corpo'] = r.text[:300]
     except Exception as e:  # noqa: BLE001
