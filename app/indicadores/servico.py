@@ -208,6 +208,16 @@ def faturamento_por_dia(ano: int, mes: int) -> dict:
     return {d: dict(metros=round(metros[d], 1), valor=round(valor[d], 2), ticket=round(valor[d] / metros[d], 3) if metros[d] else 0) for d in sorted(metros)}
 
 
+def _seguro(fonte, fn, avisos: list, *args):
+    """Roda uma fonte de dados; se falhar, devolve vazio e guarda o motivo (a tela mostra o aviso em vez de dar erro 500)."""
+    try:
+        return fn(*args)
+    except Exception as e:  # noqa: BLE001
+        traceback.print_exc()
+        avisos.append(f'{fonte}: {type(e).__name__}: {str(e)[:160]}')
+        return {}
+
+
 def _media(serie: dict, ate: str) -> float:
     v = [x['total']['metros'] for d, x in serie.items() if d[:7] == ate[:7] and d <= ate and x['total']['metros'] > 0]
     return round(sum(v) / len(v), 1) if v else 0.0
@@ -215,8 +225,9 @@ def _media(serie: dict, ate: str) -> float:
 
 def reuniao(dia: date) -> dict:
     ch = dia.isoformat()
-    mal, aca = malharia_por_dia(), acabamento_por_dia()
-    fat = faturamento_por_dia(dia.year, dia.month)
+    avisos = []
+    mal, aca = _seguro('Malharia', malharia_por_dia, avisos), _seguro('Acabamento', acabamento_por_dia, avisos)
+    fat = _seguro('Faturamento', faturamento_por_dia, avisos, dia.year, dia.month)
     m, a = mal.get(ch) or _fechar(_vazio()), aca.get(ch) or _fechar(_vazio())
     f = fat.get(ch) or dict(metros=0, valor=0, ticket=0)
     tm = sum(x['metros'] for x in fat.values())
@@ -228,17 +239,19 @@ def reuniao(dia: date) -> dict:
         faturamento=dict(metros=f['metros'], ticket_dia=f['ticket'], ticket_mes=round(tv / tm, 3) if tm else 0,
                          pct_prod=round(f['metros'] / m['total']['metros'] - 1, 4) if m['total']['metros'] else None,
                          pct_aca=round(f['metros'] / a['total']['metros'] - 1, 4) if a['total']['metros'] else None),
-        atualizado=ESTADO['ultima'], erro=ESTADO['erro'])
+        atualizado=ESTADO['ultima'], erro=ESTADO['erro'], avisos=avisos)
 
 
 def mensal(ano: int, mes: int) -> dict:
     ini = date(ano, mes, 1)
     fim = (date(ano + (mes == 12), mes % 12 + 1, 1))
-    mal, aca, fat = malharia_por_dia(), acabamento_por_dia(), faturamento_por_dia(ano, mes)
+    avisos = []
+    mal, aca = _seguro('Malharia', malharia_por_dia, avisos), _seguro('Acabamento', acabamento_por_dia, avisos)
+    fat = _seguro('Faturamento', faturamento_por_dia, avisos, ano, mes)
     dias = []
     d = ini
     while d < min(fim, date.today() + timedelta(days=1)):
         ch = d.isoformat()
         dias.append(dict(data=ch, malharia=mal.get(ch) or _fechar(_vazio()), acabamento=aca.get(ch) or _fechar(_vazio()), faturamento=fat.get(ch) or dict(metros=0, valor=0, ticket=0)))
         d += timedelta(days=1)
-    return dict(ano=ano, mes=mes, dias=dias)
+    return dict(ano=ano, mes=mes, dias=dias, avisos=avisos)
