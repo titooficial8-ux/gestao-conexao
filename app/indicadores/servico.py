@@ -469,22 +469,31 @@ def _quando(item: dict):
 
 
 def _setups_calc(ch: str) -> dict:
-    """Setups do dia de producao `ch` (a API filtra de/ate pelo dia de producao 06h20 -> 06h19); o turno vem da hora de inicio, quando ela vier na resposta."""
+    """Setups do dia de producao `ch`. A API (/api/v1/setups) ja filtra de/ate pelo dia de producao (06h20 -> 06h19) e traz
+    `diaProducao` e `turnoInicio` ("1º turno 20/10") de cada setup; sem esses campos o turno sai da hora de `inicio`."""
+    import re
     r = _get_setups('/setups', {'de': ch, 'ate': ch, 'tipo': 'SETUP'})
     if r.status_code != 200:
         raise RuntimeError(f'HTTP {r.status_code} {r.text[:120]}')
-    n, maqs, turnos, com_hora = 0, set(), [0, 0, 0], 0
+    n, maqs, turnos, sem_turno = 0, set(), [0, 0, 0], 0
     for it in _lista(r.json()):
         tipo = str(it.get('tipo') or it.get('type') or 'SETUP').strip().upper()
         if tipo not in ('SETUP', ''):
             continue
+        if it.get('diaProducao') and str(it['diaProducao'])[:10] != ch:
+            continue
         n += 1
-        h, tem_hora = _quando(it)
-        if h is not None and tem_hora:
-            turnos[turno(h)] += 1
-            com_hora += 1
+        m = re.match(r'\s*([123])', str(it.get('turnoInicio') or ''))
+        if m:
+            turnos[int(m.group(1)) - 1] += 1
+        else:
+            h, tem_hora = _quando(it)
+            if h is not None and tem_hora:
+                turnos[turno(h)] += 1
+            else:
+                sem_turno += 1
         maqs.add(str(it.get('maquina') or it.get('machine') or it.get('maquina_id') or ''))
-    return dict(n=n, turnos=turnos if n and com_hora == n else None, maquinas=len(maqs - {''}))
+    return dict(n=n, turnos=turnos if n and not sem_turno else None, maquinas=len(maqs - {''}))
 
 
 def _setups_resumo(r) -> dict:
