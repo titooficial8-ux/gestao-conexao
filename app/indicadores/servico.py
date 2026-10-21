@@ -17,7 +17,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 
 from app import db
-from app.indicadores.models import IndAcabamento, IndProduto
+from app.indicadores.models import IndAcabamento, IndProduto, IndReprovaCru
 from app.totvs import api
 
 BASE_URL = api.BASE_URL
@@ -139,6 +139,7 @@ def iniciar_agendador(app) -> None:
         while True:
             try:
                 atualizar_acabamento(app)
+                atualizar_reprova_cru(app)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
             time.sleep(INTERVALO_MIN * 60)
@@ -239,6 +240,7 @@ def reuniao(dia: date) -> dict:
         faturamento=dict(metros=f['metros'], ticket_dia=f['ticket'], ticket_mes=round(tv / tm, 3) if tm else 0,
                          pct_prod=round(f['metros'] / m['total']['metros'] - 1, 4) if m['total']['metros'] else None,
                          pct_aca=round(f['metros'] / a['total']['metros'] - 1, 4) if a['total']['metros'] else None),
+        reprova_cru=_seguro('Reprova Cru', reprova_cru_dia, avisos, dia) or dict(pecas=0, metros=0, kg=0, linhas=[], turnos=[]),
         atualizado=ESTADO['ultima'], erro=ESTADO['erro'], avisos=avisos)
 
 
@@ -255,3 +257,89 @@ def mensal(ano: int, mes: int) -> dict:
         dias.append(dict(data=ch, malharia=mal.get(ch) or _fechar(_vazio()), acabamento=aca.get(ch) or _fechar(_vazio()), faturamento=fat.get(ch) or dict(metros=0, valor=0, ticket=0)))
         d += timedelta(days=1)
     return dict(ano=ano, mes=mes, dias=dias, avisos=avisos)
+
+
+# ---------------------------------------------------------------- reprova cru (NCs do SharePoint, local 24)
+DEFEITOS = {
+    'R01': 'AGULHA CILINDRO', 'R02': 'BARRAMENTO DE FIO', 'R03': 'BARRAMENTO DE TINTURARIA', 'R04': 'CONTAMINAÇÃO DE FIO', 'R05': 'AGULHA DISCO',
+    'R06': 'FIO PUXADO', 'R07': 'FIO QUEBRADO', 'R08': 'MALHA CORRIDA CILINDRO', 'R09': 'MALHA CORRIDA DISCO', 'R10': 'MANCHA DE TINTURARIA',
+    'R11': 'RISCO DE AGULHA', 'R12': 'FIO ERRADO', 'R13': 'RISCO DE ÓLEO', 'R14': 'TONALIDADE ERRADA', 'R16': 'SOBREPOSTO', 'R18': 'MANCHA DE ÓLEO',
+    'R19': 'ESTOURO', 'R20': 'PLATINA', 'R21': 'FALHA DE DESENHO', 'R23': 'AGULHA PICANDO', 'R25': 'ATUADOR', 'R26': 'AMASSADO',
+    'R27': 'PILLING (BOLINHAS)', 'R28': 'REBOBINAR', 'R29': 'SUJEIRA', 'R30': 'FORA DE LARGURA', 'R31': 'RISCO NO VINCO', 'R32': 'PARADA DE MÁQUINA',
+    'R34': 'ENCHIMENTO SAINDO NO VINCO', 'R35': 'QUEBRADURA', 'REGULAGEM': 'REGULAGEM'}
+_TURNO_NC = {'A': 1, 'B': 2, 'C': 3}
+_ult_nc = {'ts': 0.0, 'erro': None}
+
+
+def _linha_nc(x: dict):
+    import re
+    d = str(x.get('data1') or '')[:10]
+    if not re.match(r'\d\d/\d\d/\d{4}$', d):
+        return None
+    dia = datetime.strptime(d, '%d/%m/%Y').date()
+    metros = _num(x.get('Metros2'))
+    if dia.year < 2026 or not metros:
+        return None
+    codigos = [c for c in re.split(r'\s+', str(x.get('contagemR') or '').strip().upper()) if c]
+    return dict(sp_id=int(x['_id']), data=dia, maquina=str(x.get('Maquina') or '').strip().lstrip('0') or None, artigo=str(x.get('field_7') or '').strip()[:30],
+                op=str(x.get('Ordemdeproducao') or '').strip()[:20], cliente=str(x.get('field_8') or '').strip()[:120], metros=metros, kg=_num(x.get('Quilos2')) or 0.0,
+                turno=_TURNO_NC.get(str(x.get('TURNO') or '').strip().upper()), codigos=','.join(codigos)[:80],
+                defeito=DEFEITOS.get(codigos[0], codigos[0]) if codigos else '', emitente=str(x.get('field_2') or '')[:80],
+                criado=datetime.fromisoformat(str(x['_criado']).replace('Z', '')) if x.get('_criado') else None)
+
+
+def atualizar_reprova_cru(app) -> bool:
+    """Le as NCs do SharePoint (so leitura) e atualiza a tabela local; so entram NCs de 2026 em diante com metros e data."""
+    from app.indicadores import sharepoint
+    if not sharepoint.configurado():
+        _ult_nc['erro'] = 'SharePoint não configurado no .env: ' + ', '.join(sharepoint.faltando())
+        return False
+    try:
+        linhas = [r for r in (_linha_nc(x) for x in sharepoint.itens(limite=30000)) if r]
+        with app.app_context():
+            existentes = {r.sp_id: r for r in IndReprovaCru.query.all()}
+            for r in linhas:
+                alvo = existentes.get(r['sp_id'])
+                if alvo is None:
+                    db.session.add(IndReprovaCru(**r))
+                else:
+                    for k, v in r.items():
+                        setattr(alvo, k, v)
+            vivos = {r['sp_id'] for r in linhas}
+            for sp_id, alvo in existentes.items():
+                if sp_id not in vivos:                              # NC apagada ou alterada para fora do criterio
+                    db.session.delete(alvo)
+            db.session.commit()
+        _ult_nc.update(ts=time.time(), erro=None)
+        _cache.clear()
+        return True
+    except Exception as e:  # noqa: BLE001
+        traceback.print_exc()
+        _ult_nc['erro'] = str(e)[:200]
+        return False
+
+
+def _nc_dict(r) -> dict:
+    return dict(data=r.data.isoformat(), maquina=r.maquina, artigo=r.artigo, op=r.op, cliente=r.cliente, metros=round(r.metros, 1), kg=round(r.kg, 2),
+                turno=r.turno, codigos=r.codigos, defeito=r.defeito)
+
+
+def reprova_cru_dia(dia: date) -> dict:
+    rs = IndReprovaCru.query.filter_by(data=dia).order_by(IndReprovaCru.criado).all()
+    return dict(pecas=len(rs), metros=round(sum(r.metros for r in rs), 1), kg=round(sum(r.kg for r in rs), 1), linhas=[_nc_dict(r) for r in rs],
+                turnos=[dict(pecas=sum(1 for r in rs if r.turno == t), metros=round(sum(r.metros for r in rs if r.turno == t), 1), kg=round(sum(r.kg for r in rs if r.turno == t), 1)) for t in (1, 2, 3)])
+
+
+def reprova_cru_mensal(ano: int, mes: int) -> dict:
+    ini = date(ano, mes, 1)
+    fim = date(ano + (mes == 12), mes % 12 + 1, 1)
+    rs = IndReprovaCru.query.filter(IndReprovaCru.data >= ini, IndReprovaCru.data < fim).order_by(IndReprovaCru.data, IndReprovaCru.criado).all()
+    por_def = defaultdict(lambda: [0, 0.0, 0.0])
+    por_dia = defaultdict(lambda: [0, 0.0, 0.0])
+    for r in rs:
+        for alvo in (por_def[r.defeito or 'SEM CÓDIGO'], por_dia[r.data.isoformat()]):
+            alvo[0] += 1; alvo[1] += r.metros; alvo[2] += r.kg
+    return dict(ano=ano, mes=mes, pecas=len(rs), metros=round(sum(r.metros for r in rs), 1), kg=round(sum(r.kg for r in rs), 1),
+                defeitos=sorted(({'defeito': k, 'pecas': v[0], 'metros': round(v[1], 1), 'kg': round(v[2], 1)} for k, v in por_def.items()), key=lambda x: -x['metros']),
+                dias=[{'data': k, 'pecas': v[0], 'metros': round(v[1], 1), 'kg': round(v[2], 1)} for k, v in sorted(por_dia.items())],
+                linhas=[_nc_dict(r) for r in rs], erro=_ult_nc['erro'])
