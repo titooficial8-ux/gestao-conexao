@@ -162,7 +162,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   var TXT = { dias: ES ? 'días' : 'dias', ver_todas: ES ? 'Ver todas' : 'Ver todas', ver_menos: ES ? 'Ver menos' : 'Ver menos', nenhum: ES ? 'Sin datos' : 'Sem dados', sem_dados: ES ? 'Sin datos para este filtro.' : 'Sem dados para este filtro.' };
   var $ = function (id) { return document.getElementById(id); };
   var ui = criarPainelUI({ locale: LOCALE, txt: TXT, aoFiltrar: function (id, v) { filtros[id] = v; carregar(); } });
-  var fonte = 'padrao', filtros = {}, st = null, timer = null, aguardandoDownload = null;
+  var fonte = 'padrao', filtros = {}, st = null, timer = null, aguardandoDownload = null, filaGerar = null;
 
   function dataBR(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : ''; }
   function dhBR(iso) { return iso ? dataBR(iso) + ' ' + iso.slice(11, 16) : ''; }
@@ -185,7 +185,8 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     var pr = $('biProgresso');
     pr.hidden = !e.rodando; $('biParar').disabled = !e.rodando || /Cancelando/.test(e.msg || '');
     if (e.rodando) $('biProgTxt').textContent = '⏳ ' + (e.msg || '') + ' (' + dataBR(e.inicio) + ' → ' + dataBR(e.fim) + ')';
-    $('biGerar').disabled = $('biAtualizar').disabled = e.rodando || !st.configurado;
+    $('biGerar').disabled = !st.configurado || (e.rodando && e.tag === 'custom');           // com uma atualizacao automatica rodando, o clique entra na fila
+    $('biAtualizar').disabled = e.rodando || !st.configurado;
     var sb = $('biSlideAtualizar');
     if (sb) { sb.disabled = e.rodando || !st.configurado; sb.textContent = e.rodando ? (ES ? '⏳ Actualizando…' : '⏳ Atualizando…') : (ES ? '⟳ Actualizar' : '⟳ Atualizar'); if (!st.configurado) sb.title = ES ? 'TOTVS no configurado (.env)' : 'TOTVS não configurado (.env)'; }
     // links do ultimo relatorio gerado logo abaixo do botao (aparecem em qualquer visao)
@@ -229,6 +230,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     fetch(URL_STATUS, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
       var rodava = st && st.estado.rodando; st = s; pintarStatus();
       baixarSeTerminou(s, rodava);
+      if (filaGerar && !s.estado.rodando) { var f = filaGerar; filaGerar = null; var av = $('biAvisoFila'); if (av) av.remove(); gerar(f.ini, f.fim); }
       if (s.estado.rodando) { clearTimeout(timer); timer = setTimeout(function () { consultarStatus(); }, 2500); }
       else if (rodava) { if (s.estado.tag === 'custom') { /* relatorio sob demanda: so baixa o arquivo; nao troca a tela nem mexe no slide/pedidos */ } else if (!$('biSlide').hidden) carregarSlide(); else carregar(); }
       if (depois) depois();
@@ -278,12 +280,21 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   function gerar(ini, fim, modo) {
     var fd = new FormData(); fd.append('inicio', ini); fd.append('fim', fim); fd.append('modo', modo || 'custom');
     fetch(URL_GERAR, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
-      if (!j.ok) { alert(j.erro || 'Erro'); return; }
+      if (!j.ok) { if ((modo || 'custom') === 'custom' && /andamento/i.test(j.erro || '')) { filaGerar = { ini: ini, fim: fim }; consultarStatus(); return; } alert(j.erro || 'Erro'); return; }      // outra busca comecou no meio: espera na fila
       if ((modo || 'custom') === 'custom') aguardandoDownload = { desde: Date.now() };       // baixa o Relatorio 150 quando terminar
       consultarStatus();
     });
   }
-  $('biGerar').addEventListener('click', function () { gerar($('biGIni').value, $('biGFim').value); });
+  $('biGerar').addEventListener('click', function () {
+    var ini = $('biGIni').value, fim = $('biGFim').value;
+    if (st && st.estado.rodando) {                                    // ja ha uma busca no TOTVS (ex.: atualizacao automatica): entra na fila e comeca sozinha
+      filaGerar = { ini: ini, fim: fim };
+      var ant = $('biAvisoFila'); if (ant) ant.remove();
+      var av = ui.el('div', 'bi-info', (ES ? '⏳ Hay una actualización en curso. El informe ' : '⏳ Há uma atualização do TOTVS em andamento. O relatório de ') + dataBR(ini) + ' → ' + dataBR(fim) + (ES ? ' empieza al terminar y se descarga solo.' : ' entra na fila: começa assim que ela terminar e baixa sozinho. Se preferir, clique em "Parar busca".')); av.id = 'biAvisoFila';
+      $('biGerado').parentNode.insertBefore(av, $('biGerado').nextSibling); return;
+    }
+    gerar(ini, fim);
+  });
   $('biAtualizar').addEventListener('click', function () {
     gerar(hoje(), hoje(), 'recente');
   });
