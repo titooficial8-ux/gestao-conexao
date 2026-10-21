@@ -50,7 +50,8 @@ def _swr(nome, ttl, fn, *args):
                 v = fn(*args)
             _vals[chave] = (time.time(), v, None)
         except Exception as e:  # noqa: BLE001
-            traceback.print_exc()
+            if 'SEM_PLANILHA' not in str(e):
+                traceback.print_exc()
             antigo = _vals.get(chave)
             _vals[chave] = (time.time(), antigo[1] if antigo else None, f'{type(e).__name__}: {str(e)[:160]}')
         finally:

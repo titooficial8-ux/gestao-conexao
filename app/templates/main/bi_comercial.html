@@ -162,7 +162,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   var TXT = { dias: ES ? 'días' : 'dias', ver_todas: ES ? 'Ver todas' : 'Ver todas', ver_menos: ES ? 'Ver menos' : 'Ver menos', nenhum: ES ? 'Sin datos' : 'Sem dados', sem_dados: ES ? 'Sin datos para este filtro.' : 'Sem dados para este filtro.' };
   var $ = function (id) { return document.getElementById(id); };
   var ui = criarPainelUI({ locale: LOCALE, txt: TXT, aoFiltrar: function (id, v) { filtros[id] = v; carregar(); } });
-  var fonte = 'padrao', filtros = {}, st = null, timer = null;
+  var fonte = 'padrao', filtros = {}, st = null, timer = null, aguardandoDownload = null;
 
   function dataBR(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : ''; }
   function dhBR(iso) { return iso ? dataBR(iso) + ' ' + iso.slice(11, 16) : ''; }
@@ -208,9 +208,21 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     });
   }
 
+  // ao terminar o "Gerar relatorio", baixa sozinho o Relatorio 150 (Excel) do periodo escolhido
+  function baixarSeTerminou(s, rodava) {
+    if (!aguardandoDownload || s.estado.rodando) return;
+    if (s.estado.erro) { aguardandoDownload = null; return; }
+    if (!rodava && Date.now() - aguardandoDownload.desde < 4000) { setTimeout(function () { consultarStatus(); }, 1200); return; }          // a geracao ainda nao tinha comecado a aparecer no status
+    var arq = s.custom && s.custom.arquivos && s.custom.arquivos.xlsx150;
+    aguardandoDownload = null;
+    if (!arq) return;
+    var a = document.createElement('a'); a.href = URL_DL.replace('__T__', 'custom').replace('__K__', 'xlsx150'); a.download = ''; a.style.display = 'none'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+
   function consultarStatus(depois) {
     fetch(URL_STATUS, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
       var rodava = st && st.estado.rodando; st = s; pintarStatus();
+      baixarSeTerminou(s, rodava);
       if (s.estado.rodando) { clearTimeout(timer); timer = setTimeout(function () { consultarStatus(); }, 2500); }
       else if (rodava) { if (s.estado.tag === 'custom') { mudarVisao('painel'); mudarFonte('custom'); } else if (!$('biSlide').hidden) carregarSlide(); else carregar(); }
       if (depois) depois();
@@ -260,7 +272,9 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   function gerar(ini, fim, modo) {
     var fd = new FormData(); fd.append('inicio', ini); fd.append('fim', fim); fd.append('modo', modo || 'custom');
     fetch(URL_GERAR, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
-      if (!j.ok) { alert(j.erro || 'Erro'); return; } consultarStatus();
+      if (!j.ok) { alert(j.erro || 'Erro'); return; }
+      if ((modo || 'custom') === 'custom') aguardandoDownload = { desde: Date.now() };       // baixa o Relatorio 150 quando terminar
+      consultarStatus();
     });
   }
   $('biGerar').addEventListener('click', function () { gerar($('biGIni').value, $('biGFim').value); });
