@@ -181,7 +181,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     var e = st.estado;
     if (e.erro && !e.rodando) box.appendChild(ui.el('div', 'bi-aviso', (ES ? 'Último error: ' : 'Última falha: ') + e.erro));
     var ov = $('biOverlay');
-    if (ov) { ov.hidden = !(e.rodando && e.origem !== 'agenda'); $('biOverlayMsg').textContent = e.rodando ? (e.msg || '') : ''; }
+    if (ov) { ov.hidden = !(e.rodando && e.origem !== 'agenda' && e.tag !== 'custom'); $('biOverlayMsg').textContent = e.rodando ? (e.msg || '') : ''; }
     var pr = $('biProgresso');
     pr.hidden = !e.rodando; $('biParar').disabled = !e.rodando || /Cancelando/.test(e.msg || '');
     if (e.rodando) $('biProgTxt').textContent = '⏳ ' + (e.msg || '') + ' (' + dataBR(e.inicio) + ' → ' + dataBR(e.fim) + ')';
@@ -224,7 +224,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
       var rodava = st && st.estado.rodando; st = s; pintarStatus();
       baixarSeTerminou(s, rodava);
       if (s.estado.rodando) { clearTimeout(timer); timer = setTimeout(function () { consultarStatus(); }, 2500); }
-      else if (rodava) { if (s.estado.tag === 'custom') { mudarVisao('painel'); mudarFonte('custom'); } else if (!$('biSlide').hidden) carregarSlide(); else carregar(); }
+      else if (rodava) { if (s.estado.tag === 'custom') { /* relatorio sob demanda: so baixa o arquivo; nao troca a tela nem mexe no slide/pedidos */ } else if (!$('biSlide').hidden) carregarSlide(); else carregar(); }
       if (depois) depois();
     });
   }
