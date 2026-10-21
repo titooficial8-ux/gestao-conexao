@@ -26,7 +26,7 @@ PROD_URL = f'{BASE_URL}/api/totvsmoda/product/v2/products/search'
 EMPRESA = 1
 OPS_ACABAMENTO = [int(x) for x in os.getenv('INDICADORES_OPS_ACABAMENTO', '2030,2031').split(',') if x.strip()]
 DESDE = os.getenv('INDICADORES_DESDE', '2026-09-01')
-INTERVALO_MIN = float(os.getenv('INDICADORES_INTERVALO_MIN', '10'))
+INTERVALO_MIN = float(os.getenv('INDICADORES_INTERVALO_MIN', '2'))
 INICIO_DIA = timedelta(hours=6, minutes=20)
 ESTADO = dict(ultima=None, erro=None, pecas=0)
 _trava = threading.Lock()
@@ -241,7 +241,7 @@ def reuniao(dia: date) -> dict:
                          pct_prod=round(f['metros'] / m['total']['metros'] - 1, 4) if m['total']['metros'] else None,
                          pct_aca=round(f['metros'] / a['total']['metros'] - 1, 4) if a['total']['metros'] else None),
         reprova_cru=_seguro('Reprova Cru', reprova_cru_dia, avisos, dia) or dict(pecas=0, metros=0, kg=0, linhas=[], turnos=[]),
-        atualizado=ESTADO['ultima'], erro=ESTADO['erro'], avisos=avisos)
+        atualizado=ESTADO['ultima'], erro=ESTADO['erro'], avisos=avisos, intervalo_min=INTERVALO_MIN)
 
 
 def mensal(ano: int, mes: int) -> dict:
@@ -268,7 +268,7 @@ DEFEITOS = {
     'R27': 'PILLING (BOLINHAS)', 'R28': 'REBOBINAR', 'R29': 'SUJEIRA', 'R30': 'FORA DE LARGURA', 'R31': 'RISCO NO VINCO', 'R32': 'PARADA DE MÁQUINA',
     'R34': 'ENCHIMENTO SAINDO NO VINCO', 'R35': 'QUEBRADURA', 'REGULAGEM': 'REGULAGEM'}
 _TURNO_NC = {'A': 1, 'B': 2, 'C': 3}
-_ult_nc = {'ts': 0.0, 'erro': None}
+_ult_nc = {'ts': 0.0, 'erro': None, 'completo': 0.0}
 
 
 def _linha_nc(x: dict):
@@ -295,7 +295,13 @@ def atualizar_reprova_cru(app) -> bool:
         _ult_nc['erro'] = 'SharePoint não configurado no .env: ' + ', '.join(sharepoint.faltando())
         return False
     try:
-        linhas = [r for r in (_linha_nc(x) for x in sharepoint.itens(limite=30000)) if r]
+        completo = time.time() - _ult_nc['completo'] > 3600 or not _ult_nc['ts']          # 1x por hora le tudo (para notar NCs apagadas); nas outras so o que mudou
+        if completo:
+            itens = sharepoint.itens(limite=30000)
+        else:
+            corte = datetime.utcfromtimestamp(_ult_nc['ts'] - 3600).strftime('%Y-%m-%dT%H:%M:%SZ')
+            itens = sharepoint.itens_recentes(corte)
+        linhas = [r for r in (_linha_nc(x) for x in itens) if r]
         with app.app_context():
             existentes = {r.sp_id: r for r in IndReprovaCru.query.all()}
             for r in linhas:
@@ -305,12 +311,15 @@ def atualizar_reprova_cru(app) -> bool:
                 else:
                     for k, v in r.items():
                         setattr(alvo, k, v)
-            vivos = {r['sp_id'] for r in linhas}
-            for sp_id, alvo in existentes.items():
-                if sp_id not in vivos:                              # NC apagada ou alterada para fora do criterio
-                    db.session.delete(alvo)
+            if completo:
+                vivos = {r['sp_id'] for r in linhas}
+                for sp_id, alvo in existentes.items():
+                    if sp_id not in vivos:                          # NC apagada ou alterada para fora do criterio
+                        db.session.delete(alvo)
             db.session.commit()
         _ult_nc.update(ts=time.time(), erro=None)
+        if completo:
+            _ult_nc['completo'] = time.time()
         _cache.clear()
         return True
     except Exception as e:  # noqa: BLE001

@@ -69,3 +69,16 @@ def itens(limite: int = 5000) -> list:
             saida.append(dict(it.get('fields') or {}, _id=it.get('id'), _criado=it.get('createdDateTime'), _alterado=it.get('lastModifiedDateTime')))
         url, params = j.get('@odata.nextLink'), None
     return saida
+
+
+def itens_recentes(desde_iso: str, limite: int = 3000) -> list:
+    """So os itens alterados depois de `desde_iso` (ex.: 2026-10-21T00:00:00Z): le da mais recente para a mais antiga e para no corte."""
+    saida, url, params = [], f'{GRAPH}/sites/{_site()}/lists/{_lista()}/items', {'$expand': 'fields', '$top': 100, '$orderby': 'lastModifiedDateTime desc'}
+    while url and len(saida) < limite:
+        j = _get(url, params)
+        for it in j.get('value') or []:
+            if str(it.get('lastModifiedDateTime') or '') < desde_iso:
+                return saida
+            saida.append(dict(it.get('fields') or {}, _id=it.get('id'), _criado=it.get('createdDateTime'), _alterado=it.get('lastModifiedDateTime')))
+        url, params = j.get('@odata.nextLink'), None
+    return saida
