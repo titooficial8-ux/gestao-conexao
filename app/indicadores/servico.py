@@ -421,16 +421,39 @@ def _pin() -> str:
     return (os.getenv('SETUPS_TOKEN') or os.getenv('SETUPS_PIN') or '').strip()
 
 
-def _headers_setups() -> dict:
-    """O token vai nos cabecalhos mais comuns (Bearer, X-API-Key, X-Token...) e tambem como ?token=; /indicadores/setups-diagnostico mostra o que a API respondeu."""
+# formas de mandar o token, uma por vez (cabecalhos juntos podem confundir a API): a que der 200 fica guardada
+_FORMAS = [('X-API-Key', 'h', 'X-API-Key'), ('Bearer', 'h', 'Authorization', 'Bearer '), ('Authorization cru', 'h', 'Authorization'), ('X-Token', 'h', 'X-Token'),
+           ('Token', 'h', 'Token'), ('X-Auth-Token', 'h', 'X-Auth-Token'), ('?token=', 'q', 'token'), ('?api_key=', 'q', 'api_key'), ('?access_token=', 'q', 'access_token')]
+_forma_ok = {'i': None}
+
+
+def _get_setups(caminho: str, params: dict, tentativas: list = None):
+    """GET na API de setups com o token na forma que ela aceitar; devolve a resposta (a ultima tentativa se nenhuma der 200)."""
+    import requests
     t = _pin()
+    url = f'{SETUPS_URL}{caminho}'
+    base = {'Accept': 'application/json'}
     if not t:
-        return {'Accept': 'application/json'}
-    return {'Authorization': f'Bearer {t}', 'X-API-Key': t, 'X-Token': t, 'X-Auth-Token': t, 'Token': t, 'X-PIN': t, 'Accept': 'application/json'}
-
-
-def _params_setups(extra: dict) -> dict:
-    return dict(extra, **({'token': _pin()} if _pin() else {}))
+        return requests.get(url, params=params, headers=base, timeout=15)
+    ordem = list(range(len(_FORMAS)))
+    if _forma_ok['i'] is not None:
+        ordem.remove(_forma_ok['i'])
+        ordem.insert(0, _forma_ok['i'])
+    r = None
+    for i in ordem:
+        f = _FORMAS[i]
+        h, q = dict(base), dict(params)
+        if f[1] == 'h':
+            h[f[2]] = (f[3] if len(f) > 3 else '') + t
+        else:
+            q[f[2]] = t
+        r = requests.get(url, params=q, headers=h, timeout=15)
+        if tentativas is not None:
+            tentativas.append(dict(forma=f[0], status=r.status_code))
+        if r.status_code not in (401, 403):
+            _forma_ok['i'] = i if r.status_code == 200 else _forma_ok['i']
+            return r
+    return r
 
 
 def _lista(j) -> list:
@@ -465,7 +488,7 @@ def _quando(item: dict):
 def _setups_calc(ch: str) -> dict:
     import requests
     dia = date.fromisoformat(ch)
-    r = requests.get(f'{SETUPS_URL}/setups', params=_params_setups({'de': dia.isoformat(), 'ate': (dia + timedelta(days=1)).isoformat()}), headers=_headers_setups(), timeout=15)
+    r = _get_setups('/setups', {'de': dia.isoformat(), 'ate': (dia + timedelta(days=1)).isoformat()})
     if r.status_code != 200:
         raise RuntimeError(f'HTTP {r.status_code} {r.text[:120]}')
     n, maqs, turnos = 0, set(), [0, 0, 0]
@@ -496,11 +519,12 @@ def setups_diagnostico() -> dict:
     import requests
     out = dict(url=SETUPS_URL, token_configurado=bool(_pin()))
     try:
-        r0 = requests.get(SETUPS_URL, headers=_headers_setups(), timeout=15)
+        r0 = requests.get(SETUPS_URL, headers={'Accept': 'application/json'}, timeout=15)
         out['descricao'] = dict(status=r0.status_code, corpo=r0.text[:1500])
         hoje = date.today()
-        r = requests.get(f'{SETUPS_URL}/setups', params=_params_setups({'de': (hoje - timedelta(days=2)).isoformat(), 'ate': hoje.isoformat()}), headers=_headers_setups(), timeout=15)
-        out['setups'] = dict(status=r.status_code)
+        tent = []
+        r = _get_setups('/setups', {'de': (hoje - timedelta(days=2)).isoformat(), 'ate': hoje.isoformat()}, tent)
+        out['setups'] = dict(status=r.status_code, tentativas=tent, forma_que_funcionou=_FORMAS[_forma_ok['i']][0] if _forma_ok['i'] is not None else None)
         if r.status_code == 200:
             j = r.json()
             itens = _lista(j)
