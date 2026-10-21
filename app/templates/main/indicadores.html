@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<style>
+  .ind { --cinza: #6a7b90; --azul: #2f4a6d; }
+  .ind-topo { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin: 4px 0 14px; }
+  .ind-topo h1 { margin: 0; font-size: 26px; color: #0f2540; }
+  .ind-sub { font-size: 12.5px; color: var(--cinza); margin-top: 4px; }
+  .ind-ctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ind-ctl input { padding: 8px 10px; border: 1px solid #d5deea; border-radius: 10px; font-size: 13px; }
+  .ind-abas { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 16px; }
+  .ind-aba { border: 1px solid #d5deea; background: #fff; color: #36506f; padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .ind-aba.on { background: #0f2540; border-color: #0f2540; color: #fff; }
+  .ind-aba small { font-size: 10px; margin-left: 6px; opacity: .7; font-weight: 800; letter-spacing: .06em; }
+  .ind-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+  .ind-card { background: #fff; border: 1px solid #e1e9f3; border-radius: 14px; box-shadow: 0 1px 2px rgba(16, 38, 63, .04), 0 8px 20px rgba(16, 38, 63, .05); overflow: hidden; }
+  .ind-card h3 { margin: 0; padding: 10px 16px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; background: #4a5d78; color: #fff; text-align: center; }
+  .ind-card h3.verde { background: #1f8f72; } .ind-card h3.laranja { background: #c9822b; } .ind-card h3.cinza { background: #8493a8; } .ind-card h3.azul { background: #2f6fcb; }
+  .ind-corpo { padding: 16px; }
+  .ind-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; }
+  .ind-k small { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #5d6e84; }
+  .ind-k b { display: block; font-size: 24px; color: #0f2540; font-variant-numeric: tabular-nums; margin-top: 3px; }
+  .ind-k b.peq { font-size: 18px; }
+  .ind-k.bom b { color: #1f9d55; } .ind-k.ruim b { color: #d64545; }
+  .ind-tb { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; font-variant-numeric: tabular-nums; }
+  .ind-tb th { text-align: right; padding: 7px 8px; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #5d6e84; border-bottom: 2px solid #e1e9f3; background: #f6f9fc; position: sticky; top: 0; }
+  .ind-tb th:first-child, .ind-tb td:first-child { text-align: left; }
+  .ind-tb td { padding: 7px 8px; border-bottom: 1px solid #eef2f7; text-align: right; }
+  .ind-tb tr.tot td { font-weight: 800; background: #f6f9fc; }
+  .ind-tb td.z { color: #b3bfce; }
+  .ind-analise { text-align: center; padding: 26px 16px; color: #6a7b90; font-size: 13px; line-height: 1.6; }
+  .ind-analise b { display: inline-block; background: #fff3d6; color: #8a5a00; padding: 3px 12px; border-radius: 999px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 8px; }
+  .ind-nota { font-size: 12px; color: var(--cinza); margin: 14px 2px 0; line-height: 1.5; }
+  .ind-graf { height: 280px; margin-top: 8px; }
+  .ind-rolagem { max-height: 560px; overflow: auto; border: 1px solid #e1e9f3; border-radius: 12px; background: #fff; }
+  @media (max-width: 900px) { .ind-grid > * { grid-column: span 12 !important; } }
+</style>
+<div class="ind">
+  <div class="ind-topo">
+    <div>
+      <h1>Indicadores de Produção</h1>
+      <div class="ind-sub" id="indSub">Carregando…</div>
+    </div>
+    <div class="ind-ctl">
+      <input type="date" id="indDia">
+      <input type="month" id="indMes" style="display:none">
+      <button type="button" class="btn-small ticket-btn-outline" id="indAtualizar">⟳ Atualizar acabamento</button>
+    </div>
+  </div>
+  <div class="ind-abas" id="indAbas"></div>
+  <div id="indCorpo"></div>
+  <p class="ind-nota">Fonte: API do TOTVS (somente leitura). Dia de produção das 06:20 às 06:20 · turnos 06:20–14:20, 14:20–22:20 e 22:20–06:20.</p>
+</div>
+<script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
+<script>
+(function () {
+  var ABAS = [['reuniao', 'Reunião Diária'], ['malharia', 'Malharia'], ['revisao', 'Revisão Cru', 1], ['acabamento', 'Acabamento'], ['reprova_cru', 'Reprova Cru', 1], ['reprova_aca', 'Reprova Acabamento', 1], ['retrabalho', 'Retrabalho', 1], ['retalho', 'Retalho', 1], ['faturamento', 'Faturamento']];
+  var abaAtual = 'reuniao', graf = null, hoje = new Date();
+  function $(i) { return document.getElementById(i); }
+  function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; }
+  function nf(v, d) { return v === null || v === undefined ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+  function pc(v, d) { return v === null || v === undefined ? '—' : nf(v * 100, d === undefined ? 1 : d) + '%'; }
+  function dbr(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : ''; }
+  function diaProd() { var d = new Date(hoje.getTime() - (6 * 60 + 20) * 60000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  $('indDia').value = diaProd(); $('indMes').value = diaProd().slice(0, 7);
+
+  function abas() {
+    var b = $('indAbas'); b.textContent = '';
+    ABAS.forEach(function (a) { var x = el('button', 'ind-aba' + (a[0] === abaAtual ? ' on' : ''), a[1]); x.type = 'button'; if (a[2]) x.appendChild(el('small', null, 'EM ANÁLISE')); x.addEventListener('click', function () { abaAtual = a[0]; abas(); carregar(); }); b.appendChild(x); });
+    $('indDia').style.display = abaAtual === 'reuniao' ? '' : 'none'; $('indMes').style.display = ['malharia', 'acabamento', 'faturamento'].indexOf(abaAtual) >= 0 ? '' : 'none';
+  }
+  function cartao(titulo, cls, corpo, span) { var c = el('div', 'ind-card'); c.style.gridColumn = 'span ' + (span || 6); c.appendChild(el('h3', cls || '', titulo)); var b = el('div', 'ind-corpo'); b.appendChild(corpo); c.appendChild(b); return c; }
+  function k(rot, val, cls, peq) { var d = el('div', 'ind-k' + (cls ? ' ' + cls : '')); d.appendChild(el('small', null, rot)); d.appendChild(el('b', peq ? 'peq' : '', val)); return d; }
+  function kpis() { var g = el('div', 'ind-kpis'); Array.prototype.slice.call(arguments).forEach(function (x) { g.appendChild(x); }); return g; }
+  function tabelaTurnos(d, kg) {
+    var t = el('table', 'ind-tb'), h = el('tr'); ['Turno', 'Metros', 'Peças'].concat(kg ? ['KG'] : []).forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th);
+    var tb = el('tbody'); d.t.forEach(function (x, i) { var r = el('tr'); [(i + 1) + 'º turno', nf(x.metros), nf(x.pecas)].concat(kg ? [nf(x.kg, 1)] : []).forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
+    var r = el('tr', 'tot'); ['Total', nf(d.total.metros), nf(d.total.pecas)].concat(kg ? [nf(d.total.kg, 1)] : []).forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); return t;
+  }
+  function analise(txt) { var d = el('div', 'ind-analise'); d.appendChild(el('b', null, 'Em análise')); d.appendChild(el('div', null, txt)); return d; }
+
+  function reuniao(d) {
+    var c = $('indCorpo'); c.textContent = ''; var g = el('div', 'ind-grid'); c.appendChild(g);
+    var m = d.malharia, a = d.acabamento, f = d.faturamento;
+    var mc = el('div'); mc.appendChild(kpis(k('Metros', nf(m.total.metros)), k('Peças', nf(m.total.pecas)), k('KG', nf(m.total.kg, 1)), k('Média', nf(m.media)))); mc.appendChild(tabelaTurnos(m, true));
+    mc.appendChild(el('div', 'ind-nota', 'Produção líquida (descontando retalho, reprovas e retrabalho) aguarda a análise dessas fontes.'));
+    g.appendChild(cartao('Produção Malharia (bruto)', '', mc, 6));
+    var ac = el('div'); ac.appendChild(kpis(k('Peças acabadas', nf(a.total.pecas)), k('Metros', nf(a.total.metros)), k('KG', nf(a.total.kg, 1)), k('Média', nf(a.media)))); ac.appendChild(tabelaTurnos(a, true));
+    g.appendChild(cartao('Acabamento (local 29)', 'verde', ac, 6));
+    var fc = el('div'); fc.appendChild(kpis(k('Metros do dia', nf(f.metros)), k('Ticket diário', 'R$ ' + nf(f.ticket_dia, 2)), k('Ticket mensal', 'R$ ' + nf(f.ticket_mes, 2)),
+      k('% Prod.', pc(f.pct_prod), f.pct_prod === null ? '' : (f.pct_prod >= 0 ? 'bom' : 'ruim')), k('% Aca.', pc(f.pct_aca), f.pct_aca === null ? '' : (f.pct_aca >= 0 ? 'bom' : 'ruim'))));
+    g.appendChild(cartao('Faturamento', 'azul', fc, 6));
+    g.appendChild(cartao('Revisão Cru (local 24)', 'cinza', analise('Peças revisadas por turno e reprova do cru. Fonte na API ainda em análise.'), 3));
+    g.appendChild(cartao('Retrabalho', 'cinza', analise('Entradas e saídas do retrabalho (local 31). Fonte em análise.'), 3));
+    g.appendChild(cartao('Scrap', 'cinza', analise('Retalho + reprova cru + reprova acabamento sobre a produção. Depende dessas fontes.'), 3));
+    g.appendChild(cartao('Estoque', 'cinza', analise('Entrada no estoque = acabadas − entradas + saídas do retrabalho.'), 3));
+  }
+
+  function tabelaMes(dias, chave, kg) {
+    var w = el('div', 'ind-rolagem'), t = el('table', 'ind-tb'), h1 = el('tr');
+    ['Data', 'Peças 1º', 'Peças 2º', 'Peças 3º', 'Peças', 'Metros 1º', 'Metros 2º', 'Metros 3º', 'Metros'].concat(kg ? ['KG'] : []).forEach(function (x) { h1.appendChild(el('th', null, x)); });
+    var th = el('thead'); th.appendChild(h1); t.appendChild(th); var tb = el('tbody'); var tot = { p: 0, m: 0, k: 0 };
+    dias.forEach(function (x) { var d = x[chave]; if (!d.total.pecas) return; tot.p += d.total.pecas; tot.m += d.total.metros; tot.k += d.total.kg; var r = el('tr');
+      [dbr(x.data), nf(d.t[0].pecas), nf(d.t[1].pecas), nf(d.t[2].pecas), nf(d.total.pecas), nf(d.t[0].metros), nf(d.t[1].metros), nf(d.t[2].metros), nf(d.total.metros)].concat(kg ? [nf(d.total.kg, 1)] : []).forEach(function (v) { r.appendChild(el('td', v === '0' ? 'z' : null, v)); }); tb.appendChild(r); });
+    var r = el('tr', 'tot'); ['Total do mês', '', '', '', nf(tot.p), '', '', '', nf(tot.m)].concat(kg ? [nf(tot.k, 1)] : []).forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); w.appendChild(t); return w;
+  }
+  function grafico(c, rotulos, series) {
+    if (graf) { graf.destroy(); graf = null; } var w = el('div', 'ind-graf'), cv = document.createElement('canvas'); w.appendChild(cv); c.appendChild(w);
+    graf = new Chart(cv, { type: 'bar', data: { labels: rotulos, datasets: series }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ticks: { callback: function (v) { return nf(v); } } } } } });
+  }
+  function mensal(d, chave, titulo, kg) {
+    var c = $('indCorpo'); c.textContent = ''; var base = el('div'); var dias = d.dias.filter(function (x) { return x[chave].total.pecas; });
+    var cs = ['#2f6fcb', '#1f9d8f', '#c9822b'];
+    grafico(base, dias.map(function (x) { return x.data.slice(8, 10); }), [0, 1, 2].map(function (i) { return { label: (i + 1) + 'º turno', data: dias.map(function (x) { return x[chave].t[i].metros; }), backgroundColor: cs[i], borderRadius: 3 }; }));
+    base.appendChild(tabelaMes(d.dias, chave, kg)); c.appendChild(cartao(titulo + ' — metros por dia e turno', 'verde', base, 12));
+  }
+  function fatur(d) {
+    var c = $('indCorpo'); c.textContent = ''; var base = el('div'), dias = d.dias.filter(function (x) { return x.faturamento.metros; });
+    if (graf) { graf.destroy(); graf = null; } var w = el('div', 'ind-graf'), cv = document.createElement('canvas'); w.appendChild(cv); base.appendChild(w);
+    graf = new Chart(cv, { data: { labels: dias.map(function (x) { return x.data.slice(8, 10); }), datasets: [{ type: 'bar', label: 'Metros faturados', data: dias.map(function (x) { return x.faturamento.metros; }), backgroundColor: '#2f6fcb', borderRadius: 3, yAxisID: 'y' }, { type: 'line', label: 'Ticket (R$/m)', data: dias.map(function (x) { return x.faturamento.ticket; }), borderColor: '#c9822b', backgroundColor: '#c9822b', yAxisID: 'y1', tension: .25 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: function (v) { return nf(v); } } }, y1: { position: 'right', grid: { display: false } } } } });
+    var wr = el('div', 'ind-rolagem'), t = el('table', 'ind-tb'), h = el('tr'); ['Data', 'Metros', 'Valor bruto (R$)', 'Ticket (R$/m)'].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th); var tb = el('tbody'), tm = 0, tv = 0;
+    dias.forEach(function (x) { tm += x.faturamento.metros; tv += x.faturamento.valor; var r = el('tr'); [dbr(x.data), nf(x.faturamento.metros), nf(x.faturamento.valor, 2), nf(x.faturamento.ticket, 2)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
+    var r = el('tr', 'tot'); ['Total do mês', nf(tm), nf(tv, 2), nf(tm ? tv / tm : 0, 2)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); wr.appendChild(t); base.appendChild(wr); c.appendChild(cartao('Faturamento — metros e ticket por dia', 'azul', base, 12));
+  }
+  var TEXTOS = {
+    revisao: ['Revisão Cru (local 24)', 'Na planilha: peças revisadas por turno e por máquina, produzido x revisado (%) e meta de 42 peças por turno. A fonte do local 24 na API do TOTVS ainda está em análise.'],
+    reprova_cru: ['Reprova Cru', 'Na planilha: cada peça reprovada no cru (máquina, artigo, defeito pela tabela R01–R35, metros, kg e turno). Em análise.'],
+    reprova_aca: ['Reprova Acabamento', 'Na planilha: peças reprovadas no acabamento (OP, artigo, defeito, metros, kg e turno). Em análise.'],
+    retrabalho: ['Retrabalho (local 31)', 'Na planilha: peças aguardando, entradas e saídas (metros, peças e kg) por dia. A fonte na API está sendo mapeada.'],
+    retalho: ['Retalho', 'Na planilha: kg de retalho por local (malharia, revisão cru, acabamento, retrabalho, gramatura), turno e máquina. Em análise.']
+  };
+  function carregar() {
+    $('indCorpo').textContent = '';
+    if (TEXTOS[abaAtual]) { var c = $('indCorpo'), g = el('div', 'ind-grid'); g.appendChild(cartao(TEXTOS[abaAtual][0], 'cinza', analise(TEXTOS[abaAtual][1]), 12)); c.appendChild(g); $('indSub').textContent = 'Em análise · sem dados ainda'; return; }
+    var url = abaAtual === 'reuniao' ? '/indicadores/reuniao?dia=' + $('indDia').value : '/indicadores/mensal?mes=' + $('indMes').value;
+    $('indSub').textContent = 'Carregando…';
+    fetch(url, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (d) {
+      $('indSub').textContent = abaAtual === 'reuniao' ? 'Reunião diária de ' + dbr(d.data) + ' · semana ' + d.semana + (d.atualizado ? ' · acabamento atualizado ' + d.atualizado.slice(11, 16) : '') + (d.erro ? ' · ' + d.erro : '') : 'Mês ' + String(d.mes).padStart(2, '0') + '/' + d.ano;
+      if (abaAtual === 'reuniao') reuniao(d); else if (abaAtual === 'malharia') mensal(d, 'malharia', 'Malharia', true); else if (abaAtual === 'acabamento') mensal(d, 'acabamento', 'Acabamento', true); else fatur(d);
+    }).catch(function (e) { $('indSub').textContent = 'Erro ao carregar: ' + e.message; });
+  }
+  $('indDia').addEventListener('change', carregar); $('indMes').addEventListener('change', carregar);
+  $('indAtualizar').addEventListener('click', function () { fetch('/indicadores/atualizar', { method: 'POST', credentials: 'same-origin' }).then(function () { $('indSub').textContent = 'Atualizando o acabamento no TOTVS… volte a abrir em 1 a 2 minutos.'; }); });
+  abas(); carregar();
+})();
+</script>
+{% endblock %}

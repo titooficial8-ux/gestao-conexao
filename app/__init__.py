@@ -87,6 +87,8 @@ def create_app():
     app.register_blueprint(mp_bp)
     from app.pcphub import pcphub_bp
     app.register_blueprint(pcphub_bp)
+    from app.indicadores.routes import ind_bp
+    app.register_blueprint(ind_bp)
     from app.desenvolvimento.routes import dev_bp
     app.register_blueprint(dev_bp)
     from app.relatorio_fat.routes import rel_fat_bp
@@ -152,6 +154,7 @@ def create_app():
         db_path = os.path.join(BASE_DIR, 'gestao_conexao.db')
         first_run = not os.path.exists(db_path)
         from app.desenvolvimento import models as _dev_models  # noqa: F401  (tabelas do Desenvolvimento)
+        from app.indicadores import models as _ind_models  # noqa: F401  (tabelas dos Indicadores)
         db.create_all()
         # colunas novas em bancos antigos (o create_all so cria tabelas que ainda nao existem)
         from sqlalchemy import inspect, text
@@ -198,6 +201,8 @@ def create_app():
             db.session.commit()
         from app.desenvolvimento.routes import garantir_abas
         garantir_abas()                                                  # abas do Desenvolvimento (Cronograma, Cotacoes, Amostras, Projetos)
+        from app.indicadores.routes import garantir_aba as garantir_indicadores
+        garantir_indicadores()                                           # aba Indicadores (Producao)
         # contas iniciais por setor (idempotente)
         from app.usuarios_padrao import criar_usuarios_padrao
         criar_usuarios_padrao()
@@ -228,6 +233,8 @@ def create_app():
         iniciar_empenho(app)      # consumo de materia-prima das OPs da Programacao: a cada 10 min
         from app.totvs.almoxarifado import iniciar_agendador_kardex as iniciar_almox_kardex
         iniciar_almox_kardex(app)  # saidas para a producao (kardex, op. 2011) por mes: a cada 5 min
+        from app.indicadores.servico import iniciar_agendador as iniciar_indicadores
+        iniciar_indicadores(app)  # Indicadores: pecas do acabamento (transacoes 2030/2031) a cada 10 min
         from app.pcphub import iniciar_agendador as iniciar_pcphub
         iniciar_pcphub(app)       # Programacao ao vivo a partir do PCP Hub: a cada 5 min (precisa de PCPHUB_EMAIL/PCPHUB_PASSWORD)
         from app.relatorio_fat.agenda import iniciar_agendador as iniciar_envio_relatorio
