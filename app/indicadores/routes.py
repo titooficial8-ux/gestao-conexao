@@ -104,3 +104,12 @@ def reprova_cru():
         import traceback
         traceback.print_exc()
         return jsonify(erro=f'{type(e).__name__}: {str(e)[:200]}'), 500
+
+
+@ind_bp.route('/setups-diagnostico')
+@login_required
+def setups_diagnostico():
+    """So administrador: mostra o que a API de setups (acompanhamento de producao) responde, para conferir os campos."""
+    if not current_user.is_admin:
+        abort(403)
+    return jsonify(servico.setups_diagnostico())
