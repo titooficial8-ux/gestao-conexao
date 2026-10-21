@@ -72,17 +72,17 @@
   function cartao(titulo, cls, corpo, span) { var c = el('div', 'ind-card'); c.style.gridColumn = 'span ' + (span || 6); c.appendChild(el('h3', cls || '', titulo)); var b = el('div', 'ind-corpo'); b.appendChild(corpo); c.appendChild(b); return c; }
   function k(rot, val, cls, peq) { var d = el('div', 'ind-k' + (cls ? ' ' + cls : '')); d.appendChild(el('small', null, rot)); d.appendChild(el('b', peq ? 'peq' : '', val)); return d; }
   function kpis() { var g = el('div', 'ind-kpis'); Array.prototype.slice.call(arguments).forEach(function (x) { g.appendChild(x); }); return g; }
-  function tabelaTurnos(d, kg) {
-    var t = el('table', 'ind-tb'), h = el('tr'); ['Turno', 'Metros', 'Peças'].concat(kg ? ['KG'] : []).forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th);
-    var tb = el('tbody'); d.t.forEach(function (x, i) { var r = el('tr'); [(i + 1) + 'º turno', nf(x.metros), nf(x.pecas)].concat(kg ? [nf(x.kg, 1)] : []).forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
-    var r = el('tr', 'tot'); ['Total', nf(d.total.metros), nf(d.total.pecas)].concat(kg ? [nf(d.total.kg, 1)] : []).forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); return t;
+  function tabelaTurnos(d, kg, setups) {
+    var t = el('table', 'ind-tb'), h = el('tr'); ['Turno', 'Metros', 'Peças'].concat(kg ? ['KG'] : []).concat(setups ? ['Setups'] : []).forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th);
+    var tb = el('tbody'); d.t.forEach(function (x, i) { var r = el('tr'); [(i + 1) + 'º turno', nf(x.metros), nf(x.pecas)].concat(kg ? [nf(x.kg, 1)] : []).concat(setups ? [d.setups_turnos ? nf(d.setups_turnos[i]) : '—'] : []).forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
+    var r = el('tr', 'tot'); ['Total', nf(d.total.metros), nf(d.total.pecas)].concat(kg ? [nf(d.total.kg, 1)] : []).concat(setups ? [d.setups === null || d.setups === undefined ? '—' : nf(d.setups)] : []).forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); return t;
   }
   function analise(txt) { var d = el('div', 'ind-analise'); d.appendChild(el('b', null, 'Em análise')); d.appendChild(el('div', null, txt)); return d; }
 
   function reuniao(d) {
     var c = $('indCorpo'); c.textContent = ''; var g = el('div', 'ind-grid'); c.appendChild(g);
     var m = d.malharia, a = d.acabamento, f = d.faturamento;
-    var mc = el('div'); mc.appendChild(kpis(k('Metros', nf(m.total.metros)), k('Peças', nf(m.total.pecas)), k('KG', nf(m.total.kg, 1)), k('Média', nf(m.media)), k('Setups', m.setups === null || m.setups === undefined ? '—' : nf(m.setups)))); mc.appendChild(tabelaTurnos(m, true));
+    var mc = el('div'); mc.appendChild(kpis(k('Metros', nf(m.total.metros)), k('Peças', nf(m.total.pecas)), k('KG', nf(m.total.kg, 1)), k('Média', nf(m.media)), k('Setups', m.setups === null || m.setups === undefined ? '—' : nf(m.setups)))); mc.appendChild(tabelaTurnos(m, true, true));
     mc.appendChild(el('div', 'ind-nota', 'Produção líquida (descontando retalho, reprovas e retrabalho) aguarda a análise dessas fontes.'));
     g.appendChild(cartao('Produção Malharia (bruto)', '', mc, 6));
     var ac = el('div'); ac.appendChild(kpis(k('Peças acabadas', nf(a.total.pecas)), k('Metros', nf(a.total.metros)), k('KG', nf(a.total.kg, 1)), k('Média', nf(a.media)))); ac.appendChild(tabelaTurnos(a, true));

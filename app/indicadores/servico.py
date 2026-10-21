@@ -293,7 +293,7 @@ def reuniao(dia: date) -> dict:
     tv = sum(x['valor'] for x in fat.values())
     return dict(
         data=ch, semana=dia.isocalendar()[1],
-        malharia=dict(**m, media=_media(mal, ch), setups=(_seguro('Setups', setups_do_dia, avisos, dia) or {}).get('n')),
+        malharia=dict(**m, media=_media(mal, ch), **_setups_resumo(_seguro('Setups', setups_do_dia, avisos, dia))),
         acabamento=dict(**a, media=_media(aca, ch)),
         faturamento=dict(metros=f['metros'], ticket_dia=f['ticket'], ticket_mes=round(tv / tm, 3) if tm else 0,
                          pct_prod=round(f['metros'] / m['total']['metros'] - 1, 4) if m['total']['metros'] else None,
@@ -417,9 +417,18 @@ SETUPS_URL = os.getenv('SETUPS_URL', 'http://108.165.179.201:8090/api/v1').rstri
 _CAMPOS_INICIO = ('inicio', 'data_inicio', 'dataInicio', 'iniciado_em', 'iniciadoEm', 'started_at', 'startedAt', 'start', 'data_hora', 'created_at', 'createdAt', 'data')
 
 
+def _pin() -> str:
+    return (os.getenv('SETUPS_PIN') or os.getenv('SETUPS_TOKEN') or '').strip()
+
+
 def _headers_setups() -> dict:
-    t = os.getenv('SETUPS_TOKEN', '').strip()
-    return {'Authorization': f'Bearer {t}', 'X-API-Key': t, 'Accept': 'application/json'} if t else {'Accept': 'application/json'}
+    """A API pede um PIN (erro 401 "PIN necessario"): vai em varios cabecalhos comuns e tambem como ?pin= (ver /indicadores/setups-diagnostico)."""
+    t = _pin()
+    return {'Authorization': f'Bearer {t}', 'X-API-Key': t, 'X-PIN': t, 'PIN': t, 'Accept': 'application/json'} if t else {'Accept': 'application/json'}
+
+
+def _params_setups(extra: dict) -> dict:
+    return dict(extra, **({'pin': _pin()} if _pin() else {}))
 
 
 def _lista(j) -> list:
@@ -454,10 +463,10 @@ def _quando(item: dict):
 def _setups_calc(ch: str) -> dict:
     import requests
     dia = date.fromisoformat(ch)
-    r = requests.get(f'{SETUPS_URL}/setups', params={'de': dia.isoformat(), 'ate': (dia + timedelta(days=1)).isoformat()}, headers=_headers_setups(), timeout=15)
+    r = requests.get(f'{SETUPS_URL}/setups', params=_params_setups({'de': dia.isoformat(), 'ate': (dia + timedelta(days=1)).isoformat()}), headers=_headers_setups(), timeout=15)
     if r.status_code != 200:
         raise RuntimeError(f'HTTP {r.status_code} {r.text[:120]}')
-    n, maqs = 0, set()
+    n, maqs, turnos = 0, set(), [0, 0, 0]
     for it in _lista(r.json()):
         tipo = str(it.get('tipo') or it.get('type') or 'SETUP').strip().upper()
         if tipo not in ('SETUP', ''):
@@ -466,8 +475,15 @@ def _setups_calc(ch: str) -> dict:
         if h is None or (dia_producao(h) if com_hora else h.date()) != dia:
             continue
         n += 1
+        if com_hora:
+            turnos[turno(h)] += 1
         maqs.add(str(it.get('maquina') or it.get('machine') or it.get('maquina_id') or ''))
-    return dict(n=n, maquinas=len(maqs - {''}))
+    return dict(n=n, turnos=turnos if sum(turnos) else None, maquinas=len(maqs - {''}))
+
+
+def _setups_resumo(r) -> dict:
+    r = r or {}
+    return dict(setups=r.get('n'), setups_turnos=r.get('turnos'))
 
 
 def setups_do_dia(dia: date):
@@ -476,12 +492,12 @@ def setups_do_dia(dia: date):
 
 def setups_diagnostico() -> dict:
     import requests
-    out = dict(url=SETUPS_URL, token_configurado=bool(os.getenv('SETUPS_TOKEN')))
+    out = dict(url=SETUPS_URL, pin_configurado=bool(_pin()))
     try:
         r0 = requests.get(SETUPS_URL, headers=_headers_setups(), timeout=15)
         out['descricao'] = dict(status=r0.status_code, corpo=r0.text[:1500])
         hoje = date.today()
-        r = requests.get(f'{SETUPS_URL}/setups', params={'de': (hoje - timedelta(days=2)).isoformat(), 'ate': hoje.isoformat()}, headers=_headers_setups(), timeout=15)
+        r = requests.get(f'{SETUPS_URL}/setups', params=_params_setups({'de': (hoje - timedelta(days=2)).isoformat(), 'ate': hoje.isoformat()}), headers=_headers_setups(), timeout=15)
         out['setups'] = dict(status=r.status_code)
         if r.status_code == 200:
             j = r.json()
