@@ -293,7 +293,7 @@ def reuniao(dia: date) -> dict:
     tv = sum(x['valor'] for x in fat.values())
     return dict(
         data=ch, semana=dia.isocalendar()[1],
-        malharia=dict(**m, media=_media(mal, ch)),
+        malharia=dict(**m, media=_media(mal, ch), setups=(_seguro('Setups', setups_do_dia, avisos, dia) or {}).get('n')),
         acabamento=dict(**a, media=_media(aca, ch)),
         faturamento=dict(metros=f['metros'], ticket_dia=f['ticket'], ticket_mes=round(tv / tm, 3) if tm else 0,
                          pct_prod=round(f['metros'] / m['total']['metros'] - 1, 4) if m['total']['metros'] else None,
@@ -410,3 +410,85 @@ def reprova_cru_mensal(ano: int, mes: int) -> dict:
                 defeitos=sorted(({'defeito': k, 'pecas': v[0], 'metros': round(v[1], 1), 'kg': round(v[2], 1)} for k, v in por_def.items()), key=lambda x: -x['metros']),
                 dias=[{'data': k, 'pecas': v[0], 'metros': round(v[1], 1), 'kg': round(v[2], 1)} for k, v in sorted(por_dia.items())],
                 linhas=[_nc_dict(r) for r in rs], erro=_ult_nc['erro'])
+
+
+# ---------------------------------------------------------------- setups (acompanhamento de producao)
+SETUPS_URL = os.getenv('SETUPS_URL', 'http://108.165.179.201:8090/api/v1').rstrip('/')
+_CAMPOS_INICIO = ('inicio', 'data_inicio', 'dataInicio', 'iniciado_em', 'iniciadoEm', 'started_at', 'startedAt', 'start', 'data_hora', 'created_at', 'createdAt', 'data')
+
+
+def _headers_setups() -> dict:
+    t = os.getenv('SETUPS_TOKEN', '').strip()
+    return {'Authorization': f'Bearer {t}', 'X-API-Key': t, 'Accept': 'application/json'} if t else {'Accept': 'application/json'}
+
+
+def _lista(j) -> list:
+    if isinstance(j, list):
+        return j
+    for k in ('items', 'data', 'setups', 'results', 'dados', 'registros'):
+        if isinstance(j.get(k), list):
+            return j[k]
+    return []
+
+
+def _quando(item: dict):
+    """Inicio do setup como datetime do horario de Brasilia (se vier com fuso, converte; se vier so a data, devolve a data)."""
+    for k in _CAMPOS_INICIO:
+        v = item.get(k)
+        if not v:
+            continue
+        txt = str(v).strip().replace('Z', '+00:00')
+        try:
+            h = datetime.fromisoformat(txt)
+        except ValueError:
+            try:
+                h = datetime.strptime(txt[:19], '%d/%m/%Y %H:%M:%S') if len(txt) > 10 else datetime.strptime(txt[:10], '%d/%m/%Y')
+            except ValueError:
+                continue
+        if h.tzinfo is not None:
+            h = (h - h.utcoffset()).replace(tzinfo=None) - timedelta(hours=3)
+        return h, len(txt) > 10
+    return None, False
+
+
+def _setups_calc(ch: str) -> dict:
+    import requests
+    dia = date.fromisoformat(ch)
+    r = requests.get(f'{SETUPS_URL}/setups', params={'de': dia.isoformat(), 'ate': (dia + timedelta(days=1)).isoformat()}, headers=_headers_setups(), timeout=15)
+    if r.status_code != 200:
+        raise RuntimeError(f'HTTP {r.status_code} {r.text[:120]}')
+    n, maqs = 0, set()
+    for it in _lista(r.json()):
+        tipo = str(it.get('tipo') or it.get('type') or 'SETUP').strip().upper()
+        if tipo not in ('SETUP', ''):
+            continue
+        h, com_hora = _quando(it)
+        if h is None or (dia_producao(h) if com_hora else h.date()) != dia:
+            continue
+        n += 1
+        maqs.add(str(it.get('maquina') or it.get('machine') or it.get('maquina_id') or ''))
+    return dict(n=n, maquinas=len(maqs - {''}))
+
+
+def setups_do_dia(dia: date):
+    return _swr('setups', 120, _setups_calc, dia.isoformat())
+
+
+def setups_diagnostico() -> dict:
+    import requests
+    out = dict(url=SETUPS_URL, token_configurado=bool(os.getenv('SETUPS_TOKEN')))
+    try:
+        r0 = requests.get(SETUPS_URL, headers=_headers_setups(), timeout=15)
+        out['descricao'] = dict(status=r0.status_code, corpo=r0.text[:1500])
+        hoje = date.today()
+        r = requests.get(f'{SETUPS_URL}/setups', params={'de': (hoje - timedelta(days=2)).isoformat(), 'ate': hoje.isoformat()}, headers=_headers_setups(), timeout=15)
+        out['setups'] = dict(status=r.status_code)
+        if r.status_code == 200:
+            j = r.json()
+            itens = _lista(j)
+            out['setups'].update(total=len(itens), chaves=sorted(itens[0].keys()) if itens and isinstance(itens[0], dict) else None, exemplos=itens[:2])
+        else:
+            out['setups']['corpo'] = r.text[:300]
+    except Exception as e:  # noqa: BLE001
+        out['erro'] = f'{type(e).__name__}: {str(e)[:200]}'
+    return out

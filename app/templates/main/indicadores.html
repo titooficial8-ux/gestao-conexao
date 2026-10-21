@@ -82,7 +82,7 @@
   function reuniao(d) {
     var c = $('indCorpo'); c.textContent = ''; var g = el('div', 'ind-grid'); c.appendChild(g);
     var m = d.malharia, a = d.acabamento, f = d.faturamento;
-    var mc = el('div'); mc.appendChild(kpis(k('Metros', nf(m.total.metros)), k('Peças', nf(m.total.pecas)), k('KG', nf(m.total.kg, 1)), k('Média', nf(m.media)))); mc.appendChild(tabelaTurnos(m, true));
+    var mc = el('div'); mc.appendChild(kpis(k('Metros', nf(m.total.metros)), k('Peças', nf(m.total.pecas)), k('KG', nf(m.total.kg, 1)), k('Média', nf(m.media)), k('Setups', m.setups === null || m.setups === undefined ? '—' : nf(m.setups)))); mc.appendChild(tabelaTurnos(m, true));
     mc.appendChild(el('div', 'ind-nota', 'Produção líquida (descontando retalho, reprovas e retrabalho) aguarda a análise dessas fontes.'));
     g.appendChild(cartao('Produção Malharia (bruto)', '', mc, 6));
     var ac = el('div'); ac.appendChild(kpis(k('Peças acabadas', nf(a.total.pecas)), k('Metros', nf(a.total.metros)), k('KG', nf(a.total.kg, 1)), k('Média', nf(a.media)))); ac.appendChild(tabelaTurnos(a, true));
