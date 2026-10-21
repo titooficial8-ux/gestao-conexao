@@ -216,7 +216,13 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
     var arq = s.custom && s.custom.arquivos && s.custom.arquivos.xlsx150;
     aguardandoDownload = null;
     if (!arq) return;
-    var a = document.createElement('a'); a.href = URL_DL.replace('__T__', 'custom').replace('__K__', 'xlsx150'); a.download = ''; a.style.display = 'none'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    var href = URL_DL.replace('__T__', 'custom').replace('__K__', 'xlsx150');
+    var a = document.createElement('a'); a.href = href; a.download = ''; a.style.display = 'none'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    // aviso na tela (some em 25 s); se o navegador bloquear o download automatico, o link serve de reserva
+    var ant = $('biAvisoDownload'); if (ant) ant.remove();
+    var av = ui.el('div', 'bi-info', ''); av.id = 'biAvisoDownload'; av.appendChild(document.createTextNode(ES ? '✅ Informe listo: el Relatório 150 (Excel) se está descargando. Si no empezó, ' : '✅ Relatório pronto: o Relatório 150 (Excel) está sendo baixado. Se não começou, '));
+    var l = ui.el('a', null, ES ? 'haga clic aquí' : 'clique aqui'); l.href = href; av.appendChild(l); av.appendChild(document.createTextNode('.'));
+    $('biGerado').parentNode.insertBefore(av, $('biGerado').nextSibling); setTimeout(function () { if (av.parentNode) av.remove(); }, 25000);
   }
 
   function consultarStatus(depois) {
