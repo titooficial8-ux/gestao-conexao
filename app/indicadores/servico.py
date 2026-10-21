@@ -418,17 +418,19 @@ _CAMPOS_INICIO = ('inicio', 'data_inicio', 'dataInicio', 'iniciado_em', 'iniciad
 
 
 def _pin() -> str:
-    return (os.getenv('SETUPS_PIN') or os.getenv('SETUPS_TOKEN') or '').strip()
+    return (os.getenv('SETUPS_TOKEN') or os.getenv('SETUPS_PIN') or '').strip()
 
 
 def _headers_setups() -> dict:
-    """A API pede um PIN (erro 401 "PIN necessario"): vai em varios cabecalhos comuns e tambem como ?pin= (ver /indicadores/setups-diagnostico)."""
+    """O token vai nos cabecalhos mais comuns (Bearer, X-API-Key, X-Token...) e tambem como ?token=; /indicadores/setups-diagnostico mostra o que a API respondeu."""
     t = _pin()
-    return {'Authorization': f'Bearer {t}', 'X-API-Key': t, 'X-PIN': t, 'PIN': t, 'Accept': 'application/json'} if t else {'Accept': 'application/json'}
+    if not t:
+        return {'Accept': 'application/json'}
+    return {'Authorization': f'Bearer {t}', 'X-API-Key': t, 'X-Token': t, 'X-Auth-Token': t, 'Token': t, 'X-PIN': t, 'Accept': 'application/json'}
 
 
 def _params_setups(extra: dict) -> dict:
-    return dict(extra, **({'pin': _pin()} if _pin() else {}))
+    return dict(extra, **({'token': _pin()} if _pin() else {}))
 
 
 def _lista(j) -> list:
@@ -492,7 +494,7 @@ def setups_do_dia(dia: date):
 
 def setups_diagnostico() -> dict:
     import requests
-    out = dict(url=SETUPS_URL, pin_configurado=bool(_pin()))
+    out = dict(url=SETUPS_URL, token_configurado=bool(_pin()))
     try:
         r0 = requests.get(SETUPS_URL, headers=_headers_setups(), timeout=15)
         out['descricao'] = dict(status=r0.status_code, corpo=r0.text[:1500])
