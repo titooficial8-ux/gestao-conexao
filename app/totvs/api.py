@@ -923,10 +923,21 @@ def formatar_aba_150(ws, tem_total: bool = True) -> None:
             c.border = linha_sup
 
 
+def limpar_para_excel(df: pd.DataFrame) -> pd.DataFrame:
+    """Tira os caracteres de controle (ex.: \\x1f dentro do nome de um artigo no TOTVS) que o Excel nao aceita ("cannot be used in worksheets")."""
+    import re
+    ilegal = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+    df = df.copy()
+    for c in df.columns:
+        if not (pd.api.types.is_numeric_dtype(df[c]) or pd.api.types.is_datetime64_any_dtype(df[c]) or pd.api.types.is_bool_dtype(df[c])):
+            df[c] = df[c].map(lambda v: ilegal.sub("", v) if isinstance(v, str) else v)
+    return df
+
+
 def salvar_xlsx_150(df: pd.DataFrame, caminho: Path) -> None:
     """Relatório 150 sozinho, formatado (filtro, larguras, números e datas)."""
     with pd.ExcelWriter(caminho, engine="openpyxl") as xw:
-        df_150_com_total(df).to_excel(xw, sheet_name="FISCAL_0150", index=False)
+        limpar_para_excel(df_150_com_total(df)).to_excel(xw, sheet_name="FISCAL_0150", index=False)
         formatar_aba_150(xw.sheets["FISCAL_0150"])
 
 
@@ -948,7 +959,7 @@ def salvar_excel(caminho: Path, abas: dict[str, pd.DataFrame]) -> None:
     azul = PatternFill("solid", fgColor="1F4E9A")
     with pd.ExcelWriter(caminho, engine="openpyxl") as xw:
         for nome, df in abas.items():
-            df.to_excel(xw, sheet_name=nome[:31], index=False)
+            limpar_para_excel(df).to_excel(xw, sheet_name=nome[:31], index=False)
             ws = xw.sheets[nome[:31]]
             ws.freeze_panes = "A2"
             ws.auto_filter.ref = ws.dimensions
