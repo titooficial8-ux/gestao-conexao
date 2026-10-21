@@ -134,8 +134,9 @@
     if (TEXTOS[abaAtual]) { var c = $('indCorpo'), g = el('div', 'ind-grid'); g.appendChild(cartao(TEXTOS[abaAtual][0], 'cinza', analise(TEXTOS[abaAtual][1]), 12)); c.appendChild(g); $('indSub').textContent = 'Em análise · sem dados ainda'; return; }
     var url = abaAtual === 'reuniao' ? '/indicadores/reuniao?dia=' + $('indDia').value : '/indicadores/mensal?mes=' + $('indMes').value;
     $('indSub').textContent = 'Carregando…';
-    fetch(url, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (d) {
+    fetch(url, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error('HTTP ' + r.status + (j.erro ? ' — ' + j.erro : '')); }); return r.json(); }).then(function (d) {
       $('indSub').textContent = abaAtual === 'reuniao' ? 'Reunião diária de ' + dbr(d.data) + ' · semana ' + d.semana + (d.atualizado ? ' · acabamento atualizado ' + d.atualizado.slice(11, 16) : '') + (d.erro ? ' · ' + d.erro : '') : 'Mês ' + String(d.mes).padStart(2, '0') + '/' + d.ano;
+      var av = (d.avisos || []).join(' · '); if (av) $('indSub').textContent += ' · ATENÇÃO: ' + av;
       if (abaAtual === 'reuniao') reuniao(d); else if (abaAtual === 'malharia') mensal(d, 'malharia', 'Malharia', true); else if (abaAtual === 'acabamento') mensal(d, 'acabamento', 'Acabamento', true); else fatur(d);
     }).catch(function (e) { $('indSub').textContent = 'Erro ao carregar: ' + e.message; });
   }

@@ -41,7 +41,12 @@ def reuniao():
         dia = date.fromisoformat(request.args.get('dia') or date.today().isoformat())
     except ValueError:
         abort(400)
-    return jsonify(servico.reuniao(dia))
+    try:
+        return jsonify(servico.reuniao(dia))
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        return jsonify(erro=f'{type(e).__name__}: {str(e)[:200]}'), 500
 
 
 @ind_bp.route('/mensal')
@@ -52,7 +57,12 @@ def mensal():
         ano, mes = [int(x) for x in (request.args.get('mes') or date.today().strftime('%Y-%m')).split('-')]
     except ValueError:
         abort(400)
-    return jsonify(servico.mensal(ano, mes))
+    try:
+        return jsonify(servico.mensal(ano, mes))
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        return jsonify(erro=f'{type(e).__name__}: {str(e)[:200]}'), 500
 
 
 @ind_bp.route('/atualizar', methods=['POST'])
