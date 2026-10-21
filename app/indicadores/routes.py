@@ -72,3 +72,19 @@ def atualizar():
     app = current_app._get_current_object()
     threading.Thread(target=servico.atualizar_acabamento, args=(app,), daemon=True, name='indicadores-agora').start()
     return jsonify(ok=True)
+
+
+@ind_bp.route('/nc-diagnostico')
+@login_required
+def nc_diagnostico():
+    """So administrador: mostra se o SharePoint (lista ncform) responde, as colunas e 3 linhas de exemplo, para mapear o Reprova Cru."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.indicadores import sharepoint
+    if not sharepoint.configurado():
+        return jsonify(ok=False, erro='Faltam no .env: ' + ', '.join(sharepoint.faltando())), 200
+    try:
+        linhas = sharepoint.itens(limite=1000)
+        return jsonify(ok=True, total_lido=len(linhas), colunas=sharepoint.colunas(), exemplos=linhas[:3])
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, erro=str(e)[:400])
