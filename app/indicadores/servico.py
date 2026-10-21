@@ -308,7 +308,7 @@ def reuniao(dia: date) -> dict:
                          pct_prod=round(f['metros'] / m['total']['metros'] - 1, 4) if m['total']['metros'] else None,
                          pct_aca=round(f['metros'] / a['total']['metros'] - 1, 4) if a['total']['metros'] else None),
         estoque=_seguro('Estoque', estoque_dia, avisos, dia) or dict(entrada_total=dict(pecas=0, metros=0), saldo=dict(pecas=0, metros=0), saidas=dict(pecas=0, metros=0), entradas=[], monitorando_desde=None),
-        scrap=_seguro('Scrap', scrap_do_dia, avisos, dia) or None,
+        scrap=_scrap_ou_none(avisos, dia),
         reprova_cru=_seguro('Reprova Cru', reprova_cru_dia, avisos, dia) or dict(pecas=0, metros=0, kg=0, linhas=[], turnos=[]),
         atualizado=ESTADO['ultima'], erro=ESTADO['erro'], avisos=avisos, intervalo_min=INTERVALO_MIN)
 
@@ -685,3 +685,18 @@ def _scrap_calc(ch: str) -> dict:
 
 def scrap_do_dia(dia: date):
     return _swr('scrap', 120, _scrap_calc, dia.isoformat())
+
+
+def _scrap_ou_none(avisos: list, dia: date):
+    """Scrap do dia; se ainda nao ha planilha, devolve None (a tela mostra o botao para enviar), sem aviso de erro."""
+    try:
+        return scrap_do_dia(dia)
+    except RuntimeError as e:
+        if 'SEM_PLANILHA' in str(e):
+            return None
+        avisos.append(f'Scrap: {e}')
+        return None
+    except Exception as e:  # noqa: BLE001
+        traceback.print_exc()
+        avisos.append(f'Scrap: {type(e).__name__}: {str(e)[:160]}')
+        return None

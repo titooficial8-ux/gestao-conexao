@@ -1,6 +1,6 @@
 """Scrap lido da planilha INDICADORES (Excel), como no relatorio da reuniao diaria.
 
-No .env: INDICADORES_XLSX=C:\\caminho\\INDICADORES_2026.xlsm  (o arquivo e so lido, nunca alterado).
+A planilha vem do botao "Enviar planilha" da aba Indicadores (fica em instance/indicadores) ou do .env: INDICADORES_XLSX=C:\\caminho\\INDICADORES_2026.xlsm (o arquivo e so lido, nunca alterado).
 Abas usadas: MALHARIA (kg produzido, col. T. KG), RETALHO (kg por local), REPROVA CRU e REPROVA ACA. (kg reprovado).
 Scrap do dia = (retalho + reprova cru + reprova acabamento) / kg produzido no dia. Semana = bloco de 7 dias a partir de 1o de janeiro (como a planilha),
 mes e ano acumulados. A planilha precisa estar salva com os dados do dia para ele aparecer.
@@ -19,9 +19,21 @@ _cache = {'chave': None, 'dados': None}
 _trava = threading.Lock()
 
 
+def pasta_planilha() -> Path:
+    from flask import current_app
+    return Path(current_app.instance_path) / 'indicadores'
+
+
 def caminho():
+    """Planilha INDICADORES: a do .env (INDICADORES_XLSX) ou a enviada pelo botao "Enviar planilha" da aba (instance/indicadores)."""
     c = os.getenv('INDICADORES_XLSX', '').strip().strip('"')
-    return Path(c) if c else None
+    if c:
+        return Path(c)
+    try:
+        achados = sorted(pasta_planilha().glob('INDICADORES.xls*'), key=lambda x: x.stat().st_mtime, reverse=True)
+    except Exception:  # noqa: BLE001
+        achados = []
+    return achados[0] if achados else None
 
 
 def semana_planilha(d: date) -> int:
@@ -70,7 +82,7 @@ def _ler(arq: Path) -> dict:
 def _dados():
     arq = caminho()
     if not arq:
-        raise RuntimeError('Defina INDICADORES_XLSX no .env (caminho da planilha INDICADORES)')
+        raise RuntimeError('SEM_PLANILHA')
     if not arq.exists():
         raise RuntimeError(f'Planilha não encontrada: {arq}')
     chave = (str(arq), arq.stat().st_mtime)

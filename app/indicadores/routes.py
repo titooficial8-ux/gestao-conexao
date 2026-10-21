@@ -113,3 +113,38 @@ def setups_diagnostico():
     if not current_user.is_admin:
         abort(403)
     return jsonify(servico.setups_diagnostico())
+
+
+@ind_bp.route('/planilha', methods=['POST'])
+@login_required
+def enviar_planilha():
+    """Recebe a planilha INDICADORES (.xlsx/.xlsm) para o Scrap: guarda em instance/indicadores e a Gestao passa a ler dela (so leitura)."""
+    _autorizar()
+    arq = request.files.get('planilha')
+    if not arq or not arq.filename:
+        return jsonify(erro='Escolha o arquivo da planilha.'), 400
+    ext = arq.filename.rsplit('.', 1)[-1].lower() if '.' in arq.filename else ''
+    if ext not in ('xlsx', 'xlsm'):
+        return jsonify(erro='Envie um arquivo .xlsx ou .xlsm.'), 400
+    from app.indicadores import scrap
+    pasta = scrap.pasta_planilha()
+    pasta.mkdir(parents=True, exist_ok=True)
+    destino = pasta / f'INDICADORES.{ext}'
+    tmp = pasta / f'_novo.{ext}'
+    arq.save(tmp)
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(tmp, read_only=True, data_only=True)
+        faltam = [n for n in ('MALHARIA', 'RETALHO', 'REPROVA CRU', 'REPROVA ACA.') if n not in wb.sheetnames]
+        wb.close()
+    except Exception as e:  # noqa: BLE001
+        tmp.unlink(missing_ok=True)
+        return jsonify(erro=f'Não consegui abrir a planilha: {str(e)[:120]}'), 400
+    if faltam:
+        tmp.unlink(missing_ok=True)
+        return jsonify(erro='Faltam abas na planilha: ' + ', '.join(faltam)), 400
+    for velho in pasta.glob('INDICADORES.xls*'):
+        velho.unlink(missing_ok=True)
+    tmp.replace(destino)
+    servico._vals.clear()
+    return jsonify(ok=True, arquivo=destino.name)

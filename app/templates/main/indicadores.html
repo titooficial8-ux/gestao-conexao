@@ -104,16 +104,28 @@
   function vazio(txt) { var d = el('div', 'ind-analise'); d.appendChild(el('div', null, txt)); return d; }
   function analise(txt) { var d = el('div', 'ind-analise'); d.appendChild(el('b', null, 'Em análise')); d.appendChild(el('div', null, txt)); return d; }
 
-  function scrapCard(sc) {
+  function enviarPlanilha() {
+    var i = document.createElement('input'); i.type = 'file'; i.accept = '.xlsx,.xlsm';
+    i.addEventListener('change', function () {
+      if (!i.files.length) return; var f = new FormData(); f.append('planilha', i.files[0]); $('indSub').textContent = 'Enviando a planilha…';
+      fetch('/indicadores/planilha', { method: 'POST', body: f, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) { if (j.erro) { alert(j.erro); } PRONTO = {}; carregar(); }).catch(function () { alert('Não consegui enviar a planilha.'); });
+    }); i.click();
+  }
+  function scrapCard(sc, erro) {
     var c = el('div');
-    if (!sc) { c.appendChild(analise('Defina INDICADORES_XLSX no .env (caminho da planilha INDICADORES) para ler o scrap.')); return c; }
+    if (!sc) {
+      var d = el('div', 'ind-analise'); d.appendChild(el('div', null, 'Para calcular o scrap, a Gestão lê a planilha INDICADORES (abas MALHARIA, RETALHO, REPROVA CRU e REPROVA ACA.).'));
+      var b = el('button', 'btn-small ticket-btn-outline', '⬆ Enviar planilha INDICADORES'); b.type = 'button'; b.style.marginTop = '12px'; b.addEventListener('click', enviarPlanilha); d.appendChild(b); c.appendChild(d); return c;
+    }
     var cor = function (v) { return v === null || v === undefined ? '' : (v > sc.meta ? 'ruim' : 'bom'); };
     c.appendChild(kpis(k('Diário', pc(sc.dia, 2), cor(sc.dia)), k('Semanal', pc(sc.semana, 2), cor(sc.semana)), k('Mensal', pc(sc.mes, 2), cor(sc.mes)), k('Ano', pc(sc.ano, 2), cor(sc.ano))));
     var t = el('table', 'ind-tb centro'), tb = el('tbody'); function lin(a, b, forte) { var r = el('tr', forte ? 'tot' : ''); r.appendChild(el('td', null, a)); r.appendChild(el('td', null, b)); tb.appendChild(r); }
-    var loc = sc.retalho_locais || {}; Object.keys(loc).forEach(function (n) { lin('Retalho · ' + n, nf(loc[n], 2) + ' kg'); });
+    var loc = sc.retalho_locais || {}, kg = function (n) { var v = loc[n]; return v ? nf(v, 2) + ' kg' : '-'; };
+    lin('Retalho (total)', nf(sc.retalho_kg, 2) + ' kg', true); ['MALHARIA', 'REVISÃO CRU', 'ACABAMENTO', 'RETRABALHO', 'GRAMATURA'].forEach(function (n) { lin('· ' + n.charAt(0) + n.slice(1).toLowerCase(), kg(n)); });
     lin('Reprova cru', nf(sc.reprova_cru_kg, 2) + ' kg'); lin('Reprova acabamento', nf(sc.reprova_aca_kg, 2) + ' kg'); lin('Total scrap', nf(sc.scrap_kg, 2) + ' kg', true);
     t.appendChild(tb); c.appendChild(t);
-    c.appendChild(el('div', 'ind-nota', 'Meta ' + pc(sc.meta, 0) + ' · sobre ' + nf(sc.producao_kg, 1) + ' kg produzidos · planilha salva em ' + sc.planilha_salva_em.slice(8, 10) + '/' + sc.planilha_salva_em.slice(5, 7) + ' ' + sc.planilha_salva_em.slice(11, 16) + (sc.tem_dados_do_dia ? '' : ' · sem dados deste dia na planilha ainda')));
+    var nota = el('div', 'ind-nota', 'Meta ' + pc(sc.meta, 0) + ' · sobre ' + nf(sc.producao_kg, 1) + ' kg produzidos · planilha salva em ' + sc.planilha_salva_em.slice(8, 10) + '/' + sc.planilha_salva_em.slice(5, 7) + ' ' + sc.planilha_salva_em.slice(11, 16) + (sc.tem_dados_do_dia ? '' : ' · sem dados deste dia na planilha ainda') + ' · ');
+    var a = el('a', null, 'enviar planilha atualizada'); a.href = '#'; a.addEventListener('click', function (e) { e.preventDefault(); enviarPlanilha(); }); nota.appendChild(a); c.appendChild(nota);
     return c;
   }
   function estoqueCard(e) {
