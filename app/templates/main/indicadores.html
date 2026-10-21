@@ -27,6 +27,7 @@
   .ind-tb th:first-child, .ind-tb td:first-child { text-align: left; }
   .ind-tb td { padding: 7px 8px; border-bottom: 1px solid #eef2f7; text-align: right; }
   .ind-tb tr.tot td { font-weight: 800; background: #f6f9fc; }
+  .ind-tb.centro th, .ind-tb.centro td { text-align: center; }
   .ind-tb td.z { color: #b3bfce; }
   .ind-analise { text-align: center; padding: 26px 16px; color: #6a7b90; font-size: 13px; line-height: 1.6; }
   .ind-analise b { display: inline-block; background: #fff3d6; color: #8a5a00; padding: 3px 12px; border-radius: 999px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 8px; }
@@ -127,8 +128,8 @@
     var r = el('tr', 'tot'); ['Total do mês', nf(tm), nf(tv, 2), nf(tm ? tv / tm : 0, 2)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); wr.appendChild(t); base.appendChild(wr); c.appendChild(cartao('Faturamento — metros e ticket por dia', 'azul', base, 12));
   }
   function tabelaNC(linhas) {
-    var w = el('div', 'ind-rolagem'), t = el('table', 'ind-tb'), h = el('tr'); ['Data', 'Máquina', 'Artigo', 'Defeito', 'Metros', 'KG', 'Turno'].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th); var tb = el('tbody');
-    linhas.forEach(function (x) { var r = el('tr'); [dbr(x.data), x.maquina || '—', x.artigo, x.defeito || x.codigos || '—', nf(x.metros), nf(x.kg, 2), x.turno ? x.turno + 'º turno' : '—'].forEach(function (v, i) { var td = el('td', null, v); if (i === 3) td.style.textAlign = 'left'; r.appendChild(td); }); tb.appendChild(r); });
+    var w = el('div', 'ind-rolagem'), t = el('table', 'ind-tb centro'), h = el('tr'); ['Data', 'Máquina', 'Artigo', 'Defeito', 'Metros', 'KG', 'Turno'].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th); var tb = el('tbody');
+    linhas.forEach(function (x) { var r = el('tr'); [dbr(x.data), x.maquina || '—', x.artigo, x.defeito || x.codigos || '—', nf(x.metros), nf(x.kg, 2), x.turno ? x.turno + 'º turno' : '—'].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
     t.appendChild(tb); w.appendChild(t); return w;
   }
   function reprovaCru(d) {
@@ -139,7 +140,7 @@
     var a = el('div'); if (graf) { graf.destroy(); graf = null; } var w = el('div', 'ind-graf'), cv = document.createElement('canvas'); w.appendChild(cv); a.appendChild(w);
     graf = new Chart(cv, { type: 'bar', data: { labels: d.defeitos.slice(0, 12).map(function (x) { return x.defeito; }), datasets: [{ label: 'Metros reprovados', data: d.defeitos.slice(0, 12).map(function (x) { return x.metros; }), backgroundColor: '#c9822b', borderRadius: 4 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: function (v) { return nf(v); } } }, y: { grid: { display: false } } } } });
     g.appendChild(cartao('Defeitos (metros reprovados)', 'laranja', a, 6));
-    var dd = el('div'), tb = el('table', 'ind-tb'), hh = el('tr'); ['Dia', 'Peças', 'Metros', 'KG'].forEach(function (x) { hh.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(hh); tb.appendChild(th); var bd = el('tbody');
+    var dd = el('div'), tb = el('table', 'ind-tb centro'), hh = el('tr'); ['Dia', 'Peças', 'Metros', 'KG'].forEach(function (x) { hh.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(hh); tb.appendChild(th); var bd = el('tbody');
     d.dias.forEach(function (x) { var r = el('tr'); [dbr(x.data), nf(x.pecas), nf(x.metros), nf(x.kg, 1)].forEach(function (v) { r.appendChild(el('td', null, v)); }); bd.appendChild(r); }); tb.appendChild(bd); var wr = el('div', 'ind-rolagem'); wr.style.maxHeight = '300px'; wr.appendChild(tb); dd.appendChild(wr);
     g.appendChild(cartao('Por dia', 'laranja', dd, 6));
     g.appendChild(cartao('Peças reprovadas (NCs)', 'laranja', tabelaNC(d.linhas.slice().reverse()), 12));
