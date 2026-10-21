@@ -15,7 +15,7 @@
   .ind-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
   .ind-card { background: #fff; border: 1px solid #e1e9f3; border-radius: 14px; box-shadow: 0 1px 2px rgba(16, 38, 63, .04), 0 8px 20px rgba(16, 38, 63, .05); overflow: hidden; }
   .ind-card h3 { margin: 0; padding: 10px 16px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; background: #4a5d78; color: #fff; text-align: center; }
-  .ind-card h3.verde { background: #1f8f72; } .ind-card h3.laranja { background: #c9822b; } .ind-card h3.cinza { background: #8493a8; } .ind-card h3.azul { background: #2f6fcb; }
+  .ind-card h3.vermelho { background: #b83b3b; } .ind-card h3.verde { background: #1f8f72; } .ind-card h3.laranja { background: #c9822b; } .ind-card h3.cinza { background: #8493a8; } .ind-card h3.azul { background: #2f6fcb; }
   .ind-corpo { padding: 16px; }
   .ind-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; }
   .ind-k small { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #5d6e84; }
@@ -34,6 +34,29 @@
   .ind-nota { font-size: 12px; color: var(--cinza); margin: 14px 2px 0; line-height: 1.5; }
   .ind-graf { height: 280px; margin-top: 8px; }
   .ind-rolagem { max-height: 560px; overflow: auto; border: 1px solid #e1e9f3; border-radius: 12px; background: #fff; }
+  .dq-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+  .dq-hero { display: grid; grid-template-columns: 1.15fr 1.85fr; gap: 28px; padding: 28px 32px; border-radius: 18px; color: #fff; background: linear-gradient(100deg, #0b1f38 0%, #12335a 60%, #1a4a7e 100%); box-shadow: 0 10px 28px rgba(11, 31, 56, .22); }
+  .dq-rot { font-size: 10.5px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #8fb4dc; }
+  .dq-big { font-size: 56px; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; margin: 10px 0 8px; font-variant-numeric: tabular-nums; }
+  .dq-big small { font-size: 22px; font-weight: 700; color: #b9d0ea; margin-left: 8px; }
+  .dq-hero-sub { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #b9d0ea; }
+  .dq-hero-mid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding-left: 28px; border-left: 1px solid rgba(255, 255, 255, .15); align-content: center; }
+  .dq-med { font-size: 28px; font-weight: 800; margin: 8px 0 2px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .dq-med small { font-size: 13px; font-weight: 700; color: #b9d0ea; margin-left: 4px; }
+  .dq-peq { font-size: 12px; color: #b9d0ea; }
+  .dq-selo { display: inline-block; font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
+  .dq-selo.bom { background: rgba(61, 220, 132, .2); color: #7be0a6; } .dq-selo.ruim { background: rgba(255, 107, 107, .22); color: #ffb4b4; }
+  .dq-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .dq-kpi { background: #fff; border: 1px solid #e1e9f3; border-radius: 14px; padding: 16px 18px 14px; position: relative; overflow: hidden; box-shadow: 0 1px 2px rgba(16, 38, 63, .04), 0 8px 20px rgba(16, 38, 63, .05); }
+  .dq-kpi::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c, #2f6fcb); }
+  .dq-kpi .dq-rot { color: #5d6e84; } .dq-kv { font-size: 26px; font-weight: 800; color: #0f2540; margin: 8px 0 2px; font-variant-numeric: tabular-nums; }
+  .dq-ks { font-size: 12px; color: #6a7b90; }
+  .dq-card { background: #fff; border: 1px solid #e1e9f3; border-radius: 14px; padding: 18px 20px 16px; box-shadow: 0 1px 2px rgba(16, 38, 63, .04), 0 8px 20px rgba(16, 38, 63, .05); }
+  .dq-card h3 { margin: 0 0 2px; font-size: 15px; color: #0f2540; } .dq-card p { margin: 0 0 10px; font-size: 12px; color: #6a7b90; }
+  .dq-graf { position: relative; }
+  .dq-det summary { cursor: pointer; font-weight: 800; font-size: 13px; color: #36506f; letter-spacing: .04em; padding: 2px 0; }
+  .dq-det[open] summary { margin-bottom: 12px; }
+  @media (max-width: 1000px) { .dq-hero { grid-template-columns: 1fr; } .dq-hero-mid { padding-left: 0; border-left: 0; } .dq-kpis { grid-template-columns: repeat(2, 1fr); } .dq-grid > * { grid-column: span 12 !important; } .dq-big { font-size: 42px; } }
   @media (max-width: 900px) { .ind-grid > * { grid-column: span 12 !important; } }
 </style>
 <div class="ind">
@@ -78,10 +101,34 @@
     var tb = el('tbody'); d.t.forEach(function (x, i) { var r = el('tr'); [(i + 1) + 'º turno', nf(x.metros), nf(x.pecas)].concat(kg ? [nf(x.kg, 1)] : []).concat(setups ? [d.setups_turnos ? nf(d.setups_turnos[i]) : '—'] : []).forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
     var r = el('tr', 'tot'); ['Total', nf(d.total.metros), nf(d.total.pecas)].concat(kg ? [nf(d.total.kg, 1)] : []).concat(setups ? [d.setups === null || d.setups === undefined ? '—' : nf(d.setups)] : []).forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); return t;
   }
+  function vazio(txt) { var d = el('div', 'ind-analise'); d.appendChild(el('div', null, txt)); return d; }
   function analise(txt) { var d = el('div', 'ind-analise'); d.appendChild(el('b', null, 'Em análise')); d.appendChild(el('div', null, txt)); return d; }
 
+  function scrapCard(sc) {
+    var c = el('div');
+    if (!sc) { c.appendChild(analise('Defina INDICADORES_XLSX no .env (caminho da planilha INDICADORES) para ler o scrap.')); return c; }
+    var cor = function (v) { return v === null || v === undefined ? '' : (v > sc.meta ? 'ruim' : 'bom'); };
+    c.appendChild(kpis(k('Diário', pc(sc.dia, 2), cor(sc.dia)), k('Semanal', pc(sc.semana, 2), cor(sc.semana)), k('Mensal', pc(sc.mes, 2), cor(sc.mes)), k('Ano', pc(sc.ano, 2), cor(sc.ano))));
+    var t = el('table', 'ind-tb centro'), tb = el('tbody'); function lin(a, b, forte) { var r = el('tr', forte ? 'tot' : ''); r.appendChild(el('td', null, a)); r.appendChild(el('td', null, b)); tb.appendChild(r); }
+    var loc = sc.retalho_locais || {}; Object.keys(loc).forEach(function (n) { lin('Retalho · ' + n, nf(loc[n], 2) + ' kg'); });
+    lin('Reprova cru', nf(sc.reprova_cru_kg, 2) + ' kg'); lin('Reprova acabamento', nf(sc.reprova_aca_kg, 2) + ' kg'); lin('Total scrap', nf(sc.scrap_kg, 2) + ' kg', true);
+    t.appendChild(tb); c.appendChild(t);
+    c.appendChild(el('div', 'ind-nota', 'Meta ' + pc(sc.meta, 0) + ' · sobre ' + nf(sc.producao_kg, 1) + ' kg produzidos · planilha salva em ' + sc.planilha_salva_em.slice(8, 10) + '/' + sc.planilha_salva_em.slice(5, 7) + ' ' + sc.planilha_salva_em.slice(11, 16) + (sc.tem_dados_do_dia ? '' : ' · sem dados deste dia na planilha ainda')));
+    return c;
+  }
+  function estoqueCard(e) {
+    var c = el('div');
+    if (!e || !e.monitorando_desde) { c.appendChild(analise('Acompanhando o estoque de acabados (relatório 040)… aguarde a primeira leitura.')); return c; }
+    c.appendChild(kpis(k('Entrada do dia · peças', nf(e.entrada_total.pecas)), k('Metros', nf(e.entrada_total.metros)), k('Saldo expedição · peças', nf(e.saldo.pecas), '', true), k('Saldo · metros', nf(e.saldo.metros), '', true)));
+    var t = el('table', 'ind-tb'), h = el('tr'); ['Turno', 'Metros', 'Peças'].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th); var tb = el('tbody');
+    e.entradas.forEach(function (x, i) { var r = el('tr'); [(i + 1) + 'º turno', nf(x.metros), nf(x.pecas)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
+    var r = el('tr', 'tot'); ['Entradas', nf(e.entrada_total.metros), nf(e.entrada_total.pecas)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r);
+    r = el('tr'); ['Saídas (faturamento etc.)', nf(e.saidas.metros), nf(e.saidas.pecas)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); c.appendChild(t);
+    c.appendChild(el('div', 'ind-nota', 'Tecido acabado em saldo 1 (Almoxarifado Produtivo), lido a cada 2 min no TOTVS. ' + (e.cobre_o_dia ? '' : 'Acompanhando desde ' + e.monitorando_desde.slice(8, 10) + '/' + e.monitorando_desde.slice(5, 7) + ' ' + e.monitorando_desde.slice(11, 16) + ' — entradas anteriores não aparecem.')));
+    return c;
+  }
   function reuniao(d) {
-    var c = $('indCorpo'); c.textContent = ''; var g = el('div', 'ind-grid'); c.appendChild(g);
+    limpaGraficos(); var c = $('indCorpo'); c.textContent = ''; var g = el('div', 'ind-grid'); c.appendChild(g);
     var m = d.malharia, a = d.acabamento, f = d.faturamento;
     var mc = el('div'); mc.appendChild(kpis(k('Metros', nf(m.total.metros)), k('Peças', nf(m.total.pecas)), k('KG', nf(m.total.kg, 1)), k('Média', nf(m.media)), k('Setups', m.setups === null || m.setups === undefined ? '—' : nf(m.setups)))); mc.appendChild(tabelaTurnos(m, true, true));
     mc.appendChild(el('div', 'ind-nota', 'Produção líquida (descontando retalho, reprovas e retrabalho) aguarda a análise dessas fontes.'));
@@ -96,54 +143,144 @@
     rc.appendChild(el('div', 'ind-nota', 'Peças revisadas por turno: em análise. Reprovas vêm das NCs do SharePoint (ncform).'));
     g.appendChild(cartao('Revisão Cru (local 24)', 'laranja', rc, 3));
     g.appendChild(cartao('Retrabalho', 'cinza', analise('Entradas e saídas do retrabalho (local 31). Fonte em análise.'), 3));
-    g.appendChild(cartao('Scrap', 'cinza', analise('Retalho + reprova cru + reprova acabamento sobre a produção. Depende dessas fontes.'), 3));
-    g.appendChild(cartao('Estoque', 'cinza', analise('Entrada no estoque = acabadas − entradas + saídas do retrabalho.'), 3));
+    g.appendChild(cartao('Scrap', 'vermelho', scrapCard(d.scrap), 3));
+    g.appendChild(cartao('Estoque (040)', 'azul', estoqueCard(d.estoque), 3));
     if (rp.linhas && rp.linhas.length) g.appendChild(cartao('Reprova Cru do dia — peças reprovadas', 'laranja', tabelaNC(rp.linhas), 12));
   }
 
+  function tabelaNC(linhas) {
+    var w = el('div', 'ind-rolagem'), t = el('table', 'ind-tb centro'), h = el('tr'); ['Data', 'Máquina', 'Artigo', 'Defeito', 'Metros', 'KG', 'Turno'].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th); var tb = el('tbody');
+    linhas.forEach(function (x) { var r = el('tr'); [dbr(x.data), x.maquina || '—', x.artigo, x.defeito || x.codigos || '—', nf(x.metros), nf(x.kg, 2), x.turno ? x.turno + 'º turno' : '—'].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
+    t.appendChild(tb); w.appendChild(t); return w;
+  }
+
+  // ------------------------------------------------------------------ painel executivo (abas mensais)
+  var COR = { azul: '#2f6fcb', verde: '#1f9d8f', ambar: '#c9822b', vermelho: '#c94a4a', cinza: '#9aa8ba', navy: '#0f2540' };
+  var MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  var graficos = [];
+  function limpaGraficos() { graficos.forEach(function (g) { try { g.destroy(); } catch (e) {} }); graficos = []; if (graf) { try { graf.destroy(); } catch (e) {} graf = null; } }
+  function nomeMes(d) { return MESES[d.mes - 1] + ' de ' + d.ano; }
+  function delta(atual, antes) { if (!antes) return null; return atual / antes - 1; }
+  function selo(v, inverso) { if (v === null || v === undefined) return null; var bom = inverso ? v <= 0 : v >= 0, e = el('span', 'dq-selo ' + (bom ? 'bom' : 'ruim'), (v >= 0 ? '▲ ' : '▼ ') + nf(Math.abs(v) * 100, 1) + '%'); return e; }
+  function hero(rotulo, valor, unidade, sub, blocos, seloEl) {
+    var h = el('div', 'dq-hero'), e = el('div', 'dq-hero-esq'); e.appendChild(el('div', 'dq-rot', rotulo));
+    var v = el('div', 'dq-big', valor); if (unidade) v.appendChild(el('small', null, unidade)); e.appendChild(v);
+    var l = el('div', 'dq-hero-sub'); if (seloEl) l.appendChild(seloEl); l.appendChild(el('span', null, sub)); e.appendChild(l); h.appendChild(e);
+    var m = el('div', 'dq-hero-mid'); blocos.forEach(function (b) { var x = el('div'); x.appendChild(el('div', 'dq-rot', b[0])); var vv = el('div', 'dq-med', b[1]); if (b[2]) vv.appendChild(el('small', null, b[2])); x.appendChild(vv); if (b[3]) x.appendChild(el('div', 'dq-peq', b[3])); m.appendChild(x); }); h.appendChild(m); return h;
+  }
+  function kcard(rot, val, sub, cor) { var c = el('div', 'dq-kpi'); c.style.setProperty('--c', cor || COR.azul); c.appendChild(el('div', 'dq-rot', rot)); c.appendChild(el('div', 'dq-kv', val)); c.appendChild(el('div', 'dq-ks', sub || '')); return c; }
+  function linhaKpis(lista) { var g = el('div', 'dq-kpis'); lista.forEach(function (x) { g.appendChild(x); }); return g; }
+  function cardGraf(titulo, sub, altura, span, montar) {
+    var c = el('div', 'dq-card'); c.style.gridColumn = 'span ' + (span || 12); c.appendChild(el('h3', null, titulo)); if (sub) c.appendChild(el('p', null, sub));
+    var w = el('div', 'dq-graf'); w.style.height = (altura || 280) + 'px'; var cv = document.createElement('canvas'); w.appendChild(cv); c.appendChild(w); setTimeout(function () { graficos.push(montar(cv)); }, 0); return c;
+  }
+  function detalhe(titulo, conteudo) { var d = el('details', 'dq-det'); d.appendChild(el('summary', null, titulo)); d.appendChild(conteudo); return d; }
+  var EIXO_Y = { beginAtZero: true, grid: { color: '#edf1f6' }, border: { display: false }, ticks: { color: '#6a7b90', callback: function (v) { return nf(v); } } };
+  var EIXO_X = { grid: { display: false }, ticks: { color: '#6a7b90' } };
+  function acum(a) { var s = 0; return a.map(function (v) { s += v; return Math.round(s); }); }
+  function mediaMovel(a, n) { return a.map(function (_, i) { var f = a.slice(Math.max(0, i - n + 1), i + 1).filter(function (x) { return x > 0; }); return f.length ? Math.round(f.reduce(function (s, x) { return s + x; }, 0) / f.length) : null; }); }
+
+  function mensal(d, chave, titulo) {
+    limpaGraficos(); var c = $('indCorpo'); c.textContent = '';
+    var dias = d.dias.filter(function (x) { return x[chave].total.pecas; });
+    if (!dias.length) { c.appendChild(cartao(titulo, 'cinza', vazio('Sem produção registrada neste mês.'), 12)); return; }
+    var tot = { m: 0, p: 0, k: 0 }, tur = [0, 0, 0], melhor = dias[0];
+    dias.forEach(function (x) { var t = x[chave].total; tot.m += t.metros; tot.p += t.pecas; tot.k += t.kg; x[chave].t.forEach(function (y, i) { tur[i] += y.metros; }); if (t.metros > melhor[chave].total.metros) melhor = x; });
+    var media = tot.m / dias.length, ant = d.anterior[chave === 'malharia' ? 'malharia' : 'acabamento'] || [], antTot = ant.reduce(function (s, v) { return s + v; }, 0);
+    var dl = delta(tot.m, antTot), mesAnt = MESES[d.anterior.mes - 1];
+    var g = el('div', 'dq-grid'); c.appendChild(g);
+    g.appendChild(hero(titulo + ' · ' + nomeMes(d), nf(tot.m), 'm', dl === null ? 'sem base do mês anterior' : 'vs. ' + mesAnt + ' no mesmo período', [
+      ['Média por dia', nf(media), 'm', dias.length + ' dias com produção'], ['Melhor dia', nf(melhor[chave].total.metros), 'm', dbr(melhor.data).slice(0, 5)], ['Peças', nf(tot.p), '', nf(tot.p / dias.length) + ' por dia']], selo(dl)));
+    g.lastChild.style.gridColumn = 'span 12';
+    var kp = linhaKpis([kcard('Peso total', nf(tot.k), 'kg · ' + nf(tot.k / dias.length) + ' kg/dia', COR.verde), kcard('Metros por peça', nf(tot.p ? tot.m / tot.p : 0, 1), 'média do mês', COR.azul),
+      kcard('Turno líder', (tur.indexOf(Math.max.apply(null, tur)) + 1) + 'º turno', pc(Math.max.apply(null, tur) / tot.m, 0) + ' dos metros', COR.ambar), kcard('Mês anterior', nf(antTot), 'm no mesmo período', COR.cinza)]); kp.style.gridColumn = 'span 12'; g.appendChild(kp);
+    var rot = dias.map(function (x) { return x.data.slice(8, 10); }), ser = dias.map(function (x) { return x[chave].total.metros; });
+    g.appendChild(cardGraf('Produção diária', 'Metros por dia, divididos por turno · linha: média móvel de 7 dias', 300, 8, function (cv) {
+      return new Chart(cv, { data: { labels: rot, datasets: [0, 1, 2].map(function (i) { return { type: 'bar', label: (i + 1) + 'º turno', data: dias.map(function (x) { return x[chave].t[i].metros; }), backgroundColor: [COR.azul, COR.verde, COR.ambar][i], borderRadius: 3, stack: 'm', order: 2 }; }).concat([{ type: 'line', label: 'Média móvel (7 dias)', data: mediaMovel(ser, 7), borderColor: COR.navy, backgroundColor: COR.navy, borderWidth: 2.5, pointRadius: 0, tension: .3, order: 1 }]) },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: function (x) { return x.dataset.label + ': ' + nf(x.raw) + ' m'; } } } }, scales: { x: Object.assign({ stacked: true }, EIXO_X), y: Object.assign({ stacked: true }, EIXO_Y) } } });
+    }));
+    g.appendChild(cardGraf('Participação por turno', 'Metros do mês', 300, 4, function (cv) {
+      return new Chart(cv, { type: 'doughnut', data: { labels: ['1º turno', '2º turno', '3º turno'], datasets: [{ data: tur.map(function (v) { return Math.round(v); }), backgroundColor: [COR.azul, COR.verde, COR.ambar], borderWidth: 3, borderColor: '#fff' }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '66%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: function (x) { return x.label + ': ' + nf(x.raw) + ' m (' + pc(x.raw / tot.m, 1) + ')'; } } } } } });
+    }));
+    var ult = 0; d.dias.forEach(function (x, i) { if (x[chave].total.pecas) ult = i + 1; });
+    var a1 = acum(d.dias.slice(0, ult).map(function (x) { return x[chave].total.metros; })), a0 = acum(ant.slice(0, ult));
+    g.appendChild(cardGraf('Acumulado do mês', nomeMes(d) + ' contra ' + mesAnt + ' (metros acumulados dia a dia)', 260, 12, function (cv) {
+      return new Chart(cv, { type: 'line', data: { labels: d.dias.slice(0, ult).map(function (x) { return x.data.slice(8, 10); }), datasets: [{ label: nomeMes(d), data: a1, borderColor: COR.azul, backgroundColor: 'rgba(47,111,203,.12)', fill: true, borderWidth: 3, pointRadius: 0, tension: .25 }, { label: mesAnt, data: a0, borderColor: COR.cinza, borderDash: [6, 5], borderWidth: 2, pointRadius: 0, tension: .25 }] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: function (x) { return x.dataset.label + ': ' + nf(x.raw) + ' m'; } } } }, scales: { x: EIXO_X, y: EIXO_Y } } });
+    }));
+    var det = el('div', 'dq-card'); det.style.gridColumn = 'span 12'; det.appendChild(detalhe('Detalhamento diário', tabelaMes(d.dias, chave, true))); g.appendChild(det);
+  }
   function tabelaMes(dias, chave, kg) {
-    var w = el('div', 'ind-rolagem'), t = el('table', 'ind-tb'), h1 = el('tr');
+    var w = el('div', 'ind-rolagem'), t = el('table', 'ind-tb centro'), h1 = el('tr');
     ['Data', 'Peças 1º', 'Peças 2º', 'Peças 3º', 'Peças', 'Metros 1º', 'Metros 2º', 'Metros 3º', 'Metros'].concat(kg ? ['KG'] : []).forEach(function (x) { h1.appendChild(el('th', null, x)); });
     var th = el('thead'); th.appendChild(h1); t.appendChild(th); var tb = el('tbody'); var tot = { p: 0, m: 0, k: 0 };
     dias.forEach(function (x) { var d = x[chave]; if (!d.total.pecas) return; tot.p += d.total.pecas; tot.m += d.total.metros; tot.k += d.total.kg; var r = el('tr');
       [dbr(x.data), nf(d.t[0].pecas), nf(d.t[1].pecas), nf(d.t[2].pecas), nf(d.total.pecas), nf(d.t[0].metros), nf(d.t[1].metros), nf(d.t[2].metros), nf(d.total.metros)].concat(kg ? [nf(d.total.kg, 1)] : []).forEach(function (v) { r.appendChild(el('td', v === '0' ? 'z' : null, v)); }); tb.appendChild(r); });
     var r = el('tr', 'tot'); ['Total do mês', '', '', '', nf(tot.p), '', '', '', nf(tot.m)].concat(kg ? [nf(tot.k, 1)] : []).forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); w.appendChild(t); return w;
   }
-  function grafico(c, rotulos, series) {
-    if (graf) { graf.destroy(); graf = null; } var w = el('div', 'ind-graf'), cv = document.createElement('canvas'); w.appendChild(cv); c.appendChild(w);
-    graf = new Chart(cv, { type: 'bar', data: { labels: rotulos, datasets: series }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ticks: { callback: function (v) { return nf(v); } } } } } });
-  }
-  function mensal(d, chave, titulo, kg) {
-    var c = $('indCorpo'); c.textContent = ''; var base = el('div'); var dias = d.dias.filter(function (x) { return x[chave].total.pecas; });
-    var cs = ['#2f6fcb', '#1f9d8f', '#c9822b'];
-    grafico(base, dias.map(function (x) { return x.data.slice(8, 10); }), [0, 1, 2].map(function (i) { return { label: (i + 1) + 'º turno', data: dias.map(function (x) { return x[chave].t[i].metros; }), backgroundColor: cs[i], borderRadius: 3 }; }));
-    base.appendChild(tabelaMes(d.dias, chave, kg)); c.appendChild(cartao(titulo + ' — metros por dia e turno', 'verde', base, 12));
-  }
+
   function fatur(d) {
-    var c = $('indCorpo'); c.textContent = ''; var base = el('div'), dias = d.dias.filter(function (x) { return x.faturamento.metros; });
-    if (graf) { graf.destroy(); graf = null; } var w = el('div', 'ind-graf'), cv = document.createElement('canvas'); w.appendChild(cv); base.appendChild(w);
-    graf = new Chart(cv, { data: { labels: dias.map(function (x) { return x.data.slice(8, 10); }), datasets: [{ type: 'bar', label: 'Metros faturados', data: dias.map(function (x) { return x.faturamento.metros; }), backgroundColor: '#2f6fcb', borderRadius: 3, yAxisID: 'y' }, { type: 'line', label: 'Ticket (R$/m)', data: dias.map(function (x) { return x.faturamento.ticket; }), borderColor: '#c9822b', backgroundColor: '#c9822b', yAxisID: 'y1', tension: .25 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: function (v) { return nf(v); } } }, y1: { position: 'right', grid: { display: false } } } } });
-    var wr = el('div', 'ind-rolagem'), t = el('table', 'ind-tb'), h = el('tr'); ['Data', 'Metros', 'Valor bruto (R$)', 'Ticket (R$/m)'].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th); var tb = el('tbody'), tm = 0, tv = 0;
-    dias.forEach(function (x) { tm += x.faturamento.metros; tv += x.faturamento.valor; var r = el('tr'); [dbr(x.data), nf(x.faturamento.metros), nf(x.faturamento.valor, 2), nf(x.faturamento.ticket, 2)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
-    var r = el('tr', 'tot'); ['Total do mês', nf(tm), nf(tv, 2), nf(tm ? tv / tm : 0, 2)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); wr.appendChild(t); base.appendChild(wr); c.appendChild(cartao('Faturamento — metros e ticket por dia', 'azul', base, 12));
+    limpaGraficos(); var c = $('indCorpo'); c.textContent = '';
+    var dias = d.dias.filter(function (x) { return x.faturamento.metros; });
+    if (!dias.length) { c.appendChild(cartao('Faturamento', 'cinza', vazio('Sem faturamento neste mês até agora.'), 12)); return; }
+    var tm = 0, tv = 0, melhor = dias[0];
+    dias.forEach(function (x) { tm += x.faturamento.metros; tv += x.faturamento.valor; if (x.faturamento.metros > melhor.faturamento.metros) melhor = x; });
+    var ant = d.anterior.faturamento || [], antTot = ant.reduce(function (s, v) { return s + v; }, 0), dl = delta(tm, antTot), mesAnt = MESES[d.anterior.mes - 1];
+    var g = el('div', 'dq-grid'); c.appendChild(g);
+    g.appendChild(hero('Faturamento · ' + nomeMes(d), nf(tm), 'm', dl === null ? 'sem base do mês anterior' : 'vs. ' + mesAnt + ' no mesmo período', [
+      ['Valor bruto', 'R$ ' + nf(tv / 1000000, 2), 'mi', ''], ['Ticket médio', 'R$ ' + nf(tm ? tv / tm : 0, 2), '/m', ''], ['Melhor dia', nf(melhor.faturamento.metros), 'm', dbr(melhor.data).slice(0, 5)]], selo(dl)));
+    g.lastChild.style.gridColumn = 'span 12';
+    var kp = linhaKpis([kcard('Média por dia', nf(tm / dias.length), 'm · ' + dias.length + ' dias com faturamento', COR.azul), kcard('Valor médio por dia', 'R$ ' + nf(tv / dias.length), 'bruto', COR.verde), kcard('Mês anterior', nf(antTot), 'm no mesmo período', COR.cinza), kcard('Maior ticket', 'R$ ' + nf(Math.max.apply(null, dias.map(function (x) { return x.faturamento.ticket; })), 2), 'por metro em um dia', COR.ambar)]); kp.style.gridColumn = 'span 12'; g.appendChild(kp);
+    g.appendChild(cardGraf('Faturamento diário', 'Metros faturados por dia · linha: ticket (R$/m)', 300, 8, function (cv) {
+      return new Chart(cv, { data: { labels: dias.map(function (x) { return x.data.slice(8, 10); }), datasets: [{ type: 'bar', label: 'Metros', data: dias.map(function (x) { return x.faturamento.metros; }), backgroundColor: COR.azul, borderRadius: 4, yAxisID: 'y', order: 2 }, { type: 'line', label: 'Ticket (R$/m)', data: dias.map(function (x) { return x.faturamento.ticket; }), borderColor: COR.ambar, backgroundColor: COR.ambar, borderWidth: 2.5, pointRadius: 3, tension: .25, yAxisID: 'y1', order: 1 }] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } }, scales: { x: EIXO_X, y: EIXO_Y, y1: { position: 'right', grid: { display: false }, border: { display: false }, ticks: { color: '#6a7b90', callback: function (v) { return 'R$ ' + nf(v, 0); } } } } } });
+    }));
+    g.appendChild(cardGraf('Valor faturado por dia', 'R$ bruto', 300, 4, function (cv) {
+      return new Chart(cv, { type: 'bar', data: { labels: dias.map(function (x) { return x.data.slice(8, 10); }), datasets: [{ data: dias.map(function (x) { return Math.round(x.faturamento.valor / 1000); }), backgroundColor: COR.verde, borderRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) { return 'R$ ' + nf(x.raw) + ' mil'; } } } }, scales: { x: EIXO_X, y: Object.assign({}, EIXO_Y, { ticks: { color: '#6a7b90', callback: function (v) { return nf(v) + ' mil'; } } }) } } });
+    }));
+    var ult = 0; d.dias.forEach(function (x, i) { if (x.faturamento.metros) ult = i + 1; });
+    var a1 = acum(d.dias.slice(0, ult).map(function (x) { return x.faturamento.metros; })), a0 = acum(ant.slice(0, ult));
+    g.appendChild(cardGraf('Acumulado do mês', nomeMes(d) + ' contra ' + mesAnt + ' (metros faturados acumulados)', 260, 12, function (cv) {
+      return new Chart(cv, { type: 'line', data: { labels: d.dias.slice(0, ult).map(function (x) { return x.data.slice(8, 10); }), datasets: [{ label: nomeMes(d), data: a1, borderColor: COR.azul, backgroundColor: 'rgba(47,111,203,.12)', fill: true, borderWidth: 3, pointRadius: 0, tension: .25 }, { label: mesAnt, data: a0, borderColor: COR.cinza, borderDash: [6, 5], borderWidth: 2, pointRadius: 0, tension: .25 }] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } }, scales: { x: EIXO_X, y: EIXO_Y } } });
+    }));
+    var wr = el('div', 'ind-rolagem'), t = el('table', 'ind-tb centro'), h = el('tr'); ['Data', 'Metros', 'Valor bruto (R$)', 'Ticket (R$/m)'].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th); var tb = el('tbody');
+    dias.forEach(function (x) { var r = el('tr'); [dbr(x.data), nf(x.faturamento.metros), nf(x.faturamento.valor, 2), nf(x.faturamento.ticket, 2)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
+    var r = el('tr', 'tot'); ['Total do mês', nf(tm), nf(tv, 2), nf(tm ? tv / tm : 0, 2)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); wr.appendChild(t);
+    var det = el('div', 'dq-card'); det.style.gridColumn = 'span 12'; det.appendChild(detalhe('Detalhamento diário', wr)); g.appendChild(det);
   }
-  function tabelaNC(linhas) {
-    var w = el('div', 'ind-rolagem'), t = el('table', 'ind-tb centro'), h = el('tr'); ['Data', 'Máquina', 'Artigo', 'Defeito', 'Metros', 'KG', 'Turno'].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th); var tb = el('tbody');
-    linhas.forEach(function (x) { var r = el('tr'); [dbr(x.data), x.maquina || '—', x.artigo, x.defeito || x.codigos || '—', nf(x.metros), nf(x.kg, 2), x.turno ? x.turno + 'º turno' : '—'].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
-    t.appendChild(tb); w.appendChild(t); return w;
-  }
+
   function reprovaCru(d) {
-    var c = $('indCorpo'); c.textContent = ''; var g = el('div', 'ind-grid'); c.appendChild(g);
-    var kp = el('div'); kp.appendChild(kpis(k('Peças reprovadas', nf(d.pecas)), k('Metros', nf(d.metros), 'ruim'), k('KG', nf(d.kg, 1))));
-    if (d.erro) kp.appendChild(el('div', 'ind-nota', 'Atenção: ' + d.erro));
-    g.appendChild(cartao('Reprova Cru — resumo do mês', 'laranja', kp, 12));
-    var a = el('div'); if (graf) { graf.destroy(); graf = null; } var w = el('div', 'ind-graf'), cv = document.createElement('canvas'); w.appendChild(cv); a.appendChild(w);
-    graf = new Chart(cv, { type: 'bar', data: { labels: d.defeitos.slice(0, 12).map(function (x) { return x.defeito; }), datasets: [{ label: 'Metros reprovados', data: d.defeitos.slice(0, 12).map(function (x) { return x.metros; }), backgroundColor: '#c9822b', borderRadius: 4 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: function (v) { return nf(v); } } }, y: { grid: { display: false } } } } });
-    g.appendChild(cartao('Defeitos (metros reprovados)', 'laranja', a, 6));
-    var dd = el('div'), tb = el('table', 'ind-tb centro'), hh = el('tr'); ['Dia', 'Peças', 'Metros', 'KG'].forEach(function (x) { hh.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(hh); tb.appendChild(th); var bd = el('tbody');
-    d.dias.forEach(function (x) { var r = el('tr'); [dbr(x.data), nf(x.pecas), nf(x.metros), nf(x.kg, 1)].forEach(function (v) { r.appendChild(el('td', null, v)); }); bd.appendChild(r); }); tb.appendChild(bd); var wr = el('div', 'ind-rolagem'); wr.style.maxHeight = '300px'; wr.appendChild(tb); dd.appendChild(wr);
-    g.appendChild(cartao('Por dia', 'laranja', dd, 6));
-    g.appendChild(cartao('Peças reprovadas (NCs)', 'laranja', tabelaNC(d.linhas.slice().reverse()), 12));
+    limpaGraficos(); var c = $('indCorpo'); c.textContent = '';
+    var g = el('div', 'dq-grid'); c.appendChild(g);
+    if (!d.pecas) { g.appendChild(cartao('Reprova Cru · ' + nomeMes(d), 'laranja', vazio('Nenhuma peça reprovada registrada neste mês.'), 12)); return; }
+    var taxa = d.producao_metros ? d.metros / d.producao_metros : null, taxaAnt = d.anterior.producao_metros ? d.anterior.metros / d.anterior.producao_metros : null;
+    var dl = delta(d.metros, d.anterior.metros), top = d.defeitos[0], maq = d.maquinas[0];
+    g.appendChild(hero('Reprova Cru · ' + nomeMes(d), nf(d.metros), 'm', dl === null ? 'sem base do mês anterior' : 'vs. mês anterior no mesmo período', [
+      ['Peças reprovadas', nf(d.pecas), '', nf(d.kg, 1) + ' kg'], ['% da produção', taxa === null ? '—' : pc(taxa, 2), '', taxaAnt === null ? '' : 'mês anterior ' + pc(taxaAnt, 2)], ['Defeito nº 1', top.defeito, '', pc(top.metros / d.metros, 0) + ' dos metros']], selo(dl, true)));
+    g.lastChild.style.gridColumn = 'span 12';
+    var kp = linhaKpis([kcard('Máquina com mais reprova', 'MQ ' + maq.maquina, nf(maq.metros) + ' m · ' + maq.pecas + ' peças', COR.vermelho), kcard('Metros por peça', nf(d.metros / d.pecas, 1), 'tamanho médio da reprova', COR.ambar), kcard('Peso reprovado', nf(d.kg, 1), 'kg no mês', COR.azul), kcard('Dias com reprova', nf(d.dias.length), 'de ' + new Date(d.ano, d.mes, 0).getDate() + ' dias no mês', COR.cinza)]); kp.style.gridColumn = 'span 12'; g.appendChild(kp);
+    var def = d.defeitos.slice(0, 10), cum = 0, soma = d.defeitos.reduce(function (s, x) { return s + x.metros; }, 0), pareto = def.map(function (x) { cum += x.metros; return Math.round(cum / soma * 1000) / 10; });
+    g.appendChild(cardGraf('Pareto de defeitos', 'Metros reprovados por defeito · linha: % acumulado', 320, 7, function (cv) {
+      return new Chart(cv, { data: { labels: def.map(function (x) { return x.defeito; }), datasets: [{ type: 'bar', label: 'Metros', data: def.map(function (x) { return x.metros; }), backgroundColor: COR.ambar, borderRadius: 4, yAxisID: 'y', order: 2 }, { type: 'line', label: '% acumulado', data: pareto, borderColor: COR.navy, backgroundColor: COR.navy, borderWidth: 2.5, pointRadius: 3, tension: .2, yAxisID: 'y1', order: 1 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } }, scales: { x: { grid: { display: false }, ticks: { color: '#6a7b90', maxRotation: 40, minRotation: 40, font: { size: 10 } } }, y: EIXO_Y, y1: { position: 'right', min: 0, max: 100, grid: { display: false }, border: { display: false }, ticks: { color: '#6a7b90', callback: function (v) { return v + '%'; } } } } } });
+    }));
+    g.appendChild(cardGraf('Por turno', 'Metros reprovados', 320, 5, function (cv) {
+      return new Chart(cv, { type: 'doughnut', data: { labels: ['1º turno', '2º turno', '3º turno'], datasets: [{ data: d.turnos.map(function (x) { return x.metros; }), backgroundColor: [COR.azul, COR.verde, COR.ambar], borderWidth: 3, borderColor: '#fff' }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '66%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: function (x) { return x.label + ': ' + nf(x.raw) + ' m'; } } } } } });
+    }));
+    g.appendChild(cardGraf('Reprova por dia', 'Metros reprovados em cada dia do mês', 260, 7, function (cv) {
+      return new Chart(cv, { type: 'bar', data: { labels: d.dias.map(function (x) { return x.data.slice(8, 10); }), datasets: [{ data: d.dias.map(function (x) { return x.metros; }), backgroundColor: COR.vermelho, borderRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: EIXO_X, y: EIXO_Y } } });
+    }));
+    var mq = d.maquinas.slice(0, 8);
+    g.appendChild(cardGraf('Máquinas com mais reprova', 'Metros reprovados', 260, 5, function (cv) {
+      return new Chart(cv, { type: 'bar', data: { labels: mq.map(function (x) { return 'MQ ' + x.maquina; }), datasets: [{ data: mq.map(function (x) { return x.metros; }), backgroundColor: COR.azul, borderRadius: 4, barThickness: 16 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: EIXO_Y, y: { grid: { display: false }, ticks: { color: '#36506f' } } } } });
+    }));
+    var det = el('div', 'dq-card'); det.style.gridColumn = 'span 12'; det.appendChild(detalhe('Peças reprovadas (NCs do mês)', tabelaNC(d.linhas.slice().reverse()))); g.appendChild(det);
   }
   var TEXTOS = {
     revisao: ['Revisão Cru (local 24)', 'Na planilha: peças revisadas por turno e por máquina, produzido x revisado (%) e meta de 42 peças por turno. A fonte do local 24 na API do TOTVS ainda está em análise.'],
@@ -157,7 +294,7 @@
     $('indSub').textContent = abaAtual === 'reuniao' ? 'Reunião diária de ' + dbr(d.data) + ' · semana ' + d.semana + (d.atualizado ? ' · acabamento atualizado ' + d.atualizado.slice(11, 16) : '') + (d.erro ? ' · ' + d.erro : '') : 'Mês ' + String(d.mes).padStart(2, '0') + '/' + d.ano;
     var av = (d.avisos || []).join(' · '); if (av) $('indSub').textContent += ' · ATENÇÃO: ' + av;
     $('indSub').textContent += ' · ao vivo: atualiza a cada 2 min (últ. ' + new Date().toTimeString().slice(0, 5) + ')';
-    if (abaAtual === 'reuniao') reuniao(d); else if (abaAtual === 'malharia') mensal(d, 'malharia', 'Malharia', true); else if (abaAtual === 'acabamento') mensal(d, 'acabamento', 'Acabamento', true); else if (abaAtual === 'reprova_cru') reprovaCru(d); else fatur(d);
+    if (abaAtual === 'reuniao') reuniao(d); else if (abaAtual === 'malharia') mensal(d, 'malharia', 'Malharia'); else if (abaAtual === 'acabamento') mensal(d, 'acabamento', 'Acabamento'); else if (abaAtual === 'reprova_cru') reprovaCru(d); else fatur(d);
     window.scrollTo(0, rolagem);
   }
   var req = 0;

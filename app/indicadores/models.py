@@ -45,3 +45,28 @@ class IndReprovaCru(db.Model):
     defeito = db.Column(db.String(80))                           # nome do 1o codigo (tabela de defeitos)
     emitente = db.Column(db.String(80))
     criado = db.Column(db.DateTime)
+
+
+class IndProdutoUn(db.Model):
+    """Unidade e tipo do produto no TOTVS (para separar o tecido acabado, em metros, do resto do estoque)."""
+    __tablename__ = 'ind_produto_un'
+
+    codigo = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(200))
+    unidade = db.Column(db.String(5))
+    acabado = db.Column(db.Boolean, default=False)
+
+
+class IndEstoqueItem(db.Model):
+    """Peca (item de lote) no estoque de acabados / expedicao (relatorio 040: saldo 1 do lote). A hora em que ela aparece e a hora da entrada."""
+    __tablename__ = 'ind_estoque_item'
+
+    id = db.Column(db.Integer, primary_key=True)
+    lote = db.Column(db.Integer, index=True)
+    seq = db.Column(db.Integer)
+    produto = db.Column(db.Integer, index=True)
+    metros = db.Column(db.Float, default=0.0)
+    visto_em = db.Column(db.DateTime, index=True)                 # 1a vez que apareceu com saldo (horario de Brasilia) = entrada
+    saiu_em = db.Column(db.DateTime, nullable=True, index=True)   # quando o saldo zerou/sumiu = saida
+    baseline = db.Column(db.Boolean, default=False)               # ja estava no estoque quando comecamos a acompanhar (nao conta como entrada)
+    __table_args__ = (db.UniqueConstraint('lote', 'produto', 'seq', name='uq_ind_estoque_item'),)

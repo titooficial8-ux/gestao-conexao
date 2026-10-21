@@ -17,7 +17,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 
 from app import db
-from app.indicadores.models import IndAcabamento, IndProduto, IndReprovaCru
+from app.indicadores.models import IndAcabamento, IndEstoqueItem, IndProduto, IndProdutoUn, IndReprovaCru
 from app.totvs import api
 
 BASE_URL = api.BASE_URL
@@ -37,7 +37,9 @@ _calc_trava = threading.Lock()
 
 
 def _swr(nome, ttl, fn, *args):
-    """Devolve na hora o ultimo valor calculado (mesmo velho) e recalcula em segundo plano quando passa de `ttl`; so a 1a vez espera."""
+    """Devolve na hora o ultimo valor calculado (mesmo velho) e recalcula em segundo plano quando passa de `ttl`; so a 1a vez espera.
+    Se o calculo falha, a falha tambem fica guardada (e relancada na hora) ate a proxima tentativa em segundo plano: uma fonte fora do ar
+    nao deixa a tela esperando o tempo limite a cada abertura."""
     from flask import current_app
     chave = (nome,) + args
     app = current_app._get_current_object()
@@ -46,9 +48,11 @@ def _swr(nome, ttl, fn, *args):
         try:
             with app.app_context():
                 v = fn(*args)
-            _vals[chave] = (time.time(), v)
-        except Exception:  # noqa: BLE001
+            _vals[chave] = (time.time(), v, None)
+        except Exception as e:  # noqa: BLE001
             traceback.print_exc()
+            antigo = _vals.get(chave)
+            _vals[chave] = (time.time(), antigo[1] if antigo else None, f'{type(e).__name__}: {str(e)[:160]}')
         finally:
             _calc_em.discard(chave)
 
@@ -60,11 +64,11 @@ def _swr(nome, ttl, fn, *args):
                 _calc_em.add(chave)
                 calcular()
                 ent = _vals.get(chave)
-                if ent is None:
-                    return fn(*args)
     elif time.time() - ent[0] > ttl and chave not in _calc_em:
         _calc_em.add(chave)
         threading.Thread(target=calcular, daemon=True, name='indicadores-calc').start()
+    if ent[2] and ent[1] is None:
+        raise RuntimeError(ent[2])
     return ent[1]
 
 
@@ -176,6 +180,7 @@ def iniciar_agendador(app) -> None:
             try:
                 atualizar_acabamento(app)
                 atualizar_reprova_cru(app)
+                atualizar_estoque(app)
                 aquecer(app)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
@@ -262,6 +267,10 @@ def aquecer(app) -> None:
                 traceback.print_exc()
         hoje = date.today()
         try:
+            scrap_do_dia((datetime.now() - INICIO_DIA).date())
+        except Exception:  # noqa: BLE001
+            pass
+        try:
             faturamento_por_dia(hoje.year, hoje.month)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
@@ -292,14 +301,40 @@ def reuniao(dia: date) -> dict:
     tm = sum(x['metros'] for x in fat.values())
     tv = sum(x['valor'] for x in fat.values())
     return dict(
-        data=ch, semana=dia.isocalendar()[1],
+        data=ch, semana=(dia.timetuple().tm_yday - 1) // 7 + 1,
         malharia=dict(**m, media=_media(mal, ch), **_setups_resumo(_seguro('Setups', setups_do_dia, avisos, dia))),
         acabamento=dict(**a, media=_media(aca, ch)),
         faturamento=dict(metros=f['metros'], ticket_dia=f['ticket'], ticket_mes=round(tv / tm, 3) if tm else 0,
                          pct_prod=round(f['metros'] / m['total']['metros'] - 1, 4) if m['total']['metros'] else None,
                          pct_aca=round(f['metros'] / a['total']['metros'] - 1, 4) if a['total']['metros'] else None),
+        estoque=_seguro('Estoque', estoque_dia, avisos, dia) or dict(entrada_total=dict(pecas=0, metros=0), saldo=dict(pecas=0, metros=0), saidas=dict(pecas=0, metros=0), entradas=[], monitorando_desde=None),
+        scrap=_seguro('Scrap', scrap_do_dia, avisos, dia) or None,
         reprova_cru=_seguro('Reprova Cru', reprova_cru_dia, avisos, dia) or dict(pecas=0, metros=0, kg=0, linhas=[], turnos=[]),
         atualizado=ESTADO['ultima'], erro=ESTADO['erro'], avisos=avisos, intervalo_min=INTERVALO_MIN)
+
+
+def _mes_anterior(ano: int, mes: int):
+    return (ano - 1, 12) if mes == 1 else (ano, mes - 1)
+
+
+def _serie_anterior(ano: int, mes: int, ate_dia: int, mal: dict, aca: dict, fat: dict) -> dict:
+    """Metros por dia do mes anterior (ate o mesmo dia do mes) para comparar o acumulado."""
+    def dias(origem, chave):
+        out = []
+        for d in range(1, ate_dia + 1):
+            ch = date(ano, mes, d).isoformat() if d <= 28 or _dia_valido(ano, mes, d) else None
+            v = origem.get(ch) if ch else None
+            out.append(((v['total']['metros'] if chave != 'fat' else v['metros']) if v else 0.0))
+        return out
+    return dict(ano=ano, mes=mes, malharia=dias(mal, 'm'), acabamento=dias(aca, 'a'), faturamento=dias(fat, 'fat'))
+
+
+def _dia_valido(ano: int, mes: int, d: int) -> bool:
+    try:
+        date(ano, mes, d)
+        return True
+    except ValueError:
+        return False
 
 
 def mensal(ano: int, mes: int) -> dict:
@@ -314,7 +349,10 @@ def mensal(ano: int, mes: int) -> dict:
         ch = d.isoformat()
         dias.append(dict(data=ch, malharia=mal.get(ch) or _fechar(_vazio()), acabamento=aca.get(ch) or _fechar(_vazio()), faturamento=fat.get(ch) or dict(metros=0, valor=0, ticket=0)))
         d += timedelta(days=1)
-    return dict(ano=ano, mes=mes, dias=dias, avisos=avisos)
+    pa, pm = _mes_anterior(ano, mes)
+    fat_ant = _seguro('Faturamento (mês anterior)', faturamento_por_dia, avisos, pa, pm)
+    anterior = _serie_anterior(pa, pm, len(dias) or 1, mal, aca, fat_ant)
+    return dict(ano=ano, mes=mes, dias=dias, anterior=anterior, avisos=avisos)
 
 
 # ---------------------------------------------------------------- reprova cru (NCs do SharePoint, local 24)
@@ -406,7 +444,26 @@ def reprova_cru_mensal(ano: int, mes: int) -> dict:
     for r in rs:
         for alvo in (por_def[r.defeito or 'SEM CÓDIGO'], por_dia[r.data.isoformat()]):
             alvo[0] += 1; alvo[1] += r.metros; alvo[2] += r.kg
+    avisos = []
+    mal = _seguro('Malharia', malharia_por_dia, avisos)
+    prod_m = sum(v['total']['metros'] for k, v in mal.items() if ini.isoformat() <= k < fim.isoformat())
+    pa, pm = _mes_anterior(ano, mes)
+    ini_a, fim_a = date(pa, pm, 1), ini
+    ate = min((date.today() - ini).days + 1, 31) if (ano, mes) == (date.today().year, date.today().month) else 31
+    ra = [r for r in IndReprovaCru.query.filter(IndReprovaCru.data >= ini_a, IndReprovaCru.data < fim_a).all() if r.data.day <= ate]
+    prod_a = sum(v['total']['metros'] for k, v in mal.items() if ini_a.isoformat() <= k < fim_a.isoformat() and int(k[8:10]) <= ate)
+    por_maq = defaultdict(lambda: [0, 0.0])
+    por_turno = [[0, 0.0] for _ in range(3)]
+    for r in rs:
+        por_maq[r.maquina or '—'][0] += 1
+        por_maq[r.maquina or '—'][1] += r.metros
+        if r.turno:
+            por_turno[r.turno - 1][0] += 1
+            por_turno[r.turno - 1][1] += r.metros
     return dict(ano=ano, mes=mes, pecas=len(rs), metros=round(sum(r.metros for r in rs), 1), kg=round(sum(r.kg for r in rs), 1),
+                producao_metros=round(prod_m, 1), anterior=dict(pecas=len(ra), metros=round(sum(r.metros for r in ra), 1), producao_metros=round(prod_a, 1)),
+                maquinas=sorted(({'maquina': k, 'pecas': v[0], 'metros': round(v[1], 1)} for k, v in por_maq.items()), key=lambda x: -x['metros']),
+                turnos=[{'pecas': t[0], 'metros': round(t[1], 1)} for t in por_turno], avisos=avisos,
                 defeitos=sorted(({'defeito': k, 'pecas': v[0], 'metros': round(v[1], 1), 'kg': round(v[2], 1)} for k, v in por_def.items()), key=lambda x: -x['metros']),
                 dias=[{'data': k, 'pecas': v[0], 'metros': round(v[1], 1), 'kg': round(v[2], 1)} for k, v in sorted(por_dia.items())],
                 linhas=[_nc_dict(r) for r in rs], erro=_ult_nc['erro'])
@@ -427,7 +484,7 @@ def _get_setups(caminho: str, params: dict, tentativas: list = None):
     h = {'Accept': 'application/json'}
     if _pin():
         h['Authorization'] = f'Bearer {_pin()}'
-    return requests.get(f'{SETUPS_URL}{caminho}', params=params, headers=h, timeout=15)
+    return requests.get(f'{SETUPS_URL}{caminho}', params=params, headers=h, timeout=6)
 
 
 def _lista(j) -> list:
@@ -523,3 +580,108 @@ def setups_diagnostico() -> dict:
     except Exception as e:  # noqa: BLE001
         out['erro'] = f'{type(e).__name__}: {str(e)[:200]}'
     return out
+
+
+# ---------------------------------------------------------------- estoque de acabados (relatorio 040 = saldo 1 dos lotes)
+BATCH_URL = f'{BASE_URL}/api/totvsmoda/product/v2/batch/search'
+_est = {'ts': None, 'erro': None}
+
+
+def _unidades(cli, codigos: list) -> None:
+    faltam = [c for c in codigos if not db.session.get(IndProdutoUn, c)]
+    for i in range(0, len(faltam), 50):
+        lote = faltam[i:i + 50]
+        r = cli.post(PROD_URL, dict(filter=dict(productCodeList=lote), option=dict(branchInfoCode=EMPRESA), page=1, pageSize=50))
+        if r.status_code != 200:
+            raise RuntimeError(f'produtos: HTTP {r.status_code} {r.text[:160]}')
+        achados = {p['productCode']: p for p in r.json().get('items') or []}
+        for c in lote:
+            p = achados.get(c) or {}
+            db.session.add(IndProdutoUn(codigo=c, nome=(p.get('productName') or '')[:200], unidade=str(p.get('measuredUnit') or '').strip().upper()[:5],
+                                        acabado=bool(p.get('isFinishedProduct')) and not p.get('isRawMaterial')))
+        db.session.commit()
+
+
+def atualizar_estoque(app) -> bool:
+    """Foto do estoque de acabados (saldo 1 dos lotes, so tecido acabado em metros): o que aparece e entrada, o que some e saida."""
+    from app.relatorio_fat.agenda import agora_brasilia
+    if not _trava.acquire(blocking=False):
+        return False
+    try:
+        with app.app_context():
+            cli = api.TotvsModaClient()
+            cli.autenticar()
+            atuais, pag = {}, 1
+            while True:
+                r = cli.post(BATCH_URL, dict(filter=dict(branchCode=EMPRESA, balanceCodeList=[1], hasBalance=True), page=pag, pageSize=1000))
+                if r.status_code != 200:
+                    raise RuntimeError(f'lotes: HTTP {r.status_code} {r.text[:160]}')
+                j = r.json()
+                for lote in j.get('items') or []:
+                    for bi in lote.get('batchItem') or []:
+                        bal = _num(bi.get('balance')) or 0
+                        if bal > 0:
+                            atuais[(lote['batchCode'], lote['productCode'], bi.get('batchItemSequential'))] = bal
+                if not j.get('hasNext') or pag >= 30:
+                    break
+                pag += 1
+            _unidades(cli, sorted({k[1] for k in atuais}))
+            ok = {c for (c,) in db.session.query(IndProdutoUn.codigo).filter(IndProdutoUn.acabado.is_(True), IndProdutoUn.unidade == 'MT').all()}
+            atuais = {k: v for k, v in atuais.items() if k[1] in ok}
+            agora = agora_brasilia()
+            primeira = IndEstoqueItem.query.count() == 0
+            ativos = {(x.lote, x.produto, x.seq): x for x in IndEstoqueItem.query.filter(IndEstoqueItem.saiu_em.is_(None)).all()}
+            for k, bal in atuais.items():
+                x = ativos.get(k)
+                if x is None:
+                    db.session.add(IndEstoqueItem(lote=k[0], produto=k[1], seq=k[2], metros=bal, visto_em=agora, baseline=primeira))
+                else:
+                    x.metros = bal
+            for k, x in ativos.items():
+                if k not in atuais:
+                    x.saiu_em = agora
+            db.session.commit()
+            _est.update(ts=agora.isoformat(timespec='seconds'), erro=None)
+        return True
+    except Exception as e:  # noqa: BLE001
+        traceback.print_exc()
+        _est['erro'] = str(e)[:200]
+        return False
+    finally:
+        _trava.release()
+
+
+def estoque_dia(dia: date) -> dict:
+    """Entradas e saidas do dia de producao no estoque de acabados (por turno) e o saldo atual, vistos pela foto a cada 2 min."""
+    ini = datetime.combine(dia, datetime.min.time()) + INICIO_DIA
+    fim = ini + timedelta(days=1)
+    desde = db.session.query(db.func.min(IndEstoqueItem.visto_em)).scalar()
+    ent = [dict(pecas=0, metros=0.0) for _ in range(3)]
+    sai = dict(pecas=0, metros=0.0)
+    for x in IndEstoqueItem.query.filter(IndEstoqueItem.visto_em >= ini, IndEstoqueItem.visto_em < fim, IndEstoqueItem.baseline.is_(False)).all():
+        t = ent[turno(x.visto_em)]
+        t['pecas'] += 1
+        t['metros'] += x.metros or 0
+    for x in IndEstoqueItem.query.filter(IndEstoqueItem.saiu_em >= ini, IndEstoqueItem.saiu_em < fim).all():
+        sai['pecas'] += 1
+        sai['metros'] += x.metros or 0
+    saldo = db.session.query(db.func.count(IndEstoqueItem.id), db.func.coalesce(db.func.sum(IndEstoqueItem.metros), 0)).filter(IndEstoqueItem.saiu_em.is_(None)).first()
+    for t in ent:
+        t['metros'] = round(t['metros'], 1)
+    return dict(monitorando_desde=desde.isoformat(timespec='minutes') if desde else None, cobre_o_dia=bool(desde) and desde <= ini,
+                entradas=ent, entrada_total=dict(pecas=sum(t['pecas'] for t in ent), metros=round(sum(t['metros'] for t in ent), 1)),
+                saidas=dict(pecas=sai['pecas'], metros=round(sai['metros'], 1)), saldo=dict(pecas=int(saldo[0] or 0), metros=round(float(saldo[1] or 0), 1)),
+                atualizado=_est['ts'], erro=_est['erro'])
+
+
+def _scrap_calc(ch: str) -> dict:
+    from app.indicadores import scrap
+    dia = date.fromisoformat(ch)
+    vivo = defaultdict(float)
+    for r in IndReprovaCru.query.filter(IndReprovaCru.data >= date(dia.year, 1, 1), IndReprovaCru.data <= dia).all():
+        vivo[r.data] += r.kg or 0
+    return scrap.scrap_dia(dia, dict(vivo))
+
+
+def scrap_do_dia(dia: date):
+    return _swr('scrap', 120, _scrap_calc, dia.isoformat())
