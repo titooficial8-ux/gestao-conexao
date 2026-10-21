@@ -70,7 +70,7 @@ def mensal():
 def atualizar():
     _autorizar()
     app = current_app._get_current_object()
-    threading.Thread(target=servico.atualizar_acabamento, args=(app,), daemon=True, name='indicadores-agora').start()
+    threading.Thread(target=lambda: (servico.atualizar_acabamento(app), servico.atualizar_reprova_cru(app)), daemon=True, name='indicadores-agora').start()
     return jsonify(ok=True)
 
 
@@ -88,3 +88,19 @@ def nc_diagnostico():
         return jsonify(ok=True, total_lido=len(linhas), colunas=sharepoint.colunas(), exemplos=linhas[:3])
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=str(e)[:400])
+
+
+@ind_bp.route('/reprova-cru')
+@login_required
+def reprova_cru():
+    _autorizar()
+    try:
+        ano, mes = [int(x) for x in (request.args.get('mes') or date.today().strftime('%Y-%m')).split('-')]
+    except ValueError:
+        abort(400)
+    try:
+        return jsonify(servico.reprova_cru_mensal(ano, mes))
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        return jsonify(erro=f'{type(e).__name__}: {str(e)[:200]}'), 500

@@ -25,3 +25,23 @@ class IndProduto(db.Model):
     gramatura = db.Column(db.Float, nullable=True)
     largura = db.Column(db.Float, nullable=True)
     atualizado = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class IndReprovaCru(db.Model):
+    """Peca reprovada na revisao do cru (local 24): vem da lista de NCs (ncform) do SharePoint, uma linha por NC."""
+    __tablename__ = 'ind_reprova_cru'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sp_id = db.Column(db.Integer, unique=True, index=True)       # id do item no SharePoint
+    data = db.Column(db.Date, index=True)                        # data informada pelo revisor (data1)
+    maquina = db.Column(db.String(10))
+    artigo = db.Column(db.String(30))
+    op = db.Column(db.String(20))
+    cliente = db.Column(db.String(120))
+    metros = db.Column(db.Float, default=0.0)
+    kg = db.Column(db.Float, default=0.0)
+    turno = db.Column(db.Integer, nullable=True)                 # 1, 2 ou 3 (letra A, B ou C da NC)
+    codigos = db.Column(db.String(80))                           # ex.: "R01,R06"
+    defeito = db.Column(db.String(80))                           # nome do 1o codigo (tabela de defeitos)
+    emitente = db.Column(db.String(80))
+    criado = db.Column(db.DateTime)

@@ -5,7 +5,7 @@ No .env:
   SHAREPOINT_CLIENT_ID=...        (ID do aplicativo registrado)
   SHAREPOINT_CLIENT_SECRET=...    (segredo do aplicativo)
   SHAREPOINT_SITE_ID=b846d7a8-2441-4ac1-8505-8e1e5b687265,1005b64e-51eb-439c-a9e3-69b714f601ec   (padrao: conexaomalhasedes)
-  SHAREPOINT_LISTA_NC=ncform
+  SHAREPOINT_LISTA_NC=42bb9846-9eb1-4ac3-b986-948ed40d4b59   (ID da lista ncform; ja e o padrao)
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ import requests
 
 SITE_PADRAO = 'conexaomalhasedes.sharepoint.com,b846d7a8-2441-4ac1-8505-8e1e5b687265,1005b64e-51eb-439c-a9e3-69b714f601ec'
 GRAPH = 'https://graph.microsoft.com/v1.0'
+LISTA_PADRAO = '42bb9846-9eb1-4ac3-b986-948ed40d4b59'          # lista "ncform" (nome interno: ncform-b9730590-...)
 _token = {'v': None, 'ate': 0.0}
 
 
@@ -32,7 +33,7 @@ def _site() -> str:
 
 
 def _lista() -> str:
-    return os.getenv('SHAREPOINT_LISTA_NC', 'ncform')
+    return os.getenv('SHAREPOINT_LISTA_NC') or LISTA_PADRAO
 
 
 def _auth() -> dict:

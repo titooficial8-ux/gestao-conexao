@@ -44,7 +44,7 @@
     <div class="ind-ctl">
       <input type="date" id="indDia">
       <input type="month" id="indMes" style="display:none">
-      <button type="button" class="btn-small ticket-btn-outline" id="indAtualizar">⟳ Atualizar acabamento</button>
+      <button type="button" class="btn-small ticket-btn-outline" id="indAtualizar">⟳ Atualizar dados</button>
     </div>
   </div>
   <div class="ind-abas" id="indAbas"></div>
@@ -54,7 +54,7 @@
 <script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
 <script>
 (function () {
-  var ABAS = [['reuniao', 'Reunião Diária'], ['malharia', 'Malharia'], ['revisao', 'Revisão Cru', 1], ['acabamento', 'Acabamento'], ['reprova_cru', 'Reprova Cru', 1], ['reprova_aca', 'Reprova Acabamento', 1], ['retrabalho', 'Retrabalho', 1], ['retalho', 'Retalho', 1], ['faturamento', 'Faturamento']];
+  var ABAS = [['reuniao', 'Reunião Diária'], ['malharia', 'Malharia'], ['revisao', 'Revisão Cru', 1], ['acabamento', 'Acabamento'], ['reprova_cru', 'Reprova Cru'], ['reprova_aca', 'Reprova Acabamento', 1], ['retrabalho', 'Retrabalho', 1], ['retalho', 'Retalho', 1], ['faturamento', 'Faturamento']];
   var abaAtual = 'reuniao', graf = null, hoje = new Date();
   function $(i) { return document.getElementById(i); }
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; }
@@ -67,7 +67,7 @@
   function abas() {
     var b = $('indAbas'); b.textContent = '';
     ABAS.forEach(function (a) { var x = el('button', 'ind-aba' + (a[0] === abaAtual ? ' on' : ''), a[1]); x.type = 'button'; if (a[2]) x.appendChild(el('small', null, 'EM ANÁLISE')); x.addEventListener('click', function () { abaAtual = a[0]; abas(); carregar(); }); b.appendChild(x); });
-    $('indDia').style.display = abaAtual === 'reuniao' ? '' : 'none'; $('indMes').style.display = ['malharia', 'acabamento', 'faturamento'].indexOf(abaAtual) >= 0 ? '' : 'none';
+    $('indDia').style.display = abaAtual === 'reuniao' ? '' : 'none'; $('indMes').style.display = ['malharia', 'acabamento', 'faturamento', 'reprova_cru'].indexOf(abaAtual) >= 0 ? '' : 'none';
   }
   function cartao(titulo, cls, corpo, span) { var c = el('div', 'ind-card'); c.style.gridColumn = 'span ' + (span || 6); c.appendChild(el('h3', cls || '', titulo)); var b = el('div', 'ind-corpo'); b.appendChild(corpo); c.appendChild(b); return c; }
   function k(rot, val, cls, peq) { var d = el('div', 'ind-k' + (cls ? ' ' + cls : '')); d.appendChild(el('small', null, rot)); d.appendChild(el('b', peq ? 'peq' : '', val)); return d; }
@@ -90,10 +90,14 @@
     var fc = el('div'); fc.appendChild(kpis(k('Metros do dia', nf(f.metros)), k('Ticket diário', 'R$ ' + nf(f.ticket_dia, 2)), k('Ticket mensal', 'R$ ' + nf(f.ticket_mes, 2)),
       k('% Prod.', pc(f.pct_prod), f.pct_prod === null ? '' : (f.pct_prod >= 0 ? 'bom' : 'ruim')), k('% Aca.', pc(f.pct_aca), f.pct_aca === null ? '' : (f.pct_aca >= 0 ? 'bom' : 'ruim'))));
     g.appendChild(cartao('Faturamento', 'azul', fc, 6));
-    g.appendChild(cartao('Revisão Cru (local 24)', 'cinza', analise('Peças revisadas por turno e reprova do cru. Fonte na API ainda em análise.'), 3));
+    var rp = d.reprova_cru || { pecas: 0, metros: 0, kg: 0, linhas: [] }, rc = el('div');
+    rc.appendChild(kpis(k('Reprova · metros', nf(rp.metros), 'ruim'), k('Peças', nf(rp.pecas)), k('KG', nf(rp.kg, 1))));
+    rc.appendChild(el('div', 'ind-nota', 'Peças revisadas por turno: em análise. Reprovas vêm das NCs do SharePoint (ncform).'));
+    g.appendChild(cartao('Revisão Cru (local 24)', 'laranja', rc, 3));
     g.appendChild(cartao('Retrabalho', 'cinza', analise('Entradas e saídas do retrabalho (local 31). Fonte em análise.'), 3));
     g.appendChild(cartao('Scrap', 'cinza', analise('Retalho + reprova cru + reprova acabamento sobre a produção. Depende dessas fontes.'), 3));
     g.appendChild(cartao('Estoque', 'cinza', analise('Entrada no estoque = acabadas − entradas + saídas do retrabalho.'), 3));
+    if (rp.linhas && rp.linhas.length) g.appendChild(cartao('Reprova Cru do dia — peças reprovadas', 'laranja', tabelaNC(rp.linhas), 12));
   }
 
   function tabelaMes(dias, chave, kg) {
@@ -122,26 +126,46 @@
     dias.forEach(function (x) { tm += x.faturamento.metros; tv += x.faturamento.valor; var r = el('tr'); [dbr(x.data), nf(x.faturamento.metros), nf(x.faturamento.valor, 2), nf(x.faturamento.ticket, 2)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); });
     var r = el('tr', 'tot'); ['Total do mês', nf(tm), nf(tv, 2), nf(tm ? tv / tm : 0, 2)].forEach(function (v) { r.appendChild(el('td', null, v)); }); tb.appendChild(r); t.appendChild(tb); wr.appendChild(t); base.appendChild(wr); c.appendChild(cartao('Faturamento — metros e ticket por dia', 'azul', base, 12));
   }
+  function tabelaNC(linhas) {
+    var w = el('div', 'ind-rolagem'), t = el('table', 'ind-tb'), h = el('tr'); ['Data', 'Máquina', 'Artigo', 'Defeito', 'Metros', 'KG', 'Turno'].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th); var tb = el('tbody');
+    linhas.forEach(function (x) { var r = el('tr'); [dbr(x.data), x.maquina || '—', x.artigo, x.defeito || x.codigos || '—', nf(x.metros), nf(x.kg, 2), x.turno ? x.turno + 'º turno' : '—'].forEach(function (v, i) { var td = el('td', null, v); if (i === 3) td.style.textAlign = 'left'; r.appendChild(td); }); tb.appendChild(r); });
+    t.appendChild(tb); w.appendChild(t); return w;
+  }
+  function reprovaCru(d) {
+    var c = $('indCorpo'); c.textContent = ''; var g = el('div', 'ind-grid'); c.appendChild(g);
+    var kp = el('div'); kp.appendChild(kpis(k('Peças reprovadas', nf(d.pecas)), k('Metros', nf(d.metros), 'ruim'), k('KG', nf(d.kg, 1))));
+    if (d.erro) kp.appendChild(el('div', 'ind-nota', 'Atenção: ' + d.erro));
+    g.appendChild(cartao('Reprova Cru — resumo do mês', 'laranja', kp, 12));
+    var a = el('div'); if (graf) { graf.destroy(); graf = null; } var w = el('div', 'ind-graf'), cv = document.createElement('canvas'); w.appendChild(cv); a.appendChild(w);
+    graf = new Chart(cv, { type: 'bar', data: { labels: d.defeitos.slice(0, 12).map(function (x) { return x.defeito; }), datasets: [{ label: 'Metros reprovados', data: d.defeitos.slice(0, 12).map(function (x) { return x.metros; }), backgroundColor: '#c9822b', borderRadius: 4 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: function (v) { return nf(v); } } }, y: { grid: { display: false } } } } });
+    g.appendChild(cartao('Defeitos (metros reprovados)', 'laranja', a, 6));
+    var dd = el('div'), tb = el('table', 'ind-tb'), hh = el('tr'); ['Dia', 'Peças', 'Metros', 'KG'].forEach(function (x) { hh.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(hh); tb.appendChild(th); var bd = el('tbody');
+    d.dias.forEach(function (x) { var r = el('tr'); [dbr(x.data), nf(x.pecas), nf(x.metros), nf(x.kg, 1)].forEach(function (v) { r.appendChild(el('td', null, v)); }); bd.appendChild(r); }); tb.appendChild(bd); var wr = el('div', 'ind-rolagem'); wr.style.maxHeight = '300px'; wr.appendChild(tb); dd.appendChild(wr);
+    g.appendChild(cartao('Por dia', 'laranja', dd, 6));
+    g.appendChild(cartao('Peças reprovadas (NCs)', 'laranja', tabelaNC(d.linhas.slice().reverse()), 12));
+  }
   var TEXTOS = {
     revisao: ['Revisão Cru (local 24)', 'Na planilha: peças revisadas por turno e por máquina, produzido x revisado (%) e meta de 42 peças por turno. A fonte do local 24 na API do TOTVS ainda está em análise.'],
-    reprova_cru: ['Reprova Cru', 'Na planilha: cada peça reprovada no cru (máquina, artigo, defeito pela tabela R01–R35, metros, kg e turno). Em análise.'],
     reprova_aca: ['Reprova Acabamento', 'Na planilha: peças reprovadas no acabamento (OP, artigo, defeito, metros, kg e turno). Em análise.'],
     retrabalho: ['Retrabalho (local 31)', 'Na planilha: peças aguardando, entradas e saídas (metros, peças e kg) por dia. A fonte na API está sendo mapeada.'],
     retalho: ['Retalho', 'Na planilha: kg de retalho por local (malharia, revisão cru, acabamento, retrabalho, gramatura), turno e máquina. Em análise.']
   };
+  var req = 0;
   function carregar() {
+    var meu = ++req;
     $('indCorpo').textContent = '';
     if (TEXTOS[abaAtual]) { var c = $('indCorpo'), g = el('div', 'ind-grid'); g.appendChild(cartao(TEXTOS[abaAtual][0], 'cinza', analise(TEXTOS[abaAtual][1]), 12)); c.appendChild(g); $('indSub').textContent = 'Em análise · sem dados ainda'; return; }
-    var url = abaAtual === 'reuniao' ? '/indicadores/reuniao?dia=' + $('indDia').value : '/indicadores/mensal?mes=' + $('indMes').value;
+    var url = abaAtual === 'reuniao' ? '/indicadores/reuniao?dia=' + $('indDia').value : (abaAtual === 'reprova_cru' ? '/indicadores/reprova-cru?mes=' : '/indicadores/mensal?mes=') + $('indMes').value;
     $('indSub').textContent = 'Carregando…';
     fetch(url, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error('HTTP ' + r.status + (j.erro ? ' — ' + j.erro : '')); }); return r.json(); }).then(function (d) {
+      if (meu !== req) return;                                    // resposta de uma aba que ja foi trocada
       $('indSub').textContent = abaAtual === 'reuniao' ? 'Reunião diária de ' + dbr(d.data) + ' · semana ' + d.semana + (d.atualizado ? ' · acabamento atualizado ' + d.atualizado.slice(11, 16) : '') + (d.erro ? ' · ' + d.erro : '') : 'Mês ' + String(d.mes).padStart(2, '0') + '/' + d.ano;
       var av = (d.avisos || []).join(' · '); if (av) $('indSub').textContent += ' · ATENÇÃO: ' + av;
-      if (abaAtual === 'reuniao') reuniao(d); else if (abaAtual === 'malharia') mensal(d, 'malharia', 'Malharia', true); else if (abaAtual === 'acabamento') mensal(d, 'acabamento', 'Acabamento', true); else fatur(d);
-    }).catch(function (e) { $('indSub').textContent = 'Erro ao carregar: ' + e.message; });
+      if (abaAtual === 'reuniao') reuniao(d); else if (abaAtual === 'malharia') mensal(d, 'malharia', 'Malharia', true); else if (abaAtual === 'acabamento') mensal(d, 'acabamento', 'Acabamento', true); else if (abaAtual === 'reprova_cru') reprovaCru(d); else fatur(d);
+    }).catch(function (e) { if (meu === req) $('indSub').textContent = 'Erro ao carregar: ' + e.message; });
   }
   $('indDia').addEventListener('change', carregar); $('indMes').addEventListener('change', carregar);
-  $('indAtualizar').addEventListener('click', function () { fetch('/indicadores/atualizar', { method: 'POST', credentials: 'same-origin' }).then(function () { $('indSub').textContent = 'Atualizando o acabamento no TOTVS… volte a abrir em 1 a 2 minutos.'; }); });
+  $('indAtualizar').addEventListener('click', function () { fetch('/indicadores/atualizar', { method: 'POST', credentials: 'same-origin' }).then(function () { $('indSub').textContent = 'Atualizando acabamento (TOTVS) e reprovas (SharePoint)… volte a abrir em 1 a 2 minutos.'; }); });
   abas(); carregar();
 })();
 </script>
