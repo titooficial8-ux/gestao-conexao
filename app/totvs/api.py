@@ -463,6 +463,7 @@ COLUNAS_150 = ["Emp", "COD.REP", "REPRE", "COD.CLI", "CLIENTE", "FANTASIA", "OPE
                "Vl. Icms", "Bs calc pis cofins", "Pr. Aliqcofins", "Pr. Aliqpis",
                "Vl. Vlr Cofins", "Vl. Vlr Pis"]
 TOTAIS_150 = ["QUANT", "TOT.LIQUID", "Vl. Icms"]
+COL_PREV = "DT.PREV FATURAMENTO"        # so no relatorio sob demanda (Gerar relatorio): data prevista de faturamento do pedido de venda
 
 # Operações do 150. "financeiro" = só operações que movimentam financeiro
 # (igual à coluna Financeiro=SIM). Ou informe códigos: "500,526,545,546".
@@ -637,6 +638,32 @@ def buscar_representantes_pedidos(cli, pedidos: set[tuple[int, int]], diag: Diag
     return res
 
 
+def buscar_previsao_pedidos(cli, pedidos: set[tuple[int, int]], diag: Diagnostico) -> dict:
+    """(empresa, pedido) -> (data prevista do pedido, {codigo do produto: data prevista do item}); billingForecastDate do pedido de venda."""
+    res: dict[tuple[int, int], tuple] = {}
+    por_emp: dict[int, list[int]] = {}
+    for emp, ped in pedidos:
+        por_emp.setdefault(emp, []).append(ped)
+    for emp, peds in por_emp.items():
+        for lote in _lotes(sorted(set(peds)), 100):
+            itens = _tentar(cli, ORDERS_URL, [{"filter": {"branchCodeList": [emp], "orderCodeList": lote}, "pageSize": 100, "expand": "items"}], diag, "pedidos_previsao")
+            if itens is None:
+                diag.problema("data prevista de faturamento: consulta dos pedidos recusada")
+                return res
+            for o in itens:
+                cod_ped = _primeira_chave(o, "orderCode", "code")
+                if cod_ped is None:
+                    continue
+                por_prod: dict[int, object] = {}
+                for it in o.get("items") or []:
+                    d = _d(it.get("billingForecastDate"))
+                    pc = it.get("productCode")
+                    if pc is not None and d:
+                        por_prod[int(pc)] = min(d, por_prod[int(pc)]) if int(pc) in por_prod else d
+                res[(emp, int(cod_ped))] = (_d(o.get("billingForecastDate")), por_prod)
+    return res
+
+
 def buscar_nomes_representantes(cli, codigos: list[int], diag: Diagnostico) -> dict[int, str]:
     res: dict[int, str] = {}
     cods = sorted(set(int(c) for c in codigos if c not in (None, "")))
@@ -722,7 +749,7 @@ def _cod_produto(it: dict):
         return None
 
 
-def montar_relatorio150(cli, notas: list[dict], pasta_diag: Path) -> tuple[pd.DataFrame, Diagnostico]:
+def montar_relatorio150(cli, notas: list[dict], pasta_diag: Path, com_previsao: bool = False) -> tuple[pd.DataFrame, Diagnostico]:
     diag = Diagnostico(pasta_diag)
     validas = [n for n in notas if n.get("invoiceStatus") in STATUS_VALIDOS]
     print(f"\nMontando Relatório 150 ({len(validas)} notas válidas)...")
@@ -748,6 +775,7 @@ def montar_relatorio150(cli, notas: list[dict], pasta_diag: Path) -> tuple[pd.Da
     pedidos = {(int(s.get("branchCode") or n.get("branchCode")), int(s["orderCode"]))
                for n in validas for s in (n.get("salesOrder") or []) if s.get("orderCode")}
     reps_ped = buscar_representantes_pedidos(cli, pedidos, diag) if pedidos else {}
+    prev_ped = buscar_previsao_pedidos(cli, pedidos, diag) if (com_previsao and pedidos) else {}
     # Devoluções (e notas sem pedido de venda) não têm representante no pedido: vale o representante do cadastro do cliente.
     def _rep_cadastro(n):
         for r in (pessoas.get(n.get("personCode"), {}).get("representatives") or []):
@@ -803,7 +831,15 @@ def montar_relatorio150(cli, notas: list[dict], pasta_diag: Path) -> tuple[pd.Da
                 gram = int(float(str(gram).replace(",", "."))) if gram not in (None, "") else None
             except ValueError:
                 pass
-            linhas.append({
+            prev = None
+            if com_previsao:
+                for sp in n.get("salesOrder") or []:
+                    pp = prev_ped.get((int(sp.get("branchCode") or n.get("branchCode")), int(sp.get("orderCode") or 0)))
+                    if pp:
+                        prev = (pp[1].get(int(cod)) if cod is not None and str(cod).lstrip("-").isdigit() else None) or pp[0]
+                        if prev:
+                            break
+            linha_150 = {
                 "Emp": n.get("branchCode"),
                 "COD.REP": rep_cod,
                 "REPRE": rep_nome,
@@ -834,8 +870,11 @@ def montar_relatorio150(cli, notas: list[dict], pasta_diag: Path) -> tuple[pd.Da
                 "Pr. Aliqpis": pis.get("taxPercentage") or 0,
                 "Vl. Vlr Cofins": cofins.get("taxValue") or 0,
                 "Vl. Vlr Pis": pis.get("taxValue") or 0,
-            })
-    df = pd.DataFrame(linhas, columns=COLUNAS_150)
+            }
+            if com_previsao:
+                linha_150[COL_PREV] = prev
+            linhas.append(linha_150)
+    df = pd.DataFrame(linhas, columns=COLUNAS_150 + ([COL_PREV] if com_previsao else []))
 
     if not df.empty:
         for col, rotulo in (("REPRE", "representante"), ("FANTASIA", "nome fantasia"),
@@ -875,13 +914,13 @@ LARGURAS_150 = {"Emp": 6, "COD.REP": 11, "REPRE": 32, "COD.CLI": 9, "CLIENTE": 4
                 "ESP.": 6, "GRAMATURA": 11, "SEGMENTO": 13, "UNIT.LIQ.": 11, "TOT.LIQUID": 13,
                 "EMISSAO": 11, "UF": 5, "Financeiro": 10, "Vl. Freterat": 11, "Vl. Segurorat": 12,
                 "Vl. Icms": 11, "Bs calc pis cofins": 15, "Pr. Aliqcofins": 12, "Pr. Aliqpis": 10,
-                "Vl. Vlr Cofins": 13, "Vl. Vlr Pis": 11}
+                "Vl. Vlr Cofins": 13, "Vl. Vlr Pis": 11, COL_PREV: 22}
 FORMATOS_150 = {"COD.REP": "0", "COD.CLI": "0", "NFE": "0", "CODIDO": "0", "OPER": "0", "Emp": "0",
                 "GRAMATURA": "0", "DATA": "DD/MM/YYYY", "EMISSAO": "DD/MM/YYYY",
                 "QUANT": "#,##0.###;-#,##0.###;0", "UNIT.LIQ.": "#,##0.00####",
                 "TOT.LIQUID": "#,##0.00", "Vl. Freterat": "#,##0.00", "Vl. Segurorat": "#,##0.00",
                 "Vl. Icms": "#,##0.00", "Bs calc pis cofins": "#,##0.00", "Pr. Aliqcofins": "0.00",
-                "Pr. Aliqpis": "0.00", "Vl. Vlr Cofins": "#,##0.00##", "Vl. Vlr Pis": "#,##0.00##"}
+                "Pr. Aliqpis": "0.00", "Vl. Vlr Cofins": "#,##0.00##", "Vl. Vlr Pis": "#,##0.00##", COL_PREV: "DD/MM/YYYY"}
 
 
 def formatar_aba_150(ws, tem_total: bool = True) -> None:
