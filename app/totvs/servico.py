@@ -267,7 +267,7 @@ def gerar_dados(inicio: date, fim: date, tag: str) -> dict:
     _log(f'{len(notas)} notas recebidas. Montando o Relatorio 150...')
     df_notas = api.montar_notas(notas)
     try:
-        df150, diag = api.montar_relatorio150(cli, notas, DIR / f'diagnostico_{tag}')
+        df150, diag = api.montar_relatorio150(cli, notas, DIR / f'diagnostico_{tag}', com_previsao=(tag == 'custom'))      # DT.PREV FATURAMENTO so no "Gerar relatorio"
     except Exception as e:
         traceback.print_exc()
         df150, diag = pd.DataFrame(columns=api.COLUNAS_150), None
