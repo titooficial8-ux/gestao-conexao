@@ -140,7 +140,7 @@ def atualizar_acabamento(app) -> bool:
             ini = (ultimo.date() - timedelta(days=2)) if ultimo else date.fromisoformat(DESDE)
             hoje = date.today()
             itens = _buscar_trx(cli, ini, hoje)
-            existentes = {c for (c,) in db.session.query(IndAcabamento.codigo).filter(IndAcabamento.mudou >= datetime.combine(ini, datetime.min.time())).all()}
+            existentes = {c for (c,) in db.session.query(IndAcabamento.codigo).all()}          # todos: uma transacao reprocessada no TOTVS volta com data nova mas e a mesma
             novos = []
             for t in itens:
                 cod = t.get('transactionCode')
