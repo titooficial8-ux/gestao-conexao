@@ -167,6 +167,10 @@ def atualizar_acabamento(app) -> bool:
         return True
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
+        try:
+            db.session.rollback()
+        except Exception:  # noqa: BLE001
+            pass
         ESTADO['erro'] = str(e)[:200]
         return False
     finally:
@@ -421,6 +425,11 @@ def atualizar_reprova_cru(app) -> bool:
         return True
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
+        try:
+            with app.app_context():
+                db.session.rollback()
+        except Exception:  # noqa: BLE001
+            pass
         _ult_nc['erro'] = str(e)[:200]
         return False
 
@@ -631,21 +640,27 @@ def atualizar_estoque(app) -> bool:
             atuais = {k: v for k, v in atuais.items() if k[1] in ok}
             agora = agora_brasilia()
             primeira = IndEstoqueItem.query.count() == 0
-            ativos = {(x.lote, x.produto, x.seq): x for x in IndEstoqueItem.query.filter(IndEstoqueItem.saiu_em.is_(None)).all()}
+            todos = {(x.lote, x.produto, x.seq): x for x in IndEstoqueItem.query.all()}
             for k, bal in atuais.items():
-                x = ativos.get(k)
+                x = todos.get(k)
                 if x is None:
                     db.session.add(IndEstoqueItem(lote=k[0], produto=k[1], seq=k[2], metros=bal, visto_em=agora, baseline=primeira))
+                elif x.saiu_em is not None:                         # a peca voltou ao estoque (estorno, nova entrada): conta como entrada de novo
+                    x.saiu_em, x.visto_em, x.baseline, x.metros = None, agora, False, bal
                 else:
                     x.metros = bal
-            for k, x in ativos.items():
-                if k not in atuais:
+            for k, x in todos.items():
+                if x.saiu_em is None and k not in atuais:
                     x.saiu_em = agora
             db.session.commit()
             _est.update(ts=agora.isoformat(timespec='seconds'), erro=None)
         return True
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
+        try:
+            db.session.rollback()
+        except Exception:  # noqa: BLE001
+            pass
         _est['erro'] = str(e)[:200]
         return False
     finally:
