@@ -20,9 +20,10 @@ git checkout main
 ```
 python -m venv venv
 venv\Scripts\python -m pip install -r requirements.txt
+set PLAYWRIGHT_BROWSERS_PATH=C:\ms-playwright
 venv\Scripts\python -m playwright install chromium
 ```
-(o Chromium é para o PDF dos relatórios.)
+(o Chromium é para o PDF dos relatórios; fica em `C:\ms-playwright` para a tarefa agendada, que roda como SYSTEM, também enxergar. Se for testar o PDF rodando à mão, use antes `set PLAYWRIGHT_BROWSERS_PATH=C:\ms-playwright` na mesma janela.)
 
 ## 3. Levar os dados e as senhas do computador atual
 Copie do PC onde o Gestão roda hoje para `C:\gestao-conexao\` na VPS (pasta compartilhada, pendrive ou RDP):
@@ -48,12 +49,12 @@ Abra `http://127.0.0.1:5000` no navegador da VPS. Funcionou? Feche com Ctrl+C.
 
 ## 5. Deixar rodando 24 h (sobrevive a fechar o RDP e a reiniciar)
 ```
-copy deploy\windows\iniciar_gestao.bat C:\gestao-conexao\iniciar_gestao.bat
-schtasks /create /tn "GestaoConexao" /tr "C:\gestao-conexao\iniciar_gestao.bat" /sc onstart /ru SYSTEM /rl HIGHEST /f
+copy deploy\windows\iniciar_gestao.bat iniciar_gestao.bat
+schtasks /create /tn "GestaoConexao" /tr "%CD%\iniciar_gestao.bat" /sc onstart /ru SYSTEM /rl HIGHEST /f
 schtasks /run /tn "GestaoConexao"
 netstat -ano | findstr ":5000"
 ```
-O último comando deve mostrar `LISTENING`. O log fica em `C:\gestao-conexao\gestao_log.txt`.
+O último comando deve mostrar `LISTENING`. O log fica em `gestao_log.txt`, na pasta do projeto. (Rode esses comandos de dentro da pasta do projeto; ela pode estar em qualquer lugar, não precisa ser `C:\gestao-conexao`.)
 
 ## 6. Colocar no ar com HTTPS (Caddy)
 Abra o Caddyfile que já está em uso (`type C:\caminho\Caddyfile`), acrescente o bloco de `deploy\windows\Caddyfile.exemplo` (com o seu domínio) **no fim do arquivo**, salve e valide:
