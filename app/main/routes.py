@@ -2308,12 +2308,28 @@ def maquina_detalhe(numero):
     produzindo_count = sum(1 for s in sequencias if s.status == 'PRODUZINDO')
     artigos = {s.id: dados_do_artigo(s.artigo) for s in sequencias}   # gramatura/composicao lidas do TOTVS
     ds_metros = {s.id: resolve_metros_from_article(s.artigo) for s in sequencias}   # metragem padrao do artigo (METRO IDEAL LOTE do TOTVS)
-    ref24 = next((s for s in sequencias if s.status == 'PRODUZINDO' and s.pecas_dia), None) or next((s for s in sequencias if s.pecas_dia), None)
-    pecas_24h = ref24.pecas_dia if ref24 else None                    # entrega da maquina em 24 h (voltas/RPM, com 15 % de ineficiencia)
-    metros_24h = round(pecas_24h * ref24.qt_solicitada / ref24.total_pcs) if ref24 and ref24.total_pcs and ref24.qt_solicitada else None
+    # entrega da maquina em 24 h pela conta voltas/RPM (ineficiencia incluida): da OP que esta produzindo; se ela ainda nao tem
+    # voltas/RPM na base, usa a primeira OP da fila que tem (e o cartao avisa de qual OP veio)
+    produzindo = next((s for s in sequencias if s.status == 'PRODUZINDO'), None)
+    ref24 = produzindo if (produzindo and produzindo.pecas_dia) else next((s for s in sequencias if s.pecas_dia), None)
+    pecas_24h = ref24.pecas_dia if ref24 else None
+    metro_ref = None
+    if ref24:
+        try:
+            metro_ref = float(str(resolve_metros_from_article(ref24.artigo) or '').replace(',', '.')) or None
+        except ValueError:
+            metro_ref = None
+        if not metro_ref and ref24.total_pcs and ref24.qt_solicitada:
+            metro_ref = ref24.qt_solicitada / ref24.total_pcs
+    metros_24h = round(pecas_24h * metro_ref) if pecas_24h and metro_ref else None
+    origem_24h = None
+    if ref24:
+        origem_24h = dict(op=ref24.op, artigo=ref24.artigo, voltas=int(ref24.prev_voltas or 0), rpm=ref24.prev_rpm, fonte=ref24.prev_fonte,
+                          da_producao=bool(produzindo and ref24.id == produzindo.id), sem_base_producao=bool(produzindo and not produzindo.pecas_dia),
+                          op_produzindo=produzindo.op if produzindo else None)
     return render_template(
         'main/maquina_detalhe.html',
-        artigos=artigos, ds_metros=ds_metros, pecas_24h=pecas_24h, metros_24h=metros_24h,
+        artigos=artigos, ds_metros=ds_metros, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
         tab=tab,
         machine=machine,
         sequencias=sequencias,
