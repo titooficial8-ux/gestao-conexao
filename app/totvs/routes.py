@@ -468,6 +468,28 @@ def movimentos_produto():
     return _json(out)
 
 
+@mov_bp.route('/op-status')
+@login_required
+def op_status():
+    """Diagnostico (so administrador): o que o TOTVS devolve de uma OP (?op=2999): status, locais e a situacao que o Gestao calcula."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.models import Sequencia
+    from app.totvs import movimentos
+    op = request.args.get('op', '')
+    if not op.isdigit():
+        return _json(dict(erro='use ?op=NUMERO'))
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        r = cli.post(movimentos.OPS_URL, dict(filter=dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], orderCodeList=[int(op)]), expand='locations', pageSize=1, page=1))
+        o = (r.json().get('items') or [None])[0] if r.status_code == 200 else None
+    seq = Sequencia.query.filter_by(op=op).first()
+    cabecalho = {k: v for k, v in (o or {}).items() if k not in ('items', 'materials')}
+    return _json(dict(http=r.status_code, op=op, achou_no_totvs=bool(o), status_no_totvs=(o or {}).get('status'), situacao_calculada=movimentos.situacao_op(o) if o else None,
+                      no_gestao=dict(situacao=seq.situacao, status=seq.status, maquina=seq.machine.number if seq and seq.machine else None) if seq else None,
+                      cabecalho_cru=cabecalho))
+
+
 @mov_bp.route('/artigos-status')
 @login_required
 def artigos_status():
