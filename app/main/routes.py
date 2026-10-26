@@ -94,6 +94,9 @@ def resolve_client_from_article(artigo):
     return None
 
 
+from app.totvs.artigos import dados_do_artigo  # noqa: E402
+
+
 def resolve_estrutura_from_article(artigo):
     artigo = (artigo or '').strip()
     if not artigo:
@@ -105,6 +108,10 @@ def resolve_estrutura_from_article(artigo):
         m = ArticleEstruturaMapping.query.filter(db.func.upper(ArticleEstruturaMapping.article) == chave).first()
         if m:
             return m.estrutura
+    # 2) estrutura lida do TOTVS (classificacao do artigo) e 3) estrutura do Relatorio Pedidos
+    a = dados_do_artigo(artigo)
+    if a and a.estrutura:
+        return a.estrutura
     p = _find_pedido_por_artigo(artigo)
     if p and p.estrutura:
         return p.estrutura
@@ -1478,8 +1485,9 @@ def programacao_download():
             s.column_dimensions[col_cells[0].column_letter].width = min(max(length + 2, 10), 40)
 
     add_sheet('Resumo Completo', '0EA5E9',
-               ['Artigo', 'Cliente', 'OP', 'Estrutura', 'DS.Metros', 'Qt Avulsa', 'Peças Produzidas', 'Total Pçs', 'PÇ.PRODUZIR', 'Qt Solicitada', 'Motivo'],
-               [[r.artigo, r.cliente, r.op, resolve_estrutura_from_article(r.artigo), resolve_metros_from_article(r.artigo),
+               ['Artigo', 'Cliente', 'OP', 'Estrutura', 'Gramatura', 'Composição', 'DS.Metros', 'Qt Avulsa', 'Peças Produzidas', 'Total Pçs', 'PÇ.PRODUZIR', 'Qt Solicitada', 'Motivo'],
+               [[r.artigo, r.cliente, r.op, resolve_estrutura_from_article(r.artigo),
+                 getattr(dados_do_artigo(r.artigo), 'gramatura', None), getattr(dados_do_artigo(r.artigo), 'composicao', None), resolve_metros_from_article(r.artigo),
                  r.qt_avulsa, r.pecas_produzidas, r.total_pcs, max(0, r.total_pcs - r.pecas_produzidas), r.qt_solicitada, r.reason or '']
                 for r in todos])
     add_sheet('Finalizados', '16A34A',
@@ -2206,8 +2214,10 @@ def maquina_detalhe(numero):
     rodando = any(s.status == 'PRODUZINDO' for s in sequencias)
     total_pcs_maquina = sum(s.total_pcs or 0 for s in sequencias)
     produzindo_count = sum(1 for s in sequencias if s.status == 'PRODUZINDO')
+    artigos = {s.id: dados_do_artigo(s.artigo) for s in sequencias}   # gramatura/composicao lidas do TOTVS
     return render_template(
         'main/maquina_detalhe.html',
+        artigos=artigos,
         tab=tab,
         machine=machine,
         sequencias=sequencias,

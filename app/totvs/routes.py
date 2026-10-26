@@ -468,6 +468,32 @@ def movimentos_produto():
     return _json(out)
 
 
+@mov_bp.route('/artigo-campos')
+@login_required
+def artigo_campos():
+    """Diagnostico (so administrador): o que o TOTVS devolve de um artigo (?cod=12345) - classificacoes e campos adicionais -
+    para conferir como estrutura, composicao e gramatura estao cadastradas. ?op=2687 tambem mostra os campos adicionais da OP."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.totvs import artigos, movimentos
+    cod, op = request.args.get('cod', ''), request.args.get('op', '')
+    out = dict(cod=cod, op=op)
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        if cod.isdigit():
+            rp = cli.post(movimentos.BASE_URL + '/api/totvsmoda/product/v2/products/search',
+                          dict(filter=dict(productCodeList=[int(cod)]), option=dict(branchInfoCode=movimentos.EMPRESA), expand='classifications', page=1, pageSize=1))
+            prod = (rp.json().get('items') or [None])[0] if rp.status_code == 200 else None
+            out['produto_cru'] = prod if prod else f'HTTP {rp.status_code} {rp.text[:200]}'
+            out['lido_das_classificacoes'] = artigos.ler_classificacoes(prod) if prod else None
+        if op.isdigit():
+            r = cli.post(movimentos.OPS_URL, dict(filter=dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], orderCodeList=[int(op)]), expand='items', pageSize=1, page=1))
+            itens = (r.json().get('items') or [{}])[0].get('items') or [] if r.status_code == 200 else []
+            out['campos_adicionais_cru'] = (itens[0].get('productAdditionalField') if itens else None)
+            out['lido_dos_campos'] = artigos.ler_campos_adicionais(itens[0]) if itens else None
+    return _json(out)
+
+
 @mov_bp.route('/dia')
 @login_required
 def movimentos_dia():
