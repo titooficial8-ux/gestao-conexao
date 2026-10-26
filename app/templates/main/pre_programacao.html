@@ -85,6 +85,14 @@
             </form>
           </td>
         </tr>
+        {% else %}
+        <tr><td colspan="10" class="prod-table-empty">{{ t('nenhuma_op_aguardando') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 
 <script>
 (function () {
