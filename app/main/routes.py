@@ -7,7 +7,7 @@ import unicodedata
 
 from flask import Blueprint, render_template, abort, redirect, url_for, request, flash, jsonify, Response, session
 from flask_login import login_required, current_user
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from app import db
 from app.models import (
@@ -2196,6 +2196,56 @@ def novo_registro_programacao():
     db.session.commit()
     flash('novo_registro_sucesso', 'success')
     return redirect(url_for('main.maquina_detalhe', numero=machine.number))
+
+
+@main_bp.route('/aba/programacao/maquina/<int:numero>/historico-producao')
+@login_required
+def maquina_historico_producao(numero):
+    """Pecas, metros e kg que a maquina fez em cada dia de producao (06:20 -> 06:20), com a media por 24 h.
+    Fonte: baixas de fio do TOTVS ligadas a maquina (a mesma do Controle de Producao). ?dias=30 ou ?de=AAAA-MM-DD&ate=AAAA-MM-DD."""
+    from app.models import BaixaFio
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+    agora = datetime.now()                                    # o servidor roda no horario do Brasil
+    dia_atual = (agora - timedelta(hours=6, minutes=20)).date()   # dia de producao em andamento
+    try:
+        if request.args.get('de') and request.args.get('ate'):
+            de, ate = date.fromisoformat(request.args['de']), date.fromisoformat(request.args['ate'])
+        else:
+            dias = max(1, min(int(request.args.get('dias', 30)), 366))
+            ate, de = dia_atual, dia_atual - timedelta(days=dias - 1)
+    except ValueError:
+        return jsonify(ok=False, erro='Período inválido.'), 400
+    ate = min(ate, dia_atual)
+    if de > ate or (ate - de).days > 366:
+        return jsonify(ok=False, erro='Período inválido (máximo 1 ano).'), 400
+    t0 = datetime.combine(de, datetime.min.time()) + timedelta(hours=6, minutes=20)
+    t1 = datetime.combine(ate + timedelta(days=1), datetime.min.time()) + timedelta(hours=6, minutes=20)
+    por_dia = {}
+    for b in BaixaFio.query.filter(BaixaFio.maquina == numero, BaixaFio.mudou >= t0, BaixaFio.mudou < t1).all():
+        d = por_dia.setdefault((b.mudou - timedelta(hours=6, minutes=20)).date(), [0, 0.0, 0.0])
+        d[0] += 1
+        d[1] += float(b.metro_padrao or b.metros or 0)
+        d[2] += float(b.kg or 0)
+    dias_lista, d = [], de
+    while d <= ate:
+        p, m, k = por_dia.get(d, [0, 0.0, 0.0])
+        dias_lista.append(dict(dia=d.isoformat(), semana=['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'][d.weekday()], pecas=p,
+                               metros=round(m, 1), kg=round(k, 1), parcial=(d == dia_atual)))
+        d += timedelta(days=1)
+    fechados = [x for x in dias_lista if not x['parcial']]            # o dia em andamento nao entra nas medias
+    produzindo = [x for x in fechados if x['pecas'] > 0]
+    def media(lista, campo):
+        return round(sum(x[campo] for x in lista) / len(lista), 1) if lista else 0
+    resumo = dict(
+        total_pecas=sum(x['pecas'] for x in dias_lista), total_metros=round(sum(x['metros'] for x in dias_lista), 1),
+        total_kg=round(sum(x['kg'] for x in dias_lista), 1),
+        dias_com_producao=len(produzindo), dias_periodo=len(fechados),
+        media_pecas_24h=media(produzindo, 'pecas'), media_metros_24h=media(produzindo, 'metros'),
+        media_pecas_periodo=media(fechados, 'pecas'),
+        melhor=max(produzindo, key=lambda x: x['pecas'], default=None))
+    return jsonify(ok=True, maquina=numero, de=de.isoformat(), ate=ate.isoformat(), dias=dias_lista[::-1], resumo=resumo)
 
 
 @main_bp.route('/aba/programacao/maquina/<int:numero>')

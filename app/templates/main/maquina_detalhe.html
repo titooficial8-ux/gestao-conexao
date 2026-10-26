@@ -21,7 +21,7 @@
   <div class="prod-toolbar-actions">
     <button type="button" class="prod-btn" disabled>{{ t('acao_lista') }}</button>
     <button type="button" class="prod-btn" disabled>{{ t('acao_atualizar') }}</button>
-    <button type="button" class="prod-btn" disabled>{{ t('acao_historico') }}</button>
+    <button type="button" class="prod-btn prod-btn-accent" id="btnHistProd">&#128200; Histórico de produção</button>
     <button type="button" class="prod-btn" disabled>{{ t('acao_download') }}</button>
     <button type="button" class="prod-btn prod-btn-warn" disabled>{{ t('acao_dias_sem_producao') }}</button>
     <button type="button" class="prod-btn prod-btn-accent" id="btnEstruturas">{{ t('estruturas_habilitadas') }}</button>
@@ -259,6 +259,84 @@
   document.getElementById('opModalFechar').addEventListener('click', fechar);
   modal.addEventListener('click', function (e) { if (e.target === modal) fechar(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fechar(); });
+})();
+</script>
+
+<div class="modal-backdrop" id="modalHistProd" hidden>
+  <div class="modal-box op-modal-box">
+    <div class="modal-head">
+      <h3>Histórico de produção · Máquina {{ '%02d'|format(machine.number) }}</h3>
+      <button type="button" class="modal-close" id="fecharHistProd">&times;</button>
+    </div>
+    <div class="hp-filtros">
+      <select id="hpDias" class="status-select">
+        <option value="7">Últimos 7 dias</option><option value="15">Últimos 15 dias</option>
+        <option value="30" selected>Últimos 30 dias</option><option value="60">Últimos 60 dias</option><option value="90">Últimos 90 dias</option>
+        <option value="custom">Escolher datas…</option>
+      </select>
+      <span id="hpCustom" hidden>
+        <input type="date" id="hpDe" class="status-select"> até <input type="date" id="hpAte" class="status-select">
+        <button type="button" class="prod-btn" id="hpAplicar">Aplicar</button>
+      </span>
+    </div>
+    <div id="hpCorpo" class="vg-modal-body"></div>
+    <p class="op-modal-rodape">Dia de produção = das 06:20 às 06:20 do dia seguinte. Peças e metros contam as peças pesadas na MALHARIA PESAGEM que o TOTVS liga a esta máquina (metro padrão da OP). A média por 24 h considera só os dias fechados em que a máquina produziu; o dia em andamento aparece, mas não entra na média.</p>
+  </div>
+</div>
+<style>
+.hp-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:4px 0 12px}
+.hp-barra{display:block;height:8px;border-radius:999px;background:var(--gray-200);min-width:90px}
+.hp-barra i{display:block;height:100%;border-radius:999px;background:var(--blue-600)}
+.hp-zero td{color:var(--gray-500)}
+.hp-parcial td:first-child::after{content:' (em andamento)';font-size:11px;color:var(--blue-700);font-weight:700}
+</style>
+<script>
+(function () {
+  var modal = document.getElementById('modalHistProd'), btn = document.getElementById('btnHistProd');
+  if (!modal || !btn) return;
+  var corpo = document.getElementById('hpCorpo'), sel = document.getElementById('hpDias'), custom = document.getElementById('hpCustom');
+  var url = '{{ url_for("main.maquina_historico_producao", numero=machine.number) }}';
+  function nf(v, d) { return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function dia(iso) { var p = iso.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+  function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
+  function kpi(rot, val, sub, un) { var k = el('div', 'op-kpi'); k.appendChild(el('span', 'op-kpi-rot', rot)); var v = el('strong', 'op-kpi-val', val); if (un) v.appendChild(el('small', 'op-kpi-un', ' ' + un)); k.appendChild(v); if (sub) k.appendChild(el('span', 'op-kpi-sub', sub)); return k; }
+  function desenhar(d) {
+    corpo.textContent = '';
+    if (!d.ok) { corpo.appendChild(el('p', 'prod-table-empty', d.erro || 'Não foi possível carregar.')); return; }
+    var r = d.resumo, kp = el('div', 'op-kpis');
+    kp.appendChild(kpi('Média por 24 h', nf(r.media_pecas_24h, 1), r.dias_com_producao + ' dias com produção', 'peças'));
+    kp.appendChild(kpi('Média por 24 h', nf(r.media_metros_24h, 0), 'metros por dia', 'm'));
+    kp.appendChild(kpi('Total no período', String(r.total_pecas), nf(r.total_metros, 0) + ' m · ' + nf(r.total_kg, 0) + ' kg', 'peças'));
+    if (r.melhor) kp.appendChild(kpi('Melhor dia', String(r.melhor.pecas), dia(r.melhor.dia) + ' · ' + nf(r.melhor.metros, 0) + ' m', 'peças'));
+    corpo.appendChild(kp);
+    if (!r.total_pecas) { corpo.appendChild(el('p', 'prod-table-empty', 'Nenhuma peça desta máquina no período.')); return; }
+    var max = Math.max.apply(null, d.dias.map(function (x) { return x.pecas; })) || 1;
+    var tb = el('table', 'data-table prod-table tab-centro'), th = el('thead'), tr = el('tr');
+    ['Dia', 'Peças', 'Metros', 'Kg', ''].forEach(function (h) { tr.appendChild(el('th', null, h)); });
+    th.appendChild(tr); tb.appendChild(th);
+    var body = el('tbody');
+    d.dias.forEach(function (x) {
+      var l = el('tr', (x.pecas ? '' : 'hp-zero ') + (x.parcial ? 'hp-parcial' : ''));
+      l.appendChild(el('td', null, dia(x.dia) + ' · ' + x.semana));
+      l.appendChild(el('td', null, String(x.pecas))); l.appendChild(el('td', null, x.pecas ? nf(x.metros, 0) : '–')); l.appendChild(el('td', null, x.pecas ? nf(x.kg, 0) : '–'));
+      var b = el('td'), bar = el('span', 'hp-barra'), i = el('i'); i.style.width = Math.round(x.pecas / max * 100) + '%'; bar.appendChild(i); b.appendChild(bar); l.appendChild(b);
+      body.appendChild(l);
+    });
+    tb.appendChild(body); var w = el('div', 'table-scroll'); w.appendChild(tb); corpo.appendChild(w);
+  }
+  function carregar(qs) {
+    corpo.textContent = ''; corpo.appendChild(el('p', 'prod-table-empty', 'Carregando…'));
+    fetch(url + '?' + qs, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(desenhar)
+      .catch(function () { corpo.textContent = ''; corpo.appendChild(el('p', 'prod-table-empty', 'Falha ao carregar o histórico.')); });
+  }
+  btn.addEventListener('click', function () { modal.hidden = false; carregar('dias=' + (sel.value === 'custom' ? 30 : sel.value)); });
+  sel.addEventListener('change', function () { custom.hidden = sel.value !== 'custom'; if (sel.value !== 'custom') carregar('dias=' + sel.value); });
+  document.getElementById('hpAplicar').addEventListener('click', function () {
+    var de = document.getElementById('hpDe').value, ate = document.getElementById('hpAte').value;
+    if (de && ate) carregar('de=' + de + '&ate=' + ate);
+  });
+  document.getElementById('fecharHistProd').addEventListener('click', function () { modal.hidden = true; });
+  modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
 })();
 </script>
 {% endblock %}
