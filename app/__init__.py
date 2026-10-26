@@ -37,6 +37,13 @@ def create_app():
     caminho_db = os.environ.get('GESTAO_DB') or os.path.join(BASE_DIR, 'gestao_conexao.db')       # GESTAO_DB: guardar o banco em outra pasta (ex.: disco local)
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + caminho_db
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    if os.environ.get('ATRAS_DO_PROXY') == '1':
+        # Caddy (HTTPS) na frente: usa o endereco/protocolo reais nos links gerados (LinkedIn) e cookies so em HTTPS
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+        app.config['SESSION_COOKIE_SECURE'] = True
+        app.config['REMEMBER_COOKIE_SECURE'] = True
+        app.config['PREFERRED_URL_SCHEME'] = 'https'
     app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)       # 'Lembrar e-mail e manter conectado' do login
     app.config['MAX_CONTENT_LENGTH'] = int(2.1 * 1024 ** 3)           # upload de ate 2 GB (material institucional / videos)
 
