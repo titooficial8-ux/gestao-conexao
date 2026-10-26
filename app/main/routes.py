@@ -119,10 +119,14 @@ def resolve_estrutura_from_article(artigo):
 
 
 def resolve_metros_from_article(artigo):
-    """DS.Metros (metragem padrao) do artigo, via Base Estrutura."""
+    """DS.Metros (metragem padrao) do artigo: 1) METRO IDEAL LOTE lido do TOTVS (acompanha qualquer mudanca de la),
+    2) Base Estrutura (copia do PCP Hub) como reserva para artigo que o TOTVS ainda nao informou."""
     artigo = (artigo or '').strip()
     if not artigo:
         return None
+    a = dados_do_artigo(artigo)
+    if a and a.metro_ideal:
+        return str(int(a.metro_ideal)) if float(a.metro_ideal).is_integer() else str(a.metro_ideal)
     cod = artigo.split()[0] if artigo.split() else ''
     for chave in (cod, artigo):
         if not chave:

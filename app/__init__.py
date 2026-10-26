@@ -291,7 +291,7 @@ def create_app():
         from app.totvs.pedidos import iniciar_agendador as iniciar_pedidos
         iniciar_pedidos(app)      # Relatorio Pedidos: a cada 2 min
         from app.totvs.artigos import iniciar_agendador as iniciar_artigos
-        iniciar_artigos(app)      # estrutura/composicao/gramatura dos artigos da Programacao e dos Pedidos: a cada 30 min
+        iniciar_artigos(app)      # estrutura/composicao/gramatura dos artigos da Programacao e dos Pedidos: a cada 10 min
         from app.totvs.entrada import iniciar_agendador as iniciar_entrada
         iniciar_entrada(app)      # entrada de pedidos por dia (2024-2026): a cada 2 min
         from app.totvs.movimentos import iniciar_agendador as iniciar_movimentos
