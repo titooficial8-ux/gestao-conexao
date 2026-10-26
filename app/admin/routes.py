@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from app import db
 from app.models import User, Sector, Category, Tab, Role
 from app.decorators import admin_required
+from app.presenca import pode_ver_presenca
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -20,10 +21,11 @@ def users():
         n = unicodedata.normalize('NFKD', u.name or '').encode('ascii', 'ignore').decode()
         return n.lower()
     all_users = sorted(all_users, key=_chave)
-    grupos = [(r.name, [u for u in all_users if u.role_id == r.id]) for r in roles]
-    grupos.append(('Sem cargo', [u for u in all_users if not u.role_id]))
+    grupos = [(sc.name, [u for u in all_users if u.setor_id == sc.id]) for sc in sectors]
+    grupos.append(('Sem setor definido', [u for u in all_users if not u.setor_id]))
     grupos = [(nome, us) for nome, us in grupos if us]
-    return render_template('admin/users.html', users=all_users, grupos=grupos, sectors=sectors, roles=roles)
+    return render_template('admin/users.html', users=all_users, grupos=grupos, sectors=sectors, roles=roles,
+                           ver_presenca=pode_ver_presenca())
 
 
 @admin_bp.route('/usuarios/<int:user_id>/atualizar', methods=['POST'])
@@ -38,6 +40,9 @@ def update_user(user_id):
 
     role_id = request.form.get('role_id', '')
     user.role_id = int(role_id) if role_id else None
+
+    setor_id = request.form.get('setor_id', '')
+    user.setor_id = int(setor_id) if setor_id else None
 
     nova_senha = request.form.get('nova_senha', '').strip()
     if nova_senha:

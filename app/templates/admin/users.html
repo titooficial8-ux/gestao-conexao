@@ -8,6 +8,10 @@
 .ux-count{font-size:13px;color:var(--gray-500);margin-left:auto}
 .ux-gt{margin:22px 0 10px;font-size:16px;color:var(--blue-800);border-bottom:2px solid var(--blue-100);padding-bottom:6px;display:flex;gap:8px;align-items:center}
 .ux-gt span{background:var(--blue-100);color:var(--blue-700);font-size:12px;padding:2px 9px;border-radius:999px}
+.ux-pres{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gray-500);background:var(--gray-100);border-radius:8px;padding:7px 10px}
+.ux-dot{width:10px;height:10px;border-radius:50%;background:var(--gray-300);flex:none}
+.ux-pres.on{color:#17794a;background:#e3f6ec;font-weight:600}
+.ux-pres.on .ux-dot{background:#1f9d55;box-shadow:0 0 0 3px rgba(31,157,85,.25)}
 .ux-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px}
 .ux-card{background:#fff;border:1px solid var(--gray-200);border-radius:14px;box-shadow:var(--shadow);padding:18px;display:flex;flex-direction:column;gap:14px}
 .ux-head{display:flex;gap:12px;align-items:center}
@@ -21,6 +25,7 @@
 .ux-tag.bloqueado{background:#fde7e8;color:#b3262b}
 .ux-meta{font-size:12px;color:var(--gray-500)}
 .ux-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ux-row3{grid-template-columns:1fr 1fr 1fr}
 .ux-f label.ux-l,.ux-sec .ux-l{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-700);margin-bottom:5px}
 .ux-f input,.ux-f select{width:100%;padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px;font-size:14px;background:#fff;color:var(--text);box-sizing:border-box}
 .ux-sec{border-top:1px solid var(--gray-200);padding-top:12px}
@@ -36,7 +41,7 @@
 .ux-del:hover:not(:disabled){background:var(--danger);color:#fff}
 .ux-del:disabled{opacity:.4;cursor:not-allowed}
 .ux-reset{background:#fff3d6;color:#9a6700;font-size:12px;font-weight:700;padding:4px 10px;border-radius:8px}
-@media(max-width:520px){.ux-grid{grid-template-columns:1fr}.ux-row{grid-template-columns:1fr}}
+@media(max-width:520px){.ux-grid{grid-template-columns:1fr}.ux-row,.ux-row3{grid-template-columns:1fr}}
 </style>
 
 <div class="ux-bar">
@@ -65,18 +70,30 @@
     </div>
     <span class="ux-tag {{ u.status }}">{{ t(u.status) }}</span>
   </div>
+  {% if ver_presenca %}
+  <div class="ux-pres" data-uid="{{ u.id }}"><span class="ux-dot"></span><span class="ux-pt">Offline</span></div>
+  {% endif %}
 
   <form method="POST" action="{{ url_for('admin.update_user', user_id=u.id) }}" id="f{{ u.id }}" style="display:contents">
     {% if u.reset_password_requested %}
     <div><span class="ux-reset">{{ t('solicitou_nova_senha') }}</span></div>
     {% endif %}
-    <div class="ux-row">
+    <div class="ux-row ux-row3">
       <div class="ux-f">
         <label class="ux-l">{{ t('status') }}</label>
         <select name="status">
           <option value="pendente" {{ 'selected' if u.status=='pendente' else '' }}>{{ t('pendente') }}</option>
           <option value="ativo" {{ 'selected' if u.status=='ativo' else '' }}>{{ t('ativo') }}</option>
           <option value="bloqueado" {{ 'selected' if u.status=='bloqueado' else '' }}>{{ t('bloqueado') }}</option>
+        </select>
+      </div>
+      <div class="ux-f">
+        <label class="ux-l">Setor</label>
+        <select name="setor_id">
+          <option value="">Sem setor</option>
+          {% for s in sectors %}
+          <option value="{{ s.id }}" {{ 'selected' if u.setor_id == s.id else '' }}>{{ s.name }}</option>
+          {% endfor %}
         </select>
       </div>
       <div class="ux-f">
@@ -135,6 +152,18 @@
     document.querySelectorAll('.ux-grupo').forEach(function(g){g.style.display=g.querySelector('.ux-card:not([style*="none"])')?'':'none'});
     cnt.textContent=n+' de '+cards.length+' usuários';
   }
+  var pres=document.querySelectorAll('.ux-pres');
+  function atualizarPresenca(){
+    if(!pres.length) return;
+    fetch('{{ url_for("presenca.lista") }}',{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){
+      pres.forEach(function(el){
+        var e=d[el.dataset.uid], t=el.querySelector('.ux-pt');
+        if(e&&e.online){el.classList.add('on');t.textContent='Online agora · '+(e.pagina||e.caminho)+(e.visivel?'':' (aba em segundo plano)');}
+        else{el.classList.remove('on');t.textContent=e?('Offline · visto há '+(e.segundos<3600?Math.max(1,Math.round(e.segundos/60))+' min':Math.round(e.segundos/3600)+' h')+' em '+(e.pagina||e.caminho)):'Offline';}
+      });
+    }).catch(function(){});
+  }
+  atualizarPresenca(); setInterval(atualizarPresenca,8000);
   busca.addEventListener('input',filtrar); st.addEventListener('change',filtrar); filtrar();
 })();
 </script>
