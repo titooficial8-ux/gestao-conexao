@@ -134,6 +134,62 @@
 })();
 </script>
 
+<div class="modal-backdrop" id="modalDownload" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 class="section-subtitle">&#11015; {{ t('prod_download_titulo') }}</h3>
+      <button type="button" class="modal-close" id="fecharModalDownload">&times;</button>
+    </div>
+    <div class="dl-opcoes">
+      <a class="dl-opcao" href="{{ url_for('main.programacao_download', mode='total') }}" data-dl>
+        <strong>{{ t('prod_download_total') }}</strong><span>{{ t('prod_download_total_desc') }}</span>
+      </a>
+      <a class="dl-opcao" href="{{ url_for('main.programacao_download', mode='programadas') }}" data-dl>
+        <strong>{{ t('prod_download_programadas') }}</strong><span>{{ t('prod_download_programadas_desc') }}</span>
+      </a>
+      <div class="dl-opcao dl-cliente">
+        <strong>{{ t('prod_download_cliente') }}</strong><span>{{ t('prod_download_cliente_desc') }}</span>
+        <div class="dl-cliente-linha">
+          <select id="dlCliente" class="status-select">
+            <option value="">{{ t('todos_clientes') }}</option>
+            {% for c in clientes_disponiveis %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <a class="btn-small btn-primary" id="dlClienteBtn" href="#" data-dl>&#11015; Baixar</a>
+        </div>
+      </div>
+    </div>
+    <p class="dl-aviso" id="dlAviso" hidden>Gerando o Excel… o download começa em instantes.</p>
+  </div>
+</div>
+<style>
+.dl-opcoes{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.dl-opcao{display:flex;flex-direction:column;gap:3px;padding:14px 16px;border:1px solid var(--gray-300);border-radius:12px;text-decoration:none;color:var(--text);background:#fff}
+a.dl-opcao:hover{border-color:var(--blue-500);background:var(--blue-50)}
+.dl-opcao strong{font-size:15px}
+.dl-opcao span{font-size:13px;color:var(--gray-500)}
+.dl-cliente-linha{display:flex;gap:8px;margin-top:8px;align-items:center}
+.dl-aviso{font-size:13px;color:var(--blue-700);font-weight:600;margin:10px 0 0}
+</style>
+<script>
+(function () {
+  var modal = document.getElementById('modalDownload'), abrir = document.getElementById('btnDownload');
+  if (!modal || !abrir) return;
+  var aviso = document.getElementById('dlAviso'), sel = document.getElementById('dlCliente'), btnCli = document.getElementById('dlClienteBtn');
+  var base = '{{ url_for("main.programacao_download") }}';
+  function atualizarCliente() { btnCli.href = base + '?mode=cliente&cliente=' + encodeURIComponent(sel.value); btnCli.style.opacity = sel.value ? '1' : '.5'; }
+  sel.addEventListener('change', atualizarCliente); atualizarCliente();
+  abrir.addEventListener('click', function () { aviso.hidden = true; modal.hidden = false; });
+  document.getElementById('fecharModalDownload').addEventListener('click', function () { modal.hidden = true; });
+  modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
+  modal.querySelectorAll('[data-dl]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      if (a === btnCli && !sel.value) { e.preventDefault(); sel.focus(); return; }
+      aviso.hidden = false; setTimeout(function () { modal.hidden = true; }, 2500);
+    });
+  });
+})();
+</script>
+
 <div class="modal-backdrop" id="modalHistorico" hidden>
   <div class="modal-box hist-modal-box">
     <div class="modal-head">
