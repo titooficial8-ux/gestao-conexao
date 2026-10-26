@@ -73,6 +73,11 @@ def calcular(movs: list, op, metro_padrao):
     return lista, saiu
 
 
+def _metragem_padrao(nome: str) -> bool:
+    from app.totvs.artigos import nome_e_metragem_padrao
+    return nome_e_metragem_padrao(nome)
+
+
 def _campos_artigo(o: dict) -> dict:
     """Campos adicionais do produto da OP no TOTVS: GRAMATURA M2, LARGURA PADRAO e METRO IDEAL LOTE (= metro padrao do PCP Hub)."""
     def num(v):
@@ -88,7 +93,7 @@ def _campos_artigo(o: dict) -> dict:
                 saida['gramatura'] = num(f.get('value'))
             elif nome.startswith('LARGURA'):
                 saida['largura'] = num(f.get('value'))
-            elif nome.startswith('METRO IDEAL'):
+            elif _metragem_padrao(nome):
                 saida['metro_ideal'] = num(f.get('value'))
     return saida
 
