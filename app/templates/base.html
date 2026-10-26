@@ -26,7 +26,7 @@
         </button>
         <div class="gc-dropdown gc-dropdown-right" id="gcUserDropdown">
           <div class="gc-dropdown-header">
-            <div class="gc-dropdown-header-name">{{ current_user.name }}</div>
+            <div class="gc-dropdown-header-name">{{ current_user.name }}{% if current_user.verificado %}{% include 'partials/verificado.html' %}{% endif %}</div>
             <div class="gc-dropdown-header-sector">{{ t('administracao') if current_user.is_admin else (current_user.sectors[0].name if current_user.sectors else '') }}</div>
           </div>
           {% if current_user.is_admin %}

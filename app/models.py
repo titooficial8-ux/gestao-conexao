@@ -11,6 +11,12 @@ user_sectors = db.Table(
     db.Column('sector_id', db.Integer, db.ForeignKey('sectors.id'), primary_key=True),
 )
 
+user_hidden_tabs = db.Table(
+    'user_hidden_tabs',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('tab_id', db.Integer, db.ForeignKey('tabs.id'), primary_key=True),
+)
+
 tab_sectors = db.Table(
     'tab_sectors',
     db.Column('tab_id', db.Integer, db.ForeignKey('tabs.id'), primary_key=True),
@@ -56,11 +62,13 @@ class User(UserMixin, db.Model):
     reset_password_requested = db.Column(db.Boolean, default=False)
     reset_password_requested_at = db.Column(db.DateTime, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
+    verificado = db.Column(db.Boolean, default=False)  # selo azul de perfil verificado
     setor_id = db.Column(db.Integer, db.ForeignKey('sectors.id'), nullable=True)  # setor principal (so organizacao; o acesso e por 'sectors')
 
     sectors = db.relationship('Sector', secondary=user_sectors, backref='users')
     role = db.relationship('Role')
     setor = db.relationship('Sector', foreign_keys=[setor_id])
+    hidden_tabs = db.relationship('Tab', secondary=user_hidden_tabs, backref='hidden_from')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -472,6 +480,8 @@ class Tab(db.Model):
             return True
         # Gestao Sistema e exclusiva do Desenvolvedor (is_admin), nao importa o setor
         if self.category.slug == 'sistema':
+            return False
+        if self in user.hidden_tabs:  # aba escondida para esta pessoa (tela Usuarios e Acessos)
             return False
         allowed_ids = {s.id for s in self.sectors}
         user_sector_ids = {s.id for s in user.sectors}
