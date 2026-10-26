@@ -2198,6 +2198,25 @@ def novo_registro_programacao():
     return redirect(url_for('main.maquina_detalhe', numero=machine.number))
 
 
+@main_bp.route('/aba/programacao/maquina/<int:numero>/historico-producao/dia')
+@login_required
+def maquina_historico_producao_dia(numero):
+    """Peca a peca de um dia de producao (?dia=AAAA-MM-DD) da maquina: para conferir de onde vem cada contagem."""
+    from app.models import BaixaFio
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+    try:
+        dia = date.fromisoformat(request.args.get('dia', ''))
+    except ValueError:
+        return jsonify(ok=False, erro='Dia inválido.'), 400
+    t0 = datetime.combine(dia, datetime.min.time()) + timedelta(hours=6, minutes=20)
+    pecas = BaixaFio.query.filter(BaixaFio.maquina == numero, BaixaFio.mudou >= t0, BaixaFio.mudou < t0 + timedelta(days=1)).order_by(BaixaFio.mudou).all()
+    return jsonify(ok=True, dia=dia.isoformat(), pecas=[dict(
+        hora=b.mudou.strftime('%d/%m %H:%M:%S'), data_transacao=b.data.strftime('%d/%m') if b.data else None, codigo=b.codigo, op=b.op,
+        artigo=b.artigo_desc, metros=round(float(b.metro_padrao or b.metros or 0), 2), kg=round(float(b.kg or 0), 2), casada=bool(b.casada)) for b in pecas])
+
+
 @main_bp.route('/aba/programacao/maquina/<int:numero>/historico-producao')
 @login_required
 def maquina_historico_producao(numero):
