@@ -99,6 +99,8 @@ def create_app():
     app.register_blueprint(ind_bp)
     from app.desenvolvimento.routes import dev_bp
     app.register_blueprint(dev_bp)
+    from app.comercial_mi import cmi_bp
+    app.register_blueprint(cmi_bp)
     from app.perfil import perfil_bp
     app.register_blueprint(perfil_bp)
     from app.presenca import presenca_bp
@@ -290,6 +292,8 @@ def create_app():
         threading.Thread(target=_aquecer_slide, daemon=True, name='aquecer-slide').start()
         from app.totvs.pedidos import iniciar_agendador as iniciar_pedidos
         iniciar_pedidos(app)      # Relatorio Pedidos: a cada 2 min
+        from app.totvs.rodagem import iniciar_agendador as iniciar_rodagem
+        iniciar_rodagem(app)      # OPs por artigo (artigos que nao rodam): a cada 60 min
         from app.totvs.artigos import iniciar_agendador as iniciar_artigos
         iniciar_artigos(app)      # estrutura/composicao/gramatura dos artigos da Programacao e dos Pedidos: a cada 10 min
         from app.totvs.entrada import iniciar_agendador as iniciar_entrada

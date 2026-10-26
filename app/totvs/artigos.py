@@ -86,6 +86,7 @@ def ler_classificacoes(prod: dict) -> dict:
         cru.append(f'{tipo}|{_tipo_nome(c)}|{c.get("code")}={nome}')
         if tipo == 506:
             saida['codigo_artigo'] = str(c.get('code') or '').strip() or None
+            saida['nome_artigo'] = nome
         if tipo == 504:
             saida['segmento'] = c.get('code')
         elif tipo == 505:
@@ -167,6 +168,16 @@ def _ops(cli, lote):
         return _paginar(cli, OPS_URL, dict(base, expand='items,materials'))
     except RuntimeError:
         return _paginar(cli, OPS_URL, dict(base, expand='items'))
+
+
+def artigos_de_produtos(cli, codigos_internos) -> dict:
+    """{productCode interno: (codigo do artigo, nome do artigo)} pela classificacao 506."""
+    saida = {}
+    for lote in _em_lotes([int(c) for c in codigos_internos if str(c).isdigit()]):
+        for x in _produtos(cli, lote):
+            cl = ler_classificacoes(x)
+            saida[str(x.get('productCode'))] = (cl.get('codigo_artigo') or str(x.get('productCode')), cl.get('nome_artigo') or cl.get('descricao') or '')
+    return saida
 
 
 def codigos_de_artigo(cli, codigos_internos) -> dict:
