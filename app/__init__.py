@@ -186,6 +186,29 @@ def create_app():
             if dora:
                 dora.role_id = cargo_pd.id
             db.session.commit()
+        # novos cargos e ajustes de nome pedidos pela diretoria (cada cargo e criado uma vez e ja entra atribuido;
+        # nomes so mudam se ainda estiverem como antes)
+        def _pessoa(email=None, nome=None):
+            if email:
+                return User.query.filter(db.func.lower(User.email) == email).first()
+            return User.query.filter_by(name=nome).first()
+        for cargo, quem in (
+            ('Mecânico Têxtil', dict(email='gustavo.bonfim@conexaomalhas.com.br')),
+            ('Gestão Financeiro', dict(email='luciano@conexaomalhas.com.br')),
+            ('Gestão Comercial', dict(nome='Marco - Gerente Comercial')),
+            ('Gestão Desenvolvimento', dict(email='mauricio.stanczyk@conexaomalhas.com.br')),
+        ):
+            if not Role.query.filter_by(name=cargo).first():
+                r = Role(name=cargo)
+                db.session.add(r)
+                db.session.flush()
+                pessoa = _pessoa(**quem)
+                if pessoa:
+                    pessoa.role_id = r.id
+        for antigo, novo in (('Luciano (Administrador)', 'Luciano'), ('Marco - Gerente Comercial', 'Marco')):
+            for u in User.query.filter_by(name=antigo).all():
+                u.name = novo
+        db.session.commit()
         # a aba 'Pedidos Comercial (ME)' agora se chama 'Comercial ME' (bancos ja criados nao passam pelo seed)
         from app.models import Tab
         aba_me = Tab.query.filter_by(slug='pedidos-comercial-me').first()
