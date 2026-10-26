@@ -63,6 +63,7 @@ class User(UserMixin, db.Model):
     reset_password_requested_at = db.Column(db.DateTime, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
     verificado = db.Column(db.Boolean, default=False)  # selo azul de perfil verificado
+    deve_trocar_senha = db.Column(db.Boolean, default=False)  # senha provisoria: obriga trocar no proximo acesso
     setor_id = db.Column(db.Integer, db.ForeignKey('sectors.id'), nullable=True)  # setor principal (so organizacao; o acesso e por 'sectors')
 
     sectors = db.relationship('Sector', secondary=user_sectors, backref='users')

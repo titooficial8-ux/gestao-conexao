@@ -3,6 +3,9 @@
 {% block page_title %}{{ t('trocar_senha') }}{% endblock %}
 {% block content %}
 <div class="form-card">
+  {% if current_user.deve_trocar_senha %}
+  <p style="background:#fff3d6;color:#7a5200;padding:10px 12px;border-radius:8px;font-weight:600">Sua senha é provisória. Crie uma senha nova para continuar usando o Gestão Conexão.</p>
+  {% endif %}
   <form method="POST" action="{{ url_for('auth.trocar_senha') }}">
     <label>{{ t('senha_atual') }}</label>
     {{ password_field('senha_atual', 'senhaAtual') }}

@@ -2,7 +2,7 @@ import threading
 import os
 from datetime import timedelta, datetime
 
-from flask import Flask, session, render_template, url_for, request
+from flask import Flask, session, render_template, url_for, request, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
 
@@ -127,6 +127,13 @@ def create_app():
             current_year=datetime.utcnow().year,
         )
 
+    @app.before_request
+    def exigir_troca_de_senha():
+        # senha provisoria: ate trocar, so a tela de troca (e sair) ficam disponiveis
+        if current_user.is_authenticated and getattr(current_user, 'deve_trocar_senha', False):
+            if request.endpoint not in ('auth.trocar_senha', 'auth.logout', 'auth.set_lang', 'presenca.ping', 'static'):
+                return redirect(url_for('auth.trocar_senha'))
+
     @app.errorhandler(403)
     def forbidden(_e):
         return render_template('errors/403.html'), 403
@@ -161,7 +168,7 @@ def create_app():
         # colunas novas em bancos antigos (o create_all so cria tabelas que ainda nao existem)
         from sqlalchemy import inspect, text
         tabelas = set(inspect(db.engine).get_table_names())
-        for tabela, novas in (('users', (('setor_id', 'INTEGER'), ('verificado', 'BOOLEAN DEFAULT 0'))), ('pedidos_relatorio', (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)'))), ('pesagens_malharia', (('visto_em', 'DATETIME'), ('hora_real', 'DATETIME'), ('hora_origem', 'VARCHAR(10)'), ('trx_codigo', 'INTEGER'), ('peso_kg', 'FLOAT'))), ('pesagens_malharia_resumo', (('artigo_desc', 'VARCHAR(200)'), ('gramatura', 'FLOAT'), ('largura', 'FLOAT'), ('metro_ideal', 'FLOAT'), ('cliente_cod', 'INTEGER'))), ('baixas_fio', (('gramatura', 'FLOAT'), ('largura', 'FLOAT'))), ('sequencias', (('situacao', 'VARCHAR(20)'),)),
+        for tabela, novas in (('users', (('setor_id', 'INTEGER'), ('verificado', 'BOOLEAN DEFAULT 0'), ('deve_trocar_senha', 'BOOLEAN DEFAULT 0'))), ('pedidos_relatorio', (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)'))), ('pesagens_malharia', (('visto_em', 'DATETIME'), ('hora_real', 'DATETIME'), ('hora_origem', 'VARCHAR(10)'), ('trx_codigo', 'INTEGER'), ('peso_kg', 'FLOAT'))), ('pesagens_malharia_resumo', (('artigo_desc', 'VARCHAR(200)'), ('gramatura', 'FLOAT'), ('largura', 'FLOAT'), ('metro_ideal', 'FLOAT'), ('cliente_cod', 'INTEGER'))), ('baixas_fio', (('gramatura', 'FLOAT'), ('largura', 'FLOAT'))), ('sequencias', (('situacao', 'VARCHAR(20)'),)),
                                 ('historico_producao', (('motivo_cancelamento', 'VARCHAR(500)'), ('justificado_por', 'VARCHAR(120)'), ('justificado_em', 'DATETIME')))):
             if tabela not in tabelas:
                 continue
