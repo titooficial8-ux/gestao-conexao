@@ -36,23 +36,32 @@ def _num(v):
 
 
 def _cod(artigo):
-    c = (str(artigo or '').split() or [''])[0]
-    return c if c.isdigit() else None
+    """Codigo do artigo como aparece na Programacao (primeiro 'pedaco' do texto, ex.: 2830026 ou 21876-A)."""
+    m = re.match(r'\s*(\w[\w\-.]*)', str(artigo or ''))
+    return m.group(1) if m else None
 
 
-def _codigos_e_ops():
-    cods, ops = set(), set()
+def _levantamento():
+    """(artigos, OPs abertas, {OP: artigo}, produtos dos pedidos). Atencao: o codigo do ARTIGO da Programacao nao e o productCode do TOTVS:
+    o artigo fica na classificacao 'CLAS ARTIGO' (tipo 506) do produto; a OP conhece os dois."""
+    cods, ops, op_artigo, prod_pedidos = set(), set(), {}, set()
     for a, op, st in db.session.query(Sequencia.artigo, Sequencia.op, Sequencia.status):
         if _cod(a):
             cods.add(_cod(a))
             if op and str(op).isdigit() and st not in ('FINALIZADO', 'CANCELADO'):
                 ops.add(int(op))
+                op_artigo[str(op)] = _cod(a)
     for (a,) in db.session.query(FilaPreProgramacao.artigo):
         if _cod(a):
             cods.add(_cod(a))
     for (c,) in db.session.query(PedidoRelatorio.cod_produto).filter(PedidoRelatorio.qt_saldo > 0):
-        if _cod(c):
-            cods.add(_cod(c))
+        if str(c or '').isdigit():
+            prod_pedidos.add(str(c))                      # cod_produto do pedido e o productCode interno
+    return cods, ops, op_artigo, prod_pedidos
+
+
+def _codigos_e_ops():
+    cods, ops, _, _ = _levantamento()
     return cods, ops
 
 
@@ -75,6 +84,8 @@ def ler_classificacoes(prod: dict) -> dict:
     for c in prod.get('classifications') or []:
         tipo, nome = c.get('typeCode'), c.get('name') or c.get('description') or ''
         cru.append(f'{tipo}|{_tipo_nome(c)}|{c.get("code")}={nome}')
+        if tipo == 506:
+            saida['codigo_artigo'] = str(c.get('code') or '').strip() or None
         if tipo == 504:
             saida['segmento'] = c.get('code')
         elif tipo == 505:
@@ -158,23 +169,54 @@ def _ops(cli, lote):
         return _paginar(cli, OPS_URL, dict(base, expand='items'))
 
 
-def buscar(cods: list, ops: list) -> dict:
+def codigos_de_artigo(cli, codigos_internos) -> dict:
+    """{productCode interno: codigo do artigo (classificacao 506)}."""
+    saida = {}
+    for lote in _em_lotes([int(c) for c in codigos_internos if str(c).isdigit()]):
+        for x in _produtos(cli, lote):
+            saida[str(x.get('productCode'))] = ler_classificacoes(x).get('codigo_artigo') or str(x.get('productCode'))
+    return saida
+
+
+def buscar(ops: list, op_artigo: dict, produtos_extra=()) -> dict:
+    """Dados por CODIGO DE ARTIGO (como na Programacao). Os campos adicionais (gramatura, largura, metragem padrao, composicao)
+    vem das OPs abertas; as classificacoes (estrutura, segmento) do produto, achado pelo productCode que a OP informa."""
     cli = api.TotvsModaClient()
     cli.autenticar()
-    dados = {}
-    for lote in _em_lotes([int(c) for c in cods]):
-        for x in _produtos(cli, lote):
-            dados.setdefault(str(x.get('productCode')), {}).update(ler_classificacoes(x))
+    por_produto, artigo_do_produto = {}, {}
     for lote in _em_lotes(ops):
         for op in _ops(cli, lote):
             comp = composicao_da_op(op)
+            art = op_artigo.get(str(op.get('orderCode')))
             for it in op.get('items') or []:
-                d = dados.setdefault(str(it.get('productCode')), {})
+                pc = str(it.get('productCode'))
+                d = por_produto.setdefault(pc, {})
                 for k, v in ler_campos_adicionais(it).items():
                     if v not in (None, '') and (k not in d or d[k] in (None, '')):
                         d[k] = v
                 if comp and not d.get('composicao_fios'):
                     d['composicao_fios'] = comp
+                if art:
+                    artigo_do_produto[pc] = art
+    dados = {}
+    internos = {int(c) for c in por_produto if c.isdigit()} | {int(c) for c in produtos_extra if str(c).isdigit()}
+    vistos = set()
+    for lote in _em_lotes(sorted(internos)):
+        for x in _produtos(cli, lote):
+            pc = str(x.get('productCode'))
+            cl = ler_classificacoes(x)
+            art = artigo_do_produto.get(pc) or cl.get('codigo_artigo')
+            if not art:
+                continue
+            vistos.add(pc)
+            d = dados.setdefault(art, {})
+            d.update({k: v for k, v in cl.items() if v not in (None, '')})
+            for k, v in por_produto.get(pc, {}).items():
+                if v not in (None, ''):
+                    d[k] = v
+    for pc, campos in por_produto.items():              # produto que a consulta nao devolveu: guarda ao menos os campos da OP
+        if pc not in vistos and artigo_do_produto.get(pc):
+            dados.setdefault(artigo_do_produto[pc], {}).update({k: v for k, v in campos.items() if v not in (None, '')})
     for d in dados.values():                       # o que veio so de campo/OP entra quando a classificacao nao trouxe
         if d.get('estrutura_campo') and not d.get('estrutura'):
             d['estrutura'] = d['estrutura_campo']
@@ -204,22 +246,27 @@ def gravar(dados: dict) -> int:
     return len(dados)
 
 
+_ult_completa = 0.0
+_limpo = False                                         # na 1a leitura de cada partida troca os dados antigos (chaveados pelo codigo errado) pelos novos
+
+
 def atualizar(app) -> bool:
+    global _ult_completa, _limpo
     if not _trava.acquire(blocking=False):
         return False
     ESTADO.update(rodando=True, erro=None, msg='Lendo artigos no TOTVS...')
     try:
         with app.app_context():
-            cods, ops = _codigos_e_ops()
-            limite = datetime.utcnow() - timedelta(hours=VALIDADE_H)
-            recentes = {a for (a,) in db.session.query(ArtigoTotvs.cod_produto).filter(ArtigoTotvs.atualizado_em > limite)}
-            pendentes = sorted(cods - recentes)
-            if not pendentes and not ops:
-                ESTADO.update(msg='Artigos em dia', ultima=datetime.now().isoformat(timespec='seconds'))
-                return True
-            # as OPs abertas sempre entram (a gramatura vem delas); os artigos so quando vencidos
-            dados = buscar(pendentes, sorted(ops))
-            n = gravar({c: d for c, d in dados.items() if c in cods})
+            cods, ops, op_artigo, prod_pedidos = _levantamento()
+            completa = time.time() - _ult_completa > VALIDADE_H * 3600          # produtos dos pedidos (sem OP) so de vez em quando
+            dados = buscar(sorted(ops), op_artigo, prod_pedidos if completa else ())
+            if completa:
+                _ult_completa = time.time()
+            if dados and not _limpo:
+                ArtigoTotvs.query.delete()
+                db.session.commit()
+                _limpo = True
+            n = gravar(dados)
             ESTADO.update(n=n, msg=f'{n} artigos atualizados', ultima=datetime.now().isoformat(timespec='seconds'))
     except Exception as e:  # noqa: BLE001
         db.session.rollback()
