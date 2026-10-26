@@ -510,6 +510,31 @@ def op_status():
                       cabecalho_cru=cabecalho))
 
 
+@mov_bp.route('/previsao-status')
+@login_required
+def previsao_status():
+    """Administrador: a previsao de termino pelas voltas/RPM esta funcionando? (?rodar=1 recalcula agora)"""
+    if not current_user.is_admin:
+        abort(403)
+    from app import previsao
+    from app.models import ProducaoRef, Sequencia
+    from app.totvs import movimentos
+    erro = None
+    if request.args.get('rodar') == '1':
+        try:
+            previsao.calcular()
+        except Exception as e:  # noqa: BLE001
+            erro = str(e)[:300]
+    ativas = [x for x in Sequencia.query.all() if (x.status or '') in previsao.ATIVAS]
+    arq = previsao.caminho_base()
+    return _json(dict(
+        planilha_no_servidor=arq.exists(), caminho=str(arq), linhas_na_base=ProducaoRef.query.count(),
+        ops_ativas=len(ativas), ops_com_previsao=sum(1 for x in ativas if x.termino_calculado),
+        ops_sem_base=[f'{x.op} (artigo {x.artigo})' for x in ativas if not x.termino_calculado][:20],
+        ineficiencia=previsao.INEFICIENCIA, troca_horas=previsao.TROCA_HORAS, erro=erro or movimentos.ESTADO.get('previsao_erro'),
+        ultimo_ciclo_rapido=movimentos.ESTADO.get('situacao_ultima')))
+
+
 @mov_bp.route('/artigos-status')
 @login_required
 def artigos_status():
