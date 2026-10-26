@@ -65,7 +65,7 @@
           <td>{{ row.dt_prevfaturamento.strftime('%d/%m/%Y') if row.dt_prevfaturamento else '–' }}</td>
           <td>{{ row.item.requested_quantity | int }}</td>
           <td>{{ row.item.total_pcs }}</td>
-          <td>{{ row.item.created_at.strftime('%d/%m/%Y, %H:%M:%S') if row.item.created_at else '–' }}</td>
+          <td>{{ (row.item.created_at|local).strftime('%d/%m/%Y, %H:%M:%S') if row.item.created_at else '–' }}</td>
           <td>
             <form method="POST" action="{{ url_for('main.mover_pre_programacao') }}" class="presel-mover-form">
               <input type="hidden" name="item_id" value="{{ row.item.id }}">
