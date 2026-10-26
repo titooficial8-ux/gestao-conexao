@@ -276,6 +276,10 @@ def aquecer(app) -> None:
         except Exception:  # noqa: BLE001
             pass
         try:
+            setups_do_dia((datetime.now() - INICIO_DIA).date())
+        except Exception:  # noqa: BLE001
+            pass
+        try:
             faturamento_por_dia(hoje.year, hoje.month)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
@@ -494,7 +498,7 @@ def _get_setups(caminho: str, params: dict, tentativas: list = None):
     h = {'Accept': 'application/json'}
     if _pin():
         h['Authorization'] = f'Bearer {_pin()}'
-    return requests.get(f'{SETUPS_URL}{caminho}', params=params, headers=h, timeout=6)
+    return requests.get(f'{SETUPS_URL}{caminho}', params=params, headers=h, timeout=(5, 25))      # 5 s para conectar; a resposta de /setups pode levar alguns segundos
 
 
 def _lista(j) -> list:
