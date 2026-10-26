@@ -71,7 +71,7 @@
     <div class="ux-who">
       <div class="ux-name">{{ u.name }}{% if u.verificado %}{% include 'partials/verificado.html' %}{% endif %}</div>
       <div class="ux-mail" title="{{ u.email }}">{{ u.email }}</div>
-      <div class="ux-meta">{{ u.country }} · {{ t('created_at') }} {{ u.created_at.strftime('%d/%m/%Y') }}</div>
+      <div class="ux-meta">{{ u.country }} · {{ t('created_at') }} {{ u.created_at.strftime('%d/%m/%Y') }} · {{ ((u.segundos_acesso or 0) / 3600)|round(1) }} h de acesso</div>
     </div>
     <span class="ux-tag {{ u.status }}">{{ t(u.status) }}</span>
   </div>
