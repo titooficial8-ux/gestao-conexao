@@ -161,7 +161,7 @@ def create_app():
         # colunas novas em bancos antigos (o create_all so cria tabelas que ainda nao existem)
         from sqlalchemy import inspect, text
         tabelas = set(inspect(db.engine).get_table_names())
-        for tabela, novas in (('users', (('setor_id', 'INTEGER'),)), ('pedidos_relatorio', (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)'))), ('pesagens_malharia', (('visto_em', 'DATETIME'), ('hora_real', 'DATETIME'), ('hora_origem', 'VARCHAR(10)'), ('trx_codigo', 'INTEGER'), ('peso_kg', 'FLOAT'))), ('pesagens_malharia_resumo', (('artigo_desc', 'VARCHAR(200)'), ('gramatura', 'FLOAT'), ('largura', 'FLOAT'), ('metro_ideal', 'FLOAT'), ('cliente_cod', 'INTEGER'))), ('baixas_fio', (('gramatura', 'FLOAT'), ('largura', 'FLOAT'))), ('sequencias', (('situacao', 'VARCHAR(20)'),)),
+        for tabela, novas in (('users', (('setor_id', 'INTEGER'), ('verificado', 'BOOLEAN DEFAULT 0'))), ('pedidos_relatorio', (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)'))), ('pesagens_malharia', (('visto_em', 'DATETIME'), ('hora_real', 'DATETIME'), ('hora_origem', 'VARCHAR(10)'), ('trx_codigo', 'INTEGER'), ('peso_kg', 'FLOAT'))), ('pesagens_malharia_resumo', (('artigo_desc', 'VARCHAR(200)'), ('gramatura', 'FLOAT'), ('largura', 'FLOAT'), ('metro_ideal', 'FLOAT'), ('cliente_cod', 'INTEGER'))), ('baixas_fio', (('gramatura', 'FLOAT'), ('largura', 'FLOAT'))), ('sequencias', (('situacao', 'VARCHAR(20)'),)),
                                 ('historico_producao', (('motivo_cancelamento', 'VARCHAR(500)'), ('justificado_por', 'VARCHAR(120)'), ('justificado_em', 'DATETIME')))):
             if tabela not in tabelas:
                 continue
@@ -170,6 +170,9 @@ def create_app():
                 if nome not in colunas:
                     db.session.execute(text(f'ALTER TABLE {tabela} ADD COLUMN {nome} {tipo}'))
                     db.session.commit()
+                    if (tabela, nome) == ('users', 'verificado'):  # selo inicial (depois e so pela tela de usuarios)
+                        db.session.execute(text("UPDATE users SET verificado=1 WHERE lower(email)='christian.yarzon@conexaomalhas.com.br'"))
+                        db.session.commit()
         if first_run:
             from app.seed import seed_data
             seed_data()

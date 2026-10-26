@@ -21,10 +21,11 @@ def users():
         n = unicodedata.normalize('NFKD', u.name or '').encode('ascii', 'ignore').decode()
         return n.lower()
     all_users = sorted(all_users, key=_chave)
+    categorias = Category.query.order_by(Category.order).all()
     grupos = [(sc.name, [u for u in all_users if u.setor_id == sc.id]) for sc in sectors]
     grupos.append(('Sem setor definido', [u for u in all_users if not u.setor_id]))
     grupos = [(nome, us) for nome, us in grupos if us]
-    return render_template('admin/users.html', users=all_users, grupos=grupos, sectors=sectors, roles=roles,
+    return render_template('admin/users.html', users=all_users, grupos=grupos, sectors=sectors, roles=roles, categorias=categorias,
                            ver_presenca=pode_ver_presenca())
 
 
@@ -40,6 +41,10 @@ def update_user(user_id):
 
     role_id = request.form.get('role_id', '')
     user.role_id = int(role_id) if role_id else None
+
+    user.verificado = request.form.get('verificado') == 'on'
+    hidden_ids = request.form.getlist('hidden_tabs')
+    user.hidden_tabs = Tab.query.filter(Tab.id.in_(hidden_ids)).all() if hidden_ids else []
 
     setor_id = request.form.get('setor_id', '')
     user.setor_id = int(setor_id) if setor_id else None
