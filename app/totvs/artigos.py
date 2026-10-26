@@ -8,6 +8,7 @@ Para cada artigo da Programacao (Sequencias e fila) e dos Pedidos abertos:
 Resultado em artigos_totvs. A estrutura vale: 1) mapeamento manual, 2) TOTVS (aqui), 3) Relatorio Pedidos.
 Diagnostico dos nomes: /movimentos-op/artigo-campos?cod=<codigo do artigo> (so administrador)."""
 import os
+import re
 import threading
 import time
 import traceback
@@ -16,6 +17,7 @@ from datetime import datetime, timedelta
 from app import db
 from app.models import ArtigoTotvs, FilaPreProgramacao, PedidoRelatorio, Sequencia
 from app.totvs import api
+from app.totvs.empenho import _qtd_item
 from app.totvs.pedidos import CICLO, EMPRESA, OPS_URL, PRODUCTS_URL, _em_lotes, _paginar, configurado
 
 INTERVALO_MIN = float(os.getenv('ARTIGOS_INTERVALO_MIN', '30'))
@@ -70,7 +72,44 @@ def ler_classificacoes(prod: dict) -> dict:
             saida['composicao'] = nome or c.get('code')
     saida['classificacoes'] = '; '.join(cru)[:4000]
     saida['descricao'] = (prod.get('productName') or prod.get('name') or '')[:200]
+    for k, v in prod.items():                         # campos adicionais do proprio produto (quando a API devolve)
+        if 'additional' in k.lower() and isinstance(v, list):
+            extra = ler_campos_adicionais({'productAdditionalField': v})
+            for kk, vv in extra.items():
+                if vv not in (None, '') and kk not in saida:
+                    saida[kk] = vv
     return saida
+
+
+def gramatura_largura_do_nome(texto: str) -> dict:
+    """Reserva: o nome do artigo no TOTVS traz '220G 2,20L' (gramatura e largura) quando o campo adicional nao existe."""
+    g = re.search(r'(\d{2,3})\s*G\b', texto or '', re.I)
+    l = re.search(r'(\d+[.,]\d+)\s*L\b', texto or '', re.I)
+    saida = {}
+    if g:
+        saida['gramatura'] = float(g.group(1))
+    if l:
+        saida['largura'] = _num(l.group(1))
+    return saida
+
+
+def composicao_da_op(op: dict):
+    """Composicao de fios do artigo a partir dos materiais (fios) da OP: 'FIO A 96% + FIO B 4%' (percentual pelo peso,
+    quando a quantidade vem; senao so os nomes)."""
+    mats = ((op.get('materials') or {}).get('orderMaterials')) or []
+    itens = {}
+    for m in mats:
+        nome = (m.get('materialProductName') or str(m.get('materialProductCode') or '')).strip()
+        if not nome:
+            continue
+        q = _qtd_item(m) or 0
+        itens[nome] = itens.get(nome, 0) + q
+    if not itens:
+        return None
+    total = sum(itens.values())
+    if total > 0 and all(v > 0 for v in itens.values()):
+        return ' + '.join(f'{n} {round(v / total * 100)}%' for n, v in sorted(itens.items(), key=lambda kv: -kv[1]))[:200]
+    return ' + '.join(sorted(itens))[:200]
 
 
 def ler_campos_adicionais(item: dict) -> dict:
@@ -92,25 +131,51 @@ def ler_campos_adicionais(item: dict) -> dict:
     return saida
 
 
+def _produtos(cli, lote):
+    base = dict(filter=dict(productCodeList=lote), option=dict(branchInfoCode=EMPRESA))
+    try:                                              # tenta trazer tambem os campos adicionais do produto
+        return _paginar(cli, PRODUCTS_URL, dict(base, expand='classifications,additionalFields'))
+    except RuntimeError:
+        return _paginar(cli, PRODUCTS_URL, dict(base, expand='classifications'))
+
+
+def _ops(cli, lote):
+    base = dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[CICLO], orderCodeList=lote))
+    try:                                              # itens (campos adicionais) + materiais (fios) da OP
+        return _paginar(cli, OPS_URL, dict(base, expand='items,materials'))
+    except RuntimeError:
+        return _paginar(cli, OPS_URL, dict(base, expand='items'))
+
+
 def buscar(cods: list, ops: list) -> dict:
     cli = api.TotvsModaClient()
     cli.autenticar()
     dados = {}
     for lote in _em_lotes([int(c) for c in cods]):
-        for x in _paginar(cli, PRODUCTS_URL, dict(filter=dict(productCodeList=lote), option=dict(branchInfoCode=EMPRESA), expand='classifications')):
+        for x in _produtos(cli, lote):
             dados.setdefault(str(x.get('productCode')), {}).update(ler_classificacoes(x))
     for lote in _em_lotes(ops):
-        for op in _paginar(cli, OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[CICLO], orderCodeList=lote), expand='items')):
+        for op in _ops(cli, lote):
+            comp = composicao_da_op(op)
             for it in op.get('items') or []:
                 d = dados.setdefault(str(it.get('productCode')), {})
                 for k, v in ler_campos_adicionais(it).items():
                     if v not in (None, '') and (k not in d or d[k] in (None, '')):
                         d[k] = v
-    for d in dados.values():                       # campo adicional so entra quando a classificacao nao trouxe
+                if comp and not d.get('composicao_fios'):
+                    d['composicao_fios'] = comp
+    for d in dados.values():                       # o que veio so de campo/OP entra quando a classificacao nao trouxe
         if d.get('estrutura_campo') and not d.get('estrutura'):
             d['estrutura'] = d['estrutura_campo']
         if d.get('composicao_campo') and not d.get('composicao'):
             d['composicao'] = d['composicao_campo']
+        if d.get('composicao_fios') and not d.get('composicao'):
+            d['composicao'] = d['composicao_fios']
+        if d.get('gramatura') is None or d.get('largura') is None:     # reserva: gramatura/largura escritas no nome do artigo
+            nome = ' '.join(filter(None, [d.get('descricao'), d.get('classificacoes')]))
+            for k, v in gramatura_largura_do_nome(nome).items():
+                if d.get(k) is None:
+                    d[k] = v
     return dados
 
 
