@@ -15,6 +15,11 @@ def users():
     all_users = User.query.order_by(User.status.asc(), User.created_at.desc()).all()
     sectors = Sector.query.order_by(Sector.name).all()
     roles = Role.query.order_by(Role.name).all()
+    import unicodedata
+    def _chave(u):
+        n = unicodedata.normalize('NFKD', u.name or '').encode('ascii', 'ignore').decode()
+        return n.lower()
+    all_users = sorted(all_users, key=_chave)
     grupos = [(r.name, [u for u in all_users if u.role_id == r.id]) for r in roles]
     grupos.append(('Sem cargo', [u for u in all_users if not u.role_id]))
     grupos = [(nome, us) for nome, us in grupos if us]
