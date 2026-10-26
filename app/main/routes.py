@@ -2223,16 +2223,22 @@ def maquina_historico_producao(numero):
     t0 = datetime.combine(de, datetime.min.time()) + timedelta(hours=6, minutes=20)
     t1 = datetime.combine(ate + timedelta(days=1), datetime.min.time()) + timedelta(hours=6, minutes=20)
     por_dia = {}
-    for b in BaixaFio.query.filter(BaixaFio.maquina == numero, BaixaFio.mudou >= t0, BaixaFio.mudou < t1).all():
-        d = por_dia.setdefault((b.mudou - timedelta(hours=6, minutes=20)).date(), [0, 0.0, 0.0])
+    for b in BaixaFio.query.filter(BaixaFio.maquina == numero, BaixaFio.mudou >= t0, BaixaFio.mudou < t1).order_by(BaixaFio.mudou).all():
+        d = por_dia.setdefault((b.mudou - timedelta(hours=6, minutes=20)).date(), [0, 0.0, 0.0, {}])
+        m_peca = float(b.metro_padrao or b.metros or 0)
         d[0] += 1
-        d[1] += float(b.metro_padrao or b.metros or 0)
+        d[1] += m_peca
         d[2] += float(b.kg or 0)
+        a = d[3].setdefault((b.artigo_desc or '').strip() or (f'OP {b.op}' if b.op else 'Artigo não identificado'), dict(op=b.op, pecas=0, metros=0.0))
+        a['pecas'] += 1
+        a['metros'] += m_peca
     dias_lista, d = [], de
     while d <= ate:
-        p, m, k = por_dia.get(d, [0, 0.0, 0.0])
+        p, m, k, arts = por_dia.get(d, [0, 0.0, 0.0, {}])
         dias_lista.append(dict(dia=d.isoformat(), semana=['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'][d.weekday()], pecas=p,
-                               metros=round(m, 1), kg=round(k, 1), parcial=(d == dia_atual)))
+                               metros=round(m, 1), kg=round(k, 1), parcial=(d == dia_atual),
+                               artigos=[dict(artigo=n, op=v['op'], pecas=v['pecas'], metros=round(v['metros'], 1))
+                                        for n, v in sorted(arts.items(), key=lambda kv: -kv[1]['pecas'])]))
         d += timedelta(days=1)
     fechados = [x for x in dias_lista if not x['parcial']]            # o dia em andamento nao entra nas medias
     produzindo = [x for x in fechados if x['pecas'] > 0]
