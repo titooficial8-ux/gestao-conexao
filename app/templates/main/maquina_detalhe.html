@@ -288,6 +288,7 @@
 .hp-barra{display:block;height:8px;border-radius:999px;background:var(--gray-200);min-width:90px}
 .hp-barra i{display:block;height:100%;border-radius:999px;background:var(--blue-600)}
 .hp-zero td{color:var(--gray-500)}
+.hp-det td{background:#f8fafc;padding:8px 12px}
 .hp-art{text-align:left !important;min-width:260px}
 .hp-art-l{font-size:13px;line-height:1.35}
 .hp-art-l small{color:var(--gray-500)}
@@ -327,9 +328,25 @@
       l.appendChild(ta);
       l.appendChild(el('td', null, String(x.pecas))); l.appendChild(el('td', null, x.pecas ? nf(x.metros, 0) : '–')); l.appendChild(el('td', null, x.pecas ? nf(x.kg, 0) : '–'));
       var b = el('td'), bar = el('span', 'hp-barra'), i = el('i'); i.style.width = Math.round(x.pecas / max * 100) + '%'; bar.appendChild(i); b.appendChild(bar); l.appendChild(b);
+      if (x.pecas) { l.style.cursor = 'pointer'; l.title = 'Clique para ver as peças deste dia'; l.addEventListener('click', function () { detalhe(x.dia, l); }); }
       body.appendChild(l);
     });
     tb.appendChild(body); var w = el('div', 'table-scroll'); w.appendChild(tb); corpo.appendChild(w);
+  }
+  function detalhe(diaIso, linha) {
+    var prox = linha.nextSibling;
+    if (prox && prox.classList && prox.classList.contains('hp-det')) { prox.remove(); return; }       // clique de novo fecha
+    var tr = el('tr', 'hp-det'), td = el('td'); td.colSpan = 6; td.appendChild(el('p', 'prod-table-empty', 'Carregando peças…')); tr.appendChild(td);
+    linha.parentNode.insertBefore(tr, linha.nextSibling);
+    fetch(url + '/dia?dia=' + diaIso, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      td.textContent = '';
+      if (!d.ok) { td.appendChild(el('p', 'prod-table-empty', d.erro || 'Falha.')); return; }
+      var tb = el('table', 'data-table prod-table tab-centro'), th = el('thead'), h = el('tr');
+      ['Hora', 'Transação', 'OP', 'Artigo', 'Metros', 'Kg'].forEach(function (t) { h.appendChild(el('th', null, t)); }); th.appendChild(h); tb.appendChild(th);
+      var b = el('tbody');
+      d.pecas.forEach(function (p) { var r = el('tr'); [p.hora, String(p.codigo), p.op || '–', p.artigo || '–', nf(p.metros, 1), nf(p.kg, 1)].forEach(function (t) { r.appendChild(el('td', null, t)); }); b.appendChild(r); });
+      tb.appendChild(b); var w = el('div', 'table-scroll'); w.appendChild(tb); td.appendChild(w);
+    }).catch(function () { td.textContent = 'Falha ao carregar as peças.'; });
   }
   function carregar(qs) {
     corpo.textContent = ''; corpo.appendChild(el('p', 'prod-table-empty', 'Carregando…'));
