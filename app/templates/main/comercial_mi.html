@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<style>
+.cm-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.cm-bar select,.cm-bar input{padding:8px 12px;border:1px solid var(--gray-300);border-radius:999px;font-size:14px;background:#fff;color:var(--text)}
+.cm-bar .cm-grow{flex:1;min-width:200px}
+.cm-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--gray-200);margin-bottom:16px}
+.cm-tab{background:none;border:0;padding:10px 16px;font-size:14px;font-weight:700;color:var(--gray-500);cursor:pointer;border-bottom:3px solid transparent}
+.cm-tab.on{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+.cm-tab small{background:var(--blue-100);color:var(--blue-700);border-radius:999px;padding:1px 8px;margin-left:6px}
+.cm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+.cm-kpi{background:#fff;border:1px solid var(--gray-200);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
+.cm-kpi span{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}
+.cm-kpi strong{display:block;font-size:26px;color:var(--text);margin-top:4px}
+.cm-kpi em{font-style:normal;font-size:12px;color:var(--gray-500)}
+.cm-grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cm-card{background:#fff;border:1px solid var(--gray-200);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:16px}
+.cm-card h3{margin:0 0 10px;font-size:15px;color:var(--blue-800)}
+.cm-linha{display:grid;grid-template-columns:150px 1fr 110px;gap:10px;align-items:center;margin:7px 0;font-size:13px}
+.cm-linha .nome{font-weight:600;color:var(--text)}
+.cm-linha .barra{height:12px;background:var(--gray-200);border-radius:999px;overflow:hidden}
+.cm-linha .barra i{display:block;height:100%;background:linear-gradient(90deg,var(--blue-600),#1d9bf0)}
+.cm-linha.sem .barra i{background:#cbd5e1}
+.cm-linha .val{text-align:right;color:var(--gray-700)}
+.cm-sel{padding:5px 8px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px;background:#fff;max-width:170px}
+.cm-sel.ok{border-color:#1f9d55;background:#f1fbf5}
+.cm-inp{padding:5px 8px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px;width:100%;min-width:130px;box-sizing:border-box}
+.cm-salvo{font-size:11px;color:#17794a;margin-left:6px}
+.cm-vazio{padding:26px;text-align:center;color:var(--gray-500)}
+.cm-fonte{font-size:12px;color:var(--gray-500);margin:8px 2px}
+.cm-erro{background:#fde7e8;color:#b3262b;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:12px}
+@media(max-width:860px){.cm-grid2{grid-template-columns:1fr}.cm-linha{grid-template-columns:110px 1fr 90px}}
+</style>
+
+<div class="cm-bar">
+  <label style="font-size:14px;font-weight:600">Sem comprar / rodar há:</label>
+  <select id="cmMeses"><option value="3" selected>3 meses</option><option value="6">6 meses</option><option value="9">9 meses</option><option value="12">12 meses</option></select>
+  <input type="search" id="cmBusca" class="cm-grow" placeholder="Buscar cliente ou artigo...">
+  <button type="button" class="btn-small" id="cmCsv">&#11015; Excel (CSV)</button>
+</div>
+
+<div class="cm-tabs">
+  <button type="button" class="cm-tab on" data-aba="ind">Indicadores (Diretoria)</button>
+  <button type="button" class="cm-tab" data-aba="cli">Clientes que não compram <small id="cmNCli">0</small></button>
+  <button type="button" class="cm-tab" data-aba="art">Artigos que não rodam <small id="cmNArt">0</small></button>
+</div>
+<div id="cmErro" class="cm-erro" hidden></div>
+
+<section id="aba-ind"></section>
+<section id="aba-cli" hidden></section>
+<section id="aba-art" hidden></section>
+<p class="cm-fonte" id="cmFonte"></p>
+
+<script>
+(function () {
+  var URL_DADOS = '{{ url_for("cmi.dados") }}', URL_MOTIVO = '{{ url_for("cmi.salvar_motivo") }}', URL_EXPORT = '{{ url_for("cmi.exportar") }}', URL_ATUALIZAR = '{{ url_for("cmi.atualizar_artigos") }}';
+  var D = null, aba = 'ind', sujo = false;
+  function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined && txt !== null) e.textContent = txt; return e; }
+  function nf(v, d) { return Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+  function brl(v) { return 'R$ ' + nf(v, 0); }
+  function dia(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+  function kpi(r, v, s) { var k = el('div', 'cm-kpi'); k.appendChild(el('span', null, r)); k.appendChild(el('strong', null, v)); if (s) k.appendChild(el('em', null, s)); return k; }
+  function barras(titulo, lista, fmt, vazioTxt) {
+    var c = el('div', 'cm-card'); c.appendChild(el('h3', null, titulo));
+    var max = Math.max.apply(null, lista.map(function (x) { return x.qtd; }).concat([1])), total = lista.reduce(function (a, x) { return a + x.qtd; }, 0);
+    if (!total) { c.appendChild(el('p', 'cm-vazio', vazioTxt)); return c; }
+    lista.forEach(function (x) {
+      var l = el('div', 'cm-linha' + (x.motivo === 'Sem motivo informado' ? ' sem' : '')); l.appendChild(el('span', 'nome', x.motivo));
+      var b = el('span', 'barra'), i = el('i'); i.style.width = Math.round(x.qtd / max * 100) + '%'; b.appendChild(i); l.appendChild(b);
+      l.appendChild(el('span', 'val', x.qtd + ' · ' + fmt(x.valor))); c.appendChild(l);
+    });
+    return c;
+  }
+  function topo(titulo, lista, fmt) {
+    var c = el('div', 'cm-card'); c.appendChild(el('h3', null, titulo));
+    if (!lista.length) { c.appendChild(el('p', 'cm-vazio', 'Nada no período.')); return c; }
+    var max = Math.max.apply(null, lista.map(function (x) { return x.valor; }).concat([1]));
+    lista.forEach(function (x) {
+      var l = el('div', 'cm-linha'); l.appendChild(el('span', 'nome', x.nome));
+      var b = el('span', 'barra'), i = el('i'); i.style.width = Math.round(x.valor / max * 100) + '%'; b.appendChild(i); l.appendChild(b);
+      l.appendChild(el('span', 'val', fmt(x.valor) + (x.motivo ? ' · ' + x.motivo : ''))); c.appendChild(l);
+    });
+    return c;
+  }
+  function desenharInd() {
+    var s = document.getElementById('aba-ind'); s.textContent = ''; var I = D.indicadores, c = I.clientes, a = I.artigos;
+    var k = el('div', 'cm-kpis');
+    k.appendChild(kpi('Clientes sem comprar', String(c.total), 'há ' + D.meses + '+ meses'));
+    k.appendChild(kpi('Faturamento em risco', brl(c.valor_em_risco), 'últimos 12 meses antes de pararem'));
+    k.appendChild(kpi('Clientes com motivo', c.pct_informado + '%', c.informados + ' de ' + c.total));
+    k.appendChild(kpi('Artigos sem rodar', String(a.total), 'há ' + D.meses + '+ meses'));
+    k.appendChild(kpi('Metros parados', nf(a.metros_12m) + ' m', 'últimos 12 meses antes de pararem'));
+    k.appendChild(kpi('Artigos com motivo', a.pct_informado + '%', a.informados + ' de ' + a.total));
+    s.appendChild(k);
+    var g = el('div', 'cm-grid2');
+    g.appendChild(barras('Por que os clientes pararam de comprar (qtd · faturamento)', c.por_motivo, brl, 'Nenhum cliente no período.'));
+    g.appendChild(barras('Por que os artigos pararam de rodar (qtd · metros)', a.por_motivo, function (v) { return nf(v) + ' m'; }, 'Nenhum artigo no período.'));
+    g.appendChild(topo('10 clientes com maior faturamento em risco', c.top, brl));
+    g.appendChild(topo('10 artigos com mais metros parados', a.top, function (v) { return nf(v) + ' m'; }));
+    s.appendChild(g);
+    var mes = el('div', 'cm-card'); mes.appendChild(el('h3', null, 'Quando os clientes pararam de comprar (mês da última compra)'));
+    var max = Math.max.apply(null, c.saida_por_mes.map(function (x) { return x.qtd; }).concat([1]));
+    if (!c.saida_por_mes.length) mes.appendChild(el('p', 'cm-vazio', 'Nenhum cliente no período.'));
+    c.saida_por_mes.slice(-18).forEach(function (x) {
+      var l = el('div', 'cm-linha'); l.appendChild(el('span', 'nome', x.mes.slice(5) + '/' + x.mes.slice(0, 4)));
+      var b = el('span', 'barra'), i = el('i'); i.style.width = Math.round(x.qtd / max * 100) + '%'; b.appendChild(i); l.appendChild(b); l.appendChild(el('span', 'val', x.qtd + ' clientes')); mes.appendChild(l);
+    });
+    s.appendChild(mes);
+  }
+  function seletor(tipo, x, lista) {
+    var sel = el('select', 'cm-sel' + (x.motivo ? ' ok' : '')); var o0 = el('option', null, '— motivo —'); o0.value = ''; sel.appendChild(o0);
+    lista.forEach(function (m) { var o = el('option', null, m); o.value = m; if (m === x.motivo) o.selected = true; sel.appendChild(o); });
+    return sel;
+  }
+  function ligarSalvar(tipo, x, linha, campos, ref) {
+    var aviso = el('span', 'cm-salvo'), t = null;
+    function salvar() {
+      var corpo = { tipo: tipo, chave: x.chave, nome: x.nome, motivo: campos.motivo.value, obs: campos.obs.value, desenho: campos.desenho ? campos.desenho.value : '' };
+      fetch(URL_MOTIVO, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (!d.ok) { aviso.textContent = d.erro || 'Erro'; return; }
+          x.motivo = corpo.motivo; x.obs = corpo.obs; if (campos.desenho) x.desenho = corpo.desenho; sujo = true;
+          campos.motivo.className = 'cm-sel' + (x.motivo ? ' ok' : ''); aviso.textContent = 'salvo ✓';
+          setTimeout(function () { aviso.textContent = ''; }, 2500);
+        }).catch(function () { aviso.textContent = 'falha ao salvar'; });
+    }
+    campos.motivo.addEventListener('change', salvar);
+    [campos.obs, campos.desenho].forEach(function (i) { if (i) i.addEventListener('input', function () { clearTimeout(t); t = setTimeout(salvar, 900); }); });
+    return aviso;
+  }
+  function tabela(tipo, lista, colunas, motivos, busca) {
+    var w = el('div', 'table-card'), sc = el('div', 'table-scroll'), tb = el('table', 'data-table prod-table'), th = el('thead'), hr = el('tr');
+    colunas.forEach(function (c) { hr.appendChild(el('th', null, c)); }); th.appendChild(hr); tb.appendChild(th);
+    var body = el('tbody'), n = 0;
+    lista.forEach(function (x) {
+      if (busca && (x.nome + ' ' + (x.cod || '') + ' ' + (x.clientes || '')).toLowerCase().indexOf(busca) < 0) return;
+      n++; var l = el('tr');
+      if (tipo === 'cliente') {
+        [x.nome, dia(x.ultima), nf(x.meses, 1) + ' meses', String(x.pedidos_12m), brl(x.valor_12m), nf(x.metros_12m) + ' m'].forEach(function (t, i) { var td = el('td', null, t); if (i === 0) td.style.fontWeight = '700'; l.appendChild(td); });
+      } else {
+        var td0 = el('td', null, x.cod); td0.style.fontWeight = '700'; l.appendChild(td0);
+        [x.nome, dia(x.ultima), nf(x.meses, 1) + ' meses', String(x.ops_12m), nf(x.metros_12m) + ' m', x.clientes || '–'].forEach(function (t) { l.appendChild(el('td', null, t)); });
+      }
+      var campos = { motivo: seletor(tipo, x, motivos), obs: el('input', 'cm-inp') };
+      campos.obs.placeholder = 'Observação'; campos.obs.value = x.obs || ''; campos.obs.maxLength = 500;
+      var tdm = el('td'); tdm.appendChild(campos.motivo); l.appendChild(tdm);
+      if (tipo === 'artigo') { campos.desenho = el('input', 'cm-inp'); campos.desenho.placeholder = 'Desenho / amostra'; campos.desenho.value = x.desenho || ''; campos.desenho.maxLength = 200; var td = el('td'); td.appendChild(campos.desenho); l.appendChild(td); }
+      var tdo = el('td'); tdo.appendChild(campos.obs); tdo.appendChild(ligarSalvar(tipo, x, l, campos, function () { desenharInd(); })); l.appendChild(tdo);
+      body.appendChild(l);
+    });
+    if (!n) { var tr = el('tr'), td = el('td', 'cm-vazio', lista.length ? 'Nenhum resultado para a busca.' : 'Nenhum registro no período.'); td.colSpan = colunas.length; tr.appendChild(td); body.appendChild(tr); }
+    tb.appendChild(body); sc.appendChild(tb); w.appendChild(sc); return w;
+  }
+  function desenharCli() {
+    var s = document.getElementById('aba-cli'); s.textContent = '';
+    s.appendChild(tabela('cliente', D.clientes, ['Cliente', 'Última compra', 'Sem comprar há', 'Pedidos (12 m antes)', 'Faturamento (12 m antes)', 'Metros (12 m antes)', 'Motivo', 'Observação'], D.motivos.cliente, document.getElementById('cmBusca').value.trim().toLowerCase()));
+  }
+  function desenharArt() {
+    var s = document.getElementById('aba-art'); s.textContent = '';
+    var f = D.fonte_artigos; var barra = el('div', 'cm-bar');
+    var b = el('button', 'btn-small', 'Atualizar OPs do TOTVS'); b.type = 'button';
+    b.addEventListener('click', function () { b.disabled = true; b.textContent = 'Atualizando…'; fetch(URL_ATUALIZAR, { method: 'POST', credentials: 'same-origin' }).then(function () { setTimeout(carregar, 8000); }); });
+    barra.appendChild(b); barra.appendChild(el('span', 'cm-fonte', f.total ? 'Base: ' + f.total + ' artigos com OPs no TOTVS' + (f.ultima ? ' · atualizada em ' + f.ultima.replace('T', ' ').slice(0, 16) : '') : 'Ainda sem leitura das OPs: clique em "Atualizar OPs do TOTVS".'));
+    s.appendChild(barra);
+    if (f.erro) { var e = el('div', 'cm-erro', 'Última leitura do TOTVS falhou: ' + f.erro); s.appendChild(e); }
+    s.appendChild(tabela('artigo', D.artigos, ['Artigo', 'Descrição', 'Última OP', 'Parado há', 'OPs (12 m antes)', 'Metros (12 m antes)', 'Clientes', 'Motivo', 'Desenho da amostra', 'Observação'], D.motivos.artigo, document.getElementById('cmBusca').value.trim().toLowerCase()));
+  }
+  function mostrar() {
+    ['ind', 'cli', 'art'].forEach(function (a) { document.getElementById('aba-' + a).hidden = a !== aba; });
+    document.querySelectorAll('.cm-tab').forEach(function (b) { b.classList.toggle('on', b.dataset.aba === aba); });
+    document.getElementById('cmBusca').style.display = aba === 'ind' ? 'none' : '';
+    document.getElementById('cmCsv').style.display = aba === 'ind' ? 'none' : '';
+  }
+  function desenharTudo() { document.getElementById('cmNCli').textContent = D.clientes.length; document.getElementById('cmNArt').textContent = D.artigos.length; desenharInd(); desenharCli(); desenharArt(); mostrar(); }
+  function carregar() {
+    var m = document.getElementById('cmMeses').value;
+    fetch(URL_DADOS + '?meses=' + m, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var e = document.getElementById('cmErro'); if (!d.ok) { e.hidden = false; e.textContent = d.erro || 'Não foi possível carregar.'; return; } e.hidden = true; D = d; desenharTudo();
+      document.getElementById('cmFonte').textContent = 'Clientes: pedidos de venda do mercado interno (TOTVS + planilha 2023–2025). Artigos: OPs do TOTVS (data de abertura da OP). Os valores "12 m antes" somam os 12 meses anteriores à última compra/OP.';
+    }).catch(function () { var e = document.getElementById('cmErro'); e.hidden = false; e.textContent = 'Falha ao carregar os dados.'; });
+  }
+  document.querySelectorAll('.cm-tab').forEach(function (b) { b.addEventListener('click', function () { aba = b.dataset.aba; mostrar(); if (aba === 'ind' && sujo) { sujo = false; carregar(); } }); });
+  document.getElementById('cmMeses').addEventListener('change', carregar);
+  document.getElementById('cmBusca').addEventListener('input', function () { if (D) { desenharCli(); desenharArt(); } });
+  document.getElementById('cmCsv').addEventListener('click', function () { location.href = URL_EXPORT + '?tipo=' + (aba === 'art' ? 'artigos' : 'clientes') + '&meses=' + document.getElementById('cmMeses').value; });
+  carregar();
+})();
+</script>
+{% endblock %}

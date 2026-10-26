@@ -466,6 +466,34 @@ class ProducaoRef(db.Model):
     referencia = db.Column(db.DateTime)   # data do registro na base (o mais recente de cada maquina+artigo vale)
 
 
+class MotivoInativo(db.Model):
+    """Motivo informado pelo comercial para um cliente que parou de comprar ou um artigo que parou de rodar (aba Comercial MI).
+    cliente: Preco, Prazo de Entrega, Qualidade, Desenvolvimento. artigo: Tirou de linha, Preco, Problema de qualidade, Desenvolvimento."""
+    __tablename__ = 'motivos_inativos'
+    __table_args__ = (db.UniqueConstraint('tipo', 'chave', name='uq_motivo_tipo_chave'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    tipo = db.Column(db.String(10), index=True)        # 'cliente' | 'artigo'
+    chave = db.Column(db.String(160), index=True)      # cliente (nome em maiusculas) ou codigo do artigo
+    nome = db.Column(db.String(200))
+    motivo = db.Column(db.String(40))
+    obs = db.Column(db.Text)
+    desenho = db.Column(db.String(200))                # desenho/codigo da amostra ligado ao artigo
+    usuario = db.Column(db.String(120))
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ArtigoRodagem(db.Model):
+    """Historico de OPs de cada artigo (lido do TOTVS): serve para saber quais artigos pararam de rodar."""
+    __tablename__ = 'artigos_rodagem'
+
+    id = db.Column(db.Integer, primary_key=True)
+    cod_artigo = db.Column(db.String(40), unique=True, index=True)
+    descricao = db.Column(db.String(200))
+    ops_json = db.Column(db.Text)                      # [[data da OP, quantidade (m), cliente, numero da OP], ...]
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class GramaturaMetrosRule(db.Model):
     """Regra gramatura -> metros esperados (gramatura_metros_rules do PCP
     Hub). Usada pra detectar divergencia entre a gramatura do artigo e a

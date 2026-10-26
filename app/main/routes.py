@@ -1226,11 +1226,7 @@ def view_tab(slug):
         )
 
     if slug == 'pedidos-comercial-mi':
-        return render_template(
-            'main/pedidos_comercial.html', tab=tab, regiao='MI',
-            colunas=PEDIDOS_MI_COLUNAS, pedidos=PEDIDOS_MI_MODELO,
-            indicadores_clientes=INDICADORES_CLIENTES_MI, pedidos_por_pais=None,
-        )
+        return render_template('main/comercial_mi.html', tab=tab)
 
     if slug == 'pedidos-comercial-me':
         from app.comercial_me import paineis
