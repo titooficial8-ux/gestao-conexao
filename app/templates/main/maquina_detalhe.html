@@ -56,8 +56,9 @@
     <button type="button" class="prod-btn prod-btn-warn machine-summary-verificar" disabled>&#9888; {{ t('verificar_status_sequencias') }}</button>
   </div>
   <div class="machine-summary-stats">
-    <span class="machine-stat" title="Voltas ÷ RPM, com 15% de ineficiência (1224 min por dia)"><strong>{{ t('media_pcs_24h') }}:</strong> {{ pecas_24h|round(1) if pecas_24h else '—' }}</span>
+    <span class="machine-stat" title="{% if origem_24h %}Voltas ÷ RPM da OP {{ origem_24h.op }}: {{ origem_24h.voltas }} voltas / {{ origem_24h.rpm|string|replace('.', ',') }} RPM, com 15% de ineficiência (1224 min por dia){% else %}Sem voltas/RPM na base para as OPs desta máquina{% endif %}"><strong>{{ t('media_pcs_24h') }}:</strong> {{ pecas_24h|round(1)|string|replace('.', ',') if pecas_24h else '—' }}{% if origem_24h %} <small class="machine-stat-fonte">(OP {{ origem_24h.op }} · {{ origem_24h.voltas }} v / {{ origem_24h.rpm|string|replace('.', ',') }} rpm)</small>{% endif %}</span>
     <span class="machine-stat"><strong>{{ t('mt_24h') }}:</strong> {{ metros_24h if metros_24h else '—' }}</span>
+    {% if origem_24h and origem_24h.sem_base_producao %}<span class="machine-stat machine-stat-aviso" title="A OP que está produzindo ({{ origem_24h.op_produzindo }}) ainda não tem voltas/RPM na base; o valor acima é da OP {{ origem_24h.op }}">&#9888; OP {{ origem_24h.op_produzindo }} sem voltas/RPM na base</span>{% endif %}
     <span class="machine-stat"><strong>{{ t('total_pcs') }}:</strong> {{ total_pcs_maquina }}</span>
     <span class="machine-stat">{{ produzindo_count }} {{ t('prod_abrev') }}</span>
     <span class="machine-stat">0 {{ t('fin_abrev') }}</span>
@@ -297,6 +298,8 @@
   </div>
 </div>
 <style>
+.machine-stat-fonte{color:var(--gray-500);font-size:11px;font-weight:400}
+.machine-stat-aviso{color:#9a6700;background:#fff3d6;border-radius:8px;padding:2px 8px;font-size:12px;font-weight:600}
 .hp-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:4px 0 12px}
 .hp-barra{display:block;height:8px;border-radius:999px;background:var(--gray-200);min-width:90px}
 .hp-barra i{display:block;height:100%;border-radius:999px;background:var(--blue-600)}
