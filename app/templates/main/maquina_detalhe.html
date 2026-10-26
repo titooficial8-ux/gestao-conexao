@@ -56,8 +56,8 @@
     <button type="button" class="prod-btn prod-btn-warn machine-summary-verificar" disabled>&#9888; {{ t('verificar_status_sequencias') }}</button>
   </div>
   <div class="machine-summary-stats">
-    <span class="machine-stat"><strong>{{ t('media_pcs_24h') }}:</strong> —</span>
-    <span class="machine-stat"><strong>{{ t('mt_24h') }}:</strong> —</span>
+    <span class="machine-stat" title="Voltas ÷ RPM, com 15% de ineficiência (1224 min por dia)"><strong>{{ t('media_pcs_24h') }}:</strong> {{ pecas_24h|round(1) if pecas_24h else '—' }}</span>
+    <span class="machine-stat"><strong>{{ t('mt_24h') }}:</strong> {{ metros_24h if metros_24h else '—' }}</span>
     <span class="machine-stat"><strong>{{ t('total_pcs') }}:</strong> {{ total_pcs_maquina }}</span>
     <span class="machine-stat">{{ produzindo_count }} {{ t('prod_abrev') }}</span>
     <span class="machine-stat">0 {{ t('fin_abrev') }}</span>
@@ -106,7 +106,7 @@
           <td class="seq-cliente">{{ s.cliente }}</td>
           <td>{{ s.estrutura or '–' }}</td>
           {% set ar = artigos.get(s.id) %}
-          <td><button type="button" class="seq-op seq-op-btn" data-op="{{ s.op }}" data-estrutura="{{ s.estrutura or (ar.estrutura if ar else '') or '' }}" data-gramatura="{{ (ar.gramatura|round(0)|int) if ar and ar.gramatura else '' }}" data-largura="{{ ar.largura if ar and ar.largura else '' }}" data-composicao="{{ ar.composicao if ar and ar.composicao else '' }}" title="Ver pesagens na MALHARIA PESAGEM">{{ s.op }}</button></td>
+          <td><button type="button" class="seq-op seq-op-btn" data-op="{{ s.op }}" data-estrutura="{{ s.estrutura or (ar.estrutura if ar else '') or '' }}" data-gramatura="{{ (ar.gramatura|round(0)|int) if ar and ar.gramatura else '' }}" data-largura="{{ ar.largura if ar and ar.largura else '' }}" data-composicao="{{ ar.composicao if ar and ar.composicao else '' }}" data-voltas="{{ s.prev_voltas|int if s.prev_voltas else '' }}" data-rpm="{{ s.prev_rpm if s.prev_rpm else '' }}" data-pecasdia="{{ s.pecas_dia|round(1) if s.pecas_dia else '' }}" data-termino="{{ s.termino_malharia.strftime('%d/%m/%Y') if s.termino_malharia else '' }}" data-calculado="{{ 1 if s.termino_calculado else 0 }}" data-fonte="{{ s.prev_fonte or '' }}" title="Ver pesagens na MALHARIA PESAGEM">{{ s.op }}</button></td>
           <td>{{ s.cod_segmento or '–' }}</td>
           <td>
             {% set sit = s.situacao or ('PRODUZINDO' if s.status == 'PRODUZINDO' else ('PCP - Fase¹' if s.status == 'PCP' else 'MALHARIA')) %}
@@ -226,6 +226,13 @@
       inf.appendChild(kpi('Gramatura', infoAtual.gramatura || '–', infoAtual.largura ? 'largura ' + infoAtual.largura + ' m' : '', infoAtual.gramatura ? 'g/m²' : ''));
       inf.appendChild(kpi('Composição', infoAtual.composicao || '–'));
       corpo.appendChild(inf);
+      if (infoAtual.pecasdia) {
+        var pv = el('div', 'op-kpis');
+        pv.appendChild(kpi('Voltas / RPM', infoAtual.voltas + ' / ' + String(infoAtual.rpm).replace('.', ','), infoAtual.fonte ? 'base: ' + infoAtual.fonte : ''));
+        pv.appendChild(kpi('Peças em 24 h', String(infoAtual.pecasdia).replace('.', ','), 'com 15% de ineficiência', 'pç'));
+        pv.appendChild(kpi('Previsão de término', infoAtual.termino || '–', infoAtual.calculado ? 'pelas voltas/RPM e a fila da máquina' : ''));
+        corpo.appendChild(pv);
+      }
     }
     if (!d.pecas.length) { corpo.appendChild(el('p', 'prod-table-empty', 'Nenhuma peça pesada ainda nesta OP.')); return; }
     var ult = d.pecas.slice().reverse().find(function (x) { return x.quando; }) || d.pecas[d.pecas.length - 1];
@@ -254,7 +261,7 @@
   function fechar() { modal.hidden = true; opAtual = null; clearInterval(timer); }
   document.querySelectorAll('.seq-op-btn').forEach(function (b) {
     b.addEventListener('click', function () {
-      opAtual = b.dataset.op; infoAtual = { estrutura: b.dataset.estrutura, gramatura: b.dataset.gramatura, largura: b.dataset.largura, composicao: b.dataset.composicao };
+      opAtual = b.dataset.op; infoAtual = { estrutura: b.dataset.estrutura, gramatura: b.dataset.gramatura, largura: b.dataset.largura, composicao: b.dataset.composicao, voltas: b.dataset.voltas, rpm: b.dataset.rpm, pecasdia: b.dataset.pecasdia, termino: b.dataset.termino, calculado: b.dataset.calculado === '1', fonte: b.dataset.fonte };
       titulo.textContent = 'MALHARIA PESAGEM · OP ' + opAtual; rodape.textContent = '';
       corpo.textContent = ''; corpo.appendChild(el('p', 'prod-table-empty', 'Consultando o TOTVS…')); modal.hidden = false;
       carregar(); clearInterval(timer); timer = setInterval(carregar, 5000);

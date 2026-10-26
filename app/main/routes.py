@@ -1587,6 +1587,8 @@ def programacao_dias_sem_producao_recalcular():
             Sequencia.status.in_(['PCP', 'EM_SEQUENCIA']), Sequencia.termino_malharia.isnot(None)
         ).order_by(Sequencia.sequence_order.asc()).all()
         for s in seqs:
+            if s.termino_calculado:                  # a previsao por voltas/RPM ja considera os dias sem producao
+                continue
             pulados = [d for d in dias_maquina if s.termino_malharia and d >= s.termino_malharia]
             if pulados:
                 s.termino_malharia = s.termino_malharia + timedelta(days=len(pulados))
@@ -2202,6 +2204,28 @@ def novo_registro_programacao():
     return redirect(url_for('main.maquina_detalhe', numero=machine.number))
 
 
+@main_bp.route('/aba/programacao/base-voltas', methods=['POST'])
+@login_required
+def programacao_base_voltas():
+    """Administrador envia a planilha producaoDIARIA (voltas e RPM); importa e recalcula as previsoes de termino."""
+    if not current_user.is_admin:
+        abort(403)
+    from app import previsao
+    arq = request.files.get('arquivo')
+    if not arq or not arq.filename.lower().endswith(('.xlsx', '.xlsm')):
+        return jsonify(ok=False, erro='Envie a planilha producaoDIARIA em .xlsx.'), 400
+    destino = previsao.caminho_base()
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    arq.save(destino)
+    try:
+        n = previsao.importar(destino)
+        previsao._arquivo_lido['mtime'] = destino.stat().st_mtime
+        calculadas = previsao.calcular()
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, erro=str(e)[:300]), 400
+    return jsonify(ok=True, linhas=n, ops_calculadas=calculadas)
+
+
 @main_bp.route('/aba/programacao/maquina/<int:numero>/historico-producao/dia')
 @login_required
 def maquina_historico_producao_dia(numero):
@@ -2294,9 +2318,12 @@ def maquina_detalhe(numero):
     total_pcs_maquina = sum(s.total_pcs or 0 for s in sequencias)
     produzindo_count = sum(1 for s in sequencias if s.status == 'PRODUZINDO')
     artigos = {s.id: dados_do_artigo(s.artigo) for s in sequencias}   # gramatura/composicao lidas do TOTVS
+    ref24 = next((s for s in sequencias if s.status == 'PRODUZINDO' and s.pecas_dia), None) or next((s for s in sequencias if s.pecas_dia), None)
+    pecas_24h = ref24.pecas_dia if ref24 else None                    # entrega da maquina em 24 h (voltas/RPM, com 15 % de ineficiencia)
+    metros_24h = round(pecas_24h * ref24.qt_solicitada / ref24.total_pcs) if ref24 and ref24.total_pcs and ref24.qt_solicitada else None
     return render_template(
         'main/maquina_detalhe.html',
-        artigos=artigos,
+        artigos=artigos, pecas_24h=pecas_24h, metros_24h=metros_24h,
         tab=tab,
         machine=machine,
         sequencias=sequencias,

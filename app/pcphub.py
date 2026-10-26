@@ -98,6 +98,8 @@ def aplicar(linhas: list, agora=None) -> dict:
                       region=r.get('region') or 'BR', synced_at=agora)
         s = atuais.get(chave)
         if s:
+            if s.termino_calculado:                      # o termino vem da previsao por voltas/RPM, nao do PCP Hub
+                campos.pop('termino_malharia', None)
             if str(s.op) in no_totvs:                    # a quantidade (pecas e metros) da OP vem direto do TOTVS, nao do PCP Hub
                 campos.pop('total_pcs', None)
                 campos.pop('qt_solicitada', None)
