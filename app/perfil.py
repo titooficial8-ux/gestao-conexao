@@ -15,7 +15,7 @@ from app.presenca import HORAS_PARA_SELO
 perfil_bp = Blueprint('perfil', __name__)
 
 MAX_UPLOAD = 8 * 1024 * 1024
-TAMANHOS = {'foto': (400, 400), 'capa': (1600, 500)}
+TAMANHOS = {'foto': (400, 400), 'capa': (1600, 1600)}  # a capa guarda a imagem inteira (ate 1600 px) para a pessoa poder arrastar o enquadramento
 
 
 def _pasta() -> Path:
@@ -65,15 +65,37 @@ def enviar(tipo):
     try:
         img = Image.open(io.BytesIO(dados))
         img = ImageOps.exif_transpose(img)
-        img = ImageOps.fit(img.convert('RGB'), TAMANHOS[tipo], Image.LANCZOS)
+        img = img.convert('RGB')
+        if tipo == 'foto':
+            img = ImageOps.fit(img, TAMANHOS[tipo], Image.LANCZOS)
+        else:
+            img.thumbnail(TAMANHOS[tipo], Image.LANCZOS)
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
         flash('Arquivo inválido. Envie uma imagem JPG, PNG ou WEBP.', 'error')
         return redirect(url_for('perfil.meu_perfil'))
     img.save(_arquivo(current_user.id, tipo), 'JPEG', quality=88, optimize=True)
     setattr(current_user, f'{tipo}_versao', (getattr(current_user, f'{tipo}_versao') or 0) + 1)
+    if tipo == 'capa':
+        current_user.capa_x = current_user.capa_y = 50
     db.session.commit()
-    flash('Foto atualizada.' if tipo == 'foto' else 'Capa atualizada.', 'success')
+    if tipo == 'capa':   # ja abre o modo de ajuste para a pessoa arrastar a imagem
+        return redirect(url_for('perfil.meu_perfil', ajustar=1))
+    flash('Foto atualizada.', 'success')
     return redirect(url_for('perfil.meu_perfil'))
+
+
+@perfil_bp.route('/perfil/capa-posicao', methods=['POST'])
+@login_required
+def capa_posicao():
+    j = request.get_json(silent=True) or {}
+    try:
+        x, y = int(round(float(j.get('x', 50)))), int(round(float(j.get('y', 50))))
+    except (TypeError, ValueError):
+        abort(400)
+    current_user.capa_x = max(0, min(100, x))
+    current_user.capa_y = max(0, min(100, y))
+    db.session.commit()
+    return '', 204
 
 
 @perfil_bp.route('/perfil/remover/<tipo>', methods=['POST'])
@@ -85,5 +107,7 @@ def remover(tipo):
     if f.exists():
         f.unlink()
     setattr(current_user, f'{tipo}_versao', 0)
+    if tipo == 'capa':
+        current_user.capa_x = current_user.capa_y = 50
     db.session.commit()
     return redirect(url_for('perfil.meu_perfil'))
