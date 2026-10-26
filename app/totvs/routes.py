@@ -477,8 +477,28 @@ def op_status():
     from app.models import Sequencia
     from app.totvs import movimentos
     op = request.args.get('op', '')
+    if request.args.get('resumo') == '1':               # todas as OPs da Programacao, agrupadas por situacao no Gestao e status no TOTVS
+        from collections import defaultdict
+        seqs = {str(x.op): x for x in Sequencia.query.all() if x.op and str(x.op).isdigit()}
+        grupos, exemplos = defaultdict(int), defaultdict(list)
+        with movimentos._trava:
+            cli = movimentos._cliente()
+            ops = sorted(int(o) for o in seqs)
+            for i in range(0, len(ops), 100):
+                r = cli.post(movimentos.OPS_URL, dict(filter=dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], orderCodeList=ops[i:i + 100]), expand='locations', pageSize=100, page=1))
+                for o in (r.json().get('items') or []) if r.status_code == 200 else []:
+                    sq = seqs.get(str(o.get('orderCode')))
+                    locs = {}
+                    for l in o.get('locations') or []:
+                        locs[l.get('locationCode')] = locs.get(l.get('locationCode'), 0) + (l.get('quantity') or 0)
+                    chave = f"gestao={sq.situacao if sq else '?'} | totvs_status={o.get('status')} | locais={sorted(k for k, v in locs.items() if v)}"
+                    grupos[chave] += 1
+                    if len(exemplos[chave]) < 3:
+                        exemplos[chave].append(dict(op=o.get('orderCode'), lastChangeDate=o.get('lastChangeDate'), startMovimentDate=o.get('startMovimentDate'), machineCode=o.get('machineCode'),
+                                                    pendingQuantity=o.get('pendingQuantity'), finishedQuantity=o.get('finishedQuantity'), priority=o.get('priority')))
+        return _json(dict(grupos=dict(sorted(grupos.items())), exemplos=dict(exemplos)))
     if not op.isdigit():
-        return _json(dict(erro='use ?op=NUMERO'))
+        return _json(dict(erro='use ?op=NUMERO ou ?resumo=1'))
     with movimentos._trava:
         cli = movimentos._cliente()
         r = cli.post(movimentos.OPS_URL, dict(filter=dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], orderCodeList=[int(op)]), expand='locations', pageSize=1, page=1))
