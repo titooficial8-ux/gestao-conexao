@@ -524,7 +524,7 @@ STATUS_INTERNO = {'PRODUZINDO': 'PRODUZINDO', 'MALHARIA': 'EM_SEQUENCIA', 'ESTOQ
 
 
 def situacao_op(o: dict) -> str:
-    """Onde a OP esta no TOTVS: local 23 = MALHARIA, 34 = ESTOQUE, local 22 = PCP - Fase², aguardando liberacao (sem movimento) = PCP - Fase¹.
+    """Onde a OP esta no TOTVS: local 23 = MALHARIA, 34 = ESTOQUE, local 22 ou status Em andamento = PCP - Fase², aguardando liberacao (sem movimento) = PCP - Fase¹.
     Sem nada no 23 e com material nos locais seguintes (24, 29, 30, 31), ou OP finalizada/cancelada = pesagem do cru terminou."""
     q = {}
     for l in o.get('locations') or []:
@@ -543,6 +543,8 @@ def situacao_op(o: dict) -> str:
         return FASE2
     if sum(q.get(c, 0) for c in (24, 29, 30, 31)) > 0.5:
         return 'FINALIZADA'
+    if o.get('status') == 20:
+        return FASE2                                               # status 20 do TOTVS: em andamento (ainda sem material no local 22)
     return FASE1                                                   # status 10 do TOTVS: aguardando liberacao
 
 
