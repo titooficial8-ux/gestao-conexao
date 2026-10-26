@@ -872,6 +872,59 @@ def atualizar_todas(app) -> bool:
 
 SITUACAO_SEG = int(os.getenv('MOVIMENTOS_SITUACAO_SEG', '20'))
 _cli_rapido = None
+_ULT_FILA = 0.0
+FILA_AUTO_DIAS = int(os.getenv('FILA_AUTO_DIAS', '30'))        # OPs 'aguardando liberacao' criadas nos ultimos N dias vao para a Pre-Programacao
+
+
+def fila_automatica(cli) -> int:
+    """OP gerada no TOTVS (PCPFP141) fica 'Aguardando liberacao' (status 10): entra sozinha na Pre-Programacao > Analisar sequencia
+    (fila WAITING), a menos que ja esteja numa maquina da Programacao ou na fila. Quando a OP chega numa maquina, o item da fila vira MOVED."""
+    from app import db
+    from app.main.routes import normalize_client_name, resolve_metros_from_article
+    from app.models import ArtigoTotvs, FilaPreProgramacao, Sequencia
+    em_maquina = {str(x.op): x for x in Sequencia.query.all() if x.op}
+    # itens da fila ja resolvidos pela Programacao
+    agora, movidas = datetime.utcnow(), 0
+    for f in FilaPreProgramacao.query.filter_by(status='WAITING').all():
+        sq = em_maquina.get(str(f.op))
+        if sq and sq.machine:
+            f.status, f.moved_to_machine, f.moved_at = 'MOVED', str(sq.machine.number), agora
+            movidas += 1
+    na_fila = {str(f.op) for f in FilaPreProgramacao.query.all() if f.op}
+    limite = date.today() - timedelta(days=FILA_AUTO_DIAS)
+    novas, pag = 0, 1
+    while True:
+        r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], statusList=[10]), expand='items', pageSize=500, page=pag))
+        if r.status_code != 200:
+            raise RuntimeError(f'Fila automatica: HTTP {r.status_code} {r.text[:160]}')
+        j = r.json()
+        for o in j.get('items') or []:
+            op = str(o.get('orderCode'))
+            ins = _data(o.get('insertDate'))
+            if op in em_maquina or op in na_fila or (ins and ins < limite) or _num(o.get('quantity')) <= 0:
+                continue
+            it = (o.get('items') or [{}])[0]
+            artigo = str(it.get('productCode') or '')
+            art = ArtigoTotvs.query.filter_by(cod_produto=artigo).first() if artigo else None
+            metro = _campos_artigo(o).get('metro_ideal')
+            if not metro:
+                try:
+                    metro = float(str(resolve_metros_from_article(artigo) or '').replace(',', '.'))
+                except ValueError:
+                    metro = 0
+            qtd = _num(o.get('quantity'))
+            db.session.add(FilaPreProgramacao(
+                op=op, artigo=artigo, cliente=normalize_client_name(o.get('customerName') or ''), requested_quantity=qtd,
+                total_pcs=int(round(qtd / metro)) if metro else 0, status='WAITING', cod_segmento=(art.segmento if art else None),
+                created_at=agora, synced_at=agora))
+            na_fila.add(op)
+            novas += 1
+        if not j.get('hasNext'):
+            break
+        pag += 1
+    if novas or movidas:
+        db.session.commit()
+    return novas
 
 
 def situacoes_rapido(app) -> int:
@@ -882,21 +935,24 @@ def situacoes_rapido(app) -> int:
     with app.app_context():
         try:
             ops = sorted({int(x.op) for x in Sequencia.query.all() if x.op and str(x.op).isdigit() and (x.status or '') in ('PRODUZINDO', 'EM_SEQUENCIA', 'PCP')})
-            if not ops:
-                return 0
-            global _cli_rapido
+            global _cli_rapido, _ULT_FILA
             if _cli_rapido is None:                          # cliente proprio: o ciclo completo segura o _cliente() por minutos
                 _cli_rapido = api.TotvsModaClient()
                 _cli_rapido.autenticar()
             cli = _cli_rapido
-            info = {}
-            for i in range(0, len(ops), 100):
-                r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], orderCodeList=ops[i:i + 100]), expand='items,locations', pageSize=500, page=1))
-                if r.status_code != 200:
-                    raise RuntimeError(f'OPs: HTTP {r.status_code} {r.text[:160]}')
-                for o in r.json().get('items') or []:
-                    info[str(o.get('orderCode'))] = o
-            n = atualizar_situacoes(info, {})
+            n = 0
+            if ops:
+                info = {}
+                for i in range(0, len(ops), 100):
+                    r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], orderCodeList=ops[i:i + 100]), expand='items,locations', pageSize=500, page=1))
+                    if r.status_code != 200:
+                        raise RuntimeError(f'OPs: HTTP {r.status_code} {r.text[:160]}')
+                    for o in r.json().get('items') or []:
+                        info[str(o.get('orderCode'))] = o
+                n = atualizar_situacoes(info, {})
+            if time.time() - _ULT_FILA >= 55:               # OPs novas 'aguardando liberacao' -> Pre-Programacao, a cada ~1 min
+                ESTADO.update(fila_auto_novas=fila_automatica(cli))
+                _ULT_FILA = time.time()
             ESTADO.update(situacao_ultima=datetime.now().isoformat(timespec='seconds'), situacao_erro=None)
             return n
         except Exception as e:  # noqa: BLE001
