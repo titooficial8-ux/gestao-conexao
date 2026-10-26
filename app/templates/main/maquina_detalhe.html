@@ -81,6 +81,8 @@
           <th>{{ t('artigo') }}</th>
           <th>{{ t('cliente') }}</th>
           <th>{{ t('estrutura') }}</th>
+          <th>{{ t('gramatura') }}</th>
+          <th>Composição</th>
           <th>OP</th>
           <th>{{ t('cod_segmento') }}</th>
           <th>{{ t('status') }}</th>
@@ -105,6 +107,9 @@
           <td class="seq-artigo">{{ s.artigo }}</td>
           <td class="seq-cliente">{{ s.cliente }}</td>
           <td>{{ s.estrutura or '–' }}</td>
+          {% set ar = artigos.get(s.id) %}
+          <td>{{ (ar.gramatura|round(0)|int if ar.gramatura else '–') if ar else '–' }}</td>
+          <td>{{ (ar.composicao or '–') if ar else '–' }}</td>
           <td><button type="button" class="seq-op seq-op-btn" data-op="{{ s.op }}" title="Ver pesagens na MALHARIA PESAGEM">{{ s.op }}</button></td>
           <td>{{ s.cod_segmento or '–' }}</td>
           <td>

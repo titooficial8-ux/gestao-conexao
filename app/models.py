@@ -424,6 +424,25 @@ class BaseEstrutura(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class ArtigoTotvs(db.Model):
+    """Dados do artigo lidos do TOTVS (so leitura): estrutura, composicao, gramatura, largura, metro ideal e segmento.
+    Preenchido por app/totvs/artigos.py para todos os artigos da Programacao e dos Pedidos."""
+    __tablename__ = 'artigos_totvs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    cod_produto = db.Column(db.String(30), unique=True, index=True)
+    descricao = db.Column(db.String(200))
+    estrutura = db.Column(db.String(60))
+    composicao = db.Column(db.String(200))
+    gramatura = db.Column(db.Float)
+    largura = db.Column(db.Float)
+    metro_ideal = db.Column(db.Float)
+    segmento = db.Column(db.String(60))
+    classificacoes = db.Column(db.Text)   # texto cru das classificacoes do TOTVS (para conferir os nomes)
+    campos = db.Column(db.Text)           # nomes dos campos adicionais vistos (idem)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class GramaturaMetrosRule(db.Model):
     """Regra gramatura -> metros esperados (gramatura_metros_rules do PCP
     Hub). Usada pra detectar divergencia entre a gramatura do artigo e a
