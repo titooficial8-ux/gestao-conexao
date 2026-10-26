@@ -35,6 +35,10 @@
     <a href="{{ url_for('main.view_tab', slug='programacao') }}" class="prod-btn">{{ t('acao_atualizar') }}</a>
     <button type="button" class="prod-btn" id="btnHistorico">{{ t('acao_historico') }}</button>
     <button type="button" class="prod-btn" id="btnDownload">{{ t('acao_download') }}</button>
+    {% if current_user.is_admin %}
+    <button type="button" class="prod-btn" id="btnBaseVoltas" title="Planilha producaoDIARIA: voltas e RPM de cada OP/máquina/artigo (base da previsão de término)">&#9881; Base de voltas/RPM</button>
+    <input type="file" id="arqBaseVoltas" accept=".xlsx,.xlsm" hidden>
+    {% endif %}
     <button type="button" class="prod-btn prod-btn-warn" id="btnDiasSemProducao">{{ t('acao_dias_sem_producao') }}</button>
     <button type="button" class="prod-btn prod-btn-primary" id="btnNovoRegistro">+ {{ t('novo_registro') }}</button>
   </div>
@@ -134,6 +138,23 @@
 })();
 </script>
 
+{% if current_user.is_admin %}
+<script>
+(function () {
+  var b = document.getElementById('btnBaseVoltas'), f = document.getElementById('arqBaseVoltas');
+  if (!b || !f) return;
+  b.addEventListener('click', function () { f.click(); });
+  f.addEventListener('change', function () {
+    if (!f.files.length) return;
+    var fd = new FormData(); fd.append('arquivo', f.files[0]); b.disabled = true; b.textContent = 'Importando…';
+    fetch('{{ url_for("main.programacao_base_voltas") }}', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      alert(d.ok ? 'Base importada: ' + d.linhas + ' linhas. ' + d.ops_calculadas + ' OPs com previsão recalculada.' : 'Não foi possível importar: ' + (d.erro || 'erro'));
+      location.reload();
+    }).catch(function () { alert('Falha ao enviar a planilha.'); b.disabled = false; b.textContent = '⚙ Base de voltas/RPM'; });
+  });
+})();
+</script>
+{% endif %}
 <div class="modal-backdrop" id="modalDownload" hidden>
   <div class="modal-box">
     <div class="modal-head">

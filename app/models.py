@@ -191,6 +191,12 @@ class Sequencia(db.Model):
     estrutura = db.Column(db.String(60), nullable=True)
     region = db.Column(db.String(2))
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # previsao de termino pelas voltas/RPM da maquina (app/previsao.py)
+    pecas_dia = db.Column(db.Float, nullable=True)            # pecas que a maquina entrega em 24 h com este artigo (ja com a ineficiencia)
+    termino_calculado = db.Column(db.Boolean, default=False)  # termino_malharia calculado aqui (o PCP Hub nao sobrescreve)
+    prev_fonte = db.Column(db.String(30), nullable=True)      # de onde vieram as voltas/RPM: OP, maquina+artigo ou artigo
+    prev_rpm = db.Column(db.Float, nullable=True)
+    prev_voltas = db.Column(db.Float, nullable=True)
 
     machine = db.relationship('Machine', backref='sequencias')
 
@@ -441,6 +447,23 @@ class ArtigoTotvs(db.Model):
     classificacoes = db.Column(db.Text)   # texto cru das classificacoes do TOTVS (para conferir os nomes)
     campos = db.Column(db.Text)           # nomes dos campos adicionais vistos (idem)
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ProducaoRef(db.Model):
+    """Base de voltas e RPM (lista producaoDIARIA): para cada OP/maquina/artigo, as voltas da peca e o RPM da maquina.
+    tempo da peca (min) = voltas / RPM. Importada da planilha em instance/producao_diaria.xlsx."""
+    __tablename__ = 'producao_ref'
+
+    id = db.Column(db.Integer, primary_key=True)
+    op = db.Column(db.String(30), index=True)
+    maquina = db.Column(db.Integer, index=True)
+    artigo = db.Column(db.String(30), index=True)
+    estrutura = db.Column(db.String(20))
+    rpm = db.Column(db.Float)
+    voltas = db.Column(db.Float)
+    tam_volta = db.Column(db.Float)
+    metros_peca = db.Column(db.Float)
+    referencia = db.Column(db.DateTime)   # data do registro na base (o mais recente de cada maquina+artigo vale)
 
 
 class GramaturaMetrosRule(db.Model):

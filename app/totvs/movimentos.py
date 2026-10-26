@@ -953,6 +953,12 @@ def situacoes_rapido(app) -> int:
             if time.time() - _ULT_FILA >= 55:               # OPs novas 'aguardando liberacao' -> Pre-Programacao, a cada ~1 min
                 ESTADO.update(fila_auto_novas=fila_automatica(cli))
                 _ULT_FILA = time.time()
+            try:
+                from app.previsao import calcular as calcular_previsoes
+                ESTADO.update(previsao_ops=calcular_previsoes())      # termino pelas voltas/RPM, acompanha a fila e as pecas produzidas
+            except Exception as e_prev:  # noqa: BLE001
+                db.session.rollback()
+                ESTADO.update(previsao_erro=str(e_prev)[:300])
             ESTADO.update(situacao_ultima=datetime.now().isoformat(timespec='seconds'), situacao_erro=None)
             return n
         except Exception as e:  # noqa: BLE001
