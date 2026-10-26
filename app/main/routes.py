@@ -2307,12 +2307,13 @@ def maquina_detalhe(numero):
     total_pcs_maquina = sum(s.total_pcs or 0 for s in sequencias)
     produzindo_count = sum(1 for s in sequencias if s.status == 'PRODUZINDO')
     artigos = {s.id: dados_do_artigo(s.artigo) for s in sequencias}   # gramatura/composicao lidas do TOTVS
+    ds_metros = {s.id: resolve_metros_from_article(s.artigo) for s in sequencias}   # metragem padrao do artigo (METRO IDEAL LOTE do TOTVS)
     ref24 = next((s for s in sequencias if s.status == 'PRODUZINDO' and s.pecas_dia), None) or next((s for s in sequencias if s.pecas_dia), None)
     pecas_24h = ref24.pecas_dia if ref24 else None                    # entrega da maquina em 24 h (voltas/RPM, com 15 % de ineficiencia)
     metros_24h = round(pecas_24h * ref24.qt_solicitada / ref24.total_pcs) if ref24 and ref24.total_pcs and ref24.qt_solicitada else None
     return render_template(
         'main/maquina_detalhe.html',
-        artigos=artigos, pecas_24h=pecas_24h, metros_24h=metros_24h,
+        artigos=artigos, ds_metros=ds_metros, pecas_24h=pecas_24h, metros_24h=metros_24h,
         tab=tab,
         machine=machine,
         sequencias=sequencias,

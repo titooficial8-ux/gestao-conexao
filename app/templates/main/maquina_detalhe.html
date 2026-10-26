@@ -81,6 +81,7 @@
           <th>{{ t('artigo') }}</th>
           <th>{{ t('cliente') }}</th>
           <th>{{ t('estrutura') }}</th>
+          <th>DS.METROS</th>
           <th>OP</th>
           <th>{{ t('cod_segmento') }}</th>
           <th>{{ t('status') }}</th>
@@ -106,6 +107,7 @@
           <td class="seq-cliente">{{ s.cliente }}</td>
           <td>{{ s.estrutura or '–' }}</td>
           {% set ar = artigos.get(s.id) %}
+          <td>{{ ds_metros.get(s.id) or '–' }}</td>
           <td><button type="button" class="seq-op seq-op-btn" data-op="{{ s.op }}" data-estrutura="{{ s.estrutura or (ar.estrutura if ar else '') or '' }}" data-gramatura="{{ (ar.gramatura|round(0)|int) if ar and ar.gramatura else '' }}" data-largura="{{ ar.largura if ar and ar.largura else '' }}" data-composicao="{{ ar.composicao if ar and ar.composicao else '' }}" data-voltas="{{ s.prev_voltas|int if s.prev_voltas else '' }}" data-rpm="{{ s.prev_rpm if s.prev_rpm else '' }}" data-pecasdia="{{ s.pecas_dia|round(1) if s.pecas_dia else '' }}" data-termino="{{ s.termino_malharia.strftime('%d/%m/%Y') if s.termino_malharia else '' }}" data-calculado="{{ 1 if s.termino_calculado else 0 }}" data-fonte="{{ s.prev_fonte or '' }}" title="Ver pesagens na MALHARIA PESAGEM">{{ s.op }}</button></td>
           <td>{{ s.cod_segmento or '–' }}</td>
           <td>
