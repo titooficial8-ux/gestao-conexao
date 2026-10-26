@@ -36,7 +36,20 @@ def _num(v):
 
 
 def caminho_base() -> Path:
-    return Path(os.getenv('PRODUCAO_DIARIA_XLSX') or Path(current_app.instance_path) / 'producao_diaria.xlsx')
+    """Onde esta a planilha producaoDIARIA: PRODUCAO_DIARIA_XLSX (.env), senao a primeira que existir na pasta do projeto ou em instance/
+    (producaoDIARIA*.xlsx / producao_diaria*.xlsx, maiuscula ou minuscula). Se nao houver nenhuma, devolve instance/producao_diaria.xlsx (onde o botao grava)."""
+    env = os.getenv('PRODUCAO_DIARIA_XLSX')
+    if env:
+        return Path(env)
+    pastas = [Path(current_app.root_path).parent, Path(current_app.instance_path)]
+    for pasta in pastas:
+        try:
+            achados = [f for f in pasta.iterdir() if f.is_file() and re.match(r'(?i)^producao[_ ]?diaria.*\.xls[xm]$', f.name) and not f.name.startswith('~$')]
+        except OSError:
+            continue
+        if achados:
+            return max(achados, key=lambda f: f.stat().st_mtime)      # o mais recente
+    return Path(current_app.instance_path) / 'producao_diaria.xlsx'
 
 
 def importar(path) -> int:
