@@ -22,7 +22,7 @@ from app.models import Machine, NonWorkingDay, ProducaoRef, Sequencia
 
 INEFICIENCIA = float(os.getenv('INEFICIENCIA_MAQUINA', '0.15'))
 MIN_DIA = 1440 * (1 - INEFICIENCIA)
-TROCA_HORAS = float(os.getenv('TROCA_HORAS', '0'))      # tempo de troca de artigo somado antes de cada OP que ainda nao esta produzindo (padrao 0)
+TROCA_HORAS = float(os.getenv('TROCA_HORAS', '2'))      # tempo de troca de artigo somado antes de cada OP que ainda nao esta produzindo (padrao 2 h)
 ATIVAS = ('PRODUZINDO', 'EM_SEQUENCIA', 'PCP')
 _trava = threading.Lock()
 _arquivo_lido = {'mtime': None}
