@@ -76,6 +76,8 @@ def aplicar(linhas: list, agora=None) -> dict:
     atuais = {}
     for s in Sequencia.query.all():
         atuais[(s.machine_id, s.op or f'#{s.sequence_order}')] = s
+    from app.models import PesagemResumo
+    no_totvs = {r.op for r in PesagemResumo.query.filter(PesagemResumo.encontrada.is_(True), PesagemResumo.quantidade_op > 0)}   # OPs cuja quantidade o TOTVS ja informa
     vistos, criadas, atualizadas = set(), 0, 0
     for r in linhas:
         try:
@@ -96,6 +98,9 @@ def aplicar(linhas: list, agora=None) -> dict:
                       region=r.get('region') or 'BR', synced_at=agora)
         s = atuais.get(chave)
         if s:
+            if str(s.op) in no_totvs:                    # a quantidade (pecas e metros) da OP vem direto do TOTVS, nao do PCP Hub
+                campos.pop('total_pcs', None)
+                campos.pop('qt_solicitada', None)
             for k, v in campos.items():
                 setattr(s, k, v)                      # situacao e pecas_produzidas (calculadas pelo TOTVS) ficam como estao
             atualizadas += 1

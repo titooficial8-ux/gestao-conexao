@@ -546,12 +546,32 @@ def situacao_op(o: dict) -> str:
     return FASE1                                                   # status 10 do TOTVS: aguardando liberacao
 
 
-def atualizar_situacoes(info: dict, pecas_por_op: dict) -> None:
+def _sincronizar_quantidade(s, o: dict) -> bool:
+    """A quantidade da OP no TOTVS manda: se alguem aumentou/diminuiu a quantidade da OP (ex.: 20 -> 24 pecas), a Programacao acompanha.
+    qt_solicitada = quantidade da OP (m); total de pecas = quantidade / metro padrao (METRO IDEAL LOTE do artigo). Variacao absurda (fora de 0,2x a 5x) e ignorada."""
+    qtd = _num(o.get('quantity'))
+    if qtd <= 0:
+        return False
+    antigo = s.qt_solicitada or 0
+    if antigo and not 0.2 <= qtd / antigo <= 5:
+        return False
+    metro = _campos_artigo(o).get('metro_ideal') or _metro_padrao(s)      # calculado antes de mexer nos valores
+    mudou = False
+    if int(round(qtd)) != antigo:
+        s.qt_solicitada, mudou = int(round(qtd)), True
+    if metro:
+        pcs = int(round(qtd / metro))
+        if pcs > 0 and pcs != (s.total_pcs or 0):
+            s.total_pcs, mudou = pcs, True
+    return mudou
+
+
+def atualizar_situacoes(info: dict, pecas_por_op: dict) -> int:
     """Define a situacao de cada OP da Programacao pelo local dela no TOTVS e faz a troca automatica:
     em cada maquina, a primeira OP da fila que esta na MALHARIA vira PRODUZINDO; quando a pesagem do cru dela termina, a proxima assume."""
     from app import db
     from app.models import HistoricoProducao, Sequencia
-    por_maquina = {}
+    por_maquina, alteradas = {}, 0
     for s in Sequencia.query.all():
         por_maquina.setdefault(s.machine_id, []).append(s)
     for lista in por_maquina.values():
@@ -561,6 +581,8 @@ def atualizar_situacoes(info: dict, pecas_por_op: dict) -> None:
             o = info.get(str(s.op))
             if not o:
                 continue                                           # OP que o TOTVS nao devolveu: nao mexe
+            if _sincronizar_quantidade(s, o):
+                alteradas += 1
             sit = situacao_op(o)
             if sit == 'MALHARIA' and not produzindo:
                 sit, produzindo = 'PRODUZINDO', True
@@ -579,6 +601,7 @@ def atualizar_situacoes(info: dict, pecas_por_op: dict) -> None:
             if s.situacao != sit or s.status != novo:
                 s.situacao, s.status = sit, novo
     db.session.commit()
+    return alteradas
 
 
 LIGACAO_VERSAO = '8'                                          # sobe quando a regra de ligar peca a baixa muda: as ligacoes recentes sao refeitas
@@ -815,7 +838,7 @@ def atualizar_todas(app) -> bool:
             except Exception:
                 db.session.rollback()
                 raise
-            atualizar_situacoes(info, {r.op: r.pecas for r in resumos})
+            ESTADO.update(qtd_alteradas=atualizar_situacoes(info, {r.op: r.pecas for r in resumos}))
             try:                                                   # pecas = baixas de fio (uma por peca pesada, com hora e kg exatos)
                 with _trava:
                     novas_baixas = sincronizar_baixas(cli)
