@@ -97,6 +97,30 @@ def resolve_client_from_article(artigo):
 from app.totvs.artigos import dados_do_artigo  # noqa: E402
 
 
+_ESTRUTURA_CURTA = {'CM': 'COMUM', 'PL': 'PLANO', 'NV': 'NOVA', 'XP': 'XPREMIUM', 'XN': 'XNEW', 'CF': 'COMFORT'}
+
+
+def estrutura_curta(texto):
+    """'ESTRUTURA COMUM' / 'CM' -> 'COMUM' (nome curto que aparece no cartao da maquina)."""
+    t = _strip_accents((texto or '').upper()).strip()
+    if not t:
+        return None
+    t = _ESTRUTURA_CURTA.get(t, t.replace('ESTRUTURA', '').strip())
+    return _ESTRUTURA_CURTA.get(t, t) or None
+
+
+def estruturas_rodando(machines):
+    """{id da maquina: nome curto da estrutura que esta rodando (OP PRODUZINDO)}; sem OP produzindo, nao aparece."""
+    saida = {}
+    for m in machines:
+        prod = next((s for s in m.sequencias if (s.status or '') == 'PRODUZINDO'), None)
+        if prod:
+            est = estrutura_curta(prod.estrutura or resolve_estrutura_from_article(prod.artigo))
+            if est:
+                saida[m.id] = est
+    return saida
+
+
 def resolve_estrutura_from_article(artigo):
     artigo = (artigo or '').strip()
     if not artigo:
@@ -774,12 +798,14 @@ def view_tab(slug):
             return render_template(
                 'main/_programacao_maquinas.html',
                 machines=machines, busca=busca, filtro_cliente=filtro_cliente, filtro_mes=filtro_mes,
+                est_rodando=estruturas_rodando(machines),
             )
 
         return render_template(
             'main/programacao.html',
             tab=tab,
             machines=machines,
+            est_rodando=estruturas_rodando(machines),
             total_maquinas_cadastradas=total_maquinas_cadastradas,
             maquinas_ativas=maquinas_ativas,
             total_sequencias=total_sequencias,
