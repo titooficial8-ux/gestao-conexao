@@ -63,6 +63,8 @@ class User(UserMixin, db.Model):
     reset_password_requested_at = db.Column(db.DateTime, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
     verificado = db.Column(db.Boolean, default=False)  # selo azul de perfil verificado
+    foto_versao = db.Column(db.Integer, default=0)   # >0 quando tem foto de perfil (muda a cada troca, evita cache)
+    capa_versao = db.Column(db.Integer, default=0)   # idem, para a capa do perfil
     segundos_acesso = db.Column(db.Integer, default=0)  # tempo ativo no site (aba visivel), soma dos pings
     selo_parabens_pendente = db.Column(db.Boolean, default=False)  # mostrar a mensagem de parabens do selo
     deve_trocar_senha = db.Column(db.Boolean, default=False)  # senha provisoria: obriga trocar no proximo acesso

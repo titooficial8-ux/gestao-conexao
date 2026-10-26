@@ -20,7 +20,7 @@
       <button type="button" class="gc-nav-toggle" id="gcNavToggle" aria-label="menu">&#9776;</button>
       <div class="gc-header-user">
         <button type="button" class="gc-header-user-btn" data-toggle="gcUserDropdown">
-          <span class="gc-header-avatar">{{ (current_user.name or '?')[0]|upper }}</span>
+          <span class="gc-header-avatar"{% if current_user.foto_versao %} style="background:url('{{ url_for('perfil.imagem', user_id=current_user.id, tipo='foto') }}?v={{ current_user.foto_versao }}') center/cover;color:transparent"{% endif %}>{{ (current_user.name or '?')[0]|upper }}</span>
           <span class="gc-header-username">{{ t('ola') }}, {{ (current_user.name or '').split(' ')[0] }}</span>
           <span class="gc-caret-down">&#9662;</span>
         </button>
@@ -29,6 +29,9 @@
             <div class="gc-dropdown-header-name">{{ current_user.name }}{% if current_user.verificado %}{% include 'partials/verificado.html' %}{% endif %}</div>
             <div class="gc-dropdown-header-sector">{{ t('administracao') if current_user.is_admin else (current_user.sectors[0].name if current_user.sectors else '') }}</div>
           </div>
+          <a href="{{ url_for('perfil.meu_perfil') }}" class="gc-dropdown-link">
+            <span class="footer-icon">&#128100;</span> Meu perfil
+          </a>
           {% if current_user.is_admin %}
           <a href="{{ url_for('admin.users') }}" class="gc-dropdown-link">
             <span class="footer-icon">&#128273;</span> {{ t('administracao') }}
