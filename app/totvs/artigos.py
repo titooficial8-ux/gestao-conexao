@@ -10,6 +10,7 @@ Diagnostico dos nomes: /movimentos-op/artigo-campos?cod=<codigo do artigo> (so a
 import os
 import re
 import threading
+import unicodedata
 import time
 import traceback
 from datetime import datetime, timedelta
@@ -53,6 +54,16 @@ def _codigos_e_ops():
         if _cod(c):
             cods.add(_cod(c))
     return cods, ops
+
+
+def _sem_acento(t: str) -> str:
+    return unicodedata.normalize('NFKD', str(t or '')).encode('ascii', 'ignore').decode().upper().strip()
+
+
+def nome_e_metragem_padrao(nome: str) -> bool:
+    """Campo adicional que guarda a metragem padrao do artigo: 'METRO IDEAL LOTE', 'METRAGEM PADRAO', 'METRO PADRAO', 'METRAGEM IDEAL'..."""
+    n = _sem_acento(nome)
+    return ('METRO' in n or 'METRAGEM' in n or n.startswith('MTS') or n.startswith('MT ')) and any(k in n for k in ('IDEAL', 'PADRAO', 'LOTE'))
 
 
 def _tipo_nome(c: dict) -> str:
@@ -115,13 +126,13 @@ def composicao_da_op(op: dict):
 def ler_campos_adicionais(item: dict) -> dict:
     saida, nomes = {}, []
     for f in item.get('productAdditionalField') or []:
-        nome, valor = str(f.get('name') or '').upper(), f.get('value')
+        nome, valor = _sem_acento(f.get('name')), f.get('value')
         nomes.append(f'{nome}={valor}')
         if nome.startswith('GRAMATURA'):
             saida['gramatura'] = _num(valor)
         elif nome.startswith('LARGURA'):
             saida['largura'] = _num(valor)
-        elif nome.startswith('METRO IDEAL'):
+        elif nome_e_metragem_padrao(nome):
             saida['metro_ideal'] = _num(valor)
         elif nome.startswith('ESTRUTURA') and valor:
             saida['estrutura_campo'] = str(valor)
