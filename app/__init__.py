@@ -176,6 +176,16 @@ def create_app():
         if first_run:
             from app.seed import seed_data
             seed_data()
+        # cargo 'Gestão P&D' (criado uma vez; a Dora ja entra com ele, depois e so pela tela de usuarios)
+        from app.models import Role, User
+        if not Role.query.filter_by(name='Gestão P&D').first():
+            cargo_pd = Role(name='Gestão P&D')
+            db.session.add(cargo_pd)
+            db.session.flush()
+            dora = User.query.filter(db.func.lower(User.email) == 'dora.appolinario@conexaomalhas.com.br').first()
+            if dora:
+                dora.role_id = cargo_pd.id
+            db.session.commit()
         # a aba 'Pedidos Comercial (ME)' agora se chama 'Comercial ME' (bancos ja criados nao passam pelo seed)
         from app.models import Tab
         aba_me = Tab.query.filter_by(slug='pedidos-comercial-me').first()
