@@ -1034,7 +1034,7 @@ def view_tab(slug):
         )
 
     if slug == 'pre-programacao':
-        aba = request.args.get('aba', 'pedidos')
+        aba = 'analisar'                       # a Pre-Programacao so tem a aba Analisar Sequencia (os Pedidos do Relatorio foram removidos)
 
         machines = Machine.query.order_by(Machine.number).all()
         ATIVAS_STATUS = ('PRODUZINDO', 'EM_SEQUENCIA', 'PCP')
@@ -1075,16 +1075,6 @@ def view_tab(slug):
             .order_by(FilaPreProgramacao.created_at.desc()).all()
         ]
 
-        pedidos_op_na_fila = {i.op for i in FilaPreProgramacao.query.filter_by(status='WAITING').all() if i.op}
-        pedidos_relatorio_itens = [
-            p for p in PedidoRelatorio.query.filter(PedidoRelatorio.qt_saldo > 0, _pedido_aberto()).order_by(
-                PedidoRelatorio.dt_prevfaturamento.is_(None), PedidoRelatorio.dt_prevfaturamento
-            ).all()
-            if normalize_client_name(p.nome_cliente) != 'ORTOBOM'
-            and 'ECOFLEX' not in (p.nome_cliente or '').upper()
-            and p.nr_op not in pedidos_op_na_fila
-        ]
-
         return render_template(
             'main/pre_programacao.html',
             tab=tab,
@@ -1092,7 +1082,6 @@ def view_tab(slug):
             estrutura_por_maquina=estrutura_por_maquina,
             analisar_itens=analisar_itens,
             total_analisar=len(analisar_itens),
-            pedidos_relatorio_itens=pedidos_relatorio_itens,
         )
 
 

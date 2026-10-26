@@ -10,14 +10,12 @@
 </div>
 
 <div class="presel-tabs">
-  <a href="{{ url_for('main.view_tab', slug='pre-programacao', aba='pedidos') }}" class="presel-tab {{ 'presel-tab-active' if aba != 'analisar' else '' }}">{{ t('pedidos_do_relatorio') }}</a>
   <a href="{{ url_for('main.view_tab', slug='pre-programacao', aba='analisar') }}" class="presel-tab {{ 'presel-tab-active' if aba == 'analisar' else '' }}">
     {{ t('analisar_sequencia') }}
     {% if total_analisar %}<span class="presel-tab-badge">{{ total_analisar }}</span>{% endif %}
   </a>
 </div>
 
-{% if aba == 'analisar' %}
 <div class="presel-panel">
   <div class="presel-panel-head">
     <h2 class="presel-panel-title">{{ t('analisar_sequencia') }}</h2>
@@ -87,52 +85,6 @@
             </form>
           </td>
         </tr>
-        {% else %}
-        <tr><td colspan="10" class="prod-table-empty">{{ t('nenhuma_op_aguardando') }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-{% else %}
-<div class="table-card">
-  <div class="table-scroll">
-    <table class="data-table prod-table">
-      <thead>
-        <tr>
-          <th>{{ t('pedido') }}</th>
-          <th>{{ t('cliente') }}</th>
-          <th>{{ t('produto') }}</th>
-          <th>{{ t('estrutura') }}</th>
-          <th>{{ t('cod_segmento') }}</th>
-          <th>OP</th>
-          <th>{{ t('prev_faturamento') }}</th>
-          <th>{{ t('qt_solicitada') }}</th>
-          <th>{{ t('saldo_expedicao') }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for p in pedidos_relatorio_itens %}
-        <tr>
-          <td>{{ p.cod_pedido }}</td>
-          <td>{{ p.nome_cliente }}</td>
-          <td class="prod-table-produto">{{ p.ds_produto }}</td>
-          <td>{{ p.estrutura or '–' }}</td>
-          <td>{{ p.cod_segmento or '–' }}</td>
-          <td>{{ p.nr_op or '–' }}</td>
-          <td>{{ p.dt_prevfaturamento.strftime('%d/%m/%Y') if p.dt_prevfaturamento else '–' }}</td>
-          <td>{{ p.qt_solicitada | int }}</td>
-          <td>{{ p.qt_saldo | int }}</td>
-        </tr>
-        {% else %}
-        <tr><td colspan="9" class="prod-table-empty">{{ t('nenhum_pedido_disponivel') }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
 
 <script>
 (function () {
