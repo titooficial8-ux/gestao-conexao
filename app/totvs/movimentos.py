@@ -897,7 +897,7 @@ def fila_automatica(cli) -> int:
             movidas += 1
     na_fila = {str(f.op) for f in FilaPreProgramacao.query.all() if f.op}
     limite = date.today() - timedelta(days=FILA_AUTO_DIAS)
-    novas, pag = 0, 1
+    candidatas, pag = [], 1
     while True:
         r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], statusList=[10]), expand='items', pageSize=500, page=pag))
         if r.status_code != 200:
@@ -908,8 +908,18 @@ def fila_automatica(cli) -> int:
             ins = _data(o.get('insertDate'))
             if op in em_maquina or op in na_fila or (ins and ins < limite) or _num(o.get('quantity')) <= 0:
                 continue
+            candidatas.append(o)
+        if not j.get('hasNext'):
+            break
+        pag += 1
+    novas = 0
+    if candidatas:
+        from app.totvs.artigos import codigos_de_artigo
+        cod_artigo = codigos_de_artigo(cli, [(o.get('items') or [{}])[0].get('productCode') for o in candidatas])      # productCode -> codigo do artigo
+        for o in candidatas:
+            op = str(o.get('orderCode'))
             it = (o.get('items') or [{}])[0]
-            artigo = str(it.get('productCode') or '')
+            artigo = cod_artigo.get(str(it.get('productCode'))) or str(it.get('productCode') or '')
             art = ArtigoTotvs.query.filter_by(cod_produto=artigo).first() if artigo else None
             metro = _campos_artigo(o).get('metro_ideal')
             if not metro:
@@ -924,9 +934,6 @@ def fila_automatica(cli) -> int:
                 created_at=agora, synced_at=agora))
             na_fila.add(op)
             novas += 1
-        if not j.get('hasNext'):
-            break
-        pag += 1
     if novas or movidas:
         db.session.commit()
     return novas
