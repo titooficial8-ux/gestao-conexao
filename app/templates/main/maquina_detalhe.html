@@ -288,6 +288,9 @@
 .hp-barra{display:block;height:8px;border-radius:999px;background:var(--gray-200);min-width:90px}
 .hp-barra i{display:block;height:100%;border-radius:999px;background:var(--blue-600)}
 .hp-zero td{color:var(--gray-500)}
+.hp-art{text-align:left !important;min-width:260px}
+.hp-art-l{font-size:13px;line-height:1.35}
+.hp-art-l small{color:var(--gray-500)}
 .hp-parcial td:first-child::after{content:' (em andamento)';font-size:11px;color:var(--blue-700);font-weight:700}
 </style>
 <script>
@@ -312,12 +315,16 @@
     if (!r.total_pecas) { corpo.appendChild(el('p', 'prod-table-empty', 'Nenhuma peça desta máquina no período.')); return; }
     var max = Math.max.apply(null, d.dias.map(function (x) { return x.pecas; })) || 1;
     var tb = el('table', 'data-table prod-table tab-centro'), th = el('thead'), tr = el('tr');
-    ['Dia', 'Peças', 'Metros', 'Kg', ''].forEach(function (h) { tr.appendChild(el('th', null, h)); });
+    ['Dia', 'Artigo', 'Peças', 'Metros', 'Kg', ''].forEach(function (h) { tr.appendChild(el('th', null, h)); });
     th.appendChild(tr); tb.appendChild(th);
     var body = el('tbody');
     d.dias.forEach(function (x) {
       var l = el('tr', (x.pecas ? '' : 'hp-zero ') + (x.parcial ? 'hp-parcial' : ''));
       l.appendChild(el('td', null, dia(x.dia) + ' · ' + x.semana));
+      var ta = el('td', 'hp-art');
+      if (!x.artigos.length) ta.textContent = '–';
+      x.artigos.forEach(function (a) { var li = el('div', 'hp-art-l'); li.appendChild(el('span', null, a.artigo)); li.appendChild(el('small', null, ' · ' + a.pecas + ' pç' + (a.op ? ' · OP ' + a.op : ''))); ta.appendChild(li); });
+      l.appendChild(ta);
       l.appendChild(el('td', null, String(x.pecas))); l.appendChild(el('td', null, x.pecas ? nf(x.metros, 0) : '–')); l.appendChild(el('td', null, x.pecas ? nf(x.kg, 0) : '–'));
       var b = el('td'), bar = el('span', 'hp-barra'), i = el('i'); i.style.width = Math.round(x.pecas / max * 100) + '%'; bar.appendChild(i); b.appendChild(bar); l.appendChild(b);
       body.appendChild(l);
