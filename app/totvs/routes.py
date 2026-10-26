@@ -532,7 +532,9 @@ def previsao_status():
         ops_ativas=len(ativas), ops_com_previsao=sum(1 for x in ativas if x.termino_calculado),
         ops_sem_base=[f'{x.op} (artigo {x.artigo})' for x in ativas if not x.termino_calculado][:20],
         ineficiencia=previsao.INEFICIENCIA, troca_horas=previsao.TROCA_HORAS, erro=erro or movimentos.ESTADO.get('previsao_erro'),
-        ultimo_ciclo_rapido=movimentos.ESTADO.get('situacao_ultima')))
+        ultimo_ciclo_rapido=movimentos.ESTADO.get('situacao_ultima'), erro_ciclo_rapido=movimentos.ESTADO.get('situacao_erro'),
+        fila_auto_novas=movimentos.ESTADO.get('fila_auto_novas'), ciclo_completo=dict(ultima=movimentos.ESTADO.get('ultima'), erro=movimentos.ESTADO.get('erro'), rodando=movimentos.ESTADO.get('rodando')),
+        threads=[t.name for t in __import__('threading').enumerate() if t.name.startswith('totvs-')]))
 
 
 @mov_bp.route('/artigos-status')
