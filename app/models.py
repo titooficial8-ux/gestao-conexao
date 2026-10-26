@@ -56,9 +56,11 @@ class User(UserMixin, db.Model):
     reset_password_requested = db.Column(db.Boolean, default=False)
     reset_password_requested_at = db.Column(db.DateTime, nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
+    setor_id = db.Column(db.Integer, db.ForeignKey('sectors.id'), nullable=True)  # setor principal (so organizacao; o acesso e por 'sectors')
 
     sectors = db.relationship('Sector', secondary=user_sectors, backref='users')
     role = db.relationship('Role')
+    setor = db.relationship('Sector', foreign_keys=[setor_id])
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

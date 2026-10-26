@@ -119,6 +119,21 @@
   {% block content_guest %}{% endblock %}
 </div>
 {% endif %}
+{% if current_user.is_authenticated %}
+<script>
+(function(){
+  function ping(){
+    var el=document.querySelector('.gc-page-title');
+    var titulo=(el&&el.textContent.trim())||document.title;
+    try{fetch('{{ url_for("presenca.ping") }}',{method:'POST',credentials:'same-origin',keepalive:true,
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({titulo:titulo,caminho:location.pathname,visivel:document.visibilityState==='visible'})});}catch(e){}
+  }
+  ping(); setInterval(ping,20000);
+  document.addEventListener('visibilitychange',ping);
+})();
+</script>
+{% endif %}
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
