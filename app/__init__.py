@@ -205,6 +205,18 @@ def create_app():
                 pessoa = _pessoa(**quem)
                 if pessoa:
                     pessoa.role_id = r.id
+        # correcao: Gustavo e Designer Têxtil e José e Mecânico Têxtil (uma vez, junto com a criacao do cargo)
+        if not Role.query.filter_by(name='Designer Têxtil').first():
+            designer = Role(name='Designer Têxtil')
+            db.session.add(designer)
+            db.session.flush()
+            mecanico = Role.query.filter_by(name='Mecânico Têxtil').first()
+            gustavo = _pessoa(email='gustavo.bonfim@conexaomalhas.com.br')
+            jose = _pessoa(email='jose.alves@conexaomalhas.com.br')
+            if gustavo:
+                gustavo.role_id = designer.id
+            if jose and mecanico:
+                jose.role_id = mecanico.id
         for antigo, novo in (('Luciano (Administrador)', 'Luciano'), ('Marco - Gerente Comercial', 'Marco')):
             for u in User.query.filter_by(name=antigo).all():
                 u.name = novo
