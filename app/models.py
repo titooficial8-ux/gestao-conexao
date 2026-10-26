@@ -65,6 +65,8 @@ class User(UserMixin, db.Model):
     verificado = db.Column(db.Boolean, default=False)  # selo azul de perfil verificado
     foto_versao = db.Column(db.Integer, default=0)   # >0 quando tem foto de perfil (muda a cada troca, evita cache)
     capa_versao = db.Column(db.Integer, default=0)   # idem, para a capa do perfil
+    capa_x = db.Column(db.Integer, default=50)       # enquadramento da capa (0-100, % do deslocamento), ajustado arrastando
+    capa_y = db.Column(db.Integer, default=50)
     segundos_acesso = db.Column(db.Integer, default=0)  # tempo ativo no site (aba visivel), soma dos pings
     selo_parabens_pendente = db.Column(db.Boolean, default=False)  # mostrar a mensagem de parabens do selo
     deve_trocar_senha = db.Column(db.Boolean, default=False)  # senha provisoria: obriga trocar no proximo acesso

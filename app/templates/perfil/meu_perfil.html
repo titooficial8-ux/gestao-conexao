@@ -21,20 +21,31 @@
 .pf-selo{margin-top:18px}
 .pf-barra{height:10px;border-radius:999px;background:var(--gray-200);overflow:hidden;margin-top:8px}
 .pf-barra div{height:100%;background:linear-gradient(90deg,var(--blue-600),#1d9bf0)}
+.pf-capa.ajuste{cursor:grab;outline:3px solid #1d9bf0;outline-offset:-3px}
+.pf-capa.ajuste.arrastando{cursor:grabbing}
+.pf-dica{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(6,33,63,.82);color:#fff;font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;pointer-events:none;z-index:3;display:none}
+.pf-capa.ajuste .pf-dica{display:block}
+.pf-b.ok{background:#1f9d55;color:#fff}
 .pf-rm{background:none;border:0;color:var(--gray-500);font-size:12px;text-decoration:underline;cursor:pointer;padding:0;margin-left:8px}
 @media(max-width:560px){.pf-grid{grid-template-columns:1fr}.pf-capa{height:150px}}
 </style>
 
 <div class="pf">
-  <div class="pf-capa" {% if current_user.capa_versao %}style="background-image:url('{{ url_for('perfil.imagem', user_id=current_user.id, tipo='capa') }}?v={{ current_user.capa_versao }}')"{% endif %}>
-    <div class="pf-capa-btns">
+  <div class="pf-capa" id="pfCapaBox" data-x="{{ current_user.capa_x if current_user.capa_x is not none else 50 }}" data-y="{{ current_user.capa_y if current_user.capa_y is not none else 50 }}" data-ajustar="{{ 1 if request.args.get('ajustar') and current_user.capa_versao else 0 }}" data-url="{{ url_for('perfil.imagem', user_id=current_user.id, tipo='capa') }}?v={{ current_user.capa_versao }}" {% if current_user.capa_versao %}style="background-image:url('{{ url_for('perfil.imagem', user_id=current_user.id, tipo='capa') }}?v={{ current_user.capa_versao }}');background-position:{{ current_user.capa_x if current_user.capa_x is not none else 50 }}% {{ current_user.capa_y if current_user.capa_y is not none else 50 }}%"{% endif %}>
+    <div class="pf-dica">Arraste a imagem para ajustar o enquadramento</div>
+    <div class="pf-capa-btns" id="pfBtnsNormal">
       <form method="POST" action="{{ url_for('perfil.enviar', tipo='capa') }}" enctype="multipart/form-data">
         <input type="file" name="arquivo" id="pfCapa" accept="image/jpeg,image/png,image/webp" hidden onchange="this.form.submit()">
         <button type="button" class="pf-b" onclick="document.getElementById('pfCapa').click()">&#128247; Trocar capa</button>
       </form>
       {% if current_user.capa_versao %}
+      <button type="button" class="pf-b" id="pfAjustar">&#10021; Ajustar</button>
       <form method="POST" action="{{ url_for('perfil.remover', tipo='capa') }}"><button class="pf-b" type="submit">Remover</button></form>
       {% endif %}
+    </div>
+    <div class="pf-capa-btns" id="pfBtnsAjuste" style="display:none">
+      <button type="button" class="pf-b" id="pfCancelar">Cancelar</button>
+      <button type="button" class="pf-b ok" id="pfSalvarPos">&#10003; Salvar</button>
     </div>
   </div>
 
@@ -77,4 +88,35 @@
     </div>
   </div>
 </div>
+<script>
+(function(){
+  var box=document.getElementById('pfCapaBox'); if(!box||!box.dataset.url||box.dataset.url.slice(-2)==='=0') return;
+  var btnA=document.getElementById('pfAjustar'); if(!btnA) return;
+  var nor=document.getElementById('pfBtnsNormal'), aju=document.getElementById('pfBtnsAjuste');
+  var x=+box.dataset.x, y=+box.dataset.y, x0=x, y0=y, iw=0, ih=0, drag=null;
+  var im=new Image(); im.onload=function(){iw=im.naturalWidth; ih=im.naturalHeight; if(box.dataset.ajustar==='1') iniciar();}; im.src=box.dataset.url;
+  function pos(){box.style.backgroundPosition=x+'% '+y+'%';}
+  function sobra(){var cw=box.clientWidth, ch=box.clientHeight, e=Math.max(cw/iw, ch/ih); return [Math.max(0,iw*e-cw), Math.max(0,ih*e-ch)];}
+  function iniciar(){x0=x; y0=y; box.classList.add('ajuste'); nor.style.display='none'; aju.style.display='flex';}
+  function fechar(){box.classList.remove('ajuste','arrastando'); nor.style.display='flex'; aju.style.display='none';}
+  btnA.onclick=iniciar;
+  document.getElementById('pfCancelar').onclick=function(){x=x0;y=y0;pos();fechar();};
+  document.getElementById('pfSalvarPos').onclick=function(){
+    fetch('{{ url_for("perfil.capa_posicao") }}',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({x:x,y:y})})
+      .then(function(){fechar(); history.replaceState(null,'','{{ url_for("perfil.meu_perfil") }}');});
+  };
+  box.addEventListener('pointerdown',function(e){
+    if(!box.classList.contains('ajuste')||e.target.closest('.pf-capa-btns')) return;
+    drag={px:e.clientX,py:e.clientY,x:x,y:y}; box.classList.add('arrastando'); box.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  box.addEventListener('pointermove',function(e){
+    if(!drag) return; var s=sobra();
+    if(s[0]>0) x=Math.max(0,Math.min(100,drag.x-(e.clientX-drag.px)/s[0]*100));
+    if(s[1]>0) y=Math.max(0,Math.min(100,drag.y-(e.clientY-drag.py)/s[1]*100));
+    pos();
+  });
+  function soltar(){drag=null; box.classList.remove('arrastando');}
+  box.addEventListener('pointerup',soltar); box.addEventListener('pointercancel',soltar);
+})();
+</script>
 {% endblock %}
