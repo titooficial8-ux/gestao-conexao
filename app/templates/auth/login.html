@@ -23,10 +23,13 @@
 
     <form method="POST" action="{{ url_for('auth.login') }}" id="loginForm">
       <input type="text" name="email" id="loginEmailField" placeholder="{{ t('email_ou_nome') }}" autocomplete="username" required autofocus class="pill-input">
-      {{ password_field('password', 'loginPassword', t('password'), css_class='pill-input') }}
+      {{ password_field('password', 'loginPassword', t('password'), css_class='pill-input', autocomplete='current-password') }}
 
       <input type="text" name="website" class="honeypot-field" tabindex="-1" autocomplete="off" aria-hidden="true">
 
+      <label class="photo-login-remember" style="display:flex;align-items:center;gap:8px;margin:10px 4px 0;color:#fff;font-size:13px;font-weight:600;cursor:pointer;text-shadow:0 1px 3px rgba(0,0,0,.6)">
+        <input type="checkbox" name="lembrar" id="loginLembrar" checked style="width:16px;height:16px;margin:0"> Lembrar e-mail e manter conectado
+      </label>
       <a href="{{ url_for('auth.esqueci_senha') }}" class="photo-login-forgot">{{ t('esqueci_senha') }}</a>
 
       <button type="submit" class="pill-button">{{ t('login_button') }}</button>
@@ -44,4 +47,16 @@
 
   {% include 'partials/photo_footer.html' %}
 </div>
+<script>
+(function(){
+  var f=document.getElementById('loginForm'), e=document.getElementById('loginEmailField'), c=document.getElementById('loginLembrar');
+  try{
+    var salvo=localStorage.getItem('gc_login_email');
+    if(salvo){e.value=salvo; var s=document.getElementById('loginPassword'); if(s) s.focus();}
+    f.addEventListener('submit',function(){
+      try{ if(c.checked) localStorage.setItem('gc_login_email',e.value.trim()); else localStorage.removeItem('gc_login_email'); }catch(x){}
+    });
+  }catch(x){}
+})();
+</script>
 {% endblock %}

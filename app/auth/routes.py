@@ -113,7 +113,7 @@ def login():
             flash('conta_bloqueada', 'error')
             return redirect(url_for('auth.login'))
 
-        login_user(user)
+        login_user(user, remember=request.form.get('lembrar') == 'on')
         _fixar_ambiente_do_usuario(user)
         return _pos_login_redirect()
 
