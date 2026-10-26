@@ -547,6 +547,19 @@ def artigos_status():
     from app.totvs import artigos
     if request.args.get('rodar') == '1' and not artigos.ESTADO.get('rodando'):
         threading.Thread(target=artigos.atualizar, args=(current_app._get_current_object(),), daemon=True, name='artigos-agora').start()
+    if request.args.get('sem_metros') == '1':            # artigos ativos sem DS.METROS: o que o Gestao sabe de cada um
+        from app.main.routes import resolve_metros_from_article
+        from app.models import BaseEstrutura
+        vistos, lista = set(), []
+        for x in Sequencia.query.all():
+            cod = artigos._cod(x.artigo)
+            if (x.status or '') not in ('PRODUZINDO', 'EM_SEQUENCIA', 'PCP') or x.artigo in vistos or resolve_metros_from_article(x.artigo):
+                continue
+            vistos.add(x.artigo)
+            a = ArtigoTotvs.query.filter_by(cod_produto=cod).first() if cod else None
+            lista.append(dict(artigo=x.artigo, op=x.op, codigo_numerico=bool(cod), lido_do_totvs=bool(a), atualizado=str(a.atualizado_em)[:16] if a else None,
+                              campos_adicionais=((a.campos or '')[:200] if a else None), na_base_estrutura=BaseEstrutura.query.filter(BaseEstrutura.ds_produto.ilike(f'{cod or x.artigo}%')).count()))
+        return _json(dict(total_sem_ds_metros=len(lista), artigos=lista[:40]))
     cods, ops = artigos._codigos_e_ops()
     amostra = ArtigoTotvs.query.order_by(ArtigoTotvs.atualizado_em.desc()).limit(5).all()
     return _json(dict(
