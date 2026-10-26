@@ -468,6 +468,29 @@ def movimentos_produto():
     return _json(out)
 
 
+@mov_bp.route('/artigos-status')
+@login_required
+def artigos_status():
+    """Situacao da leitura de estrutura/composicao/gramatura do TOTVS (so administrador). ?rodar=1 faz uma leitura agora."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.models import ArtigoTotvs, Sequencia
+    from app.totvs import artigos
+    if request.args.get('rodar') == '1' and not artigos.ESTADO.get('rodando'):
+        threading.Thread(target=artigos.atualizar, args=(current_app._get_current_object(),), daemon=True, name='artigos-agora').start()
+    cods, ops = artigos._codigos_e_ops()
+    amostra = ArtigoTotvs.query.order_by(ArtigoTotvs.atualizado_em.desc()).limit(5).all()
+    return _json(dict(
+        configurado=artigos.configurado(), estado=artigos.ESTADO,
+        artigos_na_programacao_e_pedidos=len(cods), ops_abertas=len(ops),
+        artigos_lidos=ArtigoTotvs.query.count(),
+        com_estrutura=ArtigoTotvs.query.filter(ArtigoTotvs.estrutura.isnot(None)).count(),
+        com_gramatura=ArtigoTotvs.query.filter(ArtigoTotvs.gramatura.isnot(None)).count(),
+        com_composicao=ArtigoTotvs.query.filter(ArtigoTotvs.composicao.isnot(None)).count(),
+        exemplo_de_codigos_da_programacao=[s.artigo for s in Sequencia.query.limit(5).all()],
+        ultimos_lidos=[dict(cod=a.cod_produto, estrutura=a.estrutura, composicao=a.composicao, gramatura=a.gramatura, classificacoes=(a.classificacoes or '')[:300], campos=(a.campos or '')[:300]) for a in amostra]))
+
+
 @mov_bp.route('/artigo-campos')
 @login_required
 def artigo_campos():
