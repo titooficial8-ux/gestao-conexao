@@ -568,7 +568,15 @@ def _sincronizar_quantidade(s, o: dict) -> bool:
     return mudou
 
 
+_trava_sit = threading.Lock()                                  # o ciclo completo e a rodada rapida nao atualizam as situacoes ao mesmo tempo
+
+
 def atualizar_situacoes(info: dict, pecas_por_op: dict) -> int:
+    with _trava_sit:
+        return _atualizar_situacoes(info, pecas_por_op)
+
+
+def _atualizar_situacoes(info: dict, pecas_por_op: dict) -> int:
     """Define a situacao de cada OP da Programacao pelo local dela no TOTVS e faz a troca automatica:
     em cada maquina, a primeira OP da fila que esta na MALHARIA vira PRODUZINDO; quando a pesagem do cru dela termina, a proxima assume."""
     from app import db
@@ -862,6 +870,41 @@ def atualizar_todas(app) -> bool:
     return ESTADO['erro'] is None
 
 
+SITUACAO_SEG = int(os.getenv('MOVIMENTOS_SITUACAO_SEG', '20'))
+_cli_rapido = None
+
+
+def situacoes_rapido(app) -> int:
+    """Rodada leve: so le o cabecalho das OPs da Programacao (status, locais, quantidade) e atualiza a situacao (PCP Fase¹/Fase², MALHARIA...) e a quantidade.
+    O ciclo completo (pesagens, baixas) e demorado; assim uma OP que muda de local no TOTVS aparece aqui em poucos segundos."""
+    from app import db
+    from app.models import Sequencia
+    with app.app_context():
+        try:
+            ops = sorted({int(x.op) for x in Sequencia.query.all() if x.op and str(x.op).isdigit() and (x.status or '') in ('PRODUZINDO', 'EM_SEQUENCIA', 'PCP')})
+            if not ops:
+                return 0
+            global _cli_rapido
+            if _cli_rapido is None:                          # cliente proprio: o ciclo completo segura o _cliente() por minutos
+                _cli_rapido = api.TotvsModaClient()
+                _cli_rapido.autenticar()
+            cli = _cli_rapido
+            info = {}
+            for i in range(0, len(ops), 100):
+                r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], orderCodeList=ops[i:i + 100]), expand='items,locations', pageSize=500, page=1))
+                if r.status_code != 200:
+                    raise RuntimeError(f'OPs: HTTP {r.status_code} {r.text[:160]}')
+                for o in r.json().get('items') or []:
+                    info[str(o.get('orderCode'))] = o
+            n = atualizar_situacoes(info, {})
+            ESTADO.update(situacao_ultima=datetime.now().isoformat(timespec='seconds'), situacao_erro=None)
+            return n
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            ESTADO.update(situacao_erro=str(e)[:300])
+            return 0
+
+
 def iniciar_agendador(app) -> None:
     """Thread: atualiza ao subir e depois a cada MOVIMENTOS_INTERVALO_SEG segundos, com ou sem alguem olhando a tela."""
     if not (os.getenv('TOTVS_CLIENT_ID') and os.getenv('TOTVS_CLIENT_SECRET')):
@@ -876,3 +919,13 @@ def iniciar_agendador(app) -> None:
                 traceback.print_exc()
             time.sleep(max(INTERVALO_SEG, 5))
     threading.Thread(target=loop, daemon=True, name='totvs-movimentos').start()
+
+    def loop_situacao():
+        time.sleep(30)
+        while True:
+            try:
+                situacoes_rapido(app)
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+            time.sleep(max(SITUACAO_SEG, 5))
+    threading.Thread(target=loop_situacao, daemon=True, name='totvs-situacoes').start()
