@@ -56,9 +56,13 @@
       {% endif %}
     </div>
 
-    <div class="pf-grid">
+    {# o cargo tecnico "Desenvolvedor" (acesso total) nao aparece no perfil #}
+    {% set mostrar_cargo = current_user.role and current_user.role.name != 'Desenvolvedor' %}
+    <div class="pf-grid" {% if not mostrar_cargo %}style="grid-template-columns:1fr"{% endif %}>
       <div class="pf-card"><div class="pf-l">Setor</div><div class="pf-v">{{ current_user.setor.name if current_user.setor else '—' }}</div></div>
-      <div class="pf-card"><div class="pf-l">Cargo</div><div class="pf-v">{{ current_user.role.name if current_user.role else '—' }}</div></div>
+      {% if mostrar_cargo %}
+      <div class="pf-card"><div class="pf-l">Cargo</div><div class="pf-v">{{ current_user.role.name }}</div></div>
+      {% endif %}
     </div>
 
     <div class="pf-card pf-selo">
