@@ -20,7 +20,7 @@ from app.totvs import api
 from app.totvs.empenho import _qtd_item
 from app.totvs.pedidos import CICLO, EMPRESA, OPS_URL, PRODUCTS_URL, _em_lotes, _paginar, configurado
 
-INTERVALO_MIN = float(os.getenv('ARTIGOS_INTERVALO_MIN', '30'))
+INTERVALO_MIN = float(os.getenv('ARTIGOS_INTERVALO_MIN', '10'))
 VALIDADE_H = float(os.getenv('ARTIGOS_VALIDADE_H', '6'))
 TIPO_COMPOSICAO = os.getenv('ARTIGOS_TIPO_COMPOSICAO')           # typeCode da classificacao de composicao, se o nome nao bastar
 ESTADO = dict(rodando=False, ultima=None, n=0, msg='', erro=None)
