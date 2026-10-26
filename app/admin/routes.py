@@ -52,6 +52,7 @@ def update_user(user_id):
     nova_senha = request.form.get('nova_senha', '').strip()
     if nova_senha:
         user.set_password(nova_senha)
+        user.deve_trocar_senha = True  # senha definida pelo administrador e provisoria
         user.reset_password_requested = False
         user.reset_password_requested_at = None
 

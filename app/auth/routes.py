@@ -211,10 +211,16 @@ def trocar_senha():
             flash('senhas_nao_conferem', 'error')
             return redirect(url_for('auth.trocar_senha'))
 
+        obrigatoria = bool(current_user.deve_trocar_senha)
+        if obrigatoria and nova_senha == senha_atual:
+            flash('A nova senha precisa ser diferente da senha provisória.', 'error')
+            return redirect(url_for('auth.trocar_senha'))
+
         current_user.set_password(nova_senha)
+        current_user.deve_trocar_senha = False
         db.session.commit()
         flash('senha_atualizada', 'success')
-        return redirect(url_for('auth.trocar_senha'))
+        return _pos_login_redirect() if obrigatoria else redirect(url_for('auth.trocar_senha'))
 
     return render_template('auth/trocar_senha.html')
 
