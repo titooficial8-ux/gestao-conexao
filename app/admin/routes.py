@@ -15,7 +15,10 @@ def users():
     all_users = User.query.order_by(User.status.asc(), User.created_at.desc()).all()
     sectors = Sector.query.order_by(Sector.name).all()
     roles = Role.query.order_by(Role.name).all()
-    return render_template('admin/users.html', users=all_users, sectors=sectors, roles=roles)
+    grupos = [(r.name, [u for u in all_users if u.role_id == r.id]) for r in roles]
+    grupos.append(('Sem cargo', [u for u in all_users if not u.role_id]))
+    grupos = [(nome, us) for nome, us in grupos if us]
+    return render_template('admin/users.html', users=all_users, grupos=grupos, sectors=sectors, roles=roles)
 
 
 @admin_bp.route('/usuarios/<int:user_id>/atualizar', methods=['POST'])

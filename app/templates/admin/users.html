@@ -6,6 +6,8 @@
 .ux-bar input,.ux-bar select{padding:9px 14px;border:1px solid var(--gray-300);border-radius:999px;font-size:14px;background:#fff;color:var(--text)}
 .ux-bar input{flex:1;min-width:220px}
 .ux-count{font-size:13px;color:var(--gray-500);margin-left:auto}
+.ux-gt{margin:22px 0 10px;font-size:16px;color:var(--blue-800);border-bottom:2px solid var(--blue-100);padding-bottom:6px;display:flex;gap:8px;align-items:center}
+.ux-gt span{background:var(--blue-100);color:var(--blue-700);font-size:12px;padding:2px 9px;border-radius:999px}
 .ux-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px}
 .ux-card{background:#fff;border:1px solid var(--gray-200);border-radius:14px;box-shadow:var(--shadow);padding:18px;display:flex;flex-direction:column;gap:14px}
 .ux-head{display:flex;gap:12px;align-items:center}
@@ -48,8 +50,11 @@
   <span class="ux-count" id="uxCount"></span>
 </div>
 
+{% for nome, grupo in grupos %}
+<section class="ux-grupo">
+<h3 class="ux-gt">{{ nome }} <span>{{ grupo|length }}</span></h3>
 <div class="ux-grid">
-{% for u in users %}
+{% for u in grupo %}
 <div class="ux-card" data-busca="{{ (u.name ~ ' ' ~ u.email)|lower }}" data-status="{{ u.status }}">
   <div class="ux-head">
     <div class="ux-av">{{ (u.name or '?')[:1]|upper }}</div>
@@ -114,6 +119,8 @@
 </div>
 {% endfor %}
 </div>
+</section>
+{% endfor %}
 
 <script>
 (function(){
@@ -125,6 +132,7 @@
       var ok=(!q||c.dataset.busca.indexOf(q)>-1)&&(!s||c.dataset.status===s);
       c.style.display=ok?'':'none'; if(ok)n++;
     });
+    document.querySelectorAll('.ux-grupo').forEach(function(g){g.style.display=g.querySelector('.ux-card:not([style*="none"])')?'':'none'});
     cnt.textContent=n+' de '+cards.length+' usuários';
   }
   busca.addEventListener('input',filtrar); st.addEventListener('change',filtrar); filtrar();
