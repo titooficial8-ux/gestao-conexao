@@ -22,6 +22,7 @@ from app.models import Machine, NonWorkingDay, ProducaoRef, Sequencia
 
 INEFICIENCIA = float(os.getenv('INEFICIENCIA_MAQUINA', '0.15'))
 MIN_DIA = 1440 * (1 - INEFICIENCIA)
+TROCA_HORAS = float(os.getenv('TROCA_HORAS', '0'))      # tempo de troca de artigo somado antes de cada OP que ainda nao esta produzindo (padrao 0)
 ATIVAS = ('PRODUZINDO', 'EM_SEQUENCIA', 'PCP')
 _trava = threading.Lock()
 _arquivo_lido = {'mtime': None}
@@ -154,6 +155,8 @@ def calcular(agora=None) -> int:
                     if s.termino_malharia:                              # sem base: a fila segue pelo termino que o PCP Hub informou
                         cursor = max(cursor, datetime.combine(s.termino_malharia, datetime.min.time()))
                     continue
+                if s.status != 'PRODUZINDO' and TROCA_HORAS:
+                    cursor = cursor + timedelta(hours=TROCA_HORAS)
                 tempo_peca = ref.voltas / ref.rpm                       # minutos por peca
                 pecas_dia = MIN_DIA / tempo_peca
                 restam = max((s.total_pcs or 0) - (s.pecas_produzidas or 0), 0)
