@@ -18,7 +18,7 @@ BATCH_URL = f'{BASE}/api/totvsmoda/product/v2/batch/search'
 BALANCES_URL = f'{BASE}/api/totvsmoda/product/v2/balances/search'
 PRODUCTS_URL = f'{BASE}/api/totvsmoda/product/v2/products/search'
 SALDO_INSPECAO = os.getenv('EXPEDICAO_SALDO_INSPECAO', '').strip()     # codigo do saldo 'aguardando inspecao'; vazio = acha pelo nome (INSPE)
-UNIDADE_INSPECAO = os.getenv('EXPEDICAO_UNIDADE_INSPECAO', 'KG').strip().upper()
+UNIDADE_INSPECAO = os.getenv('EXPEDICAO_UNIDADE_INSPECAO', 'MT').strip().upper()
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
 SALDO = int(os.getenv('EXPEDICAO_SALDO', '1'))
 NF_DIAS = int(os.getenv('EXPEDICAO_NF_DIAS', '90'))
@@ -423,12 +423,13 @@ def painel(dias: int = 30) -> dict:
             return False
         nome = (str(art.get(pc, ['', ''])[0]) + ' ' + str(art.get(pc, ['', ''])[1]) + ' ' + (f[2] if f else '')).upper()
         return 'SEGUNDA' not in nome and 'SUCATA' not in nome
+    est_raw = est
     est = {pc: p for pc, p in est.items() if vale(pc)}
     tem_mov = bool(mov)
     por_art = {}
     for pc, p in est.items():
         cod, nome = art.get(pc, [pc, ''])
-        a = por_art.setdefault(cod, dict(cod=cod, nome=nome, saldo=0.0, lotes=0, dias=None, ult_entrada=None, segunda=False))
+        a = por_art.setdefault(cod, dict(cod=cod, nome=nome, saldo=0.0, lotes=0, dias=None, ult_entrada=None, ult_mov=None, segunda=False))
         a['saldo'] += p['saldo']
         a['lotes'] += len(p['lotes'])
         if pc in mov:
@@ -437,22 +438,26 @@ def painel(dias: int = 30) -> dict:
             a['dias'] = dias_pc if a['dias'] is None else min(a['dias'], dias_pc)
             if m and m[1]:
                 a['ult_entrada'] = max(a['ult_entrada'] or m[1], m[1])
+            if m and m[0]:
+                a['ult_mov'] = max(a['ult_mov'] or m[0], m[0])
     arts = sorted(por_art.values(), key=lambda a: a['saldo'], reverse=True)
     total = sum(a['saldo'] for a in arts)
     datados = [a for a in arts if a['dias'] is not None]
-    faixas = [dict(faixa=r, artigos=0, metros=0.0) for _, r in FAIXAS]
-    for a in datados:
+    faixas = [dict(faixa=r, artigos=0, metros=0.0, pecas=0, lista=[]) for _, r in FAIXAS]
+    for a in sorted(datados, key=lambda a: -a['saldo']):
         for i, (lim, _r) in enumerate(FAIXAS):
             if a['dias'] <= lim:
                 faixas[i]['artigos'] += 1
                 faixas[i]['metros'] += a['saldo']
+                faixas[i]['pecas'] += a['lotes']
+                faixas[i]['lista'].append(dict(a, saldo=round(a['saldo'], 2)))
                 break
     m30 = sum(n[7] for n in todas if n[0] >= (hoje - timedelta(days=29)).isoformat() and _situacao(n) == 'Autorizada')
     parados = sorted(datados, key=lambda a: (a['dias'], a['saldo']), reverse=True)
     r2 = lambda v: round(v, 2)
     ins = d.get('inspecao') or {}
-    insp = dict(cod=d.get('inspecao_cod'), nome=d.get('inspecao_desc'), unidade=UNIDADE_INSPECAO, kg=r2(sum(v[0] for v in ins.values())), itens=len(ins), outros=max(0, (d.get('inspecao_total_itens') or 0) - len(ins)),
-                em=d.get('inspecao_em'), lista=[dict(cod=pc, nome=v[1], saldo=v[0]) for pc, v in sorted(ins.items(), key=lambda kv: -kv[1][0])[:300]])
+    insp = dict(cod=d.get('inspecao_cod'), nome=d.get('inspecao_desc'), unidade=UNIDADE_INSPECAO, total=r2(sum(v[0] for v in ins.values())), itens=len(ins), outros=max(0, (d.get('inspecao_total_itens') or 0) - len(ins)),
+                em=d.get('inspecao_em'), lista=[dict(cod=pc, nome=v[1], saldo=v[0], exp_m=r2((est_raw.get(pc) or {}).get('saldo', 0)), exp_pecas=len((est_raw.get(pc) or {}).get('lotes', []))) for pc, v in sorted(ins.items(), key=lambda kv: -kv[1][0])])
     p90 = sum(a['saldo'] for a in datados if a['dias'] > 90)
     return dict(
         ok=True, dias=dias, hoje=hoje.isoformat(), notas_em=d.get('notas_em'), estoque_em=d.get('estoque_em'), mov_em=ler_mov().get('atualizado'),
@@ -470,7 +475,10 @@ def painel(dias: int = 30) -> dict:
                      saida_30d=r2(m30), cobertura_dias=round(total / (m30 / 30)) if m30 else None,
                      parado_90=r2(p90), parado_90_pct=round(p90 / total * 100) if total else 0, parado_90_artigos=sum(1 for a in datados if a['dias'] > 90),
                      idade_pronta=tem_mov, idade_cobertura=round(len(datados) / len(arts) * 100) if arts else 0,
-                     parados90=[dict(a, saldo=r2(a['saldo'])) for a in parados if a['dias'] > 90][:300],
+                     parados90=[dict(a, saldo=r2(a['saldo'])) for a in parados if a['dias'] > 90],
+                     idade_media=round(sum(a['dias'] * a['saldo'] for a in datados) / sum(a['saldo'] for a in datados)) if datados and sum(a['saldo'] for a in datados) else None,
+                     mov_30_pct=round(sum(a['saldo'] for a in datados if a['dias'] <= 30) / sum(a['saldo'] for a in datados) * 100) if datados and sum(a['saldo'] for a in datados) else None,
+                     pecas_90=sum(a['lotes'] for a in datados if a['dias'] > 90),
                      inspecao=insp,
                      maiores=[dict(a, saldo=r2(a['saldo']), pct=round(a['saldo'] / total * 100, 1) if total else 0) for a in arts[:8]],
                      parados=[dict(a, saldo=r2(a['saldo'])) for a in parados[:8]],
