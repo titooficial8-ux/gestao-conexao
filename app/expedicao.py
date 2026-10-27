@@ -41,6 +41,55 @@ def dados():
     return jsonify(expedicao.painel(dias))
 
 
+@exp_bp.route('/exportar')
+@login_required
+def exportar():
+    """Excel (.xlsx) das listas do painel: parados (+90 dias), faixa, inspecao, nfs (pendencias)."""
+    _autorizar()
+    import io
+    from datetime import date
+    from flask import send_file
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from app.totvs import expedicao
+    tipo = request.args.get('tipo', 'parados')
+    p = expedicao.painel(request.args.get('dias', 30, type=int))
+    E = p['estoque']
+    dia = lambda v: date.fromisoformat(v).strftime('%d/%m/%Y') if v else ''
+    if tipo == 'inspecao':
+        I = E['inspecao']
+        nome, cab = 'Aguardando inspeção', ['Produto', 'Descrição', f"Saldo em inspeção ({I['unidade']})", 'Saldo na expedição (m)', 'Peças na expedição']
+        linhas = [[x['cod'], x['nome'], x['saldo'], x['exp_m'], x['exp_pecas']] for x in I['lista']]
+    elif tipo == 'nfs':
+        nome, cab = 'NFs com pendência', ['Data', 'Hora', 'NF', 'Série', 'Situação', 'Cliente', 'Metros', 'Valor (R$)']
+        linhas = [[dia(n['dia']), n['hora'], n['nf'], n['serie'], n['situacao'], n['cliente'], n['metros'], n['valor']] for n in p['notas']['problemas']]
+    else:
+        if tipo == 'faixa':
+            f = E['faixas'][max(0, min(request.args.get('i', 0, type=int), len(E['faixas']) - 1))]
+            nome, lista = f['faixa'], f['lista']
+        elif tipo == 'estoque':
+            nome, lista = 'Estoque Expedição', [a for f in E['faixas'] for a in f['lista']]
+        else:
+            nome, lista = 'Parado há mais de 90 dias', E['parados90']
+        cab = ['Artigo', 'Descrição', 'Metros', 'Peças', 'Dias sem movimento', 'Última movimentação', 'Última entrada (180 d)']
+        linhas = [[a['cod'], a['nome'], a['saldo'], a['lotes'], ('mais de 180' if a['dias'] and a['dias'] > 180 else a['dias']), dia(a['ult_mov']), dia(a['ult_entrada']) or 'sem entrada em 180 dias'] for a in lista]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = nome[:31]
+    ws.append(cab)
+    for c in ws[1]:
+        c.font, c.fill = Font(bold=True, color='FFFFFF'), PatternFill('solid', fgColor='0F2A4A')
+    for l in linhas:
+        ws.append(l)
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = min(60, max(12, max(len(str(c.value or '')) for c in col) + 2))
+    ws.freeze_panes = 'A2'
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True, download_name=f'expedicao_{tipo}_{date.today():%Y-%m-%d}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 @exp_bp.route('/diagnostico')
 @login_required
 def diagnostico():

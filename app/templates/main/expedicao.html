@@ -2,7 +2,7 @@
 {% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
 {% block content %}
 <style>
-.xp{--xp-teal:#0d9488;--xp-navy:#0f2a4a;max-width:1400px}
+.xp,.xp-mod{--xp-teal:#0d9488;--xp-navy:#0f2a4a}.xp{max-width:1400px}
 .xp-hero{background:linear-gradient(120deg,#0f2a4a 0%,#14527a 55%,#0d9488 130%);border-radius:18px;padding:22px 26px 24px;color:#fff;margin-bottom:16px;box-shadow:0 10px 30px rgba(15,42,74,.25)}
 .xp-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
 .xp-top h2{margin:0;font-size:22px;letter-spacing:-.01em;color:#fff}.xp-top p{margin:3px 0 0;font-size:13px;color:#b8d4ea}
@@ -24,6 +24,7 @@
 .xp-mod{position:fixed;inset:0;background:rgba(15,42,74,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
 .xp-mod>div{background:#fff;border-radius:18px;max-width:900px;width:100%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .xp-mod header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 22px 10px}.xp-mod header h3{margin:0;font-size:17px;color:var(--xp-navy)}.xp-mod header p{margin:3px 0 0;font-size:12px;color:var(--gray-500)}
+.xp-dl{margin-left:auto;align-self:center;background:var(--xp-teal);color:#fff;text-decoration:none;font-size:12px;font-weight:800;border-radius:999px;padding:8px 14px;white-space:nowrap}.xp-dl:hover{filter:brightness(1.1)}
 .xp-mod header button{border:0;background:var(--gray-100);width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer;color:var(--gray-700,#334155)}
 .xp-mod .corpo{padding:0 22px 20px;overflow:auto}
 .xp-al i{flex:none;width:12px;height:12px;border-radius:50%}.xp-al.ok i{background:#16a34a}.xp-al.warn i{background:#f59e0b}.xp-al.bad i{background:#dc2626}.xp-al.info i{background:#64748b}
@@ -43,6 +44,10 @@
 .xp-chip{display:inline-block;background:#eef2ff;color:#4338ca;border-radius:6px;padding:0 6px;font-size:10px;font-weight:800;margin-left:6px;vertical-align:1px}
 .xp-stack{display:flex;height:22px;border-radius:999px;overflow:hidden;background:var(--gray-100);margin:6px 0 14px}.xp-stack i{display:block;height:100%}
 .xp-ft{width:100%;border-collapse:collapse;font-size:13px}.xp-ft td,.xp-ft th{padding:7px 6px;border-bottom:1px solid var(--gray-100);text-align:right}.xp-ft th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}.xp-ft td:first-child,.xp-ft th:first-child{text-align:left}
+.xp-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}.xp-mini div{background:var(--gray-100);border-radius:12px;padding:10px 12px}
+.xp-mini span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}.xp-mini b{display:block;font-size:20px;color:var(--xp-navy);margin:3px 0 1px}.xp-mini em{font-style:normal;font-size:11px;color:var(--gray-500)}
+.xp-fx{cursor:pointer}.xp-fx:hover td{background:#f1f7fb}.xp-ft td.seta{color:var(--xp-teal);font-weight:800;width:18px}
+@media(max-width:700px){.xp-mini{grid-template-columns:1fr}}
 .xp-ft i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px;vertical-align:-1px}
 .xp-tb{width:100%;border-collapse:collapse;font-size:13px}.xp-tb th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500);padding:6px 8px;border-bottom:1px solid var(--gray-200)}
 .xp-tb td{padding:8px;border-bottom:1px solid var(--gray-100);vertical-align:middle}.xp-tb td.n{text-align:right;white-space:nowrap}
@@ -60,7 +65,7 @@
 
 <script>
 (function () {
-  var URL_DADOS = '{{ url_for("expedicao.dados") }}', D = null, DIAS = '30', METRICA = 'metros';
+  var URL_DADOS = '{{ url_for("expedicao.dados") }}', URL_XLSX = '{{ url_for("expedicao.exportar") }}', D = null, DIAS = '30', METRICA = 'metros';
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.textContent = x; return e; }
   function nf(v, d) { return Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
   function brl(v) { v = Number(v || 0); return v >= 1e6 ? 'R$ ' + nf(v / 1e6, 2) + ' mi' : v >= 1e4 ? 'R$ ' + nf(v / 1e3, 0) + ' mil' : 'R$ ' + nf(v, 0); }
@@ -75,10 +80,13 @@
   function varBadge(v) { if (v === null || v === undefined) return null; var b = el('span', 'xp-var ' + (v >= 0 ? 'up' : 'down'), (v >= 0 ? '▲ ' : '▼ ') + Math.abs(v) + '%'); b.title = 'vs período anterior de mesmo tamanho'; return b; }
   function head(r, v, sub, vr) { var h = el('div', 'xp-head'); h.appendChild(el('span', null, r)); h.appendChild(el('strong', null, v)); var e = el('em'); var b = varBadge(vr); if (b) e.appendChild(b); e.appendChild(document.createTextNode(sub)); h.appendChild(e); return h; }
   function alerta(cls, v, t) { var a = el('div', 'xp-al ' + cls); a.appendChild(el('i')); var d = el('div'); d.appendChild(el('b', null, v)); d.appendChild(el('span', null, t)); a.appendChild(d); return a; }
+  function listaArtigos(l) { return tabela(['Artigo', 'Descrição', 'Peças', 'Parado há', 'Última entrada', 'Metros'], l.map(function (x) { return [x.cod, x.nome, nf(x.lotes), x.dias > 180 ? '+180 dias' : x.dias + ' dias', x.ult_entrada ? dia(x.ult_entrada) : 'sem entrada em 180 d', mt(x.saldo)]; })); }
   function clicavel(a, fn) { a.classList.add('click'); a.appendChild(el('span', 'ver', 'ver detalhes ›')); a.addEventListener('click', fn); }
-  function abrir(titulo, sub, corpo) {
+  function abrir(titulo, sub, corpo, xlsx) {
     var m = el('div', 'xp-mod'), box = el('div'), h = el('header'), t = el('div'); t.appendChild(el('h3', null, titulo)); t.appendChild(el('p', null, sub)); h.appendChild(t);
-    var x = el('button', null, '×'); x.type = 'button'; h.appendChild(x); box.appendChild(h); var cp = el('div', 'corpo'); cp.appendChild(corpo); box.appendChild(cp); m.appendChild(box);
+    var x = el('button', 'fechar', '×'); x.type = 'button';
+    if (xlsx) { var dl = el('a', 'xp-dl', '⬇ Baixar Excel'); dl.href = URL_XLSX + '?' + xlsx; h.appendChild(dl); }
+    h.appendChild(x); box.appendChild(h); var cp = el('div', 'corpo'); cp.appendChild(corpo); box.appendChild(cp); m.appendChild(box);
     function fechar() { m.remove(); document.removeEventListener('keydown', esc); } function esc(e) { if (e.key === 'Escape') fechar(); }
     x.addEventListener('click', fechar); m.addEventListener('click', function (e) { if (e.target === m) fechar(); }); document.addEventListener('keydown', esc); document.body.appendChild(m);
   }
@@ -137,14 +145,14 @@
 
     var al = el('div', 'xp-alerts');
     var a1 = alerta(N.pendentes ? 'bad' : 'ok', N.pendentes ? nf(N.pendentes) + ' NFs' : 'Tudo certo', N.pendentes ? 'com pendência (rejeitada / denegada / não autorizada)' : 'nenhuma NF com pendência');
-    if (N.pendentes) clicavel(a1, function () { abrir('NFs que precisam de atenção', 'rejeitadas, denegadas ou ainda não autorizadas · últimos ' + D.dias + ' dias', tabela(['Data', 'NF', 'Situação', 'Cliente', 'Valor'], N.problemas.map(function (n) { return [dia(n.dia) + ' ' + n.hora, n.nf, { t: n.situacao }, n.cliente, brl(n.valor)]; }))); });
+    if (N.pendentes) clicavel(a1, function () { abrir('NFs que precisam de atenção', 'rejeitadas, denegadas ou ainda não autorizadas · últimos ' + D.dias + ' dias', tabela(['Data', 'NF', 'Situação', 'Cliente', 'Valor'], N.problemas.map(function (n) { return [dia(n.dia) + ' ' + n.hora, n.nf, { t: n.situacao }, n.cliente, brl(n.valor)]; })), 'tipo=nfs&dias=' + D.dias); });
     al.appendChild(a1);
     al.appendChild(alerta('ok', nf(N.hoje) + ' NFs', 'autorizadas hoje · ' + mt(N.metros_hoje) + ' expedidos'));
     var a3 = E.idade_pronta ? alerta(E.parado_90_pct >= 30 ? 'bad' : E.parado_90_pct >= 15 ? 'warn' : 'ok', E.parado_90_pct + '% parado +90 dias', mt(E.parado_90) + ' · ' + nf(E.parado_90_artigos) + ' artigos sem movimento') : alerta('info', 'Calculando…', 'tempo parado (lendo o kardex do TOTVS)');
-    if (E.idade_pronta && E.parado_90_artigos) clicavel(a3, function () { abrir('Estoque parado há mais de 90 dias', nf(E.parado_90_artigos) + ' artigos · ' + mt(E.parado_90) + ' · sem movimentação na expedição', tabela(['Artigo', 'Descrição', 'Última entrada', 'Dias parado', 'Metros'], E.parados90.map(function (x) { return [x.cod, x.nome, x.ult_entrada ? dia(x.ult_entrada) : '–', x.dias > 180 ? '+180' : x.dias, mt(x.saldo)]; }))); });
+    if (E.idade_pronta && E.parado_90_artigos) clicavel(a3, function () { abrir('Estoque parado há mais de 90 dias', nf(E.parado_90_artigos) + ' artigos · ' + nf(E.pecas_90) + ' peças · ' + mt(E.parado_90) + ' · sem movimentação na expedição', listaArtigos(E.parados90), 'tipo=parados'); });
     al.appendChild(a3);
-    var I = E.inspecao, a4 = I.cod === null || I.cod === undefined ? alerta('info', 'Inspeção', D.fonte.erro_inspecao ? 'saldo ainda não localizado' : 'localizando o saldo no TOTVS…') : alerta(I.kg ? 'warn' : 'ok', nf(I.kg) + ' kg', 'aguardando inspeção · ' + nf(I.itens) + ' produtos em aberto');
-    if (I.itens) clicavel(a4, function () { abrir('Saldo aguardando inspeção (' + I.unidade + ')', 'saldos em aberto para inventariar ou limpar no sistema · ' + (I.nome || ''), tabela(['Produto', 'Descrição', 'Saldo (' + I.unidade.toLowerCase() + ')'], I.lista.map(function (x) { return [x.cod, x.nome, nf(x.saldo, 1)]; }))); });
+    var I = E.inspecao, a4 = I.cod === null || I.cod === undefined ? alerta('info', 'Inspeção', D.fonte.erro_inspecao ? 'saldo ainda não localizado' : 'localizando o saldo no TOTVS…') : alerta(I.total ? 'warn' : 'ok', mt(I.total), 'aguardando inspeção · ' + nf(I.itens) + ' produtos em aberto');
+    if (I.itens) clicavel(a4, function () { abrir('Saldo aguardando inspeção (' + I.unidade + ')', 'saldos em aberto para inventariar ou limpar no sistema · ' + (I.nome || ''), tabela(['Produto', 'Descrição', 'Em inspeção', 'Na expedição', 'Peças na expedição'], I.lista.map(function (x) { return [x.cod, x.nome, mt(x.saldo), x.exp_m ? mt(x.exp_m) : '—', x.exp_pecas ? nf(x.exp_pecas) : '—']; })), 'tipo=inspecao'); });
     al.appendChild(a4); c.appendChild(al);
 
     c.appendChild(el('div', 'xp-sec', 'Notas fiscais'));
@@ -163,13 +171,19 @@
     cl.appendChild(ranking(N.clientes.map(function (x) { return { cod: x.cliente, nome: nf(x.qtd) + ' NFs emitidas · ' + mt(x.metros) + ' enviados', val: brl(x.valor), sub: 'faturado', barra: x.valor, cor: '#2f7fe0' }; }))); c.appendChild(cl);
 
     c.appendChild(el('div', 'xp-sec', 'Estoque Expedição · saldo 1'));
-    var g3 = el('div', 'xp-grid eq'), f = card('Tempo parado do estoque', 'dias desde a última movimentação do artigo na expedição');
+    var g3 = el('div', 'xp-grid eq'), f = card('Tempo parado do estoque', 'dias desde a última movimentação do artigo na expedição · clique numa faixa para ver os artigos');
     if (!E.idade_pronta) f.appendChild(el('div', 'xp-nota', 'Calculando o tempo parado a partir do kardex do TOTVS. Na primeira vez leva alguns minutos; depois atualiza a cada 30 min.'));
     else {
+      var mini = el('div', 'xp-mini');
+      [['Idade média', E.idade_media === null ? '–' : nf(E.idade_media) + ' dias', 'ponderada pelos metros'], ['Giro recente', (E.mov_30_pct === null ? '–' : E.mov_30_pct + '%'), 'dos metros movimentados em 30 dias'], ['Parado +90 dias', nf(E.pecas_90) + ' peças', mt(E.parado_90) + ' · ' + E.parado_90_pct + '% do estoque']].forEach(function (m) { var d = el('div'); d.appendChild(el('span', null, m[0])); d.appendChild(el('b', null, m[1])); d.appendChild(el('em', null, m[2])); mini.appendChild(d); });
+      f.appendChild(mini);
       var tot = E.faixas.reduce(function (s, x) { return s + x.metros; }, 0), st = el('div', 'xp-stack'); E.faixas.forEach(function (x, i) { if (x.metros) { var s = el('i'); s.style.width = (x.metros / tot * 100) + '%'; s.style.background = CORF[i]; s.title = x.faixa; st.appendChild(s); } }); f.appendChild(st);
-      var t = el('table', 'xp-ft'), th = el('tr'); ['Faixa', 'Artigos', 'Metros', '%'].forEach(function (x) { th.appendChild(el('th', null, x)); }); t.appendChild(th);
-      E.faixas.forEach(function (x, i) { var r = el('tr'), d = el('td'), q = el('i'); q.style.background = CORF[i]; d.appendChild(q); d.appendChild(document.createTextNode(x.faixa)); r.appendChild(d); r.appendChild(el('td', null, nf(x.artigos))); r.appendChild(el('td', null, mt(x.metros))); r.appendChild(el('td', null, (tot ? Math.round(x.metros / tot * 100) : 0) + '%')); t.appendChild(r); });
-      f.appendChild(t); if (E.idade_cobertura < 95) f.appendChild(el('div', 'xp-nota', 'Tempo parado calculado para ' + E.idade_cobertura + '% dos artigos (os demais ainda estão sendo lidos). "Mais de 180 dias" = sem movimento nos últimos 180 dias (limite do TOTVS).'));
+      var t = el('table', 'xp-ft'), th = el('tr'); ['Faixa', 'Artigos', 'Peças', 'Metros', '% do estoque', ''].forEach(function (x) { th.appendChild(el('th', null, x)); }); t.appendChild(th);
+      E.faixas.forEach(function (x, i) { var r = el('tr', x.artigos ? 'xp-fx' : ''), d = el('td'), q = el('i'); q.style.background = CORF[i]; d.appendChild(q); d.appendChild(document.createTextNode(x.faixa)); r.appendChild(d); r.appendChild(el('td', null, nf(x.artigos))); r.appendChild(el('td', null, nf(x.pecas))); r.appendChild(el('td', null, mt(x.metros))); r.appendChild(el('td', null, (tot ? Math.round(x.metros / tot * 100) : 0) + '%')); r.appendChild(el('td', 'seta', x.artigos ? '›' : ''));
+        if (x.artigos) r.addEventListener('click', function () { abrir('Estoque ' + x.faixa + ' sem movimento', nf(x.artigos) + ' artigos · ' + nf(x.pecas) + ' peças · ' + mt(x.metros), listaArtigos(x.lista), 'tipo=faixa&i=' + i); }); t.appendChild(r); });
+      f.appendChild(t);
+      var bt = el('a', 'xp-dl', '⬇ Baixar estoque completo (Excel)'); bt.href = URL_XLSX + '?tipo=estoque'; bt.style.display = 'inline-block'; bt.style.marginTop = '12px'; f.appendChild(bt);
+      if (E.idade_cobertura < 95) f.appendChild(el('div', 'xp-nota', 'Tempo parado calculado para ' + E.idade_cobertura + '% dos artigos (os demais ainda estão sendo lidos). "Mais de 180 dias" = sem movimento nos últimos 180 dias (limite do TOTVS).'));
     }
     var pa = card('Parados há mais tempo', 'artigos com mais dias sem movimentação');
     pa.appendChild(E.idade_pronta ? ranking(E.parados.map(function (x) { return { cod: x.cod, nome: x.nome, val: x.dias > 180 ? '+180 dias' : x.dias + ' dias', sub: mt(x.saldo) + (x.ult_entrada ? ' · última entrada ' + dia(x.ult_entrada) : ''), barra: x.dias, cor: x.dias > 90 ? '#dc2626' : x.dias > 60 ? '#f97316' : '#f59e0b', chip: x.segunda ? '2ª QUALIDADE' : '' }; })) : el('div', 'xp-vazio', 'Calculando…'));
