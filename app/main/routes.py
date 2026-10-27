@@ -1258,6 +1258,9 @@ def view_tab(slug):
             is_admin=current_user.is_admin,
         )
 
+    if slug == 'painel-financeiro':
+        return render_template('main/financeiro.html', tab=tab)
+
     if slug == 'expedicao':
         return render_template('main/expedicao.html', tab=tab)
 
