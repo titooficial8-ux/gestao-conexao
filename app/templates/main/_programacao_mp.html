@@ -47,9 +47,9 @@
   .pm-lista { max-height: 420px; overflow-y: auto; }
   .pm-det { margin-top: 12px; }
   .pm-bx.abre { cursor: pointer; } .pm-bx.abre:hover { background: #fff6f6; } .pm-bx.aberta { background: #fff1f1; }
-  .pm-emp { grid-column: 1 / -1; padding: 8px 4px 14px; } .pm-emp-res { font-size: 12px; color: #55657a; margin-bottom: 8px; }
-  .pm-emp table { width: 100%; border-collapse: collapse; font-size: 12px; } .pm-emp th { text-align: left; color: #7c8ca1; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; }
-  .pm-emp td { padding: 5px 6px; border-bottom: 1px solid #f0f3f8; vertical-align: top; } .pm-emp td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pm-emp { grid-column: 1 / -1; padding: 8px 4px 14px; box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; } .pm-emp-res { font-size: 12px; color: #55657a; margin-bottom: 8px; }
+  .pm-emp table { width: 100%; margin: 0 auto; border-collapse: collapse; font-size: 12px; table-layout: auto; } .pm-emp th { text-align: center; color: #7c8ca1; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; }
+  .pm-emp td { padding: 5px 6px; border-bottom: 1px solid #f0f3f8; vertical-align: middle; text-align: center; word-break: break-word; } .pm-emp td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .pm-emp .ok { color: #15803d; font-weight: 700; } .pm-emp .rx { color: #b91c1c; font-weight: 700; } .pm-emp tr.corte td { border-top: 2px dashed #c0272d; }
   .pm-tag { display: inline-block; font-size: 10px; font-weight: 800; border-radius: 6px; padding: 1px 6px; } .pm-tag.m { background: #dbeafe; color: #1e40af; } .pm-tag.c { background: #fef3c7; color: #92400e; } .pm-tag.p { background: #dcfce7; color: #166534; }
   .pm-bx { display: grid; grid-template-columns: minmax(150px, 1.6fr) minmax(110px, 1.2fr) 96px; gap: 12px; align-items: center; padding: 8px 4px; border-bottom: 1px solid #f0f3f8; }
