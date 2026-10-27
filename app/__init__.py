@@ -133,7 +133,7 @@ def create_app():
             cats = Category.query.order_by(Category.order).all()
             for cat in cats:
                 cat.visible_tabs = [tab for tab in cat.tabs if tab.visible_to(current_user)]
-            nav_categories = cats
+            nav_categories = [c for c in cats if c.visible_tabs]            # menu sem nenhuma aba liberada (ex.: todas escondidas para a pessoa) nem aparece
         return dict(
             t=lambda key: translate(key, lang),
             lang=lang,
