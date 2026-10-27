@@ -1,7 +1,7 @@
 """Historico de OPs por artigo, direto do TOTVS (so leitura): base para 'artigos que nao rodam ha N meses'.
 
 production-order/v2/orders/search (ciclo 13, status 10/20/30: aguardando, em andamento e finalizada; expand=items) -> data da OP (insertDate),
-cliente, produto e quantidade; product/v2/products/search (classificacao 506) -> codigo e nome do ARTIGO. Atualiza a cada RODAGEM_INTERVALO_MIN (60)."""
+cliente, produto e quantidade; product/v2/products/search (classificacao 506) -> codigo e nome do ARTIGO. Atualiza a cada RODAGEM_INTERVALO_MIN (2)."""
 import json
 import os
 import threading
@@ -15,7 +15,7 @@ from app.totvs import api
 from app.totvs.artigos import artigos_de_produtos
 from app.totvs.pedidos import CICLO, EMPRESA, OPS_URL, _paginar, configurado
 
-INTERVALO_MIN = float(os.getenv('RODAGEM_INTERVALO_MIN', '60'))
+INTERVALO_MIN = float(os.getenv('RODAGEM_INTERVALO_MIN', '2'))
 ESTADO = dict(rodando=False, ultima=None, n_ops=0, n_artigos=0, msg='', erro=None)
 _trava = threading.Lock()
 
@@ -103,5 +103,5 @@ def iniciar_agendador(app) -> None:
                 atualizar(app)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
-            time.sleep(max(INTERVALO_MIN, 5) * 60)
+            time.sleep(max(INTERVALO_MIN, 1) * 60)
     threading.Thread(target=loop, daemon=True, name='totvs-rodagem').start()
