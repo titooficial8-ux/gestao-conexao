@@ -346,6 +346,37 @@ def _autorizar_pedidos():
         abort(403)
 
 
+@pedidos_bp.route('/mapa-artigo')
+@login_required
+def mapa_artigo_pagina():
+    """So administrador: mapa de um artigo (ex.: ?artigo=310092): pedidos, OPs e o vinculo pedido <-> OP, ao vivo do TOTVS."""
+    if not current_user.is_admin:
+        abort(403)
+    from markupsafe import escape
+    from app.totvs import mapa_artigo
+    artigo = (request.args.get('artigo') or '').strip()
+    e = mapa_artigo.ESTADO
+    if not artigo:
+        return '<meta charset="utf-8"><form><input name="artigo" placeholder="artigo (ex.: 310092)"> <button>Mapear</button></form>'
+    if request.args.get('rodar') or (e['artigo'] != artigo and not e['rodando']):
+        mapa_artigo.iniciar(artigo)
+        return redirect(url_for('pedidos_totvs.mapa_artigo_pagina', artigo=artigo))
+    cab = '<meta charset="utf-8"><style>body{font:13px Arial;margin:20px}td,th{border:1px solid #ccc;padding:3px 8px;text-align:left}table{border-collapse:collapse;margin:8px 0}.n{text-align:right}.at{background:#e8f5e9}</style>'
+    if e['rodando']:
+        return cab + f'<meta http-equiv="refresh" content="6"><h3>Lendo pedidos e OPs do artigo {escape(artigo)} no TOTVS… (atualiza sozinha)</h3>'
+    if e['erro']:
+        return cab + f'<h3>Erro</h3><p>{escape(e["erro"])}</p>'
+    r = e['resultado']
+    pe = ''.join(f'<tr class="{"at" if x["status"] == "ATENDIDO" else ""}"><td>{escape(x["cliente"] or "")}</td><td>{x["pedido"]}</td><td>{x["data"]}</td><td>{escape(str(x["status"]))}</td><td class="n">{x["solicitada"]:.0f}</td>'
+                 f'<td class="n">{x["faturada"]:.0f}</td><td class="n">{x["cancelada"]:.0f}</td><td class="n">{x["pendente"]:.0f}</td><td>{x["prevista"]}</td><td>{x["alterado"]}</td><td><b>{", ".join(str(o) for o in x["ops"]) or "—"}</b></td></tr>' for x in r['pedidos'])
+    op = ''.join(f'<tr><td><b>{x["op"]}</b></td><td>{x["ciclo"]}</td><td>{escape(x["cliente"] or "")}</td><td>{x["criada"]}</td><td>{escape(str(x["status"]))}</td><td class="n">{x["qt"]:.0f}</td><td class="n">{x["produzida"]:.0f}</td>'
+                 f'<td class="n">{x["pendente"]:.0f}</td><td>{x["maquina"] or ""}</td><td><b>{", ".join(str(p) for p in x["pedidos"]) or "—"}</b></td></tr>' for x in r['ops'])
+    return (cab + f'<h2>Artigo {escape(artigo)} — pedidos e OPs</h2><p>Gerado {r["gerado_em"]} · <a href="?artigo={escape(artigo)}&rodar=1">recarregar</a> · <a href="?artigo=">outro artigo</a></p>'
+            f'<h3>Pedidos (do mais antigo ao mais novo) e a(s) OP(s) vinculada(s)</h3><table><tr><th>Cliente</th><th>Pedido</th><th>Data</th><th>Situação</th><th>Solicit.</th><th>Fatur.</th><th>Cancel.</th><th>Pendente</th><th>Prev. fat.</th><th>Alterado</th><th>OP(s) vinculada(s)</th></tr>{pe}</table>'
+            f'<h3>OPs do ciclo atual e o(s) pedido(s) vinculado(s)</h3><table><tr><th>OP</th><th>Ciclo</th><th>Cliente</th><th>Criada</th><th>Situação</th><th>Qtd</th><th>Produzida</th><th>Pendente</th><th>Máq.</th><th>Pedido(s) vinculado(s)</th></tr>{op}</table>'
+            '<p>O TOTVS não informa na API qual OP nasceu de qual pedido: o vínculo é reconstruído pela ordem de criação (pedido mais antigo usa a primeira OP). Se algum vínculo diferir do que você vê no TOTVS, me mande o artigo.</p>')
+
+
 @pedidos_bp.route('/status')
 @login_required
 def pedidos_status():

@@ -115,6 +115,56 @@ def _em_lotes(codigos, n=100):
         yield codigos[i:i + n]
 
 
+def vincular_ops(ordenados: list, ops: list, fixos: dict = None) -> dict:
+    """{posicao do item em `ordenados`: [OPs]}. `ordenados` = [(pedido, item, solicitada, faturada, pendente)] por data do pedido; `ops` = ordens de producao (expand=items).
+    O TOTVS nao devolve na API qual OP nasceu de qual pedido; a ligacao e reconstruida pela ordem de criacao:
+    os pedidos recebem as OPs do mesmo cliente+artigo na ordem em que foram feitos (o mais antigo usa a primeira OP, e assim por diante); um pedido grande usa varias OPs.
+    Pedido ja atendido tambem reserva a OP dele (quantidade original menos o cancelado), mas so entre as OPs criadas ate o dia em que foi atendido.
+    (A regra antiga deixava so os pendentes escolherem primeiro e empurrava as OPs dos atendidos para o pedido pendente seguinte.)
+    `fixos` = {(pedido, produto): [(ciclo, op)]}: ligacao REAL vinda do relatorio de pedidos do TOTVS; vale mais que a regra e ja reserva a quantidade da OP."""
+    por_chave = defaultdict(list)                              # (cliente, produto) -> OPs
+    for op in ops:
+        for i in op.get('items') or []:
+            por_chave[(op.get('customerCode'), i.get('productCode'))].append(op)
+    for lista in por_chave.values():
+        lista.sort(key=lambda o: (str(o.get('insertDate') or ''), o.get('orderCode') or 0))
+    usado = defaultdict(float)                                 # quantidade de cada OP ja destinada a pedidos
+
+    def alocar(p, pid, necessidade, dt_pedido, ate=None):
+        achadas = []
+        for o in por_chave.get((p['customerCode'], pid), []):
+            criada = _data(o.get('insertDate')) or date.min
+            if criada < (dt_pedido or date.min) or necessidade <= 0.5 or (ate and criada > ate):
+                continue
+            sobra = _num(o.get('quantity')) - usado[o['orderCode']]
+            if sobra <= 0.5 or (sobra < necessidade * 0.1):     # sobra minima de OP nao vira vinculo
+                continue
+            usar = min(sobra, necessidade)
+            usado[o['orderCode']] += usar
+            necessidade -= usar
+            achadas.append(o)
+        return achadas
+
+    aloc, idx_op = {}, {(str(o.get('cycleCode')), str(o.get('orderCode'))): o for o in ops}
+    for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):          # 1o: ligacoes reais do TOTVS (reservam a OP antes da regra)
+        real = [idx_op[(str(c), str(n))] for c, n in (fixos or {}).get((str(p.get('orderCode')), str(it.get('productCode'))), []) if (str(c), str(n)) in idx_op]
+        if real and p.get('statusOrder') != 'Canceled':
+            aloc[k] = real
+            falta = solicitada if pendente > 0.5 else max(solicitada - _num(it.get('canceledQuantity')), 0.0)
+            for o in real:
+                usa = min(max(_num(o.get('quantity')) - usado[o['orderCode']], 0.0), falta)
+                usado[o['orderCode']] += usa
+                falta -= usa
+    for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
+        if k in aloc or p.get('statusOrder') == 'Canceled':
+            continue
+        atendido = pendente <= 0.5
+        necessidade = max(solicitada - (_num(it.get('canceledQuantity')) if atendido else 0.0), 0.0)
+        ate = (_data(it.get('lastChangeDate')) or _data(p.get('lastBillingDate'))) if atendido else None
+        aloc[k] = alocar(p, it.get('productCode'), necessidade, _data(p.get('orderDate')), ate)
+    return aloc
+
+
 def buscar() -> list[dict]:
     """Consulta o TOTVS e devolve as linhas do relatorio (uma por item de pedido)."""
     cli = api.TotvsModaClient()
@@ -156,43 +206,21 @@ def buscar() -> list[dict]:
     ESTADO['msg'] = 'Buscando ordens de producao...'
     ops = _paginar(cli, OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[CICLO], statusList=STATUS_OP),
                                       expand='items,orderFinishedQuantitiesTypes'))
-    por_chave = defaultdict(list)                              # (cliente, produto) -> OPs
-    for op in ops:
-        for i in op.get('items') or []:
-            por_chave[(op.get('customerCode'), i.get('productCode'))].append(op)
-    for lista in por_chave.values():
-        lista.sort(key=lambda o: (str(o.get('insertDate') or ''), o.get('orderCode') or 0))
-    usado = defaultdict(float)                                 # quantidade de cada OP ja destinada a pedidos
-
-    def alocar(p, pid, necessidade, dt_pedido):
-        """OPs que atendem o pedido: as do mesmo cliente+artigo criadas depois dele, em ordem de criacao.
-        Cada OP vai sendo consumida pela quantidade dos pedidos (do mais antigo ao mais novo); um pedido grande usa varias OPs."""
-        achadas = []
-        for o in por_chave.get((p['customerCode'], pid), []):
-            if (_data(o.get('insertDate')) or date.min) < (dt_pedido or date.min) or necessidade <= 0.5:
-                continue
-            sobra = _num(o.get('quantity')) - usado[o['orderCode']]
-            if sobra <= 0.5 or (sobra < necessidade * 0.1):     # sobra minima de OP nao vira vinculo
-                continue
-            usar = min(sobra, necessidade)
-            usado[o['orderCode']] += usar
-            necessidade -= usar
-            achadas.append(o)
-        return achadas
-
     from app.main.routes import normalize_client_name          # filiais Ortobom entram como ORTOBOM, como no PCP Hub
     if itens:
         ESTADO['amostra_item'] = {k: v for k, v in itens[0][1].items() if not isinstance(v, (list, dict))}
         ESTADO['amostra_pedido'] = {k: v for k, v in itens[0][0].items() if not isinstance(v, (list, dict))}      # campos do item do pedido (para conferir o preco)
     linhas = []
     ordenados = sorted(itens, key=lambda t: (str(t[0].get('orderDate')), t[0].get('orderCode') or 0))
-    # 1a passada: so pedidos AINDA PENDENTES consomem a quantidade das OPs (necessidade = o que falta atender); 2a: os ja atendidos usam so a sobra (OPs ja produzidas)
-    aloc = {}
-    for passo in (1, 2):
-        for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
-            if p.get('statusOrder') == 'Canceled' or (pendente > 0.5) != (passo == 1):
-                continue
-            aloc[k] = alocar(p, it.get('productCode'), pendente if passo == 1 else solicitada, _data(p.get('orderDate')))
+    fixos = {}
+    try:                                                       # ligacao real pedido <-> OP (relatorio de pedidos do TOTVS, importado no PCP Hub); sem ela, vale a regra por ordem de criacao
+        from app import pcphub
+        if pcphub.configurado():
+            fixos = pcphub.buscar_vinculos_pedidos()
+            ESTADO['vinculos_reais'] = len(fixos)
+    except Exception as e:  # noqa: BLE001
+        ESTADO['vinculos_erro'] = str(e)[:200]
+    aloc = vincular_ops(ordenados, ops, fixos)
     for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
         pid = it.get('productCode')
         dt_pedido = _data(p.get('orderDate'))
