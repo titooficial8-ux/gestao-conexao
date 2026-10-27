@@ -197,6 +197,7 @@ class Sequencia(db.Model):
     prev_fonte = db.Column(db.String(30), nullable=True)      # de onde vieram as voltas/RPM: OP, maquina+artigo ou artigo
     prev_rpm = db.Column(db.Float, nullable=True)
     prev_voltas = db.Column(db.Float, nullable=True)
+    qt_plan = db.Column(db.Float, nullable=True)              # quantidade PLANEJADA da OP (m): o 'quantity' do TOTVS muda durante a producao e nao serve de base para as pecas totais
     aud_ok = db.Column(db.Boolean, default=False)             # engrenagem da auditoria: verde = artigo verificado na maquina pelo mecanico e PCP
     aud_em = db.Column(db.DateTime, nullable=True)
     prev_raport = db.Column(db.Float, nullable=True)          # raport (cm) usado quando a previsao saiu de raport x RPM instalado
