@@ -103,6 +103,8 @@ def create_app():
     app.register_blueprint(cmi_bp)
     from app.expedicao import exp_bp
     app.register_blueprint(exp_bp)
+    from app.financeiro import fin_bp
+    app.register_blueprint(fin_bp)
     from app.perfil import perfil_bp
     app.register_blueprint(perfil_bp)
     from app.presenca import presenca_bp
@@ -298,6 +300,8 @@ def create_app():
         iniciar_pedidos(app)      # Relatorio Pedidos: a cada 2 min
         from app.totvs.rodagem import iniciar_agendador as iniciar_rodagem
         iniciar_rodagem(app)      # OPs por artigo (artigos que nao rodam): a cada 2 min
+        from app.totvs.financeiro import iniciar_agendador as iniciar_financeiro
+        iniciar_financeiro(app)   # titulos a receber/pagar: a cada 10 min
         from app.totvs.expedicao import iniciar_agendador as iniciar_expedicao
         iniciar_expedicao(app)    # NFs e estoque da Expedicao: a cada 2 min
         from app.totvs.historico_mi import iniciar_agendador as iniciar_historico_mi

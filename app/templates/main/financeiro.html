@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<style>
+.fn,.fn-mod{--fn-navy:#0f2a4a;--fn-green:#0d9488}.fn{max-width:1400px}
+.fn-hero{background:linear-gradient(120deg,#0f2a4a 0%,#134a63 55%,#0d7a6c 130%);border-radius:18px;padding:22px 26px 24px;color:#fff;margin-bottom:16px;box-shadow:0 10px 30px rgba(15,42,74,.25)}
+.fn-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}.fn-top h2{margin:0;font-size:22px;color:#fff}.fn-top p{margin:3px 0 0;font-size:13px;color:#b8d4ea}
+.fn-live{display:flex;align-items:center;gap:10px;font-size:13px;color:#d6e8f6;flex-wrap:wrap}.fn-dot{width:9px;height:9px;border-radius:50%;background:#34d399;animation:fnP 2s infinite}.fn-dot.off{background:#f59e0b;animation:none}
+@keyframes fnP{70%{box-shadow:0 0 0 9px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+.fn-heads{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px}
+.fn-head{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:14px 16px;min-width:0}.fn-head span{display:block;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#a9c8e2}
+.fn-head strong{display:block;font-size:30px;line-height:1.1;margin:6px 0 4px;letter-spacing:-.02em;white-space:nowrap}.fn-head em{font-style:normal;font-size:12px;color:#c4dcee}.fn-head.bad strong{color:#fecaca}
+.fn-erro{background:#fde7e8;color:#b3262b;border-radius:10px;padding:9px 13px;font-size:13px;margin-bottom:12px}
+.fn-views{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap}.fn-views button{border:1px solid var(--gray-200);background:#fff;border-radius:999px;padding:9px 18px;font-size:14px;font-weight:800;color:var(--gray-500);cursor:pointer;box-shadow:var(--shadow)}.fn-views button.on{background:var(--fn-navy);color:#fff;border-color:var(--fn-navy)}
+.fn-alerts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.fn-al{background:#fff;border:1px solid var(--gray-200);border-radius:14px;padding:13px 15px;display:flex;gap:12px;align-items:center;box-shadow:var(--shadow)}.fn-al i{flex:none;width:12px;height:12px;border-radius:50%}.fn-al.ok i{background:#16a34a}.fn-al.warn i{background:#f59e0b}.fn-al.bad i{background:#dc2626}.fn-al.info i{background:#64748b}
+.fn-al b{display:block;font-size:20px;color:var(--text);line-height:1.15}.fn-al span{font-size:12px;color:var(--gray-500)}.fn-al.click{cursor:pointer;transition:transform .12s}.fn-al.click:hover{transform:translateY(-2px)}.fn-al .ver{margin-left:auto;font-size:11px;font-weight:800;color:var(--fn-green)}
+.fn-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.fn-card{background:#fff;border:1px solid var(--gray-200);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow);min-width:0}.fn-card h3{margin:0;font-size:15px;color:var(--fn-navy)}.fn-card .sub{font-size:12px;color:var(--gray-500);margin:2px 0 12px}
+.fn-bar{display:grid;grid-template-columns:120px 1fr 150px;gap:10px;align-items:center;margin:10px 0;font-size:13px;border-radius:10px;padding:2px 4px}.fn-bar.click{cursor:pointer}.fn-bar.click:hover{background:#f1f7fb}.fn-bar .t{height:16px;background:var(--gray-100);border-radius:999px;overflow:hidden}.fn-bar .t i{display:block;height:100%;border-radius:999px;transition:width 1.2s}.fn-bar .v{text-align:right}.fn-bar .v b{color:var(--text)}.fn-bar .v small{display:block;color:var(--gray-500);font-size:11px}
+.fn-rk{display:grid;grid-template-columns:24px 1fr auto;gap:2px 10px;margin:11px 0;font-size:13px;align-items:center;cursor:pointer;border-radius:10px}.fn-rk:hover{background:#f1f7fb}.fn-rk .p{font-weight:800;color:var(--gray-500);font-size:12px}.fn-rk b{color:var(--fn-navy)}.fn-rk small{display:block;color:var(--gray-500);font-size:11px}.fn-rk .val{text-align:right;font-weight:800}.fn-rk .br{grid-column:2/4;height:6px;background:var(--gray-100);border-radius:999px;overflow:hidden}.fn-rk .br i{display:block;height:100%;background:#dc2626;border-radius:999px}
+.fn-tb{width:100%;border-collapse:collapse;font-size:13px}.fn-tb th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500);padding:6px 8px;border-bottom:1px solid var(--gray-200)}.fn-tb td{padding:8px;border-bottom:1px solid var(--gray-100)}.fn-tb td.n,.fn-tb th.n{text-align:right;white-space:nowrap}
+.fn-pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap}.fn-vazio{padding:18px;text-align:center;color:var(--gray-500);font-size:13px}.fn-nota{font-size:12px;color:var(--gray-500);background:var(--gray-100);border-radius:10px;padding:9px 12px;margin-top:10px}
+.fn-dl{display:inline-block;background:var(--fn-green);color:#fff;text-decoration:none;font-size:12px;font-weight:800;border-radius:999px;padding:8px 14px;border:0;cursor:pointer}
+.fn-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.fn-tools input{flex:1;min-width:220px;padding:10px 14px;border:1px solid var(--gray-300);border-radius:999px;font-size:14px}
+.fn-seg{display:inline-flex;background:var(--gray-100);border-radius:999px;padding:3px}.fn-seg button{border:0;background:none;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:700;color:var(--gray-500);cursor:pointer}.fn-seg button.on{background:#fff;color:var(--fn-navy);box-shadow:0 1px 3px #0002}
+.fn-rules{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.fn-rule{background:#fff;border:1px solid var(--gray-200);border-left:5px solid #f59e0b;border-radius:12px;padding:12px 14px}.fn-rule b{display:block;color:var(--fn-navy)}.fn-rule span{font-size:12px;color:var(--gray-500)}
+.fn-ep{font-family:monospace;font-size:12px;background:var(--gray-100);border-radius:8px;padding:6px 10px;margin:6px 0;word-break:break-all}.fn-ep em{font-style:normal;font-weight:800;color:var(--fn-green);margin-right:8px}.fn-ep.w em{color:#b45309}
+.fn-mod{position:fixed;inset:0;background:rgba(15,42,74,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}.fn-mod>div{background:#fff;border-radius:18px;max-width:1000px;width:100%;max-height:86vh;display:flex;flex-direction:column}
+.fn-mod header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 22px 10px}.fn-mod header h3{margin:0;font-size:17px;color:var(--fn-navy)}.fn-mod header p{margin:3px 0 0;font-size:12px;color:var(--gray-500)}.fn-mod header button{border:0;background:var(--gray-100);width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer}.fn-mod .corpo{padding:0 22px 20px;overflow:auto}
+@media(max-width:1000px){.fn-heads,.fn-alerts,.fn-rules{grid-template-columns:1fr 1fr}.fn-grid{grid-template-columns:1fr}}@media(max-width:560px){.fn-heads,.fn-alerts,.fn-rules{grid-template-columns:1fr}.fn-bar{grid-template-columns:90px 1fr 110px}}
+</style>
+<div class="fn"><div id="fnErro" class="fn-erro" hidden></div><div id="fnCorpo"></div></div>
+<script>
+(function () {
+  var URL_D = '{{ url_for("financeiro.dados") }}', URL_V = '{{ url_for("financeiro.verificacao") }}', URL_X = '{{ url_for("financeiro.exportar") }}', D = null, VIEW = 'geral', SENT = 'receber', BUSCA = '', VER = null, PREVV = {}, ULTIMA = Date.now();
+  function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.textContent = x; return e; }
+  function nf(v, d) { return Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+  function brl(v) { v = Number(v || 0); return v >= 1e6 ? 'R$ ' + nf(v / 1e6, 2) + ' mi' : v >= 1e4 ? 'R$ ' + nf(v / 1e3, 0) + ' mil' : 'R$ ' + nf(v, 2); }
+  function dia(i) { var p = String(i || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : '–'; }
+  function quando(iso) { var m = String(iso || '').match(/^(\d{4})-(\d\d)-(\d\d)T(\d\d:\d\d:\d\d)/); return m ? m[3] + '/' + m[2] + '/' + m[1] + ' às ' + m[4] : ''; }
+  function corAtraso(d) { return d > 90 ? '#dc2626' : d > 60 ? '#f97316' : d > 30 ? '#f59e0b' : d > 0 ? '#eab308' : '#16a34a'; }
+  function pill(t, c) { return { t: t, c: c }; }
+  function contar(e, id, val, fmt) { var de = PREVV[id] === undefined ? 0 : PREVV[id], t0 = null; PREVV[id] = val; (function passo(t) { if (!t0) t0 = t; else if (!document.body.contains(e)) return; var f = Math.min((t - t0) / 1500, 1), k = 1 - Math.pow(1 - f, 3); e.textContent = fmt(de + (val - de) * k); if (f < 1) requestAnimationFrame(passo); })(performance.now()); }
+  function head(r, val, sub, id, bad) { var h = el('div', 'fn-head' + (bad ? ' bad' : '')); h.appendChild(el('span', null, r)); var s = el('strong', null, 'R$ 0'); h.appendChild(s); contar(s, id, val, brl); h.appendChild(el('em', null, sub)); return h; }
+  function card(t, s) { var c = el('div', 'fn-card'); c.appendChild(el('h3', null, t)); c.appendChild(el('div', 'sub', s || '')); return c; }
+  function tabela(cols, linhas) {
+    if (!linhas.length) return el('div', 'fn-vazio', 'Nada por aqui.');
+    var t = el('table', 'fn-tb'), h = el('tr'); cols.forEach(function (c, i) { h.appendChild(el('th', i === cols.length - 1 ? 'n' : '', c)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th);
+    var tb = el('tbody'); linhas.forEach(function (l) { var r = el('tr'); l.forEach(function (c, i) { var td = el('td', i === l.length - 1 ? 'n' : ''); if (c && typeof c === 'object') { var p = el('span', 'fn-pill', c.t); p.style.background = c.c; td.appendChild(p); } else td.textContent = c; r.appendChild(td); }); tb.appendChild(r); }); t.appendChild(tb);
+    var w = el('div'); w.style.overflowX = 'auto'; w.appendChild(t); return w;
+  }
+  function abrir(titulo, sub, corpo, xlsx) {
+    var m = el('div', 'fn-mod'), box = el('div'), h = el('header'), t = el('div'); t.appendChild(el('h3', null, titulo)); t.appendChild(el('p', null, sub)); h.appendChild(t);
+    var x = el('button', null, '×'); x.type = 'button'; if (xlsx) { var dl = el('a', 'fn-dl', '⬇ Baixar Excel'); dl.href = URL_X + '?' + xlsx; dl.style.alignSelf = 'center'; h.appendChild(dl); } h.appendChild(x); box.appendChild(h); var cp = el('div', 'corpo'); cp.appendChild(corpo); box.appendChild(cp); m.appendChild(box);
+    function fechar() { m.remove(); document.removeEventListener('keydown', esc); } function esc(e) { if (e.key === 'Escape') fechar(); } x.addEventListener('click', fechar); m.addEventListener('click', function (e) { if (e.target === m) fechar(); }); document.addEventListener('keydown', esc); document.body.appendChild(m);
+  }
+  function tabTitulos(l, pagar) { return tabela([pagar ? 'Fornecedor' : 'Cliente', 'Nota / Dup.', 'Parcela', 'Vencimento', 'Atraso', 'Saldo'], l.map(function (x) { return [x.nome || x.cod, x.doc, x.parcela, dia(x.venc), pill(x.atraso + ' dias', corAtraso(x.atraso)), brl(x.saldo) + (x.moeda && x.moeda !== 'BRL' ? ' ' + x.moeda : '')]; })); }
+  function alerta(cls, v, t, fn) { var a = el('div', 'fn-al ' + cls + (fn ? ' click' : '')); a.appendChild(el('i')); var d = el('div'); d.appendChild(el('b', null, v)); d.appendChild(el('span', null, t)); a.appendChild(d); if (fn) { a.appendChild(el('span', 'ver', 'ver ›')); a.addEventListener('click', fn); } return a; }
+  function ir(v) { VIEW = v; desenhar(); window.scrollTo(0, 0); }
+
+  function geral(c) {
+    var K = D.kpis, al = el('div', 'fn-alerts');
+    al.appendChild(alerta(K.receber_vencido_n ? 'bad' : 'ok', brl(K.receber_vencido), nf(K.receber_vencido_n) + ' títulos vencidos a receber · atraso médio ' + K.atraso_medio + ' dias', K.receber_vencido_n ? function () { SENT = 'receber'; ir('vencidos'); } : null));
+    al.appendChild(alerta(K.pagar_vencido_n ? 'warn' : 'ok', brl(K.pagar_vencido), nf(K.pagar_vencido_n) + ' títulos vencidos a pagar', K.pagar_vencido_n ? function () { SENT = 'pagar'; ir('vencidos'); } : null));
+    al.appendChild(alerta(K.pror_n ? 'warn' : 'ok', nf(K.pror_n) + ' títulos', 'vencem em dia que o cliente não paga (prorrogar)', K.pror_n ? function () { ir('prorrogacao'); } : null));
+    al.appendChild(alerta(K.export_vencido ? 'bad' : 'info', brl(K.export_vencido), 'exportação vencida · a receber ' + brl(K.export), function () { ir('exportacao'); })); c.appendChild(al);
+    var g = el('div', 'fn-grid'), ag = card('Quanto está vencido e há quanto tempo', 'títulos a receber vencidos por faixa de atraso · clique numa faixa'), mx = Math.max.apply(null, D.aging.map(function (a) { return a.valor; }).concat([1])), CO = ['#eab308', '#f59e0b', '#f97316', '#ef4444', '#b91c1c'];
+    D.aging.forEach(function (a, i) { var l = el('div', 'fn-bar' + (a.qtd ? ' click' : '')), t = el('div', 't'), b = el('i'); b.style.background = CO[i]; b.style.width = (a.valor / mx * 100) + '%'; t.appendChild(b); l.appendChild(el('span', null, a.faixa)); l.appendChild(t); var v = el('div', 'v'); v.appendChild(el('b', null, brl(a.valor))); v.appendChild(el('small', null, nf(a.qtd) + ' títulos')); l.appendChild(v);
+      if (a.qtd) l.addEventListener('click', function () { var lim = [[1, 15], [16, 30], [31, 60], [61, 90], [91, 1e6]][i]; abrir('Vencidos há ' + a.faixa, nf(a.qtd) + ' títulos · ' + brl(a.valor), tabTitulos(D.vencidos_receber.filter(function (x) { return x.atraso >= lim[0] && x.atraso <= lim[1]; })), 'tipo=receber'); }); ag.appendChild(l); });
+    var dv = card('Quem mais deve (vencido)', 'maiores devedores · clique para ver os títulos');
+    if (!D.devedores.length) dv.appendChild(el('div', 'fn-vazio', 'Nenhum título vencido a receber. ✓')); var md = Math.max.apply(null, D.devedores.map(function (x) { return x.valor; }).concat([1]));
+    D.devedores.forEach(function (x, i) { var r = el('div', 'fn-rk'); r.appendChild(el('span', 'p', String(i + 1))); var n = el('div'); n.appendChild(el('b', null, x.cliente)); n.appendChild(el('small', null, nf(x.titulos) + ' títulos · maior atraso ' + x.atraso + ' dias')); r.appendChild(n); r.appendChild(el('div', 'val', brl(x.valor))); var b = el('span', 'br'), ii = el('i'); ii.style.width = (x.valor / md * 100) + '%'; b.appendChild(ii); r.appendChild(b);
+      r.addEventListener('click', function () { abrir('Vencidos · ' + x.cliente, nf(x.titulos) + ' títulos · ' + brl(x.valor), tabTitulos(D.vencidos_receber.filter(function (y) { return (y.nome || y.cod) === x.cliente; })), 'tipo=receber'); }); dv.appendChild(r); });
+    g.appendChild(ag); g.appendChild(dv); c.appendChild(g);
+    var fl = card('Fluxo das próximas 8 semanas', 'o que entra (a receber) e o que sai (a pagar) por semana'), mf = Math.max.apply(null, D.semanas.map(function (s) { return Math.max(s.receber, s.pagar); }).concat([1]));
+    D.semanas.forEach(function (s) { var l = el('div', 'fn-bar'), t = el('div', 't'); t.style.height = '22px'; t.style.display = 'flex'; t.style.flexDirection = 'column'; t.style.gap = '2px'; t.style.background = 'none';
+      [['receber', '#16a34a'], ['pagar', '#dc2626']].forEach(function (k) { var w = el('div'); w.style.cssText = 'flex:1;background:var(--gray-100);border-radius:999px;overflow:hidden'; var b = el('i'); b.style.cssText = 'display:block;height:100%;border-radius:999px;background:' + k[1] + ';width:' + (s[k[0]] / mf * 100) + '%;transition:width 1.2s'; w.appendChild(b); t.appendChild(w); });
+      l.appendChild(el('span', null, dia(s.de).slice(0, 5) + ' – ' + dia(s.ate).slice(0, 5))); l.appendChild(t); var v = el('div', 'v'); v.appendChild(el('b', null, '+ ' + brl(s.receber))); v.appendChild(el('small', null, '− ' + brl(s.pagar))); l.appendChild(v); fl.appendChild(l); });
+    fl.appendChild(el('div', 'fn-nota', 'Verde = a receber · vermelho = a pagar. Só títulos em aberto.')); c.appendChild(fl);
+  }
+  function vencidos(c) {
+    var cd = card('Títulos vencidos', 'o que está em aberto e já passou do vencimento'), tl = el('div', 'fn-tools'), sg = el('div', 'fn-seg');
+    [['receber', 'A receber (clientes)'], ['pagar', 'A pagar (fornecedores)']].forEach(function (o) { var b = el('button', SENT === o[0] ? 'on' : '', o[1]); b.type = 'button'; b.addEventListener('click', function () { SENT = o[0]; desenhar(); }); sg.appendChild(b); }); tl.appendChild(sg);
+    var inp = el('input'); inp.type = 'search'; inp.placeholder = 'Buscar cliente, fornecedor ou nota…'; inp.value = BUSCA; inp.addEventListener('input', function () { BUSCA = inp.value; lista(); }); tl.appendChild(inp);
+    var dl = el('a', 'fn-dl', '⬇ Excel'); dl.href = URL_X + '?tipo=' + SENT; tl.appendChild(dl); cd.appendChild(tl); var box = el('div'); cd.appendChild(box); c.appendChild(cd);
+    function lista() { box.textContent = ''; var q = BUSCA.toLowerCase(), l = (SENT === 'receber' ? D.vencidos_receber : D.vencidos_pagar).filter(function (x) { return !q || (x.nome + ' ' + x.doc).toLowerCase().indexOf(q) >= 0; });
+      box.appendChild(el('div', 'fn-nota', nf(l.length) + ' títulos · ' + brl(l.reduce(function (t, x) { return t + x.saldo; }, 0)) + ' em aberto')); box.appendChild(tabTitulos(l.slice(0, 300), SENT === 'pagar')); } lista();
+  }
+  function exportacao(c) {
+    var K = D.kpis, cd = card('A receber de exportação', 'títulos em aberto de clientes do exterior' + (K.moedas.length ? ' · moeda: ' + K.moedas.join(', ') : '') + ' · ' + nf(K.export_n) + ' títulos · ' + brl(K.export) + (K.export_vencido ? ' · vencido ' + brl(K.export_vencido) : ''));
+    var dl = el('a', 'fn-dl', '⬇ Excel'); dl.href = URL_X + '?tipo=exportacao'; dl.style.marginBottom = '10px'; cd.appendChild(dl);
+    cd.appendChild(tabela(['Cliente', 'Nota / Dup.', 'Parcela', 'Vencimento', 'Situação', 'Saldo'], D.exportacao.map(function (x) { return [x.nome, x.doc, x.parcela, dia(x.venc), x.vencido ? pill(x.atraso + ' dias vencido', corAtraso(x.atraso)) : pill('a vencer', '#16a34a'), brl(x.saldo) + (x.moeda && x.moeda !== 'BRL' ? ' ' + x.moeda : '')]; }))); c.appendChild(cd);
+  }
+  function prorrogacao(c) {
+    var rg = el('div', 'fn-rules'); D.regras.forEach(function (r) { var d = el('div', 'fn-rule'); d.appendChild(el('b', null, r.nome)); d.appendChild(el('span', null, r.texto)); rg.appendChild(d); }); c.appendChild(rg);
+    var cd = card('Títulos para prorrogar o vencimento', 'vencimento cai em dia que o cliente não paga · novo vencimento = próximo dia em que ele paga · o arquivo segue para o componente de prorrogação de vencimento do TOTVS'), dl = el('a', 'fn-dl', '⬇ Baixar arquivo de prorrogação (Excel)'); dl.href = URL_X + '?tipo=prorrogacao'; dl.style.marginBottom = '10px'; cd.appendChild(dl);
+    cd.appendChild(tabela(['Cliente', 'Nota / Dup.', 'Parcela', 'Vencimento atual', 'Novo vencimento', 'Prorrogar', 'Valor'], D.prorrogacao.map(function (x) { return [x.cliente + (x.vencido ? ' (vencido)' : ''), x.doc, x.parcela, dia(x.venc), dia(x.novo) + (x.deixa_de_ser_atraso ? ' ✓' : ''), '+' + x.dias + ' dias', brl(x.valor)]; })));
+    cd.appendChild(el('div', 'fn-nota', '✓ = com o novo vencimento o título deixa de ser atraso. Nada é alterado no TOTVS por aqui: o Gestão só lê os títulos e monta a lista.')); c.appendChild(cd);
+    var al = card('Alterações nos títulos (monitor)', 'o Gestão compara os títulos a cada leitura (10 min) e anota o que mudou: vencimento alterado, baixa, saldo, título novo');
+    var dl2 = el('a', 'fn-dl', '⬇ Excel'); dl2.href = URL_X + '?tipo=alteracoes'; dl2.style.marginBottom = '10px'; al.appendChild(dl2);
+    al.appendChild(tabela(['Quando', 'Tipo', 'Cliente', 'Nota / Dup.', 'De', 'Para'], D.alteracoes.map(function (x) { return [quando(x.em), x.tipo, x.nome, x.doc + (x.parcela ? '/' + x.parcela : ''), /^\d{4}-/.test(x.de) ? dia(x.de) : (x.de || '–'), /^\d{4}-/.test(x.para) ? dia(x.para) : (x.para || '–')]; }))); c.appendChild(al);
+  }
+  function verificacao(c) {
+    var cd = card('O que o TOTVS permite (boleto e alteração de vencimento)', 'só verificação: lista os recursos que o TOTVS oferece por API · nada é gerado nem alterado');
+    c.appendChild(cd);
+    if (!VER) { cd.appendChild(el('div', 'fn-vazio', 'Consultando o TOTVS…')); fetch(URL_V, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (v) { VER = v; if (VIEW === 'verificacao') desenhar(); }); return; }
+    if (!VER.ok) { cd.appendChild(el('div', 'fn-erro', 'Não consegui consultar: ' + VER.erro)); return; }
+    function bloco(tit, lista, vazio) { cd.appendChild(el('h4', null, tit)).style.cssText = 'margin:16px 0 6px;font-size:12px;color:#64748b;text-transform:uppercase'; if (!lista.length) { cd.appendChild(el('div', 'fn-nota', vazio)); return; } lista.forEach(function (x) { var e = el('div', 'fn-ep' + (x.escrita ? ' w' : '')); e.appendChild(el('em', null, x.metodos.join('/') + (x.escrita ? ' · ESCRITA' : ' · leitura'))); e.appendChild(document.createTextNode(x.path)); cd.appendChild(e); }); }
+    cd.appendChild(el('div', 'fn-nota', 'Serviços financeiros encontrados: ' + (VER.servicos.join(', ') || 'nenhum') + ' · ' + nf(VER.total_endpoints) + ' endpoints.'));
+    bloco('Boleto pelo próprio TOTVS', VER.boleto, 'O TOTVS não expôs nenhum endpoint de boleto/CNAB/banco nesses serviços. Provavelmente a geração do boleto fica só na tela do TOTVS ou em outro módulo.');
+    bloco('Alterar a data de vencimento (prorrogação)', VER.vencimento, 'Não encontrei endpoint de prorrogação/alteração de vencimento. Hoje o caminho continua sendo o arquivo para o componente de prorrogação.');
+    var F = D.fonte, fc = card('Fonte dos dados', 'de onde o Gestão está lendo'); fc.style.marginTop = '16px'; fc.appendChild(el('div', 'fn-ep', 'A receber: ' + (F.url_receber || '—') + ' · ' + nf(F.n_receber) + ' títulos' + (F.erro_receber ? ' · ERRO: ' + F.erro_receber : ''))); fc.appendChild(el('div', 'fn-ep', 'A pagar: ' + (F.url_pagar || '—') + ' · ' + nf(F.n_pagar) + ' títulos' + (F.erro_pagar ? ' · ERRO: ' + F.erro_pagar : ''))); c.appendChild(fc);
+  }
+  function desenhar() {
+    var c = document.getElementById('fnCorpo'); c.textContent = ''; var K = D.kpis, F = D.fonte;
+    var hero = el('div', 'fn-hero'), top = el('div', 'fn-top'), tl = el('div'); tl.appendChild(el('h2', null, 'Financeiro')); tl.appendChild(el('p', null, 'Títulos a receber e a pagar, vencidos e prorrogações · fonte: TOTVS')); top.appendChild(tl);
+    var lv = el('div', 'fn-live'); lv.appendChild(el('span', 'fn-dot' + (F.erro_receber || F.erro_pagar ? ' off' : ''))); lv.appendChild(el('span', null, D.atualizado ? 'Atualizado em ' + quando(D.atualizado) : 'Aguardando a primeira leitura…')); top.appendChild(lv); hero.appendChild(top);
+    var hs = el('div', 'fn-heads'); hs.appendChild(head('A receber em aberto', K.receber, nf(K.receber_n) + ' títulos', 'a1')); hs.appendChild(head('Vencido a receber', K.receber_vencido, nf(K.receber_vencido_n) + ' títulos · atraso médio ' + K.atraso_medio + ' dias', 'a2', K.receber_vencido > 0));
+    hs.appendChild(head('A pagar em aberto', K.pagar, 'vencido: ' + brl(K.pagar_vencido) + ' · ' + nf(K.pagar_vencido_n) + ' títulos', 'a3')); hs.appendChild(head('A receber exportação', K.export, nf(K.export_n) + ' títulos' + (K.moedas.length ? ' · ' + K.moedas.join(', ') : ''), 'a4')); hero.appendChild(hs); c.appendChild(hero);
+    var vs = el('div', 'fn-views'); [['geral', 'Visão geral'], ['vencidos', 'Vencidos'], ['exportacao', 'Exportação'], ['prorrogacao', 'Prorrogações e monitor'], ['verificacao', 'Boleto e vencimento (TOTVS)']].forEach(function (v) { var b = el('button', VIEW === v[0] ? 'on' : '', v[1] + (v[0] === 'prorrogacao' && K.pror_n ? ' · ' + K.pror_n : '')); b.type = 'button'; b.addEventListener('click', function () { ir(v[0]); }); vs.appendChild(b); }); c.appendChild(vs);
+    ({ geral: geral, vencidos: vencidos, exportacao: exportacao, prorrogacao: prorrogacao, verificacao: verificacao })[VIEW](c);
+  }
+  function carregar() {
+    fetch(URL_D, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      D = d; var f = d.fonte, e = document.getElementById('fnErro'), m = []; if (f.erro_receber) m.push('A receber: ' + f.erro_receber); if (f.erro_pagar) m.push('A pagar: ' + f.erro_pagar); e.hidden = !m.length; e.textContent = m.join(' · ');
+      if (!d.atualizado) { var c = document.getElementById('fnCorpo'); c.textContent = ''; c.appendChild(el('div', 'fn-card', f.rodando ? 'Lendo os títulos no TOTVS pela primeira vez… pode levar alguns minutos. A tela atualiza sozinha.' : 'Ainda sem leitura do TOTVS.')); return; }
+      ULTIMA = Date.now(); if (document.querySelector('.fn-mod') || (VIEW === 'vencidos' && document.activeElement && document.activeElement.tagName === 'INPUT')) return; desenhar();
+    }).catch(function () { var e = document.getElementById('fnErro'); e.hidden = false; e.textContent = 'Sem conexão com o servidor. Tentando de novo…'; });
+  }
+  carregar(); setInterval(function () { if (!document.hidden) carregar(); }, 60000); setInterval(function () { if (D && !D.atualizado && !document.hidden) carregar(); }, 10000);
+})();
+</script>
+{% endblock %}
