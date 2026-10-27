@@ -41,16 +41,6 @@ def dados():
     return jsonify(expedicao.painel(dias))
 
 
-@exp_bp.route('/atualizar', methods=['POST'])
-@login_required
-def atualizar():
-    _autorizar()
-    import threading
-    from app.totvs import expedicao
-    threading.Thread(target=expedicao.atualizar, daemon=True).start()
-    return jsonify(ok=True)
-
-
 @exp_bp.route('/diagnostico')
 @login_required
 def diagnostico():
@@ -59,6 +49,6 @@ def diagnostico():
         abort(403)
     from app.totvs import expedicao
     d = expedicao.ler()
-    return jsonify(amostra_lote=d.get('amostra_lote'), amostra_nf=d.get('amostra_nf'), n_produtos=len(d.get('estoque') or {}), n_notas=len(d.get('notas') or {}),
+    return jsonify(amostra_lote=d.get('amostra_lote'), amostra_nf=d.get('amostra_nf'), n_produtos=len(d.get('estoque') or {}), mov=dict(atualizado=expedicao.ler_mov().get('atualizado'), n=len(expedicao.ler_mov().get('produtos') or {}), erros=expedicao.ler_mov().get('erros'), amostra_erro=expedicao.ler_mov().get('amostra_erro')), n_notas=len(d.get('notas') or {}),
                    status_nf=sorted({n[3] for n in (d.get('notas') or {}).values()}), status_nfe=sorted({n[4] for n in (d.get('notas') or {}).values()}),
                    estado=expedicao.ESTADO)

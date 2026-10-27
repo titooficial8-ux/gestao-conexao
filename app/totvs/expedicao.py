@@ -22,7 +22,13 @@ NF_DIAS = int(os.getenv('EXPEDICAO_NF_DIAS', '90'))
 INTERVALO_SEG = max(30, int(os.getenv('EXPEDICAO_INTERVALO_SEG', '120')))        # a cada 2 min
 COMPLETA_MIN = 20
 ARQUIVO = api.OUT_DIR / 'expedicao.json'
-ESTADO = dict(rodando=False, ultima=None, erro=None, msg='', erro_notas=None, erro_estoque=None)
+ARQ_MOV = api.OUT_DIR / 'expedicao_mov.json'
+KARDEX_URL = f'{BASE}/api/totvsmoda/product/v2/kardex-movement'
+MOV_INTERVALO_MIN = max(5, int(os.getenv('EXPEDICAO_MOV_MIN', '30')))
+MOV_DIAS = 179                                                  # a API limita o kardex a 180 dias
+_trava_mov = threading.Lock()
+_fmt_data = {'so_data': False}
+ESTADO = dict(rodando=False, ultima=None, erro=None, msg='', erro_notas=None, erro_estoque=None, erro_mov=None)
 _trava = threading.Lock()
 _ult_completa = 0.0
 CHAVES_DATA = ('lastMovementDate', 'lastMovement', 'entryDate', 'inclusionDate', 'insertDate', 'creationDate', 'date', 'batchDate')
@@ -58,6 +64,16 @@ def _dia(v):
 
 
 # ---------------------------------------------------------------- estoque
+def _data_qualquer(lt: dict):
+    """Qualquer campo com 'date' no nome (entrada/inclusao/movimento de preferencia) que o TOTVS mande no lote."""
+    cand = [(k, _dia(v)) for k, v in lt.items() if 'date' in k.lower() and _dia(v)]
+    for pref in ('entry', 'input', 'inclus', 'insert', 'creat', 'moviment', 'product'):
+        for k, d in cand:
+            if pref in k.lower():
+                return d
+    return cand[0][1] if cand else None
+
+
 def _lotes_do_item(x: dict) -> list:
     for k in ('batchItem', 'batchItems', 'items', 'batches'):
         if isinstance(x.get(k), list):
@@ -97,7 +113,7 @@ def atualizar_estoque(cli, dados: dict) -> None:
                 continue
             amostra = amostra or dict(item={k: v for k, v in x.items() if not isinstance(v, (list, dict))}, lote=lt)
             lid = str(lt.get('batchCode') or lt.get('batchNumber') or lt.get('code') or lt.get('lot') or len(produtos.get(pc, {}).get('lotes', [])))
-            data = next((_dia(lt.get(k)) for k in CHAVES_DATA if _dia(lt.get(k))), None)
+            data = next((_dia(lt.get(k)) for k in CHAVES_DATA if _dia(lt.get(k))), None) or _data_qualquer(lt)
             visto.setdefault(f'{pc}|{lid}', hoje)
             p = produtos.setdefault(pc, dict(saldo=0.0, lotes=[]))
             p['saldo'] += bal
@@ -195,6 +211,81 @@ def atualizar(completa: bool = True) -> bool:
     return ESTADO['erro'] is None
 
 
+def ler_mov() -> dict:
+    try:
+        return json.loads(ARQ_MOV.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def _kardex(cli, pc: str, hoje: date):
+    """[ultima mov, ultima entrada, ultima saida] (ISO) do produto no saldo da Expedicao nos ultimos 180 dias; None se nao houve movimento."""
+    for tentativa in range(2):
+        ini, fim = hoje - timedelta(days=MOV_DIAS), hoje
+        f = (lambda d: d.isoformat()) if _fmt_data['so_data'] else (lambda d, h='00:00:00': f'{d.isoformat()}T{h}')
+        r = cli.get(KARDEX_URL, dict(ProductCode=pc, BranchCode=EMPRESA, StartDate=f(ini), EndDate=f(fim) if _fmt_data['so_data'] else f'{fim.isoformat()}T23:59:59', BalanceType=SALDO))
+        if r.status_code == 400 and 'MovementDataNotFound' in r.text and not tentativa:
+            _fmt_data['so_data'] = not _fmt_data['so_data']           # pode ser o formato da data: tenta o outro uma vez
+            continue
+        break
+    if r.status_code == 400 and 'MovementDataNotFound' in r.text:
+        return None
+    if r.status_code != 200:
+        raise RuntimeError(f'kardex {pc}: HTTP {r.status_code} {r.text[:120]}')
+    j = r.json()
+    movs = (j[0] if isinstance(j, list) and j else j if isinstance(j, dict) else {}).get('movements') or []
+    ult = ent = sai = None
+    for m in movs:
+        d = str(m.get('movementDate') or '')[:10]
+        if not d:
+            continue
+        ult = max(ult or d, d)
+        if abs(_num(m.get('inQuantity'))) > 0:
+            ent = max(ent or d, d)
+        if abs(_num(m.get('outQuantity'))) > 0:
+            sai = max(sai or d, d)
+    return [ult, ent, sai] if ult else None
+
+
+def atualizar_mov() -> bool:
+    """Kardex de cada produto com saldo na Expedicao (so leitura, 3 consultas ao mesmo tempo): base do 'tempo parado'."""
+    if not _trava_mov.acquire(blocking=False):
+        return False
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+        produtos = list((ler().get('estoque') or {}).keys())
+        if not produtos:
+            return False
+        cli = api.TotvsModaClient()
+        cli.autenticar()
+        hoje, res, erros = date.today(), {}, []
+
+        def um(pc):
+            try:
+                return pc, _kardex(cli, pc, hoje), None
+            except Exception as e:  # noqa: BLE001
+                return pc, None, str(e)[:160]
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            for pc, v, err in ex.map(um, produtos):
+                if err:
+                    erros.append(err)
+                else:
+                    res[pc] = v                                  # None = sem movimento em 180 dias
+        if res:
+            ARQ_MOV.parent.mkdir(parents=True, exist_ok=True)
+            tmp = ARQ_MOV.with_suffix('.tmp')
+            tmp.write_text(json.dumps(dict(atualizado=datetime.now().isoformat(timespec='seconds'), produtos=res, erros=len(erros), amostra_erro=erros[:2]), ensure_ascii=False), encoding='utf-8')
+            api.trocar_arquivo(tmp, ARQ_MOV)
+        ESTADO['erro_mov'] = erros[0] if erros and not res else None
+        return bool(res)
+    except Exception as e:  # noqa: BLE001
+        traceback.print_exc()
+        ESTADO['erro_mov'] = str(e)[:300]
+        return False
+    finally:
+        _trava_mov.release()
+
+
 def iniciar_agendador(app=None) -> None:
     from .pedidos import configurado
     if not configurado():
@@ -208,7 +299,16 @@ def iniciar_agendador(app=None) -> None:
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
             time.sleep(INTERVALO_SEG)
+    def loop_mov():
+        time.sleep(120)
+        while True:
+            try:
+                atualizar_mov()
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+            time.sleep(MOV_INTERVALO_MIN * 60)
     threading.Thread(target=loop, daemon=True, name='totvs-expedicao').start()
+    threading.Thread(target=loop_mov, daemon=True, name='totvs-expedicao-mov').start()
 
 
 # ---------------------------------------------------------------- dashboard
@@ -226,11 +326,19 @@ def _situacao(n: list) -> str:
     return STATUS_NFE.get(nfe, nfe)
 
 
+def _pct(atual: float, ant: float):
+    return round((atual - ant) / ant * 100) if ant else None
+
+
 def painel(dias: int = 30) -> dict:
     d = ler()
+    mov = ler_mov().get('produtos') or {}
     hoje = date.today()
     ini = (hoje - timedelta(days=dias - 1)).isoformat()
-    notas = [n for n in (d.get('notas') or {}).values() if n[0] >= ini]
+    ini_ant = (hoje - timedelta(days=2 * dias - 1)).isoformat()
+    todas = (d.get('notas') or {}).values()
+    notas = [n for n in todas if n[0] >= ini]
+    anteriores = [n for n in todas if ini_ant <= n[0] < ini and _situacao(n) == 'Autorizada'] if 2 * dias <= NF_DIAS else None
     por_sit, por_dia, por_cli = {}, {}, {}
     for n in notas:
         s = _situacao(n)
@@ -249,44 +357,58 @@ def painel(dias: int = 30) -> dict:
             y['metros'] += n[7]
     ok = por_sit.get('Autorizada', dict(qtd=0, valor=0, metros=0))
     problemas = sorted((n for n in notas if _situacao(n) not in ('Autorizada', 'Cancelada', 'Excluída', 'Inutilizada')), key=lambda n: n[10], reverse=True)
-    ultimas = sorted(notas, key=lambda n: (n[10], n[1] or 0), reverse=True)[:12]
+    ultimas = sorted(notas, key=lambda n: (n[10], n[1] or 0), reverse=True)[:10]
     fmt = lambda n: dict(dia=n[0], nf=n[1], serie=n[2], situacao=_situacao(n), cliente=n[6], metros=n[7], valor=n[8], operacao=n[9], hora=n[10][11:16])
+    serie = []
+    for i in range(dias):                                     # todos os dias do periodo (dia sem NF = 0), para o grafico nao ter buracos
+        dd = (hoje - timedelta(days=dias - 1 - i)).isoformat()
+        serie.append(por_dia.get(dd) or dict(dia=dd, qtd=0, valor=0.0, metros=0.0))
     # estoque
     est, art = d.get('estoque') or {}, d.get('artigos') or {}
+    tem_mov = bool(mov)
     por_art = {}
     for pc, p in est.items():
         cod, nome = art.get(pc, [pc, ''])
-        a = por_art.setdefault(cod, dict(cod=cod, nome=nome, saldo=0.0, lotes=0, dias=0, data_real=True))
+        a = por_art.setdefault(cod, dict(cod=cod, nome=nome, saldo=0.0, lotes=0, dias=None, ult_entrada=None, segunda='SEGUNDA' in (str(nome) + str(cod)).upper()))
         a['saldo'] += p['saldo']
-        for lid, bal, data, real in p['lotes']:
-            a['lotes'] += 1
-            a['dias'] = max(a['dias'], (hoje - date.fromisoformat(data)).days)
-            a['data_real'] = a['data_real'] and real
+        a['lotes'] += len(p['lotes'])
+        if pc in mov:
+            m = mov[pc]
+            dias_pc = (hoje - date.fromisoformat(m[0])).days if m else MOV_DIAS + 1          # sem movimento em 180 dias: "mais de 180"
+            a['dias'] = dias_pc if a['dias'] is None else min(a['dias'], dias_pc)
+            if m and m[1]:
+                a['ult_entrada'] = max(a['ult_entrada'] or m[1], m[1])
     arts = sorted(por_art.values(), key=lambda a: a['saldo'], reverse=True)
     total = sum(a['saldo'] for a in arts)
+    datados = [a for a in arts if a['dias'] is not None]
     faixas = [dict(faixa=r, artigos=0, metros=0.0) for _, r in FAIXAS]
-    for a in arts:
+    for a in datados:
         for i, (lim, _r) in enumerate(FAIXAS):
             if a['dias'] <= lim:
                 faixas[i]['artigos'] += 1
                 faixas[i]['metros'] += a['saldo']
                 break
-    m30 = sum(n[7] for n in (d.get('notas') or {}).values() if n[0] >= (hoje - timedelta(days=29)).isoformat() and _situacao(n) == 'Autorizada')
-    parados = sorted(arts, key=lambda a: (a['dias'], a['saldo']), reverse=True)
+    m30 = sum(n[7] for n in todas if n[0] >= (hoje - timedelta(days=29)).isoformat() and _situacao(n) == 'Autorizada')
+    parados = sorted(datados, key=lambda a: (a['dias'], a['saldo']), reverse=True)
     r2 = lambda v: round(v, 2)
+    p90 = sum(a['saldo'] for a in datados if a['dias'] > 90)
     return dict(
-        ok=True, dias=dias, hoje=hoje.isoformat(), notas_em=d.get('notas_em'), estoque_em=d.get('estoque_em'),
-        fonte=dict(ultima=ESTADO['ultima'], erro=ESTADO['erro'], erro_notas=ESTADO['erro_notas'], erro_estoque=ESTADO['erro_estoque'], rodando=ESTADO['rodando']),
+        ok=True, dias=dias, hoje=hoje.isoformat(), notas_em=d.get('notas_em'), estoque_em=d.get('estoque_em'), mov_em=ler_mov().get('atualizado'),
+        atualizado=max([x for x in (d.get('notas_em'), d.get('estoque_em')) if x] or [None]) if (d.get('notas_em') or d.get('estoque_em')) else None,
+        fonte=dict(ultima=ESTADO['ultima'], erro=ESTADO['erro'], erro_notas=ESTADO['erro_notas'], erro_estoque=ESTADO['erro_estoque'], erro_mov=ESTADO['erro_mov'], rodando=ESTADO['rodando']),
         notas=dict(total=len(notas), autorizadas=ok['qtd'], valor=r2(ok['valor']), metros=r2(ok['metros']), hoje=sum(1 for n in notas if n[0] == hoje.isoformat() and _situacao(n) == 'Autorizada'),
                    pendentes=len(problemas), ticket=r2(ok['valor'] / ok['qtd']) if ok['qtd'] else 0,
+                   var=dict(valor=_pct(ok['valor'], sum(n[8] for n in anteriores)), metros=_pct(ok['metros'], sum(n[7] for n in anteriores)), qtd=_pct(ok['qtd'], len(anteriores))) if anteriores is not None else None,
                    por_situacao=sorted((dict(v, valor=r2(v['valor']), metros=r2(v['metros'])) for v in por_sit.values()), key=lambda v: -v['qtd']),
-                   por_dia=[dict(x, valor=r2(x['valor']), metros=r2(x['metros'])) for x in sorted(por_dia.values(), key=lambda x: x['dia'])],
-                   clientes=[dict(x, valor=r2(x['valor']), metros=r2(x['metros'])) for x in sorted(por_cli.values(), key=lambda x: -x['valor'])[:8]],
-                   ultimas=[fmt(n) for n in ultimas], problemas=[fmt(n) for n in problemas[:12]]),
+                   por_dia=[dict(x, valor=r2(x['valor']), metros=r2(x['metros'])) for x in serie],
+                   clientes=[dict(x, valor=r2(x['valor']), metros=r2(x['metros'])) for x in sorted(por_cli.values(), key=lambda x: -x['valor'])[:6]],
+                   ultimas=[fmt(n) for n in ultimas], problemas=[fmt(n) for n in problemas[:8]]),
         estoque=dict(total=r2(total), artigos=len(arts), lotes=sum(a['lotes'] for a in arts),
-                     top5_pct=round(sum(a['saldo'] for a in arts[:5]) / total * 100) if total else 0,
+                     top5_pct=round(sum(a['saldo'] for a in arts[:5]) / total * 100) if total else 0, top10_pct=round(sum(a['saldo'] for a in arts[:10]) / total * 100) if total else 0,
                      saida_30d=r2(m30), cobertura_dias=round(total / (m30 / 30)) if m30 else None,
-                     parado_90=r2(sum(a['saldo'] for a in arts if a['dias'] > 90)), parado_90_pct=round(sum(a['saldo'] for a in arts if a['dias'] > 90) / total * 100) if total else 0,
-                     datas_do_totvs=bool(arts) and all(a['data_real'] for a in arts),
-                     maiores=[dict(a, saldo=r2(a['saldo'])) for a in arts[:10]], parados=[dict(a, saldo=r2(a['saldo'])) for a in parados[:10]],
+                     parado_90=r2(p90), parado_90_pct=round(p90 / total * 100) if total else 0, parado_90_artigos=sum(1 for a in datados if a['dias'] > 90),
+                     idade_pronta=tem_mov, idade_cobertura=round(len(datados) / len(arts) * 100) if arts else 0,
+                     segunda=r2(sum(a['saldo'] for a in arts if a['segunda'])),
+                     maiores=[dict(a, saldo=r2(a['saldo']), pct=round(a['saldo'] / total * 100, 1) if total else 0) for a in arts[:8]],
+                     parados=[dict(a, saldo=r2(a['saldo'])) for a in parados[:8]],
                      faixas=[dict(f, metros=r2(f['metros'])) for f in faixas]))
