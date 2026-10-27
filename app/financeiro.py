@@ -48,7 +48,7 @@ def diagnostico():
         abort(403)
     from app.totvs import financeiro
     d = financeiro.ler()
-    return jsonify(url_receber=d.get('url_R'), url_pagar=d.get('url_P'), amostra_receber=d.get('amostra_R'), amostra_pagar=d.get('amostra_P'), n_receber=len(d.get('receber', [])), n_pagar=len(d.get('pagar', [])),
+    return jsonify(url_receber=d.get('url_R'), url_pagar=d.get('url_P'), amostra_receber=d.get('amostra_R'), amostra_pagar=d.get('amostra_P'), n_receber=len(d.get('receber', [])), n_pagar=len(d.get('pagar', [])), nomes_erro=d.get('nomes_erro'), nomes_resolvidos=len(d.get('nomes') or {}),
                    status_vistos=sorted({t['status'] for t in d.get('receber', [])})[:30], estado=financeiro.ESTADO)
 
 

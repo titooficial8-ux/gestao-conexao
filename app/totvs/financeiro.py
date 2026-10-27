@@ -79,14 +79,34 @@ def _props_filtro(doc, path):
     return list((filtro.get('properties') or {}).keys())
 
 
+def _campos_corpo(doc, op) -> list:
+    corpo = _resolve(doc, (((op.get('requestBody') or {}).get('content') or {}).get('application/json') or {}).get('schema'))
+    campos = []
+
+    def varre(props, pref='', n=0):
+        for k, v in (props or {}).items():
+            d = _resolve(doc, v)
+            if d.get('type') == 'object' and n < 1:
+                varre(d.get('properties'), pref + k + '.', n + 1)
+            else:
+                campos.append(pref + k)
+    varre(corpo.get('properties'))
+    return campos[:40]
+
+
 def catalogo(cli) -> dict:
-    """Recursos que o TOTVS oferece em cada servico financeiro (so nomes de endpoint e metodo)."""
+    """Recursos que o TOTVS oferece em cada servico financeiro: endpoint, metodos, resumo e campos do corpo (so leitura do swagger)."""
     saida = {}
     for svc in SERVICOS:
         doc = _swagger(cli, svc)
         if not doc:
             continue
-        saida[svc] = sorted((p, sorted(m.upper() for m in ops if m in ('get', 'post', 'put', 'patch', 'delete'))) for p, ops in (doc.get('paths') or {}).items())
+        itens = []
+        for p, ops in (doc.get('paths') or {}).items():
+            mets = sorted(m.upper() for m in ops if m in ('get', 'post', 'put', 'patch', 'delete'))
+            op = next((ops[m] for m in ('post', 'put', 'patch', 'get', 'delete') if m in ops), {})
+            itens.append(dict(path=p, metodos=mets, resumo=str(op.get('summary') or op.get('description') or '')[:240], campos=_campos_corpo(doc, op) if any(m in ops for m in ('post', 'put', 'patch')) else []))
+        saida[svc] = sorted(itens, key=lambda x: x['path'])
     return saida
 
 
@@ -94,18 +114,18 @@ def verificacao(cli) -> dict:
     cat = catalogo(cli)
     boleto, venc, receber, pagar = [], [], [], []
     for svc, lista in cat.items():
-        for p, mets in lista:
-            pl = p.lower()
-            item = dict(servico=svc, path=p, metodos=mets, escrita=any(m in mets for m in ('PUT', 'PATCH', 'DELETE')) or (('POST' in mets) and not pl.endswith('search')))
-            if any(k in pl for k in ('slip', 'boleto', 'billet', 'bank-', 'cnab', 'barcode', 'ourNumber'.lower())):
+        for it in lista:
+            pl, mets = it['path'].lower(), it['metodos']
+            item = dict(it, servico=svc, escrita=any(m in mets for m in ('PUT', 'PATCH', 'DELETE')) or (('POST' in mets) and not pl.endswith('search')))
+            if any(k in pl for k in ('slip', 'boleto', 'billet', 'bank-', 'cnab', 'barcode')):
                 boleto.append(item)
-            if any(k in pl for k in ('expir', 'due', 'extens', 'prorrog', 'postpone', 'maturity', 'change-date', 'reschedul')):
+            if any(k in pl for k in ('expir', 'due', 'extens', 'prorrog', 'postpone', 'maturity', 'change-date', 'reschedul', 'renegot', 'installment', 'change', 'alter', 'update')):
                 venc.append(item)
             if svc == 'accounts-receivable':
                 receber.append(item)
             if svc == 'accounts-payable':
                 pagar.append(item)
-    return dict(servicos=list(cat.keys()), boleto=boleto, vencimento=venc, receber=receber[:60], pagar=pagar[:60], total_endpoints=sum(len(v) for v in cat.values()))
+    return dict(servicos=list(cat.keys()), boleto=boleto, vencimento=venc, receber=receber, pagar=pagar, total_endpoints=sum(len(v) for v in cat.values()))
 
 
 RECEBER_URL = os.getenv('FIN_RECEBER_URL', f'{BASE}/api/totvsmoda/accounts-receivable/v2/documents/search')
@@ -141,7 +161,7 @@ def _norm_receber(it: dict) -> dict:
     valor, pago = _num(it.get('installmentValue')), _num(it.get('paidValue'))
     saldo = max(valor - pago, 0.0)                                     # o TOTVS nao manda saldo: em aberto = parcela - pago
     pag = _dia(it.get('paymentDate'))
-    return dict(tipo='R', doc=str(it.get('receivableCode') or ''), parcela=str(it.get('installmentCode') or ''), cod=str(it.get('customerCode') or ''), cnpj=str(it.get('customerCpfCnpj') or ''), nome='',
+    return dict(tipo='R', doc=str(it.get('receivableCode') or it.get('documentNumber') or it.get('invoiceCode') or it.get('billCode') or it.get('titleCode') or ''), parcela=str(it.get('installmentCode') or ''), cod=str(it.get('customerCode') or ''), cnpj=str(it.get('customerCpfCnpj') or ''), nome='',
                 emissao=_dia(it.get('issueDate')), venc=_dia(it.get('expiredDate')), valor=round(valor, 2), saldo=round(saldo, 2), pago=round(pago, 2), pag_em=pag, status=str(it.get('status') or '')[:30],
                 aberto=bool(saldo > 0.005 and not pag), moeda='', banco=str(it.get('bearerName') or it.get('bearerCode') or '')[:24], nosso=str(it.get('ourNumber') or '')[:30],
                 tipo_doc=str(it.get('documentType') or '')[:24])
@@ -205,17 +225,39 @@ def _buscar_tipo(cli, tipo: str, dados: dict) -> list:
     return [(_norm_receber if receber else _norm_pagar)(i) for i in out]
 
 
+PESSOAS_URLS = (f'{BASE}/api/totvsmoda/person/v2/legal-entities/search', f'{BASE}/api/totvsmoda/person/v2/individuals/search')
+
+
 def _nomes(cli, titulos: list, dados: dict) -> None:
-    """O TOTVS manda so o codigo e o CNPJ: busca o nome fantasia da pessoa (cliente/fornecedor) uma vez e guarda."""
-    from .entrada import _fantasias
+    """O TOTVS manda so o codigo (e as vezes o CNPJ): busca o nome da pessoa (pessoa juridica e depois fisica) e guarda."""
     cache = dados.setdefault('nomes', {})
-    codigos = {int(t['cod']) for t in titulos if t['cod'].isdigit()}
-    try:
-        _fantasias(cli, codigos, cache)
-    except Exception:  # noqa: BLE001
-        traceback.print_exc()
+    pend = sorted({int(t['cod']) for t in titulos if t['cod'].isdigit() and t['cod'] not in cache})
+    dados['nomes_erro'] = None
+    for url in PESSOAS_URLS:
+        if not pend:
+            break
+        for k in range(0, len(pend), 100):
+            lote, pag = pend[k:k + 100], 1
+            while True:
+                try:
+                    r = cli.post(url, dict(filter=dict(personCodeList=lote), pageSize=100, page=pag))
+                except Exception as e:  # noqa: BLE001
+                    dados['nomes_erro'] = f'{url.split("/v2/")[1]}: {str(e)[:100]}'
+                    break
+                if r.status_code != 200:
+                    dados['nomes_erro'] = f'{url.split("/v2/")[1]}: HTTP {r.status_code} {r.text[:120]}'
+                    break
+                j = r.json()
+                for x in j.get('items') or []:
+                    nome = str(x.get('fantasyName') or x.get('name') or x.get('nickname') or x.get('fullName') or '').strip()
+                    if nome and x.get('code') is not None:
+                        cache[str(x['code'])] = nome
+                if not j.get('hasNext'):
+                    break
+                pag += 1
+        pend = [c for c in pend if str(c) not in cache]
     for t in titulos:
-        t['nome'] = (cache.get(t['cod']) or t['cnpj'] or t['cod'])[:70]
+        t['nome'] = (cache.get(t['cod']) or t['cnpj'] or (f"Cód. {t['cod']}" if t['cod'] else '–'))[:70]
 
 
 def _diff(antes: dict, depois: list) -> list:
@@ -365,7 +407,7 @@ def painel() -> dict:
     pror.sort(key=lambda x: x['venc'])
     return dict(
         ok=True, atualizado=d.get('atualizado'), hoje=hoje.isoformat(),
-        fonte=dict(erro_receber=ESTADO['erro_receber'], erro_pagar=ESTADO['erro_pagar'], rodando=ESTADO['rodando'], url_receber=d.get('url_R'), url_pagar=d.get('url_P'), n_receber=len(d.get('receber', [])), n_pagar=len(d.get('pagar', []))),
+        fonte=dict(erro_receber=ESTADO['erro_receber'], erro_pagar=ESTADO['erro_pagar'], rodando=ESTADO['rodando'], url_receber=d.get('url_R'), url_pagar=d.get('url_P'), n_receber=len(d.get('receber', [])), n_pagar=len(d.get('pagar', [])), nomes_resolvidos=len(d.get('nomes') or {}), nomes_erro=d.get('nomes_erro')),
         kpis=dict(receber=r2(sum(t['saldo'] for t in rec)), receber_n=len(rec), receber_vencido=r2(sum(t['saldo'] for t in rv)), receber_vencido_n=len(rv), atraso_medio=round(sum(t['atraso'] for t in rv) / len(rv)) if rv else 0,
                   receber_30=r2(sum(t['saldo'] for t in rec if not t['vencido'] and t['venc'] <= (hoje + timedelta(days=30)).isoformat())),
                   pagar=r2(sum(t['saldo'] for t in pag)), pagar_n=len(pag), pagar_vencido=r2(sum(t['saldo'] for t in pv)), pagar_vencido_n=len(pv),
