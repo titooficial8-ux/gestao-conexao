@@ -29,6 +29,16 @@
 .xp-mod .corpo{padding:0 22px 20px;overflow:auto}
 .xp-al i{flex:none;width:12px;height:12px;border-radius:50%}.xp-al.ok i{background:#16a34a}.xp-al.warn i{background:#f59e0b}.xp-al.bad i{background:#dc2626}.xp-al.info i{background:#64748b}
 .xp-al b{display:block;font-size:20px;color:var(--text);line-height:1.15}.xp-al span{font-size:12px;color:var(--gray-500)}
+.xp-views{display:flex;gap:8px;margin:0 0 16px}.xp-views button{border:1px solid var(--gray-200);background:#fff;border-radius:999px;padding:9px 18px;font-size:14px;font-weight:800;color:var(--gray-500);cursor:pointer;box-shadow:var(--shadow)}
+.xp-views button.on{background:var(--xp-navy);color:#fff;border-color:var(--xp-navy)}
+.xp-kp5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
+.xp-kp{background:#fff;border:1px solid var(--gray-200);border-radius:16px;padding:15px 17px;box-shadow:var(--shadow);border-top:4px solid var(--xp-teal);min-width:0}.xp-kp.bad{border-top-color:#dc2626}.xp-kp.blue{border-top-color:#2f7fe0}.xp-kp.amber{border-top-color:#f59e0b}
+.xp-kp span{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-500)}.xp-kp strong{display:block;font-size:28px;line-height:1.1;margin:6px 0 3px;color:var(--xp-navy);letter-spacing:-.02em;white-space:nowrap}.xp-kp.bad strong{color:#dc2626}.xp-kp em{display:block;font-style:normal;font-size:12px;color:var(--gray-500)}
+.xp-kp.click{cursor:pointer;transition:transform .12s,box-shadow .12s}.xp-kp.click:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(15,42,74,.14)}
+.xp-flow{display:flex;align-items:stretch;gap:0;margin:6px 0 4px}.xp-flow div{flex:1;text-align:center;padding:12px 8px;position:relative}.xp-flow div b{display:block;font-size:26px;color:var(--xp-navy)}.xp-flow div span{font-size:12px;color:var(--gray-500)}
+.xp-flow .st{background:var(--gray-100);border-radius:12px}.xp-flow .ar{flex:0 0 38px;display:flex;align-items:center;justify-content:center;color:var(--gray-500);font-size:22px;padding:0}
+.xp-legp{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--gray-700);margin-top:8px}.xp-legp i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+@media(max-width:1100px){.xp-kp5{grid-template-columns:1fr 1fr}}@media(max-width:560px){.xp-kp5{grid-template-columns:1fr}}
 .xp-sec{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--gray-500);margin:24px 2px 10px}
 .xp-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:16px}.xp-grid.eq{grid-template-columns:1fr 1fr}
 .xp-card{background:#fff;border:1px solid var(--gray-200);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow);min-width:0}
@@ -48,6 +58,7 @@
 .xp-mini span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}.xp-mini b{display:block;font-size:20px;color:var(--xp-navy);margin:3px 0 1px}.xp-mini em{font-style:normal;font-size:11px;color:var(--gray-500)}
 .xp-fx{cursor:pointer}.xp-fx:hover td{background:#f1f7fb}.xp-ft td.seta{color:var(--xp-teal);font-weight:800;width:18px}
 @media(max-width:700px){.xp-mini{grid-template-columns:1fr}}
+.xp-lin{display:grid;grid-template-columns:110px 1fr 120px;gap:10px;align-items:center;margin:11px 0;font-size:13px}.xp-lin .barra{height:14px;background:var(--gray-100);border-radius:999px;overflow:hidden}.xp-lin .barra i{display:block;height:100%;border-radius:999px}.xp-lin .v{text-align:right;white-space:nowrap}.xp-lin .n{color:var(--gray-700)}
 .xp-ft i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px;vertical-align:-1px}
 .xp-tb{width:100%;border-collapse:collapse;font-size:13px}.xp-tb th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500);padding:6px 8px;border-bottom:1px solid var(--gray-200)}
 .xp-tb td{padding:8px;border-bottom:1px solid var(--gray-100);vertical-align:middle}.xp-tb td.n{text-align:right;white-space:nowrap}
@@ -65,7 +76,7 @@
 
 <script>
 (function () {
-  var URL_DADOS = '{{ url_for("expedicao.dados") }}', URL_XLSX = '{{ url_for("expedicao.exportar") }}', D = null, DIAS = '30', METRICA = 'metros';
+  var URL_DADOS = '{{ url_for("expedicao.dados") }}', URL_XLSX = '{{ url_for("expedicao.exportar") }}', URL_PED = '{{ url_for("expedicao.pedidos") }}', VIEW = 'geral', P = null, D = null, DIAS = '30', METRICA = 'metros';
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.textContent = x; return e; }
   function nf(v, d) { return Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
   function brl(v) { v = Number(v || 0); return v >= 1e6 ? 'R$ ' + nf(v / 1e6, 2) + ' mi' : v >= 1e4 ? 'R$ ' + nf(v / 1e3, 0) + ' mil' : 'R$ ' + nf(v, 0); }
@@ -80,6 +91,7 @@
   function varBadge(v) { if (v === null || v === undefined) return null; var b = el('span', 'xp-var ' + (v >= 0 ? 'up' : 'down'), (v >= 0 ? '▲ ' : '▼ ') + Math.abs(v) + '%'); b.title = 'vs período anterior de mesmo tamanho'; return b; }
   function head(r, v, sub, vr) { var h = el('div', 'xp-head'); h.appendChild(el('span', null, r)); h.appendChild(el('strong', null, v)); var e = el('em'); var b = varBadge(vr); if (b) e.appendChild(b); e.appendChild(document.createTextNode(sub)); h.appendChild(e); return h; }
   function alerta(cls, v, t) { var a = el('div', 'xp-al ' + cls); a.appendChild(el('i')); var d = el('div'); d.appendChild(el('b', null, v)); d.appendChild(el('span', null, t)); a.appendChild(d); return a; }
+  function un(v, u) { u = String(u || '').toUpperCase(); return u === 'KG' ? nf(v, v >= 1000 ? 0 : 1) + ' kg' : mt(v); }
   function listaArtigos(l) { return tabela(['Artigo', 'Descrição', 'Peças', 'Parado há', 'Última entrada', 'Metros'], l.map(function (x) { return [x.cod, x.nome, nf(x.lotes), x.dias > 180 ? '+180 dias' : x.dias + ' dias', x.ult_entrada ? dia(x.ult_entrada) : 'sem entrada em 180 d', mt(x.saldo)]; })); }
   function clicavel(a, fn) { a.classList.add('click'); a.appendChild(el('span', 'ver', 'ver detalhes ›')); a.addEventListener('click', fn); }
   function abrir(titulo, sub, corpo, xlsx) {
@@ -93,8 +105,8 @@
   function card(t, s) { var c = el('div', 'xp-card'); c.appendChild(el('h3', null, t)); c.appendChild(el('div', 'sub', s || '')); return c; }
 
   function grafico(serie) {
-    var W = 700, H = 230, pl = 46, pb = 24, pt = 20, pr = 8, k = METRICA, w = W - pl - pr, h = H - pb - pt;
-    var max = Math.max.apply(null, serie.map(function (x) { return x[k]; }).concat([1])); var nice = Math.pow(10, Math.floor(Math.log10(max))); max = Math.ceil(max / nice * 2) / 2 * nice || 1;
+    var W = 700, H = 270, pl = 46, pb = 24, pt = 58, pr = 8, k = METRICA, w = W - pl - pr, h = H - pb - pt;
+    var max = Math.max.apply(null, serie.map(function (x) { return x[k]; }).concat([1])) * 1.0; var nice = Math.pow(10, Math.floor(Math.log10(max))); max = Math.ceil(max / nice * 2) / 2 * nice || 1;
     var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'xp-chart' });
     var fmtY = k === 'metros' ? mt : k === 'valor' ? brl : function (v) { return nf(v); };
     for (var g = 0; g <= 4; g++) { var y = pt + h - h * g / 4;
@@ -103,7 +115,8 @@
     var n = serie.length, bw = w / n, pts = [];
     serie.forEach(function (x, i) { var bh = x[k] / max * h, bx = pl + i * bw + bw * 0.15, by = pt + h - bh, r = sv('rect', { x: bx, y: by, width: bw * 0.7, height: Math.max(bh, x[k] ? 2 : 0), rx: 3, fill: '#0d9488', opacity: 0.88 });
       var tt = sv('title'); tt.textContent = dia(x.dia) + ' · ' + nf(x.qtd) + ' NFs · ' + brl(x.valor) + ' · ' + mt(x.metros); r.appendChild(tt); svg.appendChild(r); pts.push([pl + i * bw + bw / 2, by]);
-      if (n <= 31 && x[k]) { var vl = sv('text', { x: pl + i * bw + bw / 2, y: by - 4, 'text-anchor': 'middle', 'font-size': n > 16 ? 8.5 : 10, 'font-weight': 700, fill: '#0f2a4a' }); vl.textContent = k === 'qtd' ? nf(x[k]) : (x[k] >= 1e6 ? nf(x[k] / 1e6, 1) + ' mi' : x[k] >= 1e3 ? nf(x[k] / 1e3, 1) + ' mil' : nf(x[k])); svg.appendChild(vl); }
+      if (n <= 31 && x[k]) { var cx = pl + i * bw + bw / 2, vl = sv('text', { x: cx, y: by - 5, 'text-anchor': 'start', 'font-size': 10.5, 'font-weight': 700, fill: '#0f2a4a', transform: 'rotate(-90 ' + cx + ' ' + (by - 5) + ')' });      // texto na vertical: nenhum rótulo encosta no vizinho
+        vl.textContent = k === 'qtd' ? nf(x[k]) : (x[k] >= 1e6 ? nf(x[k] / 1e6, 1) + ' mi' : x[k] >= 1e3 ? nf(x[k] / 1e3, 1) + ' mil' : nf(x[k])); svg.appendChild(vl); }
       if (i % Math.ceil(n / 10) === 0) { var l = sv('text', { x: pl + i * bw + bw / 2, y: H - 6, 'text-anchor': 'middle', 'font-size': 10, fill: '#8494a6' }); l.textContent = dia(x.dia); svg.appendChild(l); } });
     return svg;
   }
@@ -124,7 +137,7 @@
   function tabela(cols, linhas) {
     if (!linhas.length) return el('div', 'xp-vazio', 'Nada no período.');
     var t = el('table', 'xp-tb'), h = el('tr'); cols.forEach(function (c, i) { var th = el('th', null, c); if (i === cols.length - 1) th.style.textAlign = 'right'; h.appendChild(th); }); var th = el('thead'); th.appendChild(h); t.appendChild(th);
-    var tb = el('tbody'); linhas.forEach(function (l) { var r = el('tr'); l.forEach(function (c, i) { var td = el('td', i === l.length - 1 ? 'n' : ''); if (c && typeof c === 'object') { var p = el('span', 'xp-pill', c.t); p.style.background = corSit(c.t); td.appendChild(p); } else td.textContent = c; r.appendChild(td); }); tb.appendChild(r); }); t.appendChild(tb);
+    var tb = el('tbody'); linhas.forEach(function (l) { var r = el('tr'); l.forEach(function (c, i) { var td = el('td', i === l.length - 1 ? 'n' : ''); if (c && typeof c === 'object') { var p = el('span', 'xp-pill', c.t); p.style.background = c.c || corSit(c.t); td.appendChild(p); } else td.textContent = c; r.appendChild(td); }); tb.appendChild(r); }); t.appendChild(tb);
     var w = el('div'); w.style.overflowX = 'auto'; w.appendChild(t); return w;
   }
 
@@ -139,9 +152,13 @@
     var hs = el('div', 'xp-heads');
     hs.appendChild(head('Saldo em estoque', mt(E.total), nf(E.artigos) + ' artigos · ' + nf(E.lotes) + ' peças'));
     hs.appendChild(head('Metros expedidos', mt(N.metros), 'últimos ' + D.dias + ' dias', N.var && N.var.metros));
-    hs.appendChild(head('Faturado nas NFs', brl(N.valor), 'ticket médio ' + brl(N.ticket), N.var && N.var.valor));
+    hs.appendChild(head('Faturado nas NFs', brl(N.valor), 'últimos ' + D.dias + ' dias', N.var && N.var.valor));
     hs.appendChild(head('NFs autorizadas', nf(N.autorizadas), 'hoje: ' + nf(N.hoje), N.var && N.var.qtd));
     hero.appendChild(hs); c.appendChild(hero);
+    var vs = el('div', 'xp-views');
+    [['geral', 'Visão geral'], ['pedidos', 'Pedidos × Expedição']].forEach(function (v) { var b = el('button', VIEW === v[0] ? 'on' : '', v[1]); b.type = 'button'; b.addEventListener('click', function () { VIEW = v[0]; if (VIEW === 'pedidos') carregar(); else desenhar(); }); vs.appendChild(b); });
+    c.appendChild(vs);
+    if (VIEW === 'pedidos') { desenharPedidos(c); return; }
 
     var al = el('div', 'xp-alerts');
     var a1 = alerta(N.pendentes ? 'bad' : 'ok', N.pendentes ? nf(N.pendentes) + ' NFs' : 'Tudo certo', N.pendentes ? 'com pendência (rejeitada / denegada / não autorizada)' : 'nenhuma NF com pendência');
@@ -151,8 +168,8 @@
     var a3 = E.idade_pronta ? alerta(E.parado_90_pct >= 30 ? 'bad' : E.parado_90_pct >= 15 ? 'warn' : 'ok', E.parado_90_pct + '% parado +90 dias', mt(E.parado_90) + ' · ' + nf(E.parado_90_artigos) + ' artigos sem movimento') : alerta('info', 'Calculando…', 'tempo parado (lendo o kardex do TOTVS)');
     if (E.idade_pronta && E.parado_90_artigos) clicavel(a3, function () { abrir('Estoque parado há mais de 90 dias', nf(E.parado_90_artigos) + ' artigos · ' + nf(E.pecas_90) + ' peças · ' + mt(E.parado_90) + ' · sem movimentação na expedição', listaArtigos(E.parados90), 'tipo=parados'); });
     al.appendChild(a3);
-    var I = E.inspecao, a4 = I.cod === null || I.cod === undefined ? alerta('info', 'Inspeção', D.fonte.erro_inspecao ? 'saldo ainda não localizado' : 'localizando o saldo no TOTVS…') : alerta(I.total ? 'warn' : 'ok', mt(I.total), 'aguardando inspeção · ' + nf(I.itens) + ' produtos em aberto');
-    if (I.itens) clicavel(a4, function () { abrir('Saldo aguardando inspeção (' + I.unidade + ')', 'saldos em aberto para inventariar ou limpar no sistema · ' + (I.nome || ''), tabela(['Produto', 'Descrição', 'Em inspeção', 'Na expedição', 'Peças na expedição'], I.lista.map(function (x) { return [x.cod, x.nome, mt(x.saldo), x.exp_m ? mt(x.exp_m) : '—', x.exp_pecas ? nf(x.exp_pecas) : '—']; })), 'tipo=inspecao'); });
+    var I = E.inspecao, a4 = I.cod === null || I.cod === undefined ? alerta('info', 'Inspeção', D.fonte.erro_inspecao ? 'saldo ainda não localizado' : 'localizando o saldo no TOTVS…') : alerta(I.total ? 'warn' : 'ok', un(I.total, I.unidade), 'aguardando inspeção · ' + nf(I.itens) + ' produtos em aberto');
+    if (I.itens) clicavel(a4, function () { abrir('Saldo aguardando inspeção (' + I.unidade + ')', 'saldos em aberto para inventariar ou limpar no sistema · ' + (I.nome || ''), tabela(['Produto', 'Descrição', 'Em inspeção', 'Na expedição', 'Peças na expedição'], I.lista.map(function (x) { return [x.cod, x.nome, un(x.saldo, I.unidade), x.exp_m ? mt(x.exp_m) : '—', x.exp_pecas ? nf(x.exp_pecas) : '—']; })), 'tipo=inspecao'); });
     al.appendChild(a4); c.appendChild(al);
 
     c.appendChild(el('div', 'xp-sec', 'Notas fiscais'));
@@ -191,13 +208,62 @@
     var m = card('Artigos com mais metros em estoque', 'os 8 maiores · juntos os 10 maiores somam ' + E.top10_pct + '% do saldo');
     m.appendChild(ranking(E.maiores.map(function (x) { return { cod: x.cod, nome: x.nome, val: mt(x.saldo), sub: x.pct + '% do estoque · ' + nf(x.lotes) + (x.lotes === 1 ? ' peça' : ' peças'), barra: x.saldo, chip: x.segunda ? '2ª QUALIDADE' : '' }; }))); c.appendChild(m);
   }
+  function corDias(d) { return d === null || d === undefined ? '#94a3b8' : d > 90 ? '#dc2626' : d > 60 ? '#f97316' : d > 30 ? '#f59e0b' : '#16a34a'; }
+  function pillDias(d) { return { t: d === null || d === undefined ? '–' : d > 180 ? '+180 dias' : d + ' dias', c: corDias(d) }; }
+  function tabProntos(l) { return tabela(['Cliente', 'Pedido', 'Artigo', 'Pedido há', 'Na expedição há', 'Pronto'], l.map(function (x) { return [x.cliente, x.pedido, x.cod + ' · ' + x.nome, x.idade_pedido + ' dias', pillDias(x.dias_exp), mt(x.pronto)]; })); }
+  function tabSemPedido(l) { return tabela(['Artigo', 'Descrição', 'Peças', 'Última entrada', 'Metros'], l.map(function (x) { return [x.cod, x.nome, nf(x.pecas), x.ult_entrada ? dia(x.ult_entrada) : 'sem entrada em 180 d', mt(x.saldo)]; })); }
+  function mapa(pts) {
+    var W = 760, H = 330, pl = 54, pb = 40, pt = 14, pr = 14, w = W - pl - pr, h = H - pb - pt, svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'xp-chart' });
+    var mx = Math.max(90, Math.ceil(Math.max.apply(null, pts.map(function (p) { return p.x; }).concat([1])) / 30) * 30), my = 180, maxS = Math.max.apply(null, pts.map(function (p) { return p.saldo; }).concat([1]));
+    function X(v) { return pl + v / mx * w; } function Y(v) { return pt + h - Math.min(v, my) / my * h; }
+    svg.appendChild(sv('rect', { x: X(60), y: pt, width: pl + w - X(60), height: Y(30) - pt, fill: '#fee2e2', opacity: .6 }));
+    for (var g = 0; g <= 6; g++) { var yv = my / 6 * g, yy = Y(yv); svg.appendChild(sv('line', { x1: pl, x2: W - pr, y1: yy, y2: yy, stroke: '#e8eef5' })); var t = sv('text', { x: pl - 6, y: yy + 4, 'text-anchor': 'end', 'font-size': 10, fill: '#8494a6' }); t.textContent = Math.round(yv); svg.appendChild(t); }
+    for (var k = 0; k <= mx; k += 30) { var xx = X(k), tx = sv('text', { x: xx, y: H - pb + 16, 'text-anchor': 'middle', 'font-size': 10, fill: '#8494a6' }); tx.textContent = k; svg.appendChild(tx); }
+    var ax = sv('text', { x: pl + w / 2, y: H - 6, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#475569' }); ax.textContent = 'há quantos dias o pedido foi feito (data do pedido) →'; svg.appendChild(ax);
+    var ay = sv('text', { x: 12, y: pt + h / 2, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#475569', transform: 'rotate(-90 12 ' + (pt + h / 2) + ')' }); ay.textContent = 'dias armazenado na expedição →'; svg.appendChild(ay);
+    var zt = sv('text', { x: W - pr - 6, y: pt + 14, 'text-anchor': 'end', 'font-size': 11, 'font-weight': 800, fill: '#b91c1c' }); zt.textContent = 'ZONA CRÍTICA · pedido antigo e peça parada'; svg.appendChild(zt);
+    var crit = [];
+    pts.slice().sort(function (a, b) { return b.saldo - a.saldo; }).forEach(function (p) { var cr = p.x >= 60 && p.y >= 30, r = 4 + Math.sqrt(p.saldo / maxS) * 15, c = sv('circle', { cx: X(Math.min(p.x, mx)), cy: Y(p.y), r: r, fill: corDias(p.y), opacity: .55, stroke: corDias(p.y), 'stroke-width': 1.2 });
+      var tt = sv('title'); tt.textContent = p.cod + ' · ' + p.nome + '\n' + mt(p.saldo) + ' na expedição · ' + p.pedidos + ' pedido(s) em aberto\npedido há ' + p.x + ' dias · armazenado há ' + p.y + ' dias' + (p.lead !== null ? ' · levou ' + p.lead + ' dias do pedido até chegar' : ''); c.appendChild(tt); svg.appendChild(c); if (cr) crit.push([p, r]); });
+    crit.slice(0, 7).forEach(function (pr_) { var p = pr_[0], l = sv('text', { x: X(Math.min(p.x, mx)), y: Y(p.y) - pr_[1] - 3, 'text-anchor': 'middle', 'font-size': 9.5, 'font-weight': 800, fill: '#7f1d1d' }); l.textContent = p.cod; svg.appendChild(l); });
+    return svg;
+  }
+  function desenharPedidos(c) {
+    if (!P) { c.appendChild(el('div', 'xp-card', 'Carregando…')); return; }
+    var K = P.kpis;
+    if (!P.mov_pronto) c.appendChild(el('div', 'xp-nota', 'O tempo na expedição vem do kardex do TOTVS, que ainda está sendo lido (alguns minutos na primeira vez). Os números de tempo aparecem em seguida.'));
+    var k5 = el('div', 'xp-kp5');
+    function kp(cls, r, v, sub, fn) { var d = el('div', 'xp-kp ' + cls + (fn ? ' click' : '')); d.appendChild(el('span', null, r)); d.appendChild(el('strong', null, v)); d.appendChild(el('em', null, sub)); if (fn) d.addEventListener('click', fn); k5.appendChild(d); }
+    kp('blue', 'Prontos aguardando faturar', mt(K.prontos_metros), nf(K.prontos_pedidos) + ' pedidos · ' + nf(K.prontos_clientes) + ' clientes › ver lista', function () { abrir('Prontos na expedição aguardando faturamento', 'pedido em aberto e artigo já em estoque · o saldo é distribuído entre os pedidos do mais antigo para o mais novo', tabProntos(P.prontos), 'tipo=prontos'); });
+    kp('', 'Pedido → expedição', K.lead_medio === null ? '–' : nf(K.lead_medio) + ' dias', 'prazo médio até o artigo chegar');
+    kp('', 'Tempo armazenado', K.armazenado_medio === null ? '–' : nf(K.armazenado_medio) + ' dias', 'média desde a última entrada');
+    kp(K.prontos_90 ? 'bad' : '', 'Prontos há +90 dias', mt(K.prontos_90), K.prontos_90 ? 'pedido esperando faturar há mais de 90 dias' : 'nada atrasado');
+    kp('amber', 'Estoque sem pedido', mt(K.sem_pedido_metros), nf(K.sem_pedido_artigos) + ' artigos sem pedido em aberto › ver lista', function () { abrir('Estoque sem pedido em aberto', 'artigos na expedição que não têm pedido pendente de faturar', tabSemPedido(P.sem_pedido), 'tipo=sem_pedido'); });
+    c.appendChild(k5);
+
+    var g = el('div', 'xp-grid'), m = card('Mapa dos artigos: tempo de pedido × tempo armazenado', 'cada bolha é um artigo · tamanho = metros na expedição · cor = tempo armazenado · passe o mouse para ver o artigo');
+    if (P.pontos.length) { m.appendChild(mapa(P.pontos)); var lg = el('div', 'xp-legp'); [['#16a34a', 'até 30 dias'], ['#f59e0b', '31 a 60'], ['#f97316', '61 a 90'], ['#dc2626', 'mais de 90']].forEach(function (x) { var s = el('span'), i = el('i'); i.style.background = x[0]; s.appendChild(i); s.appendChild(document.createTextNode(x[1])); lg.appendChild(s); }); m.appendChild(lg); } else m.appendChild(el('div', 'xp-vazio', 'Sem artigos com pedido em aberto e tempo calculado ainda.'));
+    var h = card('Da data do pedido até chegar na expedição', 'prazo entre o pedido e a última entrada do artigo'), tot = P.hist.reduce(function (s, x) { return s + x.artigos; }, 0) || 1, hm = Math.max.apply(null, P.hist.map(function (x) { return x.artigos; }).concat([1]));
+    P.hist.forEach(function (x, i) { var l = el('div', 'xp-lin'); var b = el('span', 'barra'), ii = el('i'); ii.style.width = Math.max(x.artigos ? 4 : 0, Math.round(x.artigos / hm * 100)) + '%'; ii.style.background = ['#16a34a', '#84cc16', '#f59e0b', '#f97316', '#dc2626'][i]; b.appendChild(ii);
+      l.appendChild(el('span', 'n', x.faixa)); l.appendChild(b); var v = el('span', 'v'); v.appendChild(el('b', null, nf(x.artigos))); v.appendChild(document.createTextNode(' · ' + mt(x.metros))); l.appendChild(v); h.appendChild(l); });
+    h.appendChild(el('div', 'xp-nota', 'Considera só artigos que têm pedido em aberto e entrada nos últimos 180 dias.'));
+    g.appendChild(m); g.appendChild(h); c.appendChild(g);
+
+    var g2 = el('div', 'xp-grid eq'), cl = card('Clientes com mais metros prontos', 'peças já na expedição esperando o faturamento do pedido');
+    cl.appendChild(ranking(P.clientes.map(function (x) { return { cod: x.cliente, nome: nf(x.pedidos) + ' pedidos · o mais antigo parado há ' + (x.dias > 180 ? '+180' : x.dias) + ' dias', val: mt(x.metros), sub: 'prontos', barra: x.metros, cor: x.dias > 90 ? '#dc2626' : x.dias > 60 ? '#f97316' : '#2f7fe0' }; })));
+    var pr = card('Prontos na expedição há mais tempo', 'pedido em aberto e artigo já em estoque · os 10 mais antigos');
+    pr.appendChild(tabProntos(P.prontos.slice(0, 10)));
+    var bt = el('a', 'xp-dl', '⬇ Baixar lista completa (Excel)'); bt.href = URL_XLSX + '?tipo=prontos'; bt.style.display = 'inline-block'; bt.style.marginTop = '12px'; pr.appendChild(bt);
+    g2.appendChild(cl); g2.appendChild(pr); c.appendChild(g2);
+    c.appendChild(el('div', 'xp-nota', 'Como é calculado: os pedidos em aberto vêm do Relatório Pedidos (38). O artigo do pedido é ligado ao saldo da expedição pelo código do produto, e o saldo é distribuído entre os pedidos do mais antigo para o mais novo. O tempo na expedição conta desde a última entrada do artigo (kardex do TOTVS, limite de 180 dias).'));
+  }
   function carregar() {
     fetch(URL_DADOS + '?dias=' + DIAS, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       D = d; var f = d.fonte, e = document.getElementById('xpErro'), msgs = [];
       if (f.erro) msgs.push('Falha ao ler o TOTVS: ' + f.erro); if (f.erro_notas) msgs.push('Notas fiscais: ' + f.erro_notas); if (f.erro_estoque) msgs.push('Estoque: ' + f.erro_estoque); if (f.erro_mov) msgs.push('Tempo parado (kardex): ' + f.erro_mov); if (f.erro_inspecao) msgs.push('Aguardando inspeção: ' + f.erro_inspecao);
       e.hidden = !msgs.length; e.textContent = msgs.join(' · ');
       if (!d.atualizado) { var c = document.getElementById('xpCorpo'); c.textContent = ''; c.appendChild(el('div', 'xp-card', f.rodando ? 'Lendo as NFs e o estoque no TOTVS pela primeira vez… pode levar 1 a 2 minutos. A tela atualiza sozinha.' : 'Ainda sem leitura do TOTVS.')); return; }
-      desenhar();
+      if (VIEW === 'pedidos') { fetch(URL_PED, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (pp) { P = pp; desenhar(); }); } else desenhar();
     }).catch(function () { var e = document.getElementById('xpErro'); e.hidden = false; e.textContent = 'Sem conexão com o servidor. Tentando de novo…'; });
   }
   carregar(); setInterval(function () { if (!document.hidden) carregar(); }, 30000);      // a tela se atualiza sozinha (o servidor le o TOTVS a cada 2 min)

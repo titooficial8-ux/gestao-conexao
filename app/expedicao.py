@@ -41,6 +41,14 @@ def dados():
     return jsonify(expedicao.painel(dias))
 
 
+@exp_bp.route('/pedidos')
+@login_required
+def pedidos():
+    _autorizar()
+    from app.totvs import expedicao
+    return jsonify(expedicao.pedidos_x_expedicao())
+
+
 @exp_bp.route('/exportar')
 @login_required
 def exportar():
@@ -53,13 +61,21 @@ def exportar():
     from openpyxl.styles import Font, PatternFill
     from app.totvs import expedicao
     tipo = request.args.get('tipo', 'parados')
-    p = expedicao.painel(request.args.get('dias', 30, type=int))
-    E = p['estoque']
+    p = expedicao.painel(request.args.get('dias', 30, type=int)) if tipo not in ('prontos', 'sem_pedido') else {}
+    E = p.get('estoque')
     dia = lambda v: date.fromisoformat(v).strftime('%d/%m/%Y') if v else ''
     if tipo == 'inspecao':
         I = E['inspecao']
         nome, cab = 'Aguardando inspeção', ['Produto', 'Descrição', f"Saldo em inspeção ({I['unidade']})", 'Saldo na expedição (m)', 'Peças na expedição']
         linhas = [[x['cod'], x['nome'], x['saldo'], x['exp_m'], x['exp_pecas']] for x in I['lista']]
+    elif tipo in ('prontos', 'sem_pedido'):
+        P = expedicao.pedidos_x_expedicao()
+        if tipo == 'prontos':
+            nome, cab = 'Prontos aguardando faturar', ['Cliente', 'Unidade', 'Pedido', 'Artigo', 'Descrição', 'Data do pedido', 'Dias de pedido', 'Pendente a faturar (m)', 'Pronto na expedição (m)', 'Última entrada na expedição', 'Dias na expedição', 'Pedido → expedição (dias)']
+            linhas = [[x['cliente'], x['unidade'], x['pedido'], x['cod'], x['nome'], dia(x['dt_pedido']), x['idade_pedido'], x['pendente'], x['pronto'], dia(x['ult_entrada']) or 'sem entrada em 180 dias', x['dias_exp'], x['lead']] for x in P['prontos']]
+        else:
+            nome, cab = 'Estoque sem pedido', ['Artigo', 'Descrição', 'Metros', 'Peças', 'Dias desde a última entrada', 'Última entrada']
+            linhas = [[x['cod'], x['nome'], x['saldo'], x['pecas'], x['dias_exp'], dia(x['ult_entrada']) or 'sem entrada em 180 dias'] for x in P['sem_pedido']]
     elif tipo == 'nfs':
         nome, cab = 'NFs com pendência', ['Data', 'Hora', 'NF', 'Série', 'Situação', 'Cliente', 'Metros', 'Valor (R$)']
         linhas = [[dia(n['dia']), n['hora'], n['nf'], n['serie'], n['situacao'], n['cliente'], n['metros'], n['valor']] for n in p['notas']['problemas']]
