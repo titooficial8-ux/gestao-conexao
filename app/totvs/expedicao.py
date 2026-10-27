@@ -384,15 +384,24 @@ def _pct(atual: float, ant: float):
     return round((atual - ant) / ant * 100) if ant else None
 
 
-def painel(dias: int = 30) -> dict:
+MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
+
+
+def painel(dias: int = 0) -> dict:
+    """Periodo automatico: do dia 1 do mes ate hoje, comparado com o mesmo intervalo do mes anterior."""
     d = ler()
     mov = ler_mov().get('produtos') or {}
     hoje = date.today()
-    ini = (hoje - timedelta(days=dias - 1)).isoformat()
-    ini_ant = (hoje - timedelta(days=2 * dias - 1)).isoformat()
+    dias = hoje.day
+    ini = hoje.replace(day=1).isoformat()
+    fim_mes_ant = hoje.replace(day=1) - timedelta(days=1)
+    ini_ant = fim_mes_ant.replace(day=1).isoformat()
+    fim_ant = fim_mes_ant.replace(day=min(hoje.day, fim_mes_ant.day)).isoformat()
+    periodo = f'1 a {hoje.day} de {MESES[hoje.month - 1]}'
+
     todas = (d.get('notas') or {}).values()
     notas = [n for n in todas if n[0] >= ini]
-    anteriores = [n for n in todas if ini_ant <= n[0] < ini and _situacao(n) == 'Autorizada'] if 2 * dias <= NF_DIAS else None
+    anteriores = [n for n in todas if ini_ant <= n[0] <= fim_ant and _situacao(n) == 'Autorizada']
     por_sit, por_dia, por_cli = {}, {}, {}
     for n in notas:
         s = _situacao(n)
@@ -463,7 +472,7 @@ def painel(dias: int = 30) -> dict:
                 em=d.get('inspecao_em'), lista=[dict(cod=pc, nome=v[1], saldo=v[0], exp_m=r2((est_raw.get(pc) or {}).get('saldo', 0)), exp_pecas=len((est_raw.get(pc) or {}).get('lotes', []))) for pc, v in sorted(ins.items(), key=lambda kv: -kv[1][0])])
     p90 = sum(a['saldo'] for a in datados if a['dias'] > 90)
     return dict(
-        ok=True, dias=dias, hoje=hoje.isoformat(), notas_em=d.get('notas_em'), estoque_em=d.get('estoque_em'), mov_em=ler_mov().get('atualizado'),
+        ok=True, dias=dias, periodo=periodo, mes=MESES[hoje.month - 1], hoje=hoje.isoformat(), notas_em=d.get('notas_em'), estoque_em=d.get('estoque_em'), mov_em=ler_mov().get('atualizado'),
         atualizado=max([x for x in (d.get('notas_em'), d.get('estoque_em')) if x] or [None]) if (d.get('notas_em') or d.get('estoque_em')) else None,
         fonte=dict(ultima=ESTADO['ultima'], erro=ESTADO['erro'], erro_notas=ESTADO['erro_notas'], erro_estoque=ESTADO['erro_estoque'], erro_mov=ESTADO['erro_mov'], erro_inspecao=ESTADO['erro_inspecao'], rodando=ESTADO['rodando']),
         notas=dict(total=len(notas), autorizadas=ok['qtd'], metros_hoje=r2(sum(n[7] for n in notas if n[0] == hoje.isoformat() and _situacao(n) == 'Autorizada')), valor=r2(ok['valor']), metros=r2(ok['metros']), hoje=sum(1 for n in notas if n[0] == hoje.isoformat() and _situacao(n) == 'Autorizada'),
@@ -529,15 +538,19 @@ def pedidos_x_expedicao() -> dict:
         a = dict(cod=cod, nome=nome, saldo=round(saldo, 2), pecas=len(p['lotes']), dias_exp=dias_exp, ult_entrada=ult_ent, ult_mov=ult_mov, pedidos=len(peds),
                  pendente=round(sum(r.qt_pendente or 0 for r in peds), 2), pedido_mais_antigo=peds[0].dt_pedido.isoformat() if peds else None,
                  idade_pedido=(hoje - peds[0].dt_pedido).days if peds else None,
-                 lead=((date.fromisoformat(ult_ent) - peds[0].dt_pedido).days if ult_ent and peds else None))
+                 lead=((date.fromisoformat(ult_ent) - peds[0].dt_pedido).days if ult_ent and peds else None), valor=0.0)
         artigos.append(a)
         resto = saldo
+        n_antes = len(itens)
         for r in peds:
             pronto = min(r.qt_pendente or 0, max(resto, 0))
             resto -= pronto
-            itens.append(dict(cliente=r.nome_cliente or '', unidade=r.unidade or '', pedido=r.cod_pedido, cod=cod, nome=nome, dt_pedido=r.dt_pedido.isoformat(),
+            vu = r.vl_unitario or 0
+            itens.append(dict(vl_unit=round(vu, 4), valor_pendente=round((r.qt_pendente or 0) * vu, 2), valor=round(pronto * vu, 2), cliente=r.nome_cliente or '', unidade=r.unidade or '', pedido=r.cod_pedido, cod=cod, nome=nome, dt_pedido=r.dt_pedido.isoformat(),
                               idade_pedido=(hoje - r.dt_pedido).days, pendente=round(r.qt_pendente or 0, 2), pronto=round(pronto, 2), ult_entrada=ult_ent, dias_exp=dias_exp,
                               lead=((date.fromisoformat(ult_ent) - r.dt_pedido).days if ult_ent else None), situacao=r.tp_situacao or ''))
+    for a in artigos:
+        a['valor'] = round(sum(i['valor'] for i in itens if i['cod'] == a['cod']), 2) if a['pedidos'] else 0.0
     prontos = sorted((i for i in itens if i['pronto'] > 0), key=lambda i: (-(i['dias_exp'] or 0), -i['pronto']))
     sem_pedido = sorted((a for a in artigos if not a['pedidos']), key=lambda a: -a['saldo'])
     com_pedido = [a for a in artigos if a['pedidos']]
@@ -555,18 +568,138 @@ def pedidos_x_expedicao() -> dict:
                 break
     por_cli = {}
     for i in prontos:
-        c = por_cli.setdefault(i['cliente'] or '–', dict(cliente=i['cliente'] or '–', metros=0.0, pedidos=0, dias=0))
+        c = por_cli.setdefault(i['cliente'] or '–', dict(cliente=i['cliente'] or '–', metros=0.0, valor=0.0, pedidos=0, dias=0))
         c['metros'] += i['pronto']
+        c['valor'] += i['valor']
         c['pedidos'] += 1
         c['dias'] = max(c['dias'], i['dias_exp'] or 0)
     r2 = lambda v: round(v, 2)
+    faixas_v = [('até 30 dias', 30), ('31 a 60 dias', 60), ('61 a 90 dias', 90), ('mais de 90 dias', 10 ** 6)]
+    fv = [dict(faixa=n, valor=0.0, metros=0.0, pedidos=0) for n, _ in faixas_v]
+    for i in prontos:
+        for k, (_n, lim) in enumerate(faixas_v):
+            if (i['dias_exp'] or 0) <= lim:
+                fv[k]['valor'] += i['valor']
+                fv[k]['metros'] += i['pronto']
+                fv[k]['pedidos'] += 1
+                break
     return dict(
-        ok=True, atualizado=d.get('estoque_em'), mov_pronto=bool(mov), pedidos_em=None,
-        kpis=dict(prontos_metros=r2(sum(i['pronto'] for i in prontos)), prontos_pedidos=len(prontos), prontos_clientes=len(por_cli),
+        ok=True, atualizado=d.get('estoque_em'), mov_pronto=bool(mov), pedidos_em=None, tem_preco=any(i['vl_unit'] for i in itens),
+        faixas_valor=[dict(f, valor=r2(f['valor']), metros=r2(f['metros'])) for f in fv],
+        kpis=dict(prontos_valor=r2(sum(i['valor'] for i in prontos)), prontos_90_valor=r2(sum(i['valor'] for i in prontos if (i['dias_exp'] or 0) > 90)), prontos_metros=r2(sum(i['pronto'] for i in prontos)), prontos_pedidos=len(prontos), prontos_clientes=len(por_cli),
                   lead_medio=round(sum(leads) / len(leads)) if leads else None, armazenado_medio=round(sum(exps) / len(exps)) if exps else None,
                   prontos_90=r2(sum(i['pronto'] for i in prontos if (i['dias_exp'] or 0) > 90)),
                   sem_pedido_metros=r2(sum(a['saldo'] for a in sem_pedido)), sem_pedido_artigos=len(sem_pedido), artigos=len(artigos), artigos_com_pedido=len(com_pedido)),
         hist=[dict(h, metros=r2(h['metros'])) for h in hist],
-        pontos=[dict(cod=a['cod'], nome=a['nome'], x=a['idade_pedido'], y=a['dias_exp'], saldo=a['saldo'], pedidos=a['pedidos'], lead=a['lead']) for a in com_pedido if a['dias_exp'] is not None],
-        prontos=prontos[:400], sem_pedido=sem_pedido[:400],
-        clientes=[dict(c, metros=r2(c['metros'])) for c in sorted(por_cli.values(), key=lambda c: -c['metros'])[:8]])
+        pontos=[dict(cod=a['cod'], nome=a['nome'], x=a['idade_pedido'], y=a['dias_exp'], saldo=a['saldo'], pedidos=a['pedidos'], lead=a['lead'], valor=a['valor']) for a in com_pedido if a['dias_exp'] is not None],
+        prontos=prontos[:600], sem_pedido=sem_pedido[:400],
+        clientes=[dict(c, metros=r2(c['metros']), valor=r2(c['valor'])) for c in sorted(por_cli.values(), key=lambda c: -(c['valor'] or c['metros']))[:8]])
+
+
+# ---------------------------------------------------------------- consulta de NF
+def _sem_acento(t: str) -> str:
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', str(t or '')) if unicodedata.category(c) != 'Mn').upper()
+
+
+def buscar_nfs(q: str) -> list:
+    """NFs do cache (ultimos 90 dias) por numero da NF ou nome do cliente; sem busca devolve as mais recentes."""
+    q = (q or '').strip()
+    notas = ler().get('notas') or {}
+    achadas = []
+    for chave, n in notas.items():
+        if q and not (q.isdigit() and str(n[1] or '').lstrip('0').endswith(q.lstrip('0') or q)) and _sem_acento(q) not in _sem_acento(n[6]):
+            continue
+        achadas.append(dict(seq=chave.split('-', 1)[1], dia=n[0], nf=n[1], serie=n[2], situacao=_situacao(n), cliente=n[6], metros=n[7], valor=n[8], operacao=n[9], hora=n[10][11:16], data=n[0]))
+    achadas.sort(key=lambda x: (x['dia'], x['hora'], x['nf'] or 0), reverse=True)
+    return achadas[:40]
+
+
+def _g(v):
+    return v if v not in (None, '') else None
+
+
+def detalhe_nf(seq: str, data: str) -> dict:
+    """Todos os dados da NF direto do TOTVS (cabecalho, cliente, totais, itens, pagamentos, pedidos)."""
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    d0 = date.fromisoformat(data)
+    nota, pag = None, 1
+    while nota is None:
+        r = cli.post(api.INVOICES_URL, dict(filter=dict(branchCodeList=[EMPRESA], startIssueDate=f'{d0}T00:00:00', endIssueDate=f'{d0}T23:59:59'), expand=api.EXPAND, page=pag, pageSize=100))
+        if r.status_code != 200:
+            raise RuntimeError(f'nota {seq}: HTTP {r.status_code} {r.text[:160]}')
+        j = r.json()
+        nota = next((n for n in j.get('items') or [] if str(n.get('invoiceSequence')) == str(seq)), None)
+        if not j.get('hasNext'):
+            break
+        pag += 1
+    if not nota:
+        raise RuntimeError('NF não encontrada no TOTVS.')
+    p, e = nota.get('person') or {}, nota.get('eletronic') or {}
+    st = STATUS_NF.get(str(nota.get('invoiceStatus')), nota.get('invoiceStatus'))
+    nfe = STATUS_NFE.get(str(e.get('electronicInvoiceStatus')), e.get('electronicInvoiceStatus'))
+    itens = [dict(seq=i.get('sequence'), cod=i.get('code'), nome=i.get('name'), ncm=i.get('ncm'), cfop=i.get('cfop'), un=i.get('measureUnit'), qtd=i.get('quantity'),
+                  unit=i.get('unitNetValue'), bruto=i.get('grossValue'), desc=i.get('discountValue'), liquido=i.get('netValue')) for i in nota.get('items') or []]
+    pagtos = []
+    for x in nota.get('payments') or []:
+        pagtos.append(dict(venc=str(x.get('dueDate') or x.get('expirationDate') or '')[:10], valor=x.get('value') or x.get('installmentValue') or x.get('totalValue') or x.get('amount'),
+                           forma=x.get('paymentType') or x.get('documentType') or x.get('description') or '', parcela=x.get('installment') or x.get('sequence') or ''))
+    return dict(
+        nf=nota.get('invoiceCode'), serie=nota.get('serialCode'), modelo=nota.get('documentType'), sequencia=nota.get('invoiceSequence'), empresa=nota.get('branchCode'), cnpj_empresa=nota.get('branchCnpj'),
+        situacao=st, nfe=nfe, chave=e.get('accessKey'), protocolo=e.get('receiptNumber') or e.get('protocol'), emissao=str(nota.get('issueDate') or '')[:19], data_fatura=str(nota.get('invoiceDate') or '')[:10],
+        operacao=nota.get('operatioName') or nota.get('operationName'), tipo=nota.get('operationType'), cod_operacao=nota.get('operationCode'),
+        cliente=dict(codigo=nota.get('personCode'), nome=nota.get('personName'), cnpj=p.get('personCpfCnpj'), cidade=p.get('city'), uf=p.get('stateAbbreviation')),
+        pagamento=nota.get('paymentConditionName'), pedidos=[str(x.get('orderCode')) for x in nota.get('salesOrder') or [] if x.get('orderCode')],
+        totais=dict(quantidade=nota.get('quantity'), produtos=nota.get('productValue'), desconto_pct=nota.get('discountPercentage'), frete=nota.get('shippingValue'), seguro=nota.get('insuranceValue'),
+                    despesas=nota.get('additionalValue'), ipi=nota.get('ipiValue'), icms=nota.get('icmsValue'), icms_st=nota.get('icmsSubStValue'), total=nota.get('totalValue')),
+        itens=itens, pagamentos=pagtos)
+
+
+def nf_html(n: dict) -> str:
+    """Pagina A4 da NF (para o PDF)."""
+    from html import escape as h
+
+    def num(v, d=2):
+        try:
+            return f'{float(v):,.{d}f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
+        except (TypeError, ValueError):
+            return h(str(v)) if v not in (None, '') else '–'
+
+    def brl(v):
+        return 'R$ ' + num(v) if v not in (None, '') else '–'
+    c, t = n['cliente'], n['totais']
+    linhas = ''.join(f"<tr><td>{h(str(i['seq'] or ''))}</td><td>{h(str(i['cod'] or ''))}</td><td>{h(str(i['nome'] or ''))}</td><td>{h(str(i['ncm'] or ''))}</td><td>{h(str(i['cfop'] or ''))}</td><td class=r>{num(i['qtd'], 2)} {h(str(i['un'] or ''))}</td><td class=r>{brl(i['unit'])}</td><td class=r>{brl(i['liquido'])}</td></tr>" for i in n['itens'])
+    pag = ''.join(f"<tr><td>{h(str(x['parcela']))}</td><td>{h(x['venc'])}</td><td>{h(str(x['forma']))}</td><td class=r>{brl(x['valor'])}</td></tr>" for x in n['pagamentos'])
+    emi = n['emissao'].replace('T', ' ')
+    return f"""<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>NF {h(str(n['nf']))}</title><style>
+@page{{size:A4;margin:14mm}}body{{font-family:Arial,Helvetica,sans-serif;color:#16283c;font-size:11px}}h1{{font-size:20px;margin:0}}.sub{{color:#64748b;margin:2px 0 14px}}
+.box{{border:1px solid #d5dfec;border-radius:8px;padding:10px 12px;margin-bottom:10px}}.box h2{{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin:0 0 6px}}
+.g{{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 14px}}.g b{{display:block;font-size:9px;text-transform:uppercase;color:#64748b}}table{{width:100%;border-collapse:collapse}}th{{text-align:left;font-size:9px;text-transform:uppercase;color:#64748b;border-bottom:1px solid #cbd5e1;padding:4px}}td{{padding:4px;border-bottom:1px solid #eef2f7}}.r{{text-align:right}}
+.tag{{display:inline-block;background:#0f2a4a;color:#fff;border-radius:999px;padding:2px 10px;font-size:10px;font-weight:bold}}.key{{font-family:monospace;font-size:10px;word-break:break-all}}</style></head><body>
+<h1>Nota Fiscal {h(str(n['nf']))} <span class=tag>{h(str(n['situacao']))}</span></h1><div class=sub>Série {h(str(n['serie'] or '–'))} · emitida em {h(emi)} · NF-e: {h(str(n['nfe'] or '–'))} · consulta feita no Gestão Conexão a partir do TOTVS</div>
+<div class=box><h2>Cliente</h2><div class=g><div><b>Nome</b>{h(str(c['nome'] or ''))}</div><div><b>CNPJ/CPF</b>{h(str(c['cnpj'] or '–'))}</div><div><b>Cidade / UF</b>{h(str(c['cidade'] or '–'))} / {h(str(c['uf'] or '–'))}</div></div></div>
+<div class=box><h2>Dados da nota</h2><div class=g><div><b>Operação</b>{h(str(n['operacao'] or '–'))}</div><div><b>Pedido(s)</b>{h(', '.join(n['pedidos']) or '–')}</div><div><b>Condição de pagamento</b>{h(str(n['pagamento'] or '–'))}</div><div><b>Empresa</b>{h(str(n['empresa'] or ''))} · {h(str(n['cnpj_empresa'] or ''))}</div><div><b>Modelo</b>{h(str(n['modelo'] or '–'))}</div><div><b>Quantidade total</b>{num(t['quantidade'])}</div></div>
+<div style="margin-top:6px"><b style="font-size:9px;color:#64748b;text-transform:uppercase">Chave de acesso</b><div class=key>{h(str(n['chave'] or '–'))}</div></div></div>
+<div class=box><h2>Itens</h2><table><tr><th>#</th><th>Código</th><th>Produto</th><th>NCM</th><th>CFOP</th><th class=r>Quantidade</th><th class=r>Unitário</th><th class=r>Líquido</th></tr>{linhas}</table></div>
+<div class=box><h2>Totais</h2><div class=g><div><b>Produtos</b>{brl(t['produtos'])}</div><div><b>Frete</b>{brl(t['frete'])}</div><div><b>Seguro</b>{brl(t['seguro'])}</div><div><b>IPI</b>{brl(t['ipi'])}</div><div><b>ICMS</b>{brl(t['icms'])}</div><div><b>ICMS ST</b>{brl(t['icms_st'])}</div></div>
+<div style="font-size:16px;font-weight:bold;margin-top:8px">Total da NF: {brl(t['total'])}</div></div>
+{('<div class=box><h2>Pagamentos</h2><table><tr><th>Parcela</th><th>Vencimento</th><th>Forma</th><th class=r>Valor</th></tr>' + pag + '</table></div>') if pag else ''}
+</body></html>"""
+
+
+def nf_pdf(n: dict) -> bytes:
+    """PDF da NF pelo Chromium (o mesmo do Relatorio de faturamento); sem ele, levanta erro para o chamador oferecer a pagina de impressao."""
+    from playwright.sync_api import sync_playwright
+    html = nf_html(n)
+    with sync_playwright() as pw:
+        try:
+            br = pw.chromium.launch()
+        except Exception:  # noqa: BLE001
+            br = pw.chromium.launch(executable_path=os.getenv('PLAYWRIGHT_CHROMIUM') or None)
+        try:
+            pg = br.new_page()
+            pg.set_content(html)
+            return pg.pdf(prefer_css_page_size=True, print_background=True)
+        finally:
+            br.close()
