@@ -220,6 +220,8 @@ def atualizar_notas(cli, dados: dict, completa: bool) -> None:
     for k in [k for k, v in notas.items() if v[0] >= ini.isoformat()]:
         notas.pop(k)
     for n in novos:
+        if str(n.get('invoiceStatus')) == 'Deleted':
+            continue                                                   # NF excluida nao e nota de verdade: fica fora
         e = n.get('eletronic') or {}
         notas[f"{n.get('branchCode')}-{n.get('invoiceSequence')}"] = [
             _dia(n.get('issueDate')) or _dia(n.get('invoiceDate')) or '', n.get('invoiceCode'), n.get('serialCode'), str(n.get('invoiceStatus') or ''),
@@ -398,7 +400,7 @@ def painel(dias: int = 0) -> dict:
     fim_ant = fim_mes_ant.replace(day=min(hoje.day, fim_mes_ant.day)).isoformat()
     periodo = f'1 a {hoje.day} de {MESES[hoje.month - 1]}'
 
-    todas = [n for n in (d.get('notas') or {}).values() if len(n) < 12 or n[11] != 'E']          # o painel conta so saidas; as entradas aparecem na consulta de NF
+    todas = [n for n in (d.get('notas') or {}).values() if (len(n) < 12 or n[11] != 'E') and n[3] != 'Deleted']          # o painel conta so saidas; as entradas aparecem na consulta de NF
     notas = [n for n in todas if n[0] >= ini]
     anteriores = [n for n in todas if ini_ant <= n[0] <= fim_ant and _situacao(n) == 'Autorizada']
     por_sit, por_dia, por_cli = {}, {}, {}
@@ -611,6 +613,8 @@ def buscar_nfs(q: str, tipo: str = 'todas', de: str = '', ate: str = '', sit: st
     notas = ler().get('notas') or {}
     achadas, cont = [], {}
     for chave, n in notas.items():
+        if n[3] == 'Deleted':
+            continue
         t = n[11] if len(n) > 11 else 'S'
         if tipo == 'saida' and t == 'E' or tipo == 'entrada' and t != 'E':
             continue
