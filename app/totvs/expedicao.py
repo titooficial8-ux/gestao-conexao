@@ -909,3 +909,19 @@ def danfe_totvs(chave: str, nota: dict = None) -> tuple:
             return None, log + [f'base64 invalido: {e}']
     pdf = _acha_pdf(j)
     return (pdf, log) if pdf else (None, log + ['resposta sem danfePdfBase64'])
+
+
+def vendas_por_dia(ano: int, mes: int) -> dict:
+    """{AAAA-MM-DD: (metros, valor)} das NFs de VENDA autorizadas (sem amostra/substituicao/cancelada) do mes, das NFs lidas a cada 2 min."""
+    out = {}
+    for n in (ler().get('notas') or {}).values():
+        if (len(n) > 11 and n[11] == 'E') or n[3] == 'Deleted' or _situacao(n) != 'Autorizada':
+            continue
+        op = _sem_acento(n[9])
+        if 'VENDA' not in op or any(k in op for k in ('AMOSTRA', 'SUBSTITUI')):
+            continue
+        if n[0][:7] != f'{ano}-{mes:02d}':
+            continue
+        m, v = out.get(n[0], (0.0, 0.0))
+        out[n[0]] = (m + n[7], v + n[8])
+    return out
