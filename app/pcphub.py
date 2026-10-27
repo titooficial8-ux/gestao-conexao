@@ -152,7 +152,7 @@ def aplicar(linhas: list, agora=None) -> dict:
         atuais[(s.machine_id, s.op or f'#{s.sequence_order}')] = s
     from app.models import PesagemResumo
     no_totvs = {r.op for r in PesagemResumo.query.filter(PesagemResumo.encontrada.is_(True), PesagemResumo.quantidade_op > 0)}   # OPs cuja quantidade o TOTVS ja informa
-    vistos, criadas, atualizadas, novas_seqs = set(), 0, 0, []
+    vistos, criadas, atualizadas, novas_seqs, prox_ordem = set(), 0, 0, [], {}
     for r in linhas:
         try:
             numero = int(str(r.get('machine')).strip())
@@ -174,12 +174,16 @@ def aplicar(linhas: list, agora=None) -> dict:
         if s:
             if s.termino_calculado:                      # o termino vem da previsao por voltas/RPM, nao do PCP Hub
                 campos.pop('termino_malharia', None)
-            for k in ('total_pcs', 'qt_solicitada', 'qt_avulsa', 'estrutura'):     # quantidade, avulsa e estrutura vem do TOTVS (quantidade da OP, cliente Conexao, classificacao 505); o PCP Hub so cria a linha
+            for k in ('total_pcs', 'qt_solicitada', 'qt_avulsa', 'estrutura', 'sequence_order'):     # a ordem da fila agora e do Gestao (arrastar na maquina);      # quantidade, avulsa e estrutura vem do TOTVS (quantidade da OP, cliente Conexao, classificacao 505); o PCP Hub so cria a linha
                 campos.pop(k, None)
             for k, v in campos.items():
                 setattr(s, k, v)                      # situacao e pecas_produzidas (calculadas pelo TOTVS) ficam como estao
             atualizadas += 1
         else:
+            if m.id not in prox_ordem:
+                prox_ordem[m.id] = max([x.sequence_order or 0 for (mid, _), x in atuais.items() if mid == m.id] or [0])
+            prox_ordem[m.id] += 1
+            campos['sequence_order'] = prox_ordem[m.id]                  # OP nova entra no fim da fila da maquina
             novo = Sequencia(machine_id=m.id, pecas_produzidas=_int(r.get('quantity_pieces')), **campos)
             db.session.add(novo)
             novas_seqs.append((novo, m.number))

@@ -2405,6 +2405,58 @@ def maquina_historico_producao(numero):
     return jsonify(ok=True, maquina=numero, de=de.isoformat(), ate=ate.isoformat(), dias=dias_lista[::-1], resumo=resumo)
 
 
+def _assinatura_programacao(maquina=None) -> str:
+    """Impressao digital do que aparece na Programacao (situacao, quantidades, ordem, termino...): a tela compara e se recarrega sozinha quando muda."""
+    import hashlib
+    q = Sequencia.query.join(Machine).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO']))
+    if maquina:
+        q = q.filter(Machine.number == maquina)
+    partes = [f'{x.id}|{x.machine_id}|{x.sequence_order}|{x.op}|{x.status}|{x.situacao}|{x.pecas_produzidas}|{x.total_pcs}|{x.qt_solicitada}|{x.qt_avulsa}|{x.estrutura}|{x.termino_malharia}|{x.dt_cliente}|{x.artigo}|{x.cliente}|{x.aud_ok}'
+              for x in q.order_by(Sequencia.id).all()]
+    return hashlib.md5('\n'.join(partes).encode()).hexdigest()
+
+
+@main_bp.route('/aba/programacao/assinatura')
+@login_required
+def programacao_assinatura():
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+    return jsonify(sig=_assinatura_programacao(request.args.get('maquina', type=int)))
+
+
+@main_bp.route('/aba/programacao/maquina/<int:numero>/reordenar', methods=['POST'])
+@login_required
+def maquina_reordenar(numero):
+    """Arrastar OPs dentro da maquina: grava a nova ordem da fila e recalcula o termino da malharia (voltas/RPM ou raport) na hora."""
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+    from app.models import AuditoriaLog
+    machine = Machine.query.filter_by(number=numero).first_or_404()
+    d = request.get_json(silent=True) or {}
+    ids = [int(x) for x in (d.get('ids') or []) if str(x).isdigit()]
+    ativas = {q.id: q for q in Sequencia.query.filter_by(machine_id=machine.id).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).all()}
+    if sorted(ids) != sorted(ativas):
+        return jsonify(erro='A fila mudou enquanto você arrastava; a página vai recarregar.'), 409
+    antes = {q.id: q.sequence_order for q in ativas.values()}
+    produzindo = [i for i in ids if ativas[i].status == 'PRODUZINDO']
+    ids = produzindo + [i for i in ids if i not in produzindo]           # a OP produzindo fica sempre em 1o
+    for pos, i in enumerate(ids, 1):
+        ativas[i].sequence_order = pos
+    movido = ativas.get(int(d.get('movido') or 0))
+    if movido:
+        db.session.add(AuditoriaLog(usuario=getattr(current_user, 'name', None) or 'Usuário', acao='MOVIDA', maquina=numero, artigo=movido.artigo, op=movido.op, dt_cliente=movido.dt_cliente,
+                                    origem=f'{(antes.get(movido.id) or 0)}º', destino=f'{ids.index(movido.id) + 1}º'))
+    db.session.commit()
+    from app import previsao
+    try:
+        n = previsao.calcular(maquina=numero, esperar=True)
+    except Exception:  # noqa: BLE001
+        n = 0
+    return jsonify(ok=True, recalculadas=n)
+
+
 @main_bp.route('/aba/programacao/auditoria-quantidades')
 @login_required
 def auditoria_quantidades():

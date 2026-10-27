@@ -290,9 +290,10 @@ def _pular_dias(inicio: datetime, dias: float, parados: set) -> datetime:
         fim += timedelta(days=len(novos))
 
 
-def calcular(agora=None) -> int:
-    """Recalcula pecas_dia e termino_malharia de todas as OPs ativas. Devolve quantas OPs foram calculadas."""
-    if not _trava.acquire(blocking=False):
+def calcular(agora=None, maquina: int = None, esperar: bool = False) -> int:
+    """Recalcula pecas_dia e termino_malharia de todas as OPs ativas (ou so da maquina `maquina`). Devolve quantas OPs foram calculadas.
+    esperar=True: se outro calculo estiver rodando, espera ate 25 s em vez de desistir (usado quando alguem reordena a fila)."""
+    if not _trava.acquire(blocking=esperar, timeout=25 if esperar else -1):
         return 0
     try:
         verificar_fontes()
@@ -305,7 +306,7 @@ def calcular(agora=None) -> int:
         agora = agora or datetime.now()
         parados_global = {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.date >= agora.date()).all() if d.machine_id is None}
         n = 0
-        for m in Machine.query.all():
+        for m in (Machine.query.filter_by(number=maquina).all() if maquina else Machine.query.all()):
             parados = parados_global | {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.machine_id == m.id, NonWorkingDay.date >= agora.date()).all()}
             seqs = [s for s in Sequencia.query.filter_by(machine_id=m.id).all() if (s.status or '') in ATIVAS]
             seqs.sort(key=lambda s: (0 if s.status == 'PRODUZINDO' else 1, s.sequence_order if s.sequence_order is not None else 10 ** 6, s.id))
