@@ -169,7 +169,7 @@ def _norm_receber(it: dict) -> dict:
     return dict(tipo='R', doc=str(it.get('receivableCode') or it.get('documentNumber') or it.get('invoiceCode') or it.get('billCode') or it.get('titleCode') or ''), parcela=str(it.get('installmentCode') or ''), cod=str(it.get('customerCode') or ''), cnpj=str(it.get('customerCpfCnpj') or ''), nome='',
                 emissao=_dia(it.get('issueDate')), venc=_dia(it.get('expiredDate')), valor=round(valor, 2), saldo=round(saldo, 2), pago=round(pago, 2), pag_em=pag, status=str(it.get('status') or '')[:30],
                 aberto=bool(saldo > 0.005 and not pag), moeda='', banco=str(it.get('bearerName') or it.get('bearerCode') or '')[:24], nosso=str(it.get('ourNumber') or '')[:30],
-                tipo_doc=str(it.get('documentType') or '')[:24])
+                tipo_doc=str(it.get('documentType') or '')[:24], linha=str(it.get('digitableLine') or '')[:60], pix=bool(it.get('qrCodePix')), cobranca=str(it.get('chargeType') or '')[:24], billing=str(it.get('billingType') or '')[:24])
 
 
 def _norm_pagar(it: dict) -> dict:
@@ -394,6 +394,26 @@ def _exportacao(t: dict, tabela: dict) -> bool:
     return bool(p and p != 'br')
 
 
+def _resumo_boletos(rec: list) -> dict:
+    """Situacao dos boletos nos titulos a receber em aberto: quem tem boleto (nosso numero / linha digitavel), por portador (banco), e os que ainda nao tem."""
+    por = {}
+    for t in rec:
+        b = por.setdefault(t.get('banco') or 'Sem portador', dict(banco=t.get('banco') or 'Sem portador', titulos=0, com_boleto=0, valor=0.0, valor_sem=0.0))
+        b['titulos'] += 1
+        b['valor'] += t['saldo']
+        if t.get('nosso') or t.get('linha'):
+            b['com_boleto'] += 1
+        else:
+            b['valor_sem'] += t['saldo']
+    com = [t for t in rec if t.get('nosso') or t.get('linha')]
+    sem = [t for t in rec if not (t.get('nosso') or t.get('linha')) and t['doc']]
+    r2 = lambda v: round(v, 2)
+    cut = lambda t: dict(doc=t['doc'], parcela=t['parcela'], cod=t['cod'], cnpj=t['cnpj'], nome=t['nome'], venc=t['venc'], saldo=t['saldo'], banco=t.get('banco'), nosso=t.get('nosso'), linha=t.get('linha'), pix=t.get('pix'), cobranca=t.get('cobranca'))
+    return dict(total=len(rec), com=len(com), sem=len(sem), pix=sum(1 for t in rec if t.get('pix')), valor_com=r2(sum(t['saldo'] for t in com)), valor_sem=r2(sum(t['saldo'] for t in sem)),
+                por_banco=sorted((dict(b, valor=r2(b['valor']), valor_sem=r2(b['valor_sem'])) for b in por.values()), key=lambda b: -b['titulos']),
+                exemplos_com=[cut(t) for t in sorted(com, key=lambda t: t['venc'] or '')[:8]], exemplos_sem=[cut(t) for t in sorted(sem, key=lambda t: t['venc'] or '')[:8]])
+
+
 def painel() -> dict:
     from app.models import ClientePais
     d = ler()
@@ -476,6 +496,7 @@ def painel() -> dict:
         aging=[dict(a, valor=r2(a['valor'])) for a in aging], semanas=sem,
         devedores=[dict(c, valor=r2(c['valor'])) for c in sorted(dev.values(), key=lambda c: -c['valor'])[:10]],
         vencidos_receber=sorted(rv, key=lambda t: -t['atraso'])[:800], vencidos_pagar=sorted(pv, key=lambda t: -t['atraso'])[:800], exportacao=sorted(exp, key=lambda t: t['venc'])[:800], exp_pagos=sorted(pagos, key=lambda t: t['pag_em'] or '', reverse=True)[:600], exp_clientes=exp_clientes, exp_pago_total=r2(sum(t['pago'] or t['valor'] for t in pagos)), pagos_dias=PAGOS_DIAS,
+        boletos=_resumo_boletos(rec),
         prorrogacao=pror[:800], pror_diag=[dict(d, clientes=sorted(d['clientes'])[:5]) for d in diag.values()], total_receber_aberto=len(rec), regras=[dict(nome=r['nome'], texto=r['texto']) for r in REGRAS], alteracoes=(d.get('alteracoes') or [])[:300], banco_teste=[dict(doc=t['doc'], parcela=t['parcela'], cod=t['cod'], cnpj=t['cnpj'], nome=t['nome'], venc=t['venc'], saldo=t['saldo'], banco=t['banco']) for t in rec if t['doc'] and t['banco']][:8])
 
 
