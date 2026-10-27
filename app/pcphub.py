@@ -83,6 +83,15 @@ def buscar_vinculos_pedidos() -> dict:
         ini += 1000
 
 
+def buscar_dias_sem_producao() -> list:
+    """Datas de production_non_working_days do PCP Hub (importacao unica: depois os dias sem producao sao do Gestao)."""
+    token = _login()
+    r = requests.get(f'{URL}/rest/v1/production_non_working_days', params=dict(select='date,note', region=f'eq.{REGIAO}', order='date.asc'), headers=dict(apikey=CHAVE, Authorization=f'Bearer {token}'), timeout=60)
+    if r.status_code != 200:
+        raise RuntimeError(f'Leitura dos dias sem producao falhou (HTTP {r.status_code}): {r.text[:160]}')
+    return r.json()
+
+
 def buscar_paises() -> list:
     """client_country_mapping do PCP Hub: {nome_cliente, nome_normalizado, country}."""
     token = _login()
@@ -212,7 +221,16 @@ def atualizar(app) -> bool:
         linhas = buscar_linhas()
         with app.app_context():
             res = aplicar(linhas)
-            from app.models import ArtigoImpedimento
+            from app.models import ArtigoImpedimento, NonWorkingDay
+            if not NonWorkingDay.query.first():              # dias sem producao: importa do Hub so uma vez
+                try:
+                    for x in buscar_dias_sem_producao():
+                        if _data(x.get('date')):
+                            db.session.add(NonWorkingDay(date=_data(x.get('date')), machine_id=None, comment=x.get('note')))
+                    db.session.commit()
+                except Exception as e_dias:  # noqa: BLE001
+                    db.session.rollback()
+                    ESTADO['dias_erro'] = str(e_dias)[:200]
             if not ArtigoImpedimento.query.first():          # Controle de Artigos e do Gestao; do PCP Hub so a importacao inicial, uma unica vez
                 try:
                     ESTADO['impedimentos'] = gravar_impedimentos_hub(buscar_impedimentos())

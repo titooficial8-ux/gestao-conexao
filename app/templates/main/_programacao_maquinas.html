@@ -27,6 +27,7 @@
     </span>
     {% if m.status == 'manutencao' %}
     <span class="machine-status-ribbon machine-status-ribbon-red">{{ t('status_manutencao') }}</span>
+    <span class="machine-robos" title="Máquina em manutenção"><span>&#129302;</span><span>&#128295;</span><span>&#129302;</span></span>
     {% elif m.status == 'sem_programacao' %}
     <span class="machine-status-ribbon machine-status-ribbon-yellow">{{ t('status_sem_programacao') }}</span>
     {% elif m.status == 'inoperante' %}

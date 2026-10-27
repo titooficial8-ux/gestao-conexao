@@ -1642,6 +1642,55 @@ def programacao_download():
     )
 
 
+def _pode_dias_sem_producao() -> bool:
+    """Quem marca os dias sem producao: administrador ou PCP (mesma regra do PCP Hub: PCP, admin e gestores)."""
+    if current_user.is_admin:
+        return True
+    nomes = {x.name for x in (current_user.sectors or [])} | ({current_user.setor.name} if getattr(current_user, 'setor', None) else set())
+    return 'PCP' in nomes
+
+
+@main_bp.route('/aba/programacao/dias-sem-producao/dados')
+@login_required
+def programacao_dias_dados():
+    """Dados do calendario Dias sem Producao: datas marcadas (global e por maquina) e feriados nacionais, SP e Jundiai (ano anterior, atual e seguinte)."""
+    from app.dias_producao import feriados
+    ano = date.today().year
+    fer = {}
+    for a in (ano - 1, ano, ano + 1):
+        fer.update(feriados(a))
+    marcados = [dict(id=d.id, data=d.date.isoformat(), maquina=d.machine.number if d.machine else None, motivo=d.comment or '') for d in NonWorkingDay.query.order_by(NonWorkingDay.date).all()]
+    return jsonify(marcados=marcados, feriados=fer, pode_editar=_pode_dias_sem_producao())
+
+
+@main_bp.route('/aba/programacao/dias-sem-producao/salvar', methods=['POST'])
+@login_required
+def programacao_dias_salvar():
+    """Salva as datas marcadas para TODAS as maquinas (como no PCP Hub) e recalcula o Termino Malharia de todas as OPs. Domingos ja sao folga sempre."""
+    if not _pode_dias_sem_producao():
+        abort(403)
+    d = request.get_json(silent=True) or {}
+    alvo = set()
+    for x in d.get('datas') or []:
+        try:
+            alvo.add(datetime.strptime(str(x)[:10], '%Y-%m-%d').date())
+        except ValueError:
+            continue
+    atuais = {n.date: n for n in NonWorkingDay.query.filter(NonWorkingDay.machine_id.is_(None)).all()}
+    for dia, n in atuais.items():
+        if dia not in alvo:
+            db.session.delete(n)
+    for dia in alvo - set(atuais):
+        db.session.add(NonWorkingDay(date=dia, machine_id=None, created_by_id=current_user.id))
+    db.session.commit()
+    from app import previsao
+    try:
+        n = previsao.calcular(esperar=True)
+    except Exception:  # noqa: BLE001
+        n = 0
+    return jsonify(ok=True, marcados=len(alvo), recalculadas=n)
+
+
 @main_bp.route('/aba/programacao/dias-sem-producao')
 @login_required
 def programacao_dias_sem_producao():
@@ -1655,7 +1704,7 @@ def programacao_dias_sem_producao():
 @main_bp.route('/aba/programacao/dias-sem-producao/adicionar', methods=['POST'])
 @login_required
 def programacao_dias_sem_producao_adicionar():
-    if not current_user.is_admin:
+    if not _pode_dias_sem_producao():
         abort(403)
     data_str = request.form.get('date', '').strip()
     machine_number = request.form.get('machine_number', type=int)
@@ -1675,7 +1724,7 @@ def programacao_dias_sem_producao_adicionar():
 @main_bp.route('/aba/programacao/dias-sem-producao/<int:item_id>/excluir', methods=['POST'])
 @login_required
 def programacao_dias_sem_producao_excluir(item_id):
-    if not current_user.is_admin:
+    if not _pode_dias_sem_producao():
         abort(403)
     item = NonWorkingDay.query.get_or_404(item_id)
     db.session.delete(item)
@@ -1690,9 +1739,14 @@ def programacao_dias_sem_producao_recalcular():
     """Recalcula o Termino Malharia das OPs ainda nao finalizadas empurrando
     a data pra frente conforme os dias sem producao cadastrados (aproximacao
     razoavel do recalculo do PCP Hub, que nao pudemos extrair por completo)."""
-    if not current_user.is_admin:
+    if not _pode_dias_sem_producao():
         abort(403)
 
+    from app import previsao
+    try:
+        previsao.calcular(esperar=True)                          # voltas/RPM e raport: domingos e datas marcadas empurram o termino
+    except Exception:  # noqa: BLE001
+        pass
     atualizadas = 0
     for machine in Machine.query.all():
         dias_maquina = sorted({
