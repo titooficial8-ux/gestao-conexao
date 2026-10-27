@@ -95,8 +95,8 @@
       <tbody>
         {% for s in sequencias %}
         {% set sit0 = s.situacao or ('PRODUZINDO' if s.status == 'PRODUZINDO' else ('PCP - Fase¹' if s.status == 'PCP' else 'MALHARIA')) %}
-        <tr class="{{ 'seq-produzindo' if s.status == 'PRODUZINDO' else ('sit-fase1' if sit0 == 'PCP - Fase¹' else ('sit-fase2' if sit0 == 'PCP - Fase²' else ('sit-estoque' if sit0 == 'ESTOQUE' else ('sit-malharia' if sit0 == 'MALHARIA' else '')))) }}">
-          <td><span class="seq-num">{{ loop.index }}º</span>
+        <tr data-seq-id="{{ s.id }}" class="{{ 'seq-produzindo' if s.status == 'PRODUZINDO' else ('sit-fase1' if sit0 == 'PCP - Fase¹' else ('sit-fase2' if sit0 == 'PCP - Fase²' else ('sit-estoque' if sit0 == 'ESTOQUE' else ('sit-malharia' if sit0 == 'MALHARIA' else '')))) }}">
+          <td>{% if s.status != 'PRODUZINDO' %}<span class="seq-grip" title="Arraste para mudar a ordem; o término da malharia é recalculado">&#10303;</span>{% endif %}<span class="seq-num">{{ loop.index }}º</span>
             <button type="button" class="au-gear {{ 'ok' if s.aud_ok else 'no' }}" data-seq="{{ s.id }}" {{ '' if aud_sessao else 'disabled' }} title="{{ ('Verificado na máquina pelo mecânico e PCP (clique para desmarcar)' if s.aud_ok else 'Ainda não verificado (clique para marcar)') if aud_sessao else 'Bloqueado: clique em Iniciar Auditoria para marcar' }}"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
             {% if impedidos.get(s.id) %}<span class="au-bloq" title="{{ impedidos[s.id] }}">&#9940;</span>{% endif %}</td>
           {% set pct = ((s.pecas_produzidas or 0) / s.total_pcs * 100) | round | int if s.total_pcs else 0 %}
@@ -445,4 +445,40 @@
 })();
 </script>
 {% include 'main/_auditoria_log.html' %}
+<style>
+.seq-grip{cursor:grab;color:#94a3b8;font-size:16px;margin-right:4px;user-select:none}.seq-grip:hover{color:#334155}
+tr.seq-arrastando{opacity:.45}tr.seq-alvo-antes td{box-shadow:inset 0 3px 0 #2f7fe0}tr.seq-alvo-depois td{box-shadow:inset 0 -3px 0 #2f7fe0}
+</style>
+<script>
+(function () {
+  var tb = document.querySelector('.seq-table tbody'); if (!tb) return;
+  var MAQ = {{ machine.number }}, URL = '{{ url_for("main.maquina_reordenar", numero=machine.number) }}', arr = null;
+  function linhas() { return Array.prototype.slice.call(tb.querySelectorAll('tr[data-seq-id]')); }
+  function limpar() { linhas().forEach(function (r) { r.classList.remove('seq-alvo-antes', 'seq-alvo-depois'); }); }
+  linhas().forEach(function (r) {
+    var g = r.querySelector('.seq-grip'); if (!g) return;
+    g.addEventListener('mousedown', function () { r.draggable = true; });
+    r.addEventListener('dragstart', function (e) { arr = r; r.classList.add('seq-arrastando'); if (window.__progArrastando) window.__progArrastando(true); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', r.dataset.seqId); } catch (x) {} });
+    r.addEventListener('dragend', function () { r.draggable = false; r.classList.remove('seq-arrastando'); limpar(); arr = null; if (window.__progArrastando) window.__progArrastando(false); });
+  });
+  linhas().forEach(function (r) {
+    r.addEventListener('dragover', function (e) {
+      if (!arr || r === arr) return; e.preventDefault(); limpar();
+      var meio = r.getBoundingClientRect().top + r.offsetHeight / 2, antes = e.clientY < meio;
+      if (antes && r.classList.contains('seq-produzindo')) antes = false;          // nunca acima da OP que esta produzindo
+      r.classList.add(antes ? 'seq-alvo-antes' : 'seq-alvo-depois');
+    });
+    r.addEventListener('drop', function (e) {
+      if (!arr || r === arr) return; e.preventDefault();
+      var meio = r.getBoundingClientRect().top + r.offsetHeight / 2, antes = e.clientY < meio && !r.classList.contains('seq-produzindo');
+      var movido = arr.dataset.seqId; tb.insertBefore(arr, antes ? r : r.nextSibling); limpar();
+      var ids = linhas().map(function (x) { return x.dataset.seqId; });
+      fetch(URL, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ids, movido: movido }) })
+        .then(function (resp) { return resp.json().then(function (d) { if (!resp.ok) throw new Error(d.erro || 'Erro'); return d; }); })
+        .then(function () { location.reload(); }).catch(function (er) { alert(er.message); location.reload(); });
+    });
+  });
+})();
+</script>
+{% with auto_maq=machine.number %}{% include 'main/_auto_atualizar.html' %}{% endwith %}
 {% endblock %}
