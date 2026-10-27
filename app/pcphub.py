@@ -64,6 +64,25 @@ def gravar_impedimentos_hub(linhas: list) -> int:
     return gravar_impedimentos(linhas)
 
 
+def buscar_vinculos_pedidos() -> dict:
+    """{(pedido, produto): [(ciclo, op)]} do relatorio de pedidos do TOTVS (report_orders_month do PCP Hub): a ligacao REAL entre o pedido e a OP."""
+    token = _login()
+    cab = dict(apikey=CHAVE, Authorization=f'Bearer {token}')
+    out, ini = {}, 0
+    while True:
+        r = requests.get(f'{URL}/rest/v1/report_orders_month', params=dict(select='cod_pedido,cod_produto,nr_cicloop,nr_op', region=f'eq.{REGIAO}', nr_op='neq.', order='cod_pedido.asc'),
+                         headers=dict(cab, Range=f'{ini}-{ini + 999}', **{'Range-Unit': 'items'}), timeout=60)
+        if r.status_code not in (200, 206):
+            raise RuntimeError(f'Leitura dos vinculos pedido/OP falhou (HTTP {r.status_code}): {r.text[:160]}')
+        bloco = r.json()
+        for x in bloco:
+            if x.get('nr_op') and x.get('nr_cicloop'):
+                out.setdefault((str(x['cod_pedido']), str(x['cod_produto'])), []).append((str(x['nr_cicloop']), str(x['nr_op'])))
+        if len(bloco) < 1000:
+            return out
+        ini += 1000
+
+
 def buscar_paises() -> list:
     """client_country_mapping do PCP Hub: {nome_cliente, nome_normalizado, country}."""
     token = _login()
