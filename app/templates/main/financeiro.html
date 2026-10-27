@@ -54,7 +54,7 @@
     var x = el('button', null, '×'); x.type = 'button'; if (xlsx) { var dl = el('a', 'fn-dl', '⬇ Baixar Excel'); dl.href = URL_X + '?' + xlsx; dl.style.alignSelf = 'center'; h.appendChild(dl); } h.appendChild(x); box.appendChild(h); var cp = el('div', 'corpo'); cp.appendChild(corpo); box.appendChild(cp); m.appendChild(box);
     function fechar() { m.remove(); document.removeEventListener('keydown', esc); } function esc(e) { if (e.key === 'Escape') fechar(); } x.addEventListener('click', fechar); m.addEventListener('click', function (e) { if (e.target === m) fechar(); }); document.addEventListener('keydown', esc); document.body.appendChild(m);
   }
-  function tabTitulos(l, pagar) { return tabela([pagar ? 'Fornecedor' : 'Cliente', 'Nota / Dup.', 'Parcela', 'Vencimento', 'Atraso', 'Saldo'], l.map(function (x) { return [x.nome || x.cod, x.doc, x.parcela, dia(x.venc), pill(x.atraso + ' dias', corAtraso(x.atraso)), brl(x.saldo) + (x.moeda && x.moeda !== 'BRL' ? ' ' + x.moeda : '')]; })); }
+  function tabTitulos(l, pagar) { return tabela([pagar ? 'Fornecedor' : 'Cliente', 'Fatura / Dup.', 'Parcela', 'Vencimento', 'Atraso', 'Saldo'], l.map(function (x) { return [x.nome || x.cod, x.doc, x.parcela, dia(x.venc), pill(x.atraso + ' dias', corAtraso(x.atraso)), brl(x.saldo) + (x.moeda && x.moeda !== 'BRL' ? ' ' + x.moeda : '')]; })); }
   function alerta(cls, v, t, fn) { var a = el('div', 'fn-al ' + cls + (fn ? ' click' : '')); a.appendChild(el('i')); var d = el('div'); d.appendChild(el('b', null, v)); d.appendChild(el('span', null, t)); a.appendChild(d); if (fn) { a.appendChild(el('span', 'ver', 'ver ›')); a.addEventListener('click', fn); } return a; }
   function ir(v) { VIEW = v; desenhar(); window.scrollTo(0, 0); }
 
@@ -89,16 +89,16 @@
   function exportacao(c) {
     var K = D.kpis, cd = card('A receber de exportação', 'títulos em aberto de clientes do exterior' + (K.moedas.length ? ' · moeda: ' + K.moedas.join(', ') : '') + ' · ' + nf(K.export_n) + ' títulos · ' + brl(K.export) + (K.export_vencido ? ' · vencido ' + brl(K.export_vencido) : ''));
     var dl = el('a', 'fn-dl', '⬇ Excel'); dl.href = URL_X + '?tipo=exportacao'; dl.style.marginBottom = '10px'; cd.appendChild(dl);
-    cd.appendChild(tabela(['Cliente', 'Nota / Dup.', 'Parcela', 'Vencimento', 'Situação', 'Saldo'], D.exportacao.map(function (x) { return [x.nome, x.doc, x.parcela, dia(x.venc), x.vencido ? pill(x.atraso + ' dias vencido', corAtraso(x.atraso)) : pill('a vencer', '#16a34a'), brl(x.saldo) + (x.moeda && x.moeda !== 'BRL' ? ' ' + x.moeda : '')]; }))); c.appendChild(cd);
+    cd.appendChild(tabela(['Cliente', 'Fatura / Dup.', 'Parcela', 'Vencimento', 'Situação', 'Saldo'], D.exportacao.map(function (x) { return [x.nome, x.doc, x.parcela, dia(x.venc), x.vencido ? pill(x.atraso + ' dias vencido', corAtraso(x.atraso)) : pill('a vencer', '#16a34a'), brl(x.saldo) + (x.moeda && x.moeda !== 'BRL' ? ' ' + x.moeda : '')]; }))); c.appendChild(cd);
   }
   function prorrogacao(c) {
     var rg = el('div', 'fn-rules'); D.regras.forEach(function (r) { var d = el('div', 'fn-rule'); d.appendChild(el('b', null, r.nome)); d.appendChild(el('span', null, r.texto)); rg.appendChild(d); }); c.appendChild(rg);
     var cd = card('Títulos para prorrogar o vencimento', 'vencimento cai em dia que o cliente não paga · novo vencimento = próximo dia em que ele paga · o arquivo segue para o componente de prorrogação de vencimento do TOTVS'), dl = el('a', 'fn-dl', '⬇ Baixar arquivo de prorrogação (Excel)'); dl.href = URL_X + '?tipo=prorrogacao'; dl.style.marginBottom = '10px'; cd.appendChild(dl);
-    cd.appendChild(tabela(['Cliente', 'Nota / Dup.', 'Parcela', 'Vencimento atual', 'Novo vencimento', 'Prorrogar', 'Valor'], D.prorrogacao.map(function (x) { return [x.cliente + (x.vencido ? ' (vencido)' : ''), x.doc, x.parcela, dia(x.venc), dia(x.novo) + (x.deixa_de_ser_atraso ? ' ✓' : ''), '+' + x.dias + ' dias', brl(x.valor)]; })));
+    cd.appendChild(tabela(['Cliente', 'Fatura / Dup.', 'Parcela', 'Vencimento atual', 'Novo vencimento', 'Prorrogar', 'Valor'], D.prorrogacao.map(function (x) { return [x.cliente + (x.vencido ? ' (vencido)' : ''), x.doc, x.parcela, dia(x.venc), dia(x.novo) + (x.deixa_de_ser_atraso ? ' ✓' : ''), '+' + x.dias + ' dias', brl(x.valor)]; })));
     cd.appendChild(el('div', 'fn-nota', '✓ = com o novo vencimento o título deixa de ser atraso. Nada é alterado no TOTVS por aqui: o Gestão só lê os títulos e monta a lista.')); c.appendChild(cd);
     var al = card('Alterações nos títulos (monitor)', 'o Gestão compara os títulos a cada leitura (10 min) e anota o que mudou: vencimento alterado, baixa, saldo, título novo');
     var dl2 = el('a', 'fn-dl', '⬇ Excel'); dl2.href = URL_X + '?tipo=alteracoes'; dl2.style.marginBottom = '10px'; al.appendChild(dl2);
-    al.appendChild(tabela(['Quando', 'Tipo', 'Cliente', 'Nota / Dup.', 'De', 'Para'], D.alteracoes.map(function (x) { return [quando(x.em), x.tipo, x.nome, x.doc + (x.parcela ? '/' + x.parcela : ''), /^\d{4}-/.test(x.de) ? dia(x.de) : (x.de || '–'), /^\d{4}-/.test(x.para) ? dia(x.para) : (x.para || '–')]; }))); c.appendChild(al);
+    al.appendChild(tabela(['Quando', 'Tipo', 'Cliente', 'Fatura / Dup.', 'De', 'Para'], D.alteracoes.map(function (x) { return [quando(x.em), x.tipo, x.nome, x.doc + (x.parcela ? '/' + x.parcela : ''), /^\d{4}-/.test(x.de) ? dia(x.de) : (x.de || '–'), /^\d{4}-/.test(x.para) ? dia(x.para) : (x.para || '–')]; }))); c.appendChild(al);
   }
   function verificacao(c) {
     var cd = card('O que o TOTVS permite (boleto e alteração de vencimento)', 'só verificação: lista os recursos que o TOTVS oferece por API · nada é gerado nem alterado');

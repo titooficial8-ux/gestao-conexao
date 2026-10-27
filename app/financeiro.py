@@ -63,15 +63,15 @@ def exportar():
     tipo = request.args.get('tipo', 'receber')
     dia = lambda v: date.fromisoformat(v).strftime('%d/%m/%Y') if v else ''
     if tipo == 'prorrogacao':
-        nome, cab = 'Prorrogação de vencimento', ['Cliente', 'Regra de pagamento', 'Nota / Duplicata', 'Parcela', 'Vencimento atual', 'Novo vencimento', 'Dias a prorrogar', 'Valor (R$)', 'Já vencido?', 'Banco', 'Nosso número']
+        nome, cab = 'Prorrogação de vencimento', ['Cliente', 'Regra de pagamento', 'Fatura / Duplicata', 'Parcela', 'Vencimento atual', 'Novo vencimento', 'Dias a prorrogar', 'Valor (R$)', 'Já vencido?', 'Banco', 'Nosso número']
         linhas = [[x['cliente'], x['regra'], x['doc'], x['parcela'], dia(x['venc']), dia(x['novo']), x['dias'], x['valor'], 'Sim' if x['vencido'] else 'Não', x['banco'], x['nosso']] for x in p['prorrogacao']]
     elif tipo == 'alteracoes':
-        nome, cab = 'Alterações nos títulos', ['Quando', 'Tipo', 'Cliente', 'Nota / Duplicata', 'Parcela', 'De', 'Para', 'Valor (R$)']
+        nome, cab = 'Alterações nos títulos', ['Quando', 'Tipo', 'Cliente', 'Fatura / Duplicata', 'Parcela', 'De', 'Para', 'Valor (R$)']
         linhas = [[x['em'].replace('T', ' '), x['tipo'], x['nome'], x['doc'], x['parcela'], x['de'], x['para'], x['valor']] for x in p['alteracoes']]
     else:
         lista = {'receber': p['vencidos_receber'], 'pagar': p['vencidos_pagar'], 'exportacao': p['exportacao']}.get(tipo, p['vencidos_receber'])
         nome = {'receber': 'Vencidos a receber', 'pagar': 'Vencidos a pagar', 'exportacao': 'A receber exportação'}.get(tipo, 'Vencidos')
-        cab = ['Cliente / Fornecedor', 'Nota / Duplicata', 'Parcela', 'Emissão', 'Vencimento', 'Dias de atraso', 'Valor original', 'Saldo em aberto', 'Moeda', 'Banco', 'Situação']
+        cab = ['Cliente / Fornecedor', 'Fatura / Duplicata', 'Parcela', 'Emissão', 'Vencimento', 'Dias de atraso', 'Valor original', 'Saldo em aberto', 'Moeda', 'Banco', 'Situação']
         linhas = [[x['nome'], x['doc'], x['parcela'], dia(x['emissao']), dia(x['venc']), x['atraso'], x['valor'], x['saldo'], x['moeda'], x['banco'], x['status']] for x in lista]
     wb = Workbook()
     ws = wb.active

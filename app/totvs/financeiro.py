@@ -108,43 +108,9 @@ def verificacao(cli) -> dict:
     return dict(servicos=list(cat.keys()), boleto=boleto, vencimento=venc, receber=receber[:60], pagar=pagar[:60], total_endpoints=sum(len(v) for v in cat.values()))
 
 
-def _achar_busca(cli, svc: str, preferidos: tuple, fallback: str):
-    """(url, props_do_filtro) do endpoint de busca de titulos."""
-    env = os.getenv('FIN_RECEBER_URL' if svc == 'accounts-receivable' else 'FIN_PAGAR_URL', '').strip()
-    if env:
-        doc = _swagger(cli, svc)
-        return (env if env.startswith('http') else BASE + env), (_props_filtro(doc, env.replace(BASE, '')) if doc else [])
-    doc = _swagger(cli, svc)
-    if doc:
-        posts = [p for p, ops in (doc.get('paths') or {}).items() if 'post' in ops and p.lower().endswith('/search')]
-        for pref in preferidos:
-            for p in posts:
-                if pref in p.lower():
-                    return BASE + p, _props_filtro(doc, p)
-        if posts:
-            return BASE + posts[0], _props_filtro(doc, posts[0])
-    return BASE + fallback, []
-
-
-def _filtro(props, ini: date, fim: date) -> dict:
-    f = {}
-    nomes = {p.lower(): p for p in props}
-    for pl, p in nomes.items():
-        if 'branch' in pl and pl.endswith('list'):
-            f[p] = [EMPRESA]
-    par = None
-    for pref in ('expir', 'due', 'matur', 'vencimento'):
-        for pl, p in nomes.items():
-            if pl.startswith('start') and pref in pl and ('end' + p[5:]) in props:
-                par = (p, 'end' + p[5:])
-                break
-        if par:
-            break
-    if par:
-        f[par[0]], f[par[1]] = f'{ini}T00:00:00', f'{fim}T23:59:59'
-    elif not props:
-        f.update(branchCodeList=[EMPRESA], startExpiredDate=f'{ini}T00:00:00', endExpiredDate=f'{fim}T23:59:59')
-    return f
+RECEBER_URL = os.getenv('FIN_RECEBER_URL', f'{BASE}/api/totvsmoda/accounts-receivable/v2/documents/search')
+PAGAR_URL = os.getenv('FIN_PAGAR_URL', f'{BASE}/api/totvsmoda/accounts-payable/v2/duplicates/search')
+SPANS_CHANGE = (3650, 1825, 730, 365, 180, 90)                  # intervalo de ALTERACAO (obrigatorio no TOTVS): tenta o mais largo que a API aceitar
 
 
 def _p(item: dict, *cands):
@@ -170,42 +136,86 @@ def _dia(v):
         return None
 
 
-def _norm(it: dict, tipo: str) -> dict:
-    valor = _num(_p(it, 'installmentValue', 'documentValue', 'originalValue', 'value', 'totalValue', 'amount', 'grossValue'))
-    pago = _num(_p(it, 'paidValue', 'paymentValue', 'settledValue', 'receivedValue', 'liquidatedValue'))
-    saldo_raw = _p(it, 'balance', 'openBalance', 'remainingValue', 'pendingValue', 'balanceValue', 'openValue', 'saldo')
-    saldo = _num(saldo_raw) if saldo_raw is not None else max(valor - pago, 0.0)
-    pag_dt = _dia(_p(it, 'paymentDate', 'settlementDate', 'liquidationDate', 'receiptDate', 'settledDate'))
-    status = str(_p(it, 'status', 'documentStatus', 'situation', 'settlementStatus', 'installmentStatus') or '')
-    fechado = any(k in status.lower() for k in ('cancel', 'paid', 'settled', 'liquid', 'pago', 'baixa', 'closed', 'quitad'))
-    return dict(tipo=tipo, doc=str(_p(it, 'documentNumber', 'invoiceNumber', 'duplicateNumber', 'billNumber', 'titleNumber', 'number', 'invoiceCode') or ''),
-                parcela=str(_p(it, 'installmentNumber', 'installment', 'parcel', 'installmentCode') or ''),
-                cod=str(_p(it, 'customerCode', 'personCode', 'supplierCode', 'clientCode') or ''), nome=str(_p(it, 'customerName', 'personName', 'supplierName', 'clientName', 'name') or '')[:70],
-                emissao=_dia(_p(it, 'issueDate', 'emissionDate', 'documentDate', 'invoiceDate')), venc=_dia(_p(it, 'expiredDate', 'dueDate', 'expirationDate', 'maturityDate', 'originalExpiredDate')),
-                valor=round(valor, 2), saldo=round(saldo, 2), pago=round(pago, 2), pag_em=pag_dt, status=status[:30], aberto=(saldo > 0.005 and not pag_dt and not fechado),
-                moeda=str(_p(it, 'currencyCode', 'currency', 'currencySymbol', 'currencyName') or '')[:6],
-                banco=str(_p(it, 'bankName', 'bankCode', 'bank', 'portador', 'holderName') or '')[:20], nosso=str(_p(it, 'ourNumber', 'bankSlipNumber', 'nossoNumero') or '')[:30])
+def _norm_receber(it: dict) -> dict:
+    """accounts-receivable/documents: receivableCode (fatura), installmentCode, customerCode, expiredDate, installmentValue, paidValue, bearerName, ourNumber."""
+    valor, pago = _num(it.get('installmentValue')), _num(it.get('paidValue'))
+    saldo = max(valor - pago, 0.0)                                     # o TOTVS nao manda saldo: em aberto = parcela - pago
+    pag = _dia(it.get('paymentDate'))
+    return dict(tipo='R', doc=str(it.get('receivableCode') or ''), parcela=str(it.get('installmentCode') or ''), cod=str(it.get('customerCode') or ''), cnpj=str(it.get('customerCpfCnpj') or ''), nome='',
+                emissao=_dia(it.get('issueDate')), venc=_dia(it.get('expiredDate')), valor=round(valor, 2), saldo=round(saldo, 2), pago=round(pago, 2), pag_em=pag, status=str(it.get('status') or '')[:30],
+                aberto=bool(saldo > 0.005 and not pag), moeda='', banco=str(it.get('bearerName') or it.get('bearerCode') or '')[:24], nosso=str(it.get('ourNumber') or '')[:30],
+                tipo_doc=str(it.get('documentType') or '')[:24])
 
 
-def _buscar(cli, svc: str, preferidos: tuple, fallback: str, tipo: str, dados: dict) -> list:
-    url, props = _achar_busca(cli, svc, preferidos, fallback)
-    hoje = date.today()
-    ini, fim = hoje - timedelta(days=JANELA_ATRAS), hoje + timedelta(days=JANELA_FRENTE)
-    out, a = [], ini
+def _norm_pagar(it: dict) -> dict:
+    """accounts-payable/duplicates: duplicateCode, supplierCode, installmentCode, dueDate, duplicateValue, paidValue, settlementDate."""
+    valor, pago = _num(it.get('duplicateValue')), _num(it.get('paidValue'))
+    saldo = max(valor - pago, 0.0)
+    pag = _dia(it.get('settlementDate'))
+    return dict(tipo='P', doc=str(it.get('duplicateCode') or ''), parcela=str(it.get('installmentCode') or ''), cod=str(it.get('supplierCode') or ''), cnpj=str(it.get('supplierCpfCnpj') or ''), nome='',
+                emissao=_dia(it.get('issueDate')), venc=_dia(it.get('dueDate') or it.get('expiredDate')), valor=round(valor, 2), saldo=round(saldo, 2), pago=round(pago, 2), pag_em=pag, status=str(it.get('status') or '')[:30],
+                aberto=bool(saldo > 0.005 and not pag), moeda='', banco=str(it.get('bearerCode') or '')[:24], nosso='', tipo_doc='')
+
+
+def _janelas(ini: date, fim: date, dias: int = 31):
+    a = ini
     while a <= fim:
-        b = min(fim, a + timedelta(days=30))
-        try:
-            itens = _paginar(cli, url, dict(filter=_filtro(props, a, b)), tam=100)
-        except RuntimeError as e:
-            if 'HTTP 404' in str(e) and not out and a == ini:
-                raise RuntimeError(f'endpoint nao encontrado: {url}') from e
-            raise
+        b = min(fim, a + timedelta(days=dias - 1))
+        yield a, b
+        a = b + timedelta(days=1)
+
+
+def _buscar_tipo(cli, tipo: str, dados: dict) -> list:
+    """Le os titulos em janelas de vencimento. O filtro `change` (intervalo de alteracao) e obrigatorio: manda sempre, o mais largo que a API aceitar."""
+    receber = tipo == 'R'
+    url = RECEBER_URL if receber else PAGAR_URL
+    hoje = date.today()
+    ini = hoje - timedelta(days=JANELA_ATRAS if receber else min(JANELA_ATRAS, 365))
+    fim = hoje + timedelta(days=JANELA_FRENTE)
+    span = dados.get('change_dias_' + tipo) or SPANS_CHANGE[0]
+    abertos = receber                                              # a receber: so em aberto (hasOpenInvoices)
+    out, primeiro = [], True
+    for a, b in _janelas(ini, fim):
+        while True:
+            chg = dict(startDate=f'{hoje - timedelta(days=span)}T00:00:00', endDate=f'{hoje}T23:59:59')
+            if receber:
+                chg['inCheck'] = False
+            filtro = dict(branchCodeList=[EMPRESA], change=chg, startExpiredDate=f'{a}T00:00:00', endExpiredDate=f'{b}T23:59:59')
+            if abertos:
+                filtro['hasOpenInvoices'] = True
+            try:
+                itens = _paginar(cli, url, dict(filter=filtro), tam=100)
+                break
+            except RuntimeError as e:
+                msg = str(e)
+                if abertos and 'hasOpenInvoices' in msg:
+                    abertos = False
+                    continue
+                menor = [x for x in SPANS_CHANGE if x < span]
+                if primeiro and 'HTTP 400' in msg and menor:         # intervalo de alteracao largo demais: tenta um menor
+                    span = menor[0]
+                    continue
+                raise
+        primeiro = False
         out += itens
         if itens and f'amostra_{tipo}' not in dados:
             dados[f'amostra_{tipo}'] = {k: v for k, v in itens[0].items() if not isinstance(v, (list, dict))}
-        a = b + timedelta(days=1)
-    dados[f'url_{tipo}'] = url
-    return [_norm(i, tipo) for i in out]
+    dados['change_dias_' + tipo] = span
+    dados['url_' + tipo] = url
+    return [(_norm_receber if receber else _norm_pagar)(i) for i in out]
+
+
+def _nomes(cli, titulos: list, dados: dict) -> None:
+    """O TOTVS manda so o codigo e o CNPJ: busca o nome fantasia da pessoa (cliente/fornecedor) uma vez e guarda."""
+    from .entrada import _fantasias
+    cache = dados.setdefault('nomes', {})
+    codigos = {int(t['cod']) for t in titulos if t['cod'].isdigit()}
+    try:
+        _fantasias(cli, codigos, cache)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+    for t in titulos:
+        t['nome'] = (cache.get(t['cod']) or t['cnpj'] or t['cod'])[:70]
 
 
 def _diff(antes: dict, depois: list) -> list:
@@ -251,12 +261,13 @@ def atualizar() -> bool:
         cli.autenticar()
         dados = ler()
         antes = {f"{t['doc']}|{t['parcela']}|{t['cod']}": t for t in dados.get('receber', [])}
-        for tipo, svc, pref, fb, chave in (('R', 'accounts-receivable', ('documents', 'receivable', 'title'), '/api/totvsmoda/accounts-receivable/v2/documents/search', 'receber'),
-                                           ('P', 'accounts-payable', ('duplicate', 'payable', 'document'), '/api/totvsmoda/accounts-payable/v2/duplicates/search', 'pagar')):
+        for tipo, chave in (('R', 'receber'), ('P', 'pagar')):
             try:
-                dados[chave] = _buscar(cli, svc, pref, fb, tipo, dados)
+                lista = _buscar_tipo(cli, tipo, dados)
+                _nomes(cli, lista, dados)
+                dados[chave] = lista
                 if tipo == 'R':
-                    alt = _diff(antes, dados['receber'])
+                    alt = _diff(antes, lista)
                     dados['alteracoes'] = (alt + dados.get('alteracoes', []))[:300]
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
