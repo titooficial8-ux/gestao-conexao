@@ -24,7 +24,8 @@
 .xp-mod{position:fixed;inset:0;background:rgba(15,42,74,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
 .xp-mod>div{background:#fff;border-radius:18px;max-width:900px;width:100%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .xp-mod header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 22px 10px}.xp-mod header h3{margin:0;font-size:17px;color:var(--xp-navy)}.xp-mod header p{margin:3px 0 0;font-size:12px;color:var(--gray-500)}
-.xp-dl{margin-left:auto;align-self:center;background:var(--xp-teal);color:#fff;text-decoration:none;font-size:12px;font-weight:800;border-radius:999px;padding:8px 14px;white-space:nowrap}.xp-dl:hover{filter:brightness(1.1)}
+.xp-dl{margin-left:auto;align-self:center;background:var(--xp-teal);color:#fff;text-decoration:none;font-size:12px;font-weight:800;border-radius:999px;padding:8px 14px;white-space:nowrap}.xp-dl2{align-self:center;color:var(--gray-500);font-size:11px;margin:0 8px;text-decoration:underline}
+.xp-dl:hover{filter:brightness(1.1)}
 .xp-mod header button{border:0;background:var(--gray-100);width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer;color:var(--gray-700,#334155)}
 .xp-mod .corpo{padding:0 22px 20px;overflow:auto}
 .xp-al i{flex:none;width:12px;height:12px;border-radius:50%}.xp-al.ok i{background:#16a34a}.xp-al.warn i{background:#f59e0b}.xp-al.bad i{background:#dc2626}.xp-al.info i{background:#64748b}
@@ -369,7 +370,8 @@
       ph.textContent = ''; ph.className = '';
       if (!d.ok) { ph.appendChild(el('div', 'xp-erro', 'Não consegui consultar a NF: ' + d.erro)); m.p.textContent = ''; return; }
       var N = d.nota; m.p.textContent = (N.cliente.nome || '') + ' · emitida em ' + (data_(N.emissao) || dia(n.dia) + '/' + n.dia.slice(0, 4) + ' ' + n.hora);
-      var dl = el('a', 'xp-dl', '⬇ Baixar PDF'); dl.href = URL_NFP + '?seq=' + encodeURIComponent(n.seq) + '&data=' + encodeURIComponent(n.data); m.h.insertBefore(dl, m.x);
+      var qs = '?seq=' + encodeURIComponent(n.seq) + '&data=' + encodeURIComponent(n.data), dl = el('a', 'xp-dl', '⬇ Baixar PDF da NF (TOTVS)'); dl.href = URL_NFP + qs; dl.title = 'DANFE oficial, direto do TOTVS'; m.h.insertBefore(dl, m.x);
+      var rs = el('a', 'xp-dl2', 'resumo'); rs.href = URL_NFP + qs + '&resumo=1'; rs.title = 'Resumo dos dados (sem valor fiscal)'; m.h.insertBefore(rs, m.x);
       nfDetalhe(ph, N, n);
     }).catch(function () { ph.textContent = ''; ph.appendChild(el('div', 'xp-erro', 'Falha ao consultar a NF.')); });
   }

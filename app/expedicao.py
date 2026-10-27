@@ -71,6 +71,7 @@ def nf_detalhe():
 @exp_bp.route('/nf/pdf')
 @login_required
 def nf_pdf():
+    """PDF da NF: o DANFE oficial do TOTVS. Com resumo=1, gera o resumo do Gestao (sem valor fiscal)."""
     _autorizar()
     from flask import Response
     from app.totvs import expedicao
@@ -78,13 +79,32 @@ def nf_pdf():
         n = expedicao.detalhe_nf(request.args.get('seq', ''), request.args.get('data', ''))
     except Exception as e:  # noqa: BLE001
         return Response(f'Não foi possível consultar a NF: {e}', status=502)
-    nome = f"NF_{n['nf']}.pdf"
+    if not request.args.get('resumo'):
+        try:
+            pdf, log = expedicao.danfe_totvs(n.get('chave') or '', n) if n.get('chave') else (None, ['NF sem chave de acesso'])
+        except Exception as e:  # noqa: BLE001
+            pdf, log = None, [str(e)[:200]]
+        if pdf:
+            return Response(pdf, mimetype='application/pdf', headers={'Content-Disposition': f"attachment; filename=NF_{n['nf']}_DANFE.pdf"})
+        return Response('O TOTVS não devolveu o DANFE (PDF oficial) desta NF por API.\n\nO que foi tentado:\n- ' + '\n- '.join(log) + '\n\nAbra /expedicao/nf/danfe-teste?chave=' + str(n.get('chave') or '') + ' (administrador) e envie o resultado.', status=502, mimetype='text/plain; charset=utf-8')
+    nome = f"NF_{n['nf']}_resumo.pdf"
     try:
         return Response(expedicao.nf_pdf(n), mimetype='application/pdf', headers={'Content-Disposition': f'attachment; filename={nome}'})
     except Exception:  # noqa: BLE001
         import traceback
         traceback.print_exc()
-        return Response(expedicao.nf_html(n).replace('</body>', '<script>window.onload=function(){window.print()}</script></body>'), mimetype='text/html')      # sem Chromium: abre a pagina pronta para "Salvar como PDF"
+        return Response(expedicao.nf_html(n).replace('</body>', '<script>window.onload=function(){window.print()}</script></body>'), mimetype='text/html')
+
+
+@exp_bp.route('/nf/danfe-teste')
+@login_required
+def nf_danfe_teste():
+    """So administrador: mostra o que o TOTVS respondeu ao buscar o DANFE (para ajustar o endpoint)."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.totvs import expedicao
+    pdf, log = expedicao.danfe_totvs(request.args.get('chave', ''))
+    return jsonify(achou=bool(pdf), bytes=len(pdf or b''), log=log)
 
 
 def _filtro_prontos(x, tipo):
