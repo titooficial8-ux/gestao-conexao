@@ -707,3 +707,132 @@ def nf_pdf(n: dict) -> bytes:
             return pg.pdf(prefer_css_page_size=True, print_background=True)
         finally:
             br.close()
+
+
+# ---------------------------------------------------------------- DANFE (PDF oficial) do TOTVS
+FISCAL_SWAGGER = f'{BASE}/api/totvsmoda/fiscal/v2/swagger/v1/swagger.json'
+
+
+def _acha_pdf(obj):
+    """Procura em qualquer lugar da resposta um PDF em base64 (comeca com JVBER = '%PDF')."""
+    import base64
+    if isinstance(obj, str):
+        t = obj.strip()
+        if t.startswith('JVBER') or t.startswith('data:application/pdf;base64,'):
+            try:
+                return base64.b64decode(t.split(',', 1)[-1])
+            except Exception:  # noqa: BLE001
+                return None
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            r = _acha_pdf(v)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = _acha_pdf(v)
+            if r:
+                return r
+    return None
+
+
+def _acha_xml(obj):
+    if isinstance(obj, str):
+        t = obj.strip()
+        if t.startswith('<') and ('nfeProc' in t or 'NFe' in t or 'infNFe' in t):
+            return t
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            r = _acha_xml(v)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = _acha_xml(v)
+            if r:
+                return r
+    return None
+
+
+def danfe_totvs(chave: str, nota: dict = None) -> tuple:
+    """(pdf em bytes ou None, log). Descobre pelo swagger do servico fiscal os endpoints de DANFE/XML e tenta obter o PDF oficial da NF (so leitura)."""
+    log = []
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    paths = {}
+    try:
+        r = cli.get(FISCAL_SWAGGER, {})
+        if r.status_code == 200:
+            paths = r.json().get('paths') or {}
+            schemas = (r.json().get('components') or {}).get('schemas') or {}
+        else:
+            schemas = {}
+            log.append(f'swagger fiscal: HTTP {r.status_code}')
+    except Exception as e:  # noqa: BLE001
+        schemas = {}
+        log.append(f'swagger fiscal: {e}')
+
+    def resolve(n):
+        return schemas.get(((n or {}).get('$ref') or '').split('/')[-1], n or {})
+
+    def props_corpo(op):
+        c = resolve((((op.get('requestBody') or {}).get('content') or {}).get('application/json') or {}).get('schema'))
+        return c.get('properties') or {}, resolve
+    cand = sorted((p for p in paths if 'danfe' in p.lower() or 'xml' in p.lower() or 'pdf' in p.lower()), key=lambda p: (0 if 'xml' in p.lower() and 'danfe' not in p.lower() else 1, p))
+    log.append('endpoints candidatos: ' + ', '.join(cand) if cand else 'nenhum endpoint de DANFE/XML no swagger fiscal')
+    xml = None
+    for path in cand:
+        for metodo, op in (paths[path] or {}).items():
+            if metodo not in ('get', 'post'):
+                continue
+            url = BASE + path
+            params, corpo = {}, None
+            for prm in op.get('parameters') or []:
+                nome = str(prm.get('name') or '')
+                v = chave if any(k in nome.lower() for k in ('accesskey', 'chave', 'key')) else (EMPRESA if 'branch' in nome.lower() else None)
+                if v is None:
+                    continue
+                if prm.get('in') == 'path':
+                    url = url.replace('{' + nome + '}', str(v))
+                else:
+                    params[nome] = v
+            if metodo == 'post':
+                corpo = {}
+                props, _ = props_corpo(op)
+
+                def preencher(pr, acc, nivel=0):
+                    for nome, defn in pr.items():
+                        d = resolve(defn)
+                        nl = nome.lower()
+                        if d.get('type') == 'object' and nivel < 2:
+                            sub = {}
+                            preencher(d.get('properties') or {}, sub, nivel + 1)
+                            acc[nome] = sub
+                        elif any(k in nl for k in ('accesskey', 'chave')):
+                            acc[nome] = [chave] if d.get('type') == 'array' else chave
+                        elif 'xml' in nl and xml:
+                            acc[nome] = xml
+                        elif 'branch' in nl:
+                            acc[nome] = [EMPRESA] if d.get('type') == 'array' else EMPRESA
+                preencher(props, corpo)
+            if '{' in url:
+                continue
+            try:
+                resp = cli.get(url, params) if metodo == 'get' else cli.post(url, corpo or {})
+            except Exception as e:  # noqa: BLE001
+                log.append(f'{metodo.upper()} {path}: erro {str(e)[:100]}')
+                continue
+            log.append(f'{metodo.upper()} {path}: HTTP {resp.status_code}')
+            if resp.status_code != 200:
+                continue
+            if resp.content[:4] == b'%PDF':
+                return resp.content, log
+            try:
+                j = resp.json()
+            except ValueError:
+                continue
+            pdf = _acha_pdf(j)
+            if pdf:
+                return pdf, log
+            xml = xml or _acha_xml(j)
+    return None, log
