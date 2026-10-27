@@ -107,7 +107,7 @@
           </td>
           <td>{{ s.total_pcs }}</td>
           <td class="seq-falta">{{ s.pc_produzir }}</td>
-          <td>{{ s.qt_avulsa or '–' }}</td>
+          <td>{{ s.qt_avulsa or (s.qt_solicitada if s.id in avulsa_cli else '–') }}</td>
           {% set pp = pedidos_op.get(s.op|string, []) %}
           <td title="{{ ('Pedido(s): ' ~ (pp|map(attribute='pedido')|join(', ')) ~ ' · solicitado ' ~ (pp|sum(attribute='solicitada')) ~ ' · pendente ' ~ (pp|sum(attribute='pendente')) ~ ' · OP: ' ~ s.qt_solicitada) if pp else 'OP sem pedido ligado (avulsa)' }}">{{ s.qt_solicitada }}</td>
           <td>{{ s.termino_malharia.strftime('%d/%m/%Y') if s.termino_malharia else '–' }}</td>
@@ -124,6 +124,8 @@
             <span class="seq-ped" title="{% for x in peds %}Pedido {{ x.pedido }} · {{ x.cliente }} · solicitado {{ x.solicitada }} · pendente {{ x.pendente }}{{ '\n' if not loop.last }}{% endfor %}">{{ peds[0].pedido }}{% if peds|length > 1 %} <small>+{{ peds|length - 1 }}</small>{% endif %}</span>
             {% elif s.qt_avulsa %}
             <span class="badge-neutral" title="OP avulsa: criada pela Conexão direto no PCPFM156 (sem pedido de venda).">AVULSA</span>
+            {% elif s.id in avulsa_cli %}
+            <span class="badge-neutral" title="OP avulsa de cliente: criada direto no PCPFM156 para {{ s.cliente }} (não há pedido aberto deste cliente com este artigo).">AVULSA</span> <small>{{ s.cliente }}</small>
             {% else %}
             <span title="Pedido ainda não identificado para esta OP">–</span>
             {% endif %}
