@@ -121,8 +121,13 @@ def indicadores_maquinas(machines):
         if not prod:
             continue
         cliente = prod.cliente or ''
-        if 'ORTOBOM' in _strip_accents(cliente.upper()):
+        nome_cli = _strip_accents(cliente.upper())
+        if 'ORTOBOM' in nome_cli:
             saida[m.id] = dict(tipo='ortobom', titulo=f'Ortobom · {cliente}')
+        elif 'ECOFLEX' in nome_cli:
+            saida[m.id] = dict(tipo='ecoflex', titulo=f'Ecoflex · {cliente}')
+        elif re.search(r'\bFLEX\b', nome_cli):
+            saida[m.id] = dict(tipo='flex', titulo=f'Flex do Brasil · {cliente}')
         elif (prod.cod_segmento or '').strip().upper() == 'COLCHAO ME':
             cod = pais_do_cliente(cliente, tabela)
             if cod:

@@ -8,6 +8,10 @@
       {% if ind %}
       {% if ind.tipo == 'ortobom' %}
       <img class="machine-ind machine-ind-logo" src="{{ url_for('static', filename='img/logo_ortobom.png') }}" alt="Ortobom" title="{{ ind.titulo }}">
+      {% elif ind.tipo == 'flex' %}
+      <img class="machine-ind machine-ind-logo" src="{{ url_for('static', filename='img/logo_flex.png') }}" alt="Flex do Brasil" title="{{ ind.titulo }}">
+      {% elif ind.tipo == 'ecoflex' %}
+      <img class="machine-ind machine-ind-logo" src="{{ url_for('static', filename='img/logo_ecoflex.png') }}" alt="Ecoflex" title="{{ ind.titulo }}">
       {% elif ind.tipo == 'exp' %}
       <span class="machine-ind-exp" title="{{ ind.titulo }}">EXP</span>
       {% elif ind.codigo == 'br' %}
