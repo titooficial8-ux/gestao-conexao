@@ -565,14 +565,26 @@ def op_avulsa(o: dict) -> bool:
         return False
 
 
+def estrutura_totvs(o: dict):
+    """Estrutura do artigo no TOTVS (classificacao 505 'CLAS ESTRUT.'), ex.: 'ESTRUTURA COMUM'."""
+    for it in ((o or {}).get('items') or [])[:1]:
+        for c in it.get('productClassification') or []:
+            if c.get('typeCode') == 505:
+                return str(c.get('Name') or c.get('Code') or '').strip() or None
+    return None
+
+
 def _sincronizar_quantidade(s, o: dict) -> bool:
-    """A quantidade vem do TOTVS (o PCP Hub nao manda mais): QT.SOLICITADA = quantidade da OP (m); total de pecas = quantidade / metro padrao (METRO IDEAL LOTE do artigo).
+    """A quantidade e a estrutura vem do TOTVS (o PCP Hub nao manda mais): QT.SOLICITADA = quantidade da OP (m); total de pecas = quantidade / metro padrao (METRO IDEAL LOTE do artigo).
     OP avulsa (cliente Conexao, criada no PCPFM156): QT.AVULSA = a propria quantidade da OP; as demais ficam com QT.AVULSA zerada."""
     qtd = _num(o.get('quantity'))
     if qtd <= 0:
         return False
     metro = _campos_artigo(o).get('metro_ideal') or _metro_padrao(s)      # calculado antes de mexer nos valores
     mudou = False
+    est = estrutura_totvs(o)
+    if est and est != s.estrutura:                                         # a estrutura tambem vem do TOTVS (nao do PCP Hub)
+        s.estrutura, mudou = est, True
     q = int(round(qtd))
     if q != (s.qt_solicitada or 0):
         s.qt_solicitada, mudou = q, True

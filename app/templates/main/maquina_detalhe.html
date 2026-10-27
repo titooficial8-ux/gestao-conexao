@@ -69,7 +69,7 @@
 
 <div class="table-card">
   <h3 class="section-subtitle">{{ t('sequencias_producao') }}</h3>
-  <div class="seq-legenda"><span style="color:#d19a00">PCP fase 1 (aguardando liberação)</span><span style="color:#3aa3f2">PCP fase 2</span><span style="color:#36b85e">Estoque (local 34)</span><span style="color:#0f5c32">Malharia (local 23)</span><span style="color:#17325c">Produzindo (padrão)</span></div>
+  <div class="seq-legenda"><span style="color:#a87400">PCP fase 1 (aguardando liberação)</span><span style="color:#3aa3f2">PCP fase 2</span><span style="color:#36b85e">Estoque (local 34)</span><span style="color:#0f5c32">Malharia (local 23)</span><span style="color:#17325c">Produzindo (padrão)</span></div>
   <div class="table-scroll">
     <table class="data-table prod-table tab-centro seq-table">
       <thead>
@@ -109,7 +109,7 @@
           <td class="seq-falta">{{ s.pc_produzir }}</td>
           <td>{{ s.qt_avulsa or (s.qt_solicitada if s.id in avulsa_cli else '–') }}</td>
           {% set pp = pedidos_op.get(s.op|string, []) %}
-          <td title="{{ ('Pedido(s): ' ~ (pp|map(attribute='pedido')|join(', ')) ~ ' · solicitado ' ~ (pp|sum(attribute='solicitada')) ~ ' · pendente ' ~ (pp|sum(attribute='pendente')) ~ ' · OP: ' ~ s.qt_solicitada) if pp else 'OP sem pedido ligado (avulsa)' }}">{{ s.qt_solicitada }}</td>
+          <td title="{{ ('Pedido(s): ' ~ (pp|map(attribute='pedido')|join(', ')) ~ ' · solicitado ' ~ (pp|sum(attribute='solicitada')) ~ ' · pendente ' ~ (pp|sum(attribute='pendente')) ~ ' · OP: ' ~ s.qt_solicitada) if pp else 'OP sem pedido ligado (avulsa)' }}">{{ '–' if (s.qt_avulsa and s.id not in avulsa_cli) else s.qt_solicitada }}</td>
           <td>{{ s.termino_malharia.strftime('%d/%m/%Y') if s.termino_malharia else '–' }}</td>
           <td>{{ s.dt_cliente.strftime('%d/%m/%Y') if s.dt_cliente else (s.production_month.title() if s.production_month else '–') }}</td>
           <td class="seq-artigo">{{ s.artigo }}</td>

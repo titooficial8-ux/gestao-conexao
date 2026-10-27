@@ -2749,7 +2749,7 @@ textarea.ticket-input { resize: vertical; }
 .seq-produzindo td { background: #fff !important; }
 .seq-produzindo .seq-num { background: #2aa55a; color: #fff; }
 /* cor das LETRAS da linha pela situacao da OP no TOTVS: PCP fase 1 (aguardando liberacao) amarelo, PCP fase 2 azul claro, estoque (local 34) verde claro, malharia (local 23) verde escuro */
-.seq-table tr.sit-fase1 td, .seq-table tr.sit-fase1 .seq-cliente, .seq-table tr.sit-fase1 .seq-artigo, .seq-table tr.sit-fase1 .seq-falta, .seq-table tr.sit-fase1 .seq-pct { color: #d19a00 !important; }
+.seq-table tr.sit-fase1 td, .seq-table tr.sit-fase1 .seq-cliente, .seq-table tr.sit-fase1 .seq-artigo, .seq-table tr.sit-fase1 .seq-falta, .seq-table tr.sit-fase1 .seq-pct { color: #a87400 !important; }
 .seq-table tr.sit-fase2 td, .seq-table tr.sit-fase2 .seq-cliente, .seq-table tr.sit-fase2 .seq-artigo, .seq-table tr.sit-fase2 .seq-falta, .seq-table tr.sit-fase2 .seq-pct { color: #3aa3f2 !important; }
 .seq-table tr.sit-estoque td, .seq-table tr.sit-estoque .seq-cliente, .seq-table tr.sit-estoque .seq-artigo, .seq-table tr.sit-estoque .seq-falta, .seq-table tr.sit-estoque .seq-pct { color: #36b85e !important; }
 .seq-table tr.sit-malharia td, .seq-table tr.sit-malharia .seq-cliente, .seq-table tr.sit-malharia .seq-artigo, .seq-table tr.sit-malharia .seq-falta, .seq-table tr.sit-malharia .seq-pct { color: #0f5c32 !important; }
