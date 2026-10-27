@@ -2485,6 +2485,16 @@ def maquina_detalhe(numero):
             lista = pedidos_op.setdefault(str(r.nr_op), [])
             if r.cod_pedido and r.cod_pedido not in [x['pedido'] for x in lista]:
                 lista.append(dict(pedido=r.cod_pedido, cliente=r.nome_cliente or '', solicitada=int(r.qt_solicitada or 0), pendente=int(r.qt_pendente or 0)))
+    avulsa_cli = set()                                                # OP de cliente criada direto no PCPFM156: sem pedido ligado e sem nenhum pedido aberto do mesmo cliente+artigo que pudesse te-la gerado
+    abertos = None
+    for q in sequencias:
+        if q.qt_avulsa or pedidos_op.get(str(q.op)) or not q.op:
+            continue
+        if abertos is None:
+            abertos = [(normalize_client_name(r.nome_cliente or ''), (r.ds_produto or '').split(' ')[0]) for r in PedidoRelatorio.query.filter(_pedido_aberto(), PedidoRelatorio.qt_pendente > 0.5).all()]
+        cod = (q.artigo or '').split(' ')[0]
+        if (normalize_client_name(q.cliente or ''), cod) not in abertos:
+            avulsa_cli.add(q.id)
     ds_metros = {s.id: resolve_metros_from_article(s.artigo) for s in sequencias}   # metragem padrao do artigo (METRO IDEAL LOTE do TOTVS)
     # entrega da maquina em 24 h pela conta voltas/RPM (ineficiencia incluida): da OP que esta produzindo; se ela ainda nao tem
     # voltas/RPM na base, usa a primeira OP da fila que tem (e o cartao avisa de qual OP veio)
@@ -2508,7 +2518,7 @@ def maquina_detalhe(numero):
     return render_template(
         'main/maquina_detalhe.html',
         aud_sessao=sessao_aberta(machine.number), impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
-        artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
+        artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, avulsa_cli=avulsa_cli, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
         tab=tab,
         machine=machine,
         sequencias=sequencias,
