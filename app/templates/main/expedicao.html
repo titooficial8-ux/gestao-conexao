@@ -49,6 +49,8 @@
 .xp-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 10px}.xp-strip div{background:var(--gray-100);border-radius:12px;padding:9px 12px}.xp-strip span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}.xp-strip b{font-size:19px;color:var(--xp-navy)}
 .xp-fvl{display:grid;grid-template-columns:14px 1fr auto;gap:2px 10px;align-items:center;margin:11px 0;font-size:13px}.xp-fvl i{width:12px;height:12px;border-radius:4px}.xp-fvl b{font-size:16px;color:var(--xp-navy)}.xp-fvl em{grid-column:2/4;font-style:normal;font-size:11px;color:var(--gray-500)}
 .xp-nfbar{display:flex;gap:10px;margin:6px 0 14px}.xp-nfbar input{flex:1;padding:12px 16px;border:1px solid var(--gray-300);border-radius:999px;font-size:15px;color:var(--text)}.xp-nfbar .xp-dl{border:0;cursor:pointer;margin:0;font-size:13px}
+.xp-nfs{font-size:15px;font-weight:800;color:var(--xp-navy);margin-right:14px}.xp-nfh .xp-pill{margin-right:8px;font-size:12px;padding:3px 12px}
+.xp-mod>div{max-width:1000px}
 .xp-nfh{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}.xp-nfh h3{display:inline-block;margin:0 10px 0 0;font-size:20px}.xp-nfh .xp-dl{margin:0}
 .xp-nfb{border-top:1px solid var(--gray-100);padding-top:12px;margin-top:12px}.xp-nfb h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-500)}
 .xp-nfg{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 16px}.xp-nfg span{display:block;font-size:10.5px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.04em}.xp-nfg b{font-size:14px;color:var(--text)}
@@ -129,6 +131,7 @@
     h.appendChild(x); box.appendChild(h); var cp = el('div', 'corpo'); cp.appendChild(corpo); box.appendChild(cp); m.appendChild(box);
     function fechar() { m.remove(); document.removeEventListener('keydown', esc); } function esc(e) { if (e.key === 'Escape') fechar(); }
     x.addEventListener('click', fechar); m.addEventListener('click', function (e) { if (e.target === m) fechar(); }); document.addEventListener('keydown', esc); document.body.appendChild(m);
+    return { cp: cp, h: h, p: t.querySelector('p'), x: x };
   }
   function card(t, s) { var c = el('div', 'xp-card'); c.appendChild(el('h3', null, t)); c.appendChild(el('div', 'sub', s || '')); return c; }
 
@@ -361,20 +364,24 @@
     var w = el('div'); w.style.overflowX = 'auto'; w.appendChild(t); box.appendChild(w);
   }
   function nfAbrir(n) {
-    var det = document.getElementById('xpNfDet'); det.textContent = ''; det.appendChild(el('div', 'xp-card', 'Consultando a NF ' + n.nf + ' no TOTVS…')); det.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var ph = el('div', 'xp-vazio', 'Consultando a NF ' + n.nf + ' no TOTVS…'), m = abrir('NF ' + n.nf, 'consultando…', ph);
     fetch(URL_NFD + '?seq=' + encodeURIComponent(n.seq) + '&data=' + encodeURIComponent(n.data), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
-      det.textContent = ''; if (!d.ok) { det.appendChild(el('div', 'xp-erro', 'Não consegui consultar a NF: ' + d.erro)); return; } nfDetalhe(det, d.nota, n);
-    }).catch(function () { det.textContent = ''; det.appendChild(el('div', 'xp-erro', 'Falha ao consultar a NF.')); });
+      ph.textContent = ''; ph.className = '';
+      if (!d.ok) { ph.appendChild(el('div', 'xp-erro', 'Não consegui consultar a NF: ' + d.erro)); m.p.textContent = ''; return; }
+      var N = d.nota; m.p.textContent = (N.cliente.nome || '') + ' · emitida em ' + (data_(N.emissao) || dia(n.dia) + '/' + n.dia.slice(0, 4) + ' ' + n.hora);
+      var dl = el('a', 'xp-dl', '⬇ Baixar PDF'); dl.href = URL_NFP + '?seq=' + encodeURIComponent(n.seq) + '&data=' + encodeURIComponent(n.data); m.h.insertBefore(dl, m.x);
+      nfDetalhe(ph, N, n);
+    }).catch(function () { ph.textContent = ''; ph.appendChild(el('div', 'xp-erro', 'Falha ao consultar a NF.')); });
   }
+  function data_(iso) { var m = String(iso || '').match(/^(\d{4})-(\d\d)-(\d\d)(?:T(\d\d:\d\d(?::\d\d)?))?/); return m ? m[3] + '/' + m[2] + '/' + m[1] + (m[4] ? ' às ' + m[4] : '') : ''; }
   function v(x, f) { return x === null || x === undefined || x === '' ? '–' : (f ? f(x) : String(x)); }
   function nfDetalhe(det, N, n) {
-    var cd = el('div', 'xp-card xp-nfd'), hd = el('div', 'xp-nfh'), t = el('div'); t.appendChild(el('h3', null, 'NF ' + N.nf + (N.serie ? ' · série ' + N.serie : ''))); var pl = el('span', 'xp-pill', N.situacao || '–'); pl.style.background = corSit(N.situacao); t.appendChild(pl);
-    if (N.nfe) { var p2 = el('span', 'xp-pill', 'NF-e: ' + N.nfe); p2.style.background = corSit(N.nfe); p2.style.marginLeft = '6px'; t.appendChild(p2); } hd.appendChild(t);
-    var bt = el('a', 'xp-dl', '⬇ Baixar PDF'); bt.href = URL_NFP + '?seq=' + encodeURIComponent(n.seq) + '&data=' + encodeURIComponent(n.data); hd.appendChild(bt); cd.appendChild(hd);
+    var cd = el('div', 'xp-nfd'), hd = el('div', 'xp-nfh'), t = el('div'); t.appendChild(el('span', 'xp-nfs', 'Série ' + (N.serie || '–'))); var pl = el('span', 'xp-pill', N.situacao || '–'); pl.style.background = corSit(N.situacao); t.appendChild(pl);
+    if (N.nfe) { var p2 = el('span', 'xp-pill', 'NF-e: ' + N.nfe); p2.style.background = corSit(N.nfe); t.appendChild(p2); } hd.appendChild(t); cd.appendChild(hd);
     function bloco(tit, pares) { var b = el('div', 'xp-nfb'); b.appendChild(el('h4', null, tit)); var g = el('div', 'xp-nfg'); pares.forEach(function (p) { var d = el('div'); d.appendChild(el('span', null, p[0])); d.appendChild(el('b', null, p[1])); g.appendChild(d); }); b.appendChild(g); cd.appendChild(b); }
     var C = N.cliente, T = N.totais;
     bloco('Cliente', [['Nome', v(C.nome)], ['CNPJ / CPF', v(C.cnpj)], ['Cidade / UF', v(C.cidade) + ' / ' + v(C.uf)]]);
-    bloco('Dados da nota', [['Emissão', N.emissao ? quando(N.emissao).replace(' às ', ' às ') : '–'], ['Operação', v(N.operacao)], ['Pedido(s)', N.pedidos.length ? N.pedidos.join(', ') : '–'], ['Condição de pagamento', v(N.pagamento)], ['Empresa', v(N.empresa) + (N.cnpj_empresa ? ' · ' + N.cnpj_empresa : '')], ['Modelo', v(N.modelo)]]);
+    bloco('Dados da nota', [['Emissão', data_(N.emissao) || dia(n.dia) + '/' + n.dia.slice(0, 4) + ' ' + n.hora], ['Operação', v(N.operacao)], ['Pedido(s)', N.pedidos.length ? N.pedidos.join(', ') : '–'], ['Condição de pagamento', v(N.pagamento)], ['Empresa', v(N.empresa) + (N.cnpj_empresa ? ' · ' + N.cnpj_empresa : '')], ['Modelo', v(N.modelo)]]);
     var ch = el('div', 'xp-nfb'); ch.appendChild(el('h4', null, 'Chave de acesso')); ch.appendChild(el('div', 'xp-key', v(N.chave))); cd.appendChild(ch);
     var it = el('div', 'xp-nfb'); it.appendChild(el('h4', null, 'Itens (' + N.itens.length + ')')); it.appendChild(tabela(['#', 'Código', 'Produto', 'NCM', 'CFOP', 'Quantidade', 'Unitário', 'Líquido'], N.itens.map(function (i) { return [v(i.seq), v(i.cod), v(i.nome), v(i.ncm), v(i.cfop), nf(i.qtd, 2) + ' ' + (i.un || ''), i.unit ? 'R$ ' + nf(i.unit, 2) : '–', i.liquido ? 'R$ ' + nf(i.liquido, 2) : '–']; }))); cd.appendChild(it);
     function r$(x) { return x === null || x === undefined ? '–' : 'R$ ' + nf(x, 2); }
@@ -388,8 +395,7 @@
     inp.addEventListener('input', function () { clearTimeout(tm); tm = setTimeout(function () { nfBuscar(inp.value.trim()); }, 350); }); inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { clearTimeout(tm); nfBuscar(inp.value.trim()); } }); bt.addEventListener('click', function () { nfBuscar(inp.value.trim()); });
     bar.appendChild(inp); bar.appendChild(bt); box.appendChild(el('h3', null, 'Consultar nota fiscal')); box.appendChild(el('div', 'sub', 'busque pelo número da NF ou pelo cliente (NFs dos últimos 90 dias) · clique na NF para ver todos os detalhes e baixar o PDF')); box.appendChild(bar);
     var lista = el('div'); lista.id = 'xpNfLista'; box.appendChild(lista); c.appendChild(box);
-    var det = el('div'); det.id = 'xpNfDet'; det.style.marginTop = '16px'; c.appendChild(det);
-    if (NFLISTA === null) nfBuscar(NFQ); else nfLista();
+        if (NFLISTA === null) nfBuscar(NFQ); else nfLista();
   }
   function carregar() {
     fetch(URL_DADOS, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
