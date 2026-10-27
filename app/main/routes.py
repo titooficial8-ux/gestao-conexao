@@ -1258,6 +1258,9 @@ def view_tab(slug):
             is_admin=current_user.is_admin,
         )
 
+    if slug == 'expedicao':
+        return render_template('main/expedicao.html', tab=tab)
+
     if slug == 'pedidos-comercial-mi':
         return render_template('main/comercial_mi.html', tab=tab)
 
