@@ -45,11 +45,21 @@ def _gerar(sync_playwright, base_url: str, user_id: int, ano, mes, visao: str = 
         nav = pw.chromium.launch(executable_path=os.getenv('RELATORIO_FAT_CHROMIUM') or None)
         try:
             pg = nav.new_page(viewport={'width': 1400, 'height': 900})
+            achados = []                                                    # o que a pagina reclamou (para o erro dizer o motivo, nao so 'timeout')
+            pg.on('pageerror', lambda e: achados.append(f'erro na pagina: {str(e)[:160]}'))
+            pg.on('response', lambda r: achados.append(f'HTTP {r.status} {r.url.split("?")[0][-70:]}') if r.status >= 400 else None)
             pg.goto(f'{base}/relatorio-faturamento/entrar?t={novo_token(user_id)}{q}', wait_until='domcontentloaded', timeout=60000)
             if visao == 'pedidos':                                          # Entrada de pedidos: espera os graficos e as duas secoes consultadas no TOTVS (alterados, precos divergentes e cancelados/duplicados)
                 pg.wait_for_function("document.querySelectorAll('[data-pronto=\"1\"]').length >= 3 && document.querySelector('#biPedCorpo canvas')", timeout=180000)
             else:
-                pg.wait_for_selector('#sl-int', timeout=90000)             # a ultima tabela do slide so existe depois dos dados carregarem
+                try:
+                    pg.wait_for_selector('#sl-int', timeout=180000)        # a ultima tabela do slide so existe depois dos dados carregarem
+                except Exception as e:  # noqa: BLE001
+                    try:
+                        txt = ' '.join(str(pg.evaluate('document.body.innerText') or '').split())[:300]
+                    except Exception:  # noqa: BLE001
+                        txt = ''
+                    raise RuntimeError(f'O BI Comercial nao carregou os dados em 3 min ({type(e).__name__}). A pagina mostrava: "{txt}". Problemas vistos: ' + ('; '.join(achados[:6]) or 'nenhum') + '.') from e
             pg.wait_for_load_state('networkidle', timeout=60000)
             pg.wait_for_timeout(2500)                                       # animacao dos graficos
             pg.evaluate("window.dispatchEvent(new Event('beforeprint'))")  # preenche titulo/"Gerado em" como no botao Imprimir
