@@ -16,7 +16,7 @@ from .pedidos import _paginar
 
 BASE = api.BASE_URL
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
-INTERVALO_MIN = max(2, int(os.getenv('FINANCEIRO_INTERVALO_MIN', '10')))
+INTERVALO_MIN = max(2, int(os.getenv('FINANCEIRO_INTERVALO_MIN', '30')))          # leitura pesada (milhares de titulos): a cada 30 min para nao competir com o BI Comercial e os relatorios
 JANELA_ATRAS = int(os.getenv('FINANCEIRO_DIAS_ATRAS', '540'))          # vencidos ate 18 meses para tras
 JANELA_FRENTE = int(os.getenv('FINANCEIRO_DIAS_FRENTE', '120'))
 ARQUIVO = api.OUT_DIR / 'financeiro.json'
@@ -235,7 +235,7 @@ PESSOAS_URLS = (f'{BASE}/api/totvsmoda/person/v2/legal-entities/search', f'{BASE
 
 _APP = None
 PAGOS_DIAS = int(os.getenv('FINANCEIRO_PAGOS_DIAS', '180'))
-PAGOS_REFRESH_MIN = 60
+PAGOS_REFRESH_MIN = 180
 
 
 def _buscar_pagos_export(cli, dados: dict) -> None:
@@ -372,7 +372,7 @@ def iniciar_agendador(app=None) -> None:
         return
 
     def loop():
-        time.sleep(70)
+        time.sleep(300)                                              # so comeca 5 min depois de subir (o BI e os envios das 08:00/13:00 tem prioridade)
         while True:
             try:
                 atualizar()
