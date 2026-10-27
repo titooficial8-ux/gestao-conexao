@@ -95,11 +95,8 @@
     var n = serie.length, bw = w / n, pts = [];
     serie.forEach(function (x, i) { var bh = x[k] / max * h, bx = pl + i * bw + bw * 0.15, by = pt + h - bh, r = sv('rect', { x: bx, y: by, width: bw * 0.7, height: Math.max(bh, x[k] ? 2 : 0), rx: 3, fill: '#0d9488', opacity: 0.88 });
       var tt = sv('title'); tt.textContent = dia(x.dia) + ' · ' + nf(x.qtd) + ' NFs · ' + brl(x.valor) + ' · ' + mt(x.metros); r.appendChild(tt); svg.appendChild(r); pts.push([pl + i * bw + bw / 2, by]);
-      if (n <= 31 && x[k]) { var vl = sv('text', { x: pl + i * bw + bw / 2, y: by - 4, 'text-anchor': 'middle', 'font-size': n > 16 ? 8.5 : 10, 'font-weight': 700, fill: '#0f2a4a' }); vl.textContent = k === 'metros' ? (x[k] >= 1000 ? nf(x[k] / 1000, 1) + 'k' : nf(x[k])) : k === 'valor' ? (x[k] >= 1e6 ? nf(x[k] / 1e6, 1) + 'M' : nf(x[k] / 1000, 0) + 'k') : nf(x[k]); svg.appendChild(vl); }
+      if (n <= 31 && x[k]) { var vl = sv('text', { x: pl + i * bw + bw / 2, y: by - 4, 'text-anchor': 'middle', 'font-size': n > 16 ? 8.5 : 10, 'font-weight': 700, fill: '#0f2a4a' }); vl.textContent = k === 'qtd' ? nf(x[k]) : (x[k] >= 1e6 ? nf(x[k] / 1e6, 1) + ' mi' : x[k] >= 1e3 ? nf(x[k] / 1e3, 1) + ' mil' : nf(x[k])); svg.appendChild(vl); }
       if (i % Math.ceil(n / 10) === 0) { var l = sv('text', { x: pl + i * bw + bw / 2, y: H - 6, 'text-anchor': 'middle', 'font-size': 10, fill: '#8494a6' }); l.textContent = dia(x.dia); svg.appendChild(l); } });
-    var media = serie.reduce(function (s, x) { return s + x[k]; }, 0) / (n || 1), ym = pt + h - media / max * h;
-    svg.appendChild(sv('line', { x1: pl, x2: W - pr, y1: ym, y2: ym, stroke: '#0f2a4a', 'stroke-width': 1.2, 'stroke-dasharray': '5 4' }));
-    var tm = sv('text', { x: W - pr - 2, y: Math.max(ym - 5, 12), stroke: '#fff', 'stroke-width': 3, 'paint-order': 'stroke', 'text-anchor': 'end', 'font-size': 10, 'font-weight': 700, fill: '#0f2a4a' }); tm.textContent = 'média ' + fmtY(media); svg.appendChild(tm);
     return svg;
   }
   function donut(lista, centro, sub) {
@@ -151,7 +148,7 @@
     al.appendChild(a4); c.appendChild(al);
 
     c.appendChild(el('div', 'xp-sec', 'Notas fiscais'));
-    var g = el('div', 'xp-grid'), a = card('Expedição por dia', 'NFs autorizadas · linha tracejada = média do período'), tabs = el('div', 'xp-tabs');
+    var g = el('div', 'xp-grid'), a = card('Expedição por dia', { metros: 'Metros expedidos por dia', valor: 'Valor faturado por dia, em R$', qtd: 'Quantidade de NFs autorizadas por dia' }[METRICA] + ' · NFs autorizadas · média: ' + (METRICA === 'metros' ? mt : METRICA === 'valor' ? brl : nf)(N.por_dia.reduce(function (t, x) { return t + x[METRICA]; }, 0) / (N.por_dia.length || 1)) + (METRICA === 'qtd' ? ' NFs' : '') + ' por dia'), tabs = el('div', 'xp-tabs');
     [['metros', 'Metros'], ['valor', 'Faturado'], ['qtd', 'NFs']].forEach(function (m) { var b = el('button', METRICA === m[0] ? 'on' : '', m[1]); b.type = 'button'; b.addEventListener('click', function () { METRICA = m[0]; desenhar(); }); tabs.appendChild(b); });
     a.firstChild.appendChild(tabs); if (N.por_dia.some(function (x) { return x.qtd; })) a.appendChild(grafico(N.por_dia)); else a.appendChild(el('div', 'xp-vazio', 'Nenhuma NF no período.'));
     var b2 = card('NFs por situação', 'últimos ' + D.dias + ' dias'), dn = el('div', 'xp-donut'); dn.appendChild(donut(N.por_situacao, nf(N.total), 'NFs'));
