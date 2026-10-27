@@ -35,6 +35,9 @@ def dados():
         dias = max(1, min(int(request.args.get('dias', 30)), 90))
     except ValueError:
         dias = 30
+    if not expedicao.ler().get('notas_em') and not expedicao.ESTADO['rodando']:     # ainda nao leu nada (servidor acabou de subir): le agora, sem esperar o agendador
+        import threading
+        threading.Thread(target=expedicao.atualizar, daemon=True).start()
     return jsonify(expedicao.painel(dias))
 
 
