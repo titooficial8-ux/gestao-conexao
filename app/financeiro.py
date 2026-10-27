@@ -87,6 +87,15 @@ def exportar():
     elif tipo == 'alteracoes':
         nome, cab = 'Alterações nos títulos', ['Quando', 'Tipo', 'Cliente', 'Fatura / Duplicata', 'Parcela', 'De', 'Para', 'Valor (R$)']
         linhas = [[x['em'].replace('T', ' '), x['tipo'], x['nome'], x['doc'], x['parcela'], x['de'], x['para'], x['valor']] for x in p['alteracoes'] if not mes or x['em'][:7] == mes]
+    elif tipo == 'exportacao':
+        nome, cab = 'Exportação', ['Cliente', 'Fatura / Duplicata', 'Parcela', 'Emissão', 'Vencimento', 'Situação', 'Valor original', 'Valor pago', 'Saldo em aberto', 'Pago em']
+        lin = []
+        for x in p['exportacao'] + p['exp_pagos']:
+            if mes and (x['venc'] or '')[:7] != mes:
+                continue
+            sit = 'Pago' if x.get('pago_titulo') else (f"Vencido há {x['atraso']} dias" if x['vencido'] else 'A vencer')
+            lin.append([x['nome'], x['doc'], x['parcela'], dia(x['emissao']), dia(x['venc']), sit, x['valor'], x['pago'] or (x['valor'] if x.get('pago_titulo') else 0), 0 if x.get('pago_titulo') else x['saldo'], dia(x['pag_em'])])
+        linhas = lin
     else:
         lista = {'receber': p['vencidos_receber'], 'pagar': p['vencidos_pagar'], 'exportacao': p['exportacao']}.get(tipo, p['vencidos_receber'])
         if mes and tipo == 'exportacao':

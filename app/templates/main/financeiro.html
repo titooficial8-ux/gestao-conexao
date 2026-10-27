@@ -103,9 +103,32 @@
       box.appendChild(el('div', 'fn-nota', nf(l.length) + ' títulos · ' + brl(l.reduce(function (t, x) { return t + x.saldo; }, 0)) + ' em aberto')); box.appendChild(tabTitulos(l.slice(0, 300), SENT === 'pagar')); } lista();
   }
   function exportacao(c) {
-    barraMes(c); var K = D.kpis, EX = D.exportacao.filter(function (x) { return noMes(x.venc); }), cd = card('A receber de exportação', 'títulos em aberto de clientes do exterior' + (K.moedas.length ? ' · moeda: ' + K.moedas.join(', ') : '') + ' · ' + nf(EX.length) + ' títulos no período · ' + brl(EX.reduce(function (t, x) { return t + x.saldo; }, 0)) + (EX.some(function (x) { return x.vencido; }) ? ' · vencido ' + brl(EX.filter(function (x) { return x.vencido; }).reduce(function (t, x) { return t + x.saldo; }, 0)) : ''));
-    var dl = el('a', 'fn-dl', '⬇ Excel'); dl.href = URL_X + '?tipo=exportacao&mes=' + (MES || ''); dl.style.marginBottom = '10px'; cd.appendChild(dl);
-    cd.appendChild(tabCol(['Cliente', 'Fatura / Dup.', 'Parcela', 'Vencimento', 'Situação', 'Saldo'], EX.map(function (x) { return [x.nome, x.doc, x.parcela, dia(x.venc), x.vencido ? pill(x.atraso + ' dias vencido', corAtraso(x.atraso)) : pill('a vencer', '#16a34a'), brl(x.saldo) + (x.moeda && x.moeda !== 'BRL' ? ' ' + x.moeda : '')]; }), 1)); c.appendChild(cd);
+    barraMes(c); var EX = D.exportacao.filter(function (x) { return noMes(x.venc); }), PG = (D.exp_pagos || []).filter(function (x) { return noMes(x.venc); });
+    var soma = function (l, k) { return l.reduce(function (t, x) { return t + (x[k] || 0); }, 0); }, venc = EX.filter(function (x) { return x.vencido; }), avencer = EX.filter(function (x) { return !x.vencido; });
+    var todosV = D.exportacao.filter(function (x) { return x.vencido; }), nCli = {}; todosV.forEach(function (x) { nCli[x.nome] = 1; });
+    if (MES) { var av = el('div', 'fn-nota'); av.style.background = todosV.length ? '#fef2f2' : '#f0fdf4'; av.textContent = 'Em TODOS os meses: ' + (todosV.length ? brl(soma(todosV, 'saldo')) + ' vencidos de ' + Object.keys(nCli).length + ' clientes (' + nf(todosV.length) + ' títulos) — clique em “Todos os meses” para ver.' : 'nenhum título de exportação vencido.'); c.appendChild(av); }
+    var pagoTotal = soma(PG, 'pago') + soma(EX, 'pago'), al = el('div', 'fn-alerts');
+    al.appendChild(alerta(venc.length ? 'bad' : 'ok', brl(soma(venc, 'saldo')), venc.length ? 'DEVENDO · ' + nf(venc.length) + ' títulos vencidos' : 'nada vencido neste período'));
+    al.appendChild(alerta('ok', brl(soma(avencer, 'saldo')), 'A VENCER · ' + nf(avencer.length) + ' títulos em dia'));
+    al.appendChild(alerta('info', brl(soma(EX, 'saldo')), 'EM ABERTO no total · ' + nf(EX.length) + ' títulos'));
+    al.appendChild(alerta('info', brl(pagoTotal), 'JÁ PAGO (últimos ' + D.pagos_dias + ' dias) · ' + nf(PG.length) + ' títulos quitados')); c.appendChild(al);
+    // resumo por cliente
+    var res = {};
+    function cl(n) { return res[n] || (res[n] = { cliente: n, aberto: 0, vencido: 0, avencer: 0, pago: 0, atraso: 0, venc_n: 0, ult: '' }); }
+    EX.forEach(function (x) { var r = cl(x.nome); r.aberto += x.saldo; r.pago += x.pago || 0; if (x.vencido) { r.vencido += x.saldo; r.venc_n++; r.atraso = Math.max(r.atraso, x.atraso); } else r.avencer += x.saldo; });
+    PG.forEach(function (x) { var r = cl(x.nome); r.pago += x.pago || x.valor; r.ult = r.ult > (x.pag_em || '') ? r.ult : (x.pag_em || ''); });
+    var lista = Object.keys(res).map(function (k) { return res[k]; }).sort(function (a, b) { return b.vencido - a.vencido || b.aberto - a.aberto; });
+    var rc = card('Situação de cada cliente do exterior', 'quem está devendo, quem está em dia e quanto já pagou · clique no cliente para ver os títulos');
+    var dl = el('a', 'fn-dl', '⬇ Excel (com pagos)'); dl.href = URL_X + '?tipo=exportacao&mes=' + (MES || ''); dl.style.marginBottom = '10px'; rc.appendChild(dl);
+    rc.appendChild(tabela(['Cliente', 'Situação', 'Vencido', 'A vencer', 'Já pago', 'Em aberto'], lista.map(function (r) { return [r.cliente, r.vencido > 0 ? pill('DEVENDO · ' + r.atraso + ' dias de atraso', '#dc2626') : r.aberto > 0 ? pill('EM DIA', '#16a34a') : pill('QUITADO', '#64748b'), brl(r.vencido), brl(r.avencer), brl(r.pago), brl(r.aberto)]; })));
+    rc.querySelectorAll('tbody tr').forEach(function (tr, i) { tr.style.cursor = 'pointer'; tr.addEventListener('click', function () { var n = lista[i].cliente; abrir('Exportação · ' + n, 'todos os títulos do cliente', tabTitulosExp(EX.filter(function (x) { return x.nome === n; }), PG.filter(function (x) { return x.nome === n; })), 'tipo=exportacao&mes=' + (MES || '')); }); }); c.appendChild(rc);
+    var cd = card('Todos os títulos', 'em aberto (vencidos e a vencer) e já pagos · valores como vêm do TOTVS (R$)' + (D.kpis.moedas.length ? ' · moeda: ' + D.kpis.moedas.join(', ') : ''));
+    cd.appendChild(tabTitulosExp(EX, PG)); c.appendChild(cd); cd.style.marginTop = '16px';
+  }
+  function tabTitulosExp(ex, pg) {
+    var l = ex.map(function (x) { return [x.nome, x.doc, x.parcela, dia(x.venc), x.vencido ? pill('VENCIDO há ' + x.atraso + ' dias', corAtraso(x.atraso)) : pill('A vencer', '#16a34a'), brl(x.valor), x.pago ? brl(x.pago) : '—', brl(x.saldo)]; })
+      .concat(pg.map(function (x) { return [x.nome, x.doc, x.parcela, dia(x.venc), pill('PAGO em ' + dia(x.pag_em).slice(0, 5), '#64748b'), brl(x.valor), brl(x.pago || x.valor), 'R$ 0,00']; }));
+    return tabCol(['Cliente', 'Fatura / Dup.', 'Parcela', 'Vencimento', 'Situação', 'Valor original', 'Pago', 'Em aberto'], l, 1);
   }
   function prorrogacao(c) {
     barraMes(c); var PR = D.prorrogacao.filter(function (x) { return noMes(x.venc); });

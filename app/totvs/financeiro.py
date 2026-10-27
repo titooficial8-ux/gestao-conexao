@@ -233,6 +233,33 @@ def _buscar_tipo(cli, tipo: str, dados: dict) -> list:
 PESSOAS_URLS = (f'{BASE}/api/totvsmoda/person/v2/legal-entities/search', f'{BASE}/api/totvsmoda/person/v2/individuals/search')
 
 
+_APP = None
+PAGOS_DIAS = int(os.getenv('FINANCEIRO_PAGOS_DIAS', '180'))
+PAGOS_REFRESH_MIN = 60
+
+
+def _buscar_pagos_export(cli, dados: dict) -> None:
+    """Titulos a receber JA PAGOS nos ultimos 180 dias (filtro por data de pagamento) dos clientes de exportacao: para mostrar o que o cliente ja pagou. Refaz a cada 60 min."""
+    em = dados.get('pagos_em')
+    if em and (datetime.now() - datetime.fromisoformat(em)).total_seconds() < PAGOS_REFRESH_MIN * 60:
+        return
+    hoje = date.today()
+    span = dados.get('change_dias_R') or SPANS_CHANGE[0]
+    out = []
+    for a, b in _janelas(hoje - timedelta(days=PAGOS_DIAS), hoje):
+        chg = dict(startDate=f'{hoje - timedelta(days=span)}T00:00:00', endDate=f'{hoje}T23:59:59', inCheck=False)
+        out += _paginar(cli, RECEBER_URL, dict(filter=dict(branchCodeList=[EMPRESA], change=chg, startPaymentDate=f'{a}T00:00:00', endPaymentDate=f'{b}T23:59:59')), tam=100)
+    lista = [t for t in map(_norm_receber, out) if t['pag_em'] or t['pago'] >= t['valor'] > 0]
+    _nomes(cli, lista, dados)
+    if _APP is not None:                                           # guarda so os de clientes do exterior
+        from app.models import ClientePais
+        with _APP.app_context():
+            tabela = {c.nome_normalizado: c.pais for c in ClientePais.query.all()}
+            lista = [t for t in lista if _exportacao(t, tabela)]
+    dados['pagos_export'] = lista[:3000]
+    dados['pagos_em'] = datetime.now().isoformat(timespec='seconds')
+
+
 def _nomes(cli, titulos: list, dados: dict) -> None:
     """O TOTVS manda so o codigo (e as vezes o CNPJ): busca o nome da pessoa (pessoa juridica e depois fisica) e guarda."""
     cache = dados.setdefault('nomes', {})
@@ -314,6 +341,12 @@ def atualizar() -> bool:
                 _nomes(cli, lista, dados)
                 dados[chave] = lista
                 if tipo == 'R':
+                    try:
+                        _buscar_pagos_export(cli, dados)
+                    except Exception:  # noqa: BLE001
+                        traceback.print_exc()
+                        dados['pagos_erro'] = 'falha ao ler os pagos'
+                if tipo == 'R':
                     alt = _diff(antes, lista)
                     dados['alteracoes'] = (alt + dados.get('alteracoes', []))[:300]
             except Exception as e:  # noqa: BLE001
@@ -332,6 +365,8 @@ def atualizar() -> bool:
 
 
 def iniciar_agendador(app=None) -> None:
+    global _APP
+    _APP = app
     from .pedidos import configurado
     if not configurado():
         return
@@ -393,6 +428,25 @@ def painel() -> dict:
         a, b = hoje + timedelta(days=7 * i), hoje + timedelta(days=7 * i + 6)
         sem.append(dict(de=a.isoformat(), ate=b.isoformat(), receber=r2(sum(t['saldo'] for t in rec if a.isoformat() <= t['venc'] <= b.isoformat())), pagar=r2(sum(t['saldo'] for t in pag if a.isoformat() <= t['venc'] <= b.isoformat()))))
     exp = [t for t in rec if t['export']]
+    pagos = [dict(t, atraso=0, vencido=False, pago_titulo=True) for t in (d.get('pagos_export') or []) if t.get('venc')]
+    resumo = {}
+    for t in exp:
+        c = resumo.setdefault(t['nome'], dict(cliente=t['nome'], aberto=0.0, vencido=0.0, a_vencer=0.0, pago=0.0, original=0.0, titulos=0, venc_n=0, atraso=0, ultimo_pag=None))
+        c['aberto'] += t['saldo']
+        c['titulos'] += 1
+        c['original'] += t['valor']
+        c['pago'] += t['pago']                                        # pagamento parcial de titulo em aberto
+        if t['vencido']:
+            c['vencido'] += t['saldo']
+            c['venc_n'] += 1
+            c['atraso'] = max(c['atraso'], t['atraso'])
+        else:
+            c['a_vencer'] += t['saldo']
+    for t in pagos:
+        c = resumo.setdefault(t['nome'], dict(cliente=t['nome'], aberto=0.0, vencido=0.0, a_vencer=0.0, pago=0.0, original=0.0, titulos=0, venc_n=0, atraso=0, ultimo_pag=None))
+        c['pago'] += t['pago'] or t['valor']
+        c['ultimo_pag'] = max(c['ultimo_pag'] or '', t['pag_em'] or '')
+    exp_clientes = sorted((dict(c, aberto=r2(c['aberto']), vencido=r2(c['vencido']), a_vencer=r2(c['a_vencer']), pago=r2(c['pago']), original=r2(c['original'])) for c in resumo.values()), key=lambda c: (-c['vencido'], -c['aberto']))
     # prorrogacao: titulos a receber de clientes com regra cujo vencimento cai em dia que o cliente nao paga
     pror = []
     diag = {r['nome']: dict(regra=r['nome'], texto=r['texto'], titulos=0, em_dia_proibido=0, clientes=set()) for r in REGRAS}
@@ -421,7 +475,7 @@ def painel() -> dict:
                   moedas=sorted({t['moeda'] for t in exp if t['moeda']}), pror_n=len(pror)),
         aging=[dict(a, valor=r2(a['valor'])) for a in aging], semanas=sem,
         devedores=[dict(c, valor=r2(c['valor'])) for c in sorted(dev.values(), key=lambda c: -c['valor'])[:10]],
-        vencidos_receber=sorted(rv, key=lambda t: -t['atraso'])[:800], vencidos_pagar=sorted(pv, key=lambda t: -t['atraso'])[:800], exportacao=sorted(exp, key=lambda t: t['venc'])[:800],
+        vencidos_receber=sorted(rv, key=lambda t: -t['atraso'])[:800], vencidos_pagar=sorted(pv, key=lambda t: -t['atraso'])[:800], exportacao=sorted(exp, key=lambda t: t['venc'])[:800], exp_pagos=sorted(pagos, key=lambda t: t['pag_em'] or '', reverse=True)[:600], exp_clientes=exp_clientes, exp_pago_total=r2(sum(t['pago'] or t['valor'] for t in pagos)), pagos_dias=PAGOS_DIAS,
         prorrogacao=pror[:800], pror_diag=[dict(d, clientes=sorted(d['clientes'])[:5]) for d in diag.values()], total_receber_aberto=len(rec), regras=[dict(nome=r['nome'], texto=r['texto']) for r in REGRAS], alteracoes=(d.get('alteracoes') or [])[:300], banco_teste=[dict(doc=t['doc'], parcela=t['parcela'], cod=t['cod'], cnpj=t['cnpj'], nome=t['nome'], venc=t['venc'], saldo=t['saldo'], banco=t['banco']) for t in rec if t['doc'] and t['banco']][:8])
 
 
