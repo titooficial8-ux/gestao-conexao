@@ -304,7 +304,8 @@ def calcular(agora=None, maquina: int = None, esperar: bool = False) -> int:
         if not any(idx) and not cfg[2]:
             return 0
         agora = agora or datetime.now()
-        parados_global = {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.date >= agora.date()).all() if d.machine_id is None}
+        from app.dias_producao import domingos
+        parados_global = {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.date >= agora.date()).all() if d.machine_id is None} | domingos(agora.date(), agora.date() + timedelta(days=500))     # domingo nunca produz
         n = 0
         for m in (Machine.query.filter_by(number=maquina).all() if maquina else Machine.query.all()):
             parados = parados_global | {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.machine_id == m.id, NonWorkingDay.date >= agora.date()).all()}
