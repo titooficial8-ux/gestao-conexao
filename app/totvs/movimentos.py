@@ -8,6 +8,7 @@ A peca so aparece quando ja passou do local 23 para o 24 (movimento 23 -> 24, a 
 a quantidade desse movimento e o metro da peca. A hora (visto_em) e o momento em que o Gestao viu essa passagem.
 A API nao tem o peso (kg) nem a hora da pesagem (so a data).
 """
+import math
 import threading
 import time
 import traceback
@@ -565,6 +566,25 @@ def op_avulsa(o: dict) -> bool:
         return False
 
 
+def pecas_totais(qtd: float, metro: float) -> int:
+    """Pecas totais da OP (PCPFM156 / PCPR167) = quantidade / metro ideal arredondada SEMPRE PARA CIMA (peca parcial ainda e uma peca): bate com os 149 totais digitados pelo PCP.
+    O round() do Python arredondava 10,5 para 10 e a conta ficava sempre uma peca a menos."""
+    return int(math.ceil(qtd / metro - 1e-6)) if metro and qtd else 0
+
+
+def qt_planejada(op, o: dict, ciclo: int = 13):
+    """Quantidade planejada da OP: a do primeiro movimento da OP (entrada no local 22 quando ela e criada). Devolve None se nao achar."""
+    ini = _data(o.get('insertDate')) or date.today() - timedelta(days=60)
+    r = _cliente().post(MOV_URL, dict(branchCodeList=[EMPRESA], cycleCodeList=[ciclo], productionOrderCodeList=[str(op)], originLocationEmpty=True,
+                                      movementStartDate=(ini - timedelta(days=1)).isoformat(), movementEndDate=(ini + timedelta(days=15)).isoformat(),
+                                      listNormalMovement=True, listFinalizationMovement=False, reversalType=2))
+    if r.status_code != 200:
+        return None
+    movs = [m for m in (r.json().get('items') or []) if m.get('destinationLocationCode') == 22 and not m.get('isReversed')]
+    movs.sort(key=lambda m: (str(m.get('movementDate')), m.get('sequence') or 0))
+    return _num(movs[0].get('totalQuantity')) if movs else None
+
+
 def estrutura_totvs(o: dict):
     """Estrutura do artigo no TOTVS (classificacao 505 'CLAS ESTRUT.'), ex.: 'ESTRUTURA COMUM'."""
     for it in ((o or {}).get('items') or [])[:1]:
@@ -574,27 +594,39 @@ def estrutura_totvs(o: dict):
     return None
 
 
-def _sincronizar_quantidade(s, o: dict) -> bool:
-    """A quantidade e a estrutura vem do TOTVS (o PCP Hub nao manda mais): QT.SOLICITADA = quantidade da OP (m); total de pecas = quantidade / metro padrao (METRO IDEAL LOTE do artigo).
+def _sincronizar_quantidade(s, o: dict, planejada: float = None) -> bool:
+    """A quantidade e a estrutura vem do TOTVS (o PCP Hub nao manda mais). QT.SOLICITADA e as pecas totais usam a quantidade PLANEJADA da OP:
+    o `quantity` do TOTVS muda durante a producao (OP 2928: planejado 1533, depois 1518,4) e fazia 36,5 pecas virar 36. Enquanto a OP ainda nao comecou a
+    produzir, o `quantity` e o proprio planejado (e acompanha mudancas manuais); depois que comeca, vale o planejado guardado (ou o do primeiro movimento).
     OP avulsa (cliente Conexao, criada no PCPFM156): QT.AVULSA = a propria quantidade da OP; as demais ficam com QT.AVULSA zerada."""
-    qtd = _num(o.get('quantity'))
-    if qtd <= 0:
+    atual = _num(o.get('quantity'))
+    if atual <= 0:
         return False
+    nao_comecou = (s.situacao or '') not in ('MALHARIA', 'PRODUZINDO') and (s.status or '') != 'PRODUZINDO'
+    if nao_comecou:
+        s.qt_plan = atual                                                # ainda nao produziu: o quantity do TOTVS e o planejado
+    elif planejada and planejada > 0:
+        s.qt_plan = planejada
+    base = s.qt_plan
     metro = _campos_artigo(o).get('metro_ideal') or _metro_padrao(s)      # calculado antes de mexer nos valores
     mudou = False
     est = estrutura_totvs(o)
     if est and est != s.estrutura:                                         # a estrutura tambem vem do TOTVS (nao do PCP Hub)
         s.estrutura, mudou = est, True
-    q = int(round(qtd))
+    if not base:                                                           # produzindo e ainda sem o planejado guardado: nao mexe na quantidade (o quantity atual ja encolheu)
+        avulsa = int(math.floor(atual + 0.5)) if op_avulsa(o) else 0
+        if avulsa != (s.qt_avulsa or 0):
+            s.qt_avulsa, mudou = avulsa, True
+        return mudou
+    q = int(math.floor(base + 0.5))
     if q != (s.qt_solicitada or 0):
         s.qt_solicitada, mudou = q, True
     avulsa = q if op_avulsa(o) else 0
     if avulsa != (s.qt_avulsa or 0):
         s.qt_avulsa, mudou = avulsa, True
-    if metro:
-        pcs = int(round(qtd / metro))
-        if pcs > 0 and pcs != (s.total_pcs or 0):
-            s.total_pcs, mudou = pcs, True
+    pcs = pecas_totais(base, metro)
+    if pcs > 0 and pcs != (s.total_pcs or 0):
+        s.total_pcs, mudou = pcs, True
     return mudou
 
 
@@ -611,7 +643,7 @@ def _atualizar_situacoes(info: dict, pecas_por_op: dict) -> int:
     em cada maquina, a primeira OP da fila que esta na MALHARIA vira PRODUZINDO; quando a pesagem do cru dela termina, a proxima assume."""
     from app import db
     from app.models import HistoricoProducao, Sequencia
-    por_maquina, alteradas = {}, 0
+    por_maquina, alteradas, orcamento = {}, 0, [25]
     for s in Sequencia.query.all():
         por_maquina.setdefault(s.machine_id, []).append(s)
     for lista in por_maquina.values():
@@ -621,7 +653,14 @@ def _atualizar_situacoes(info: dict, pecas_por_op: dict) -> int:
             o = info.get(str(s.op))
             if not o:
                 continue                                           # OP que o TOTVS nao devolveu: nao mexe
-            if _sincronizar_quantidade(s, o):
+            plan = None
+            if (s.qt_plan is None) and orcamento[0] > 0 and ((s.situacao or '') in ('MALHARIA', 'PRODUZINDO') or s.status == 'PRODUZINDO'):
+                orcamento[0] -= 1                                  # OP que ja produzia antes de guardarmos o planejado: busca no primeiro movimento (poucas por rodada)
+                try:
+                    plan = qt_planejada(s.op, o)
+                except Exception:  # noqa: BLE001
+                    plan = None
+            if _sincronizar_quantidade(s, o, plan):
                 alteradas += 1
             sit = situacao_op(o)
             if sit == 'MALHARIA' and not produzindo:
@@ -982,7 +1021,7 @@ def fila_automatica(cli) -> int:
             qtd = _num(o.get('quantity'))
             db.session.add(FilaPreProgramacao(
                 op=op, artigo=artigo, cliente=normalize_client_name(o.get('customerName') or ''), requested_quantity=qtd,
-                total_pcs=int(round(qtd / metro)) if metro else 0, status='WAITING', cod_segmento=(art.segmento if art else None),
+                total_pcs=pecas_totais(qtd, metro), status='WAITING', cod_segmento=(art.segmento if art else None),
                 created_at=agora, synced_at=agora))
             na_fila.add(op)
             novas += 1
