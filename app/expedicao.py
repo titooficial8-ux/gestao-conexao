@@ -50,5 +50,6 @@ def diagnostico():
     from app.totvs import expedicao
     d = expedicao.ler()
     return jsonify(amostra_lote=d.get('amostra_lote'), amostra_nf=d.get('amostra_nf'), n_produtos=len(d.get('estoque') or {}), mov=dict(atualizado=expedicao.ler_mov().get('atualizado'), n=len(expedicao.ler_mov().get('produtos') or {}), erros=expedicao.ler_mov().get('erros'), amostra_erro=expedicao.ler_mov().get('amostra_erro')), n_notas=len(d.get('notas') or {}),
-                   status_nf=sorted({n[3] for n in (d.get('notas') or {}).values()}), status_nfe=sorted({n[4] for n in (d.get('notas') or {}).values()}),
+                   inspecao=dict(cod=d.get('inspecao_cod'), nome=d.get('inspecao_desc'), n=len(d.get('inspecao') or {}), total_itens=d.get('inspecao_total_itens'), saldos_vistos=d.get('estoques_vistos')),
+                   flags_amostra=dict(list((d.get('flags') or {}).items())[:5]), status_nf=sorted({n[3] for n in (d.get('notas') or {}).values()}), status_nfe=sorted({n[4] for n in (d.get('notas') or {}).values()}),
                    estado=expedicao.ESTADO)
