@@ -32,7 +32,7 @@
 <div class="fn"><div id="fnErro" class="fn-erro" hidden></div><div id="fnCorpo"></div></div>
 <script>
 (function () {
-  var URL_D = '{{ url_for("financeiro.dados") }}', URL_V = '{{ url_for("financeiro.verificacao") }}', URL_X = '{{ url_for("financeiro.exportar") }}', D = null, VIEW = 'geral', SENT = 'receber', BUSCA = '', VER = null, PREVV = {}, ULTIMA = Date.now();
+  var URL_D = '{{ url_for("financeiro.dados") }}', URL_V = '{{ url_for("financeiro.verificacao") }}', URL_X = '{{ url_for("financeiro.exportar") }}', D = null, VIEW = 'geral', SENT = 'receber', BUSCA = '', VER = null, MES = undefined, PREVV = {}, ULTIMA = Date.now();
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.textContent = x; return e; }
   function nf(v, d) { return Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
   function brl(v) { v = Number(v || 0); return v >= 1e6 ? 'R$ ' + nf(v / 1e6, 2) + ' mi' : v >= 1e4 ? 'R$ ' + nf(v / 1e3, 0) + ' mil' : 'R$ ' + nf(v, 2); }
@@ -58,6 +58,20 @@
   function tabCol(cols, linhas, idx) { var r = semVazia(cols, linhas, idx); return tabela(r[0], r[1]); }
   function tabTitulos(l, pagar) { return tabCol([pagar ? 'Fornecedor' : 'Cliente', 'Fatura / Dup.', 'Parcela', 'Vencimento', 'Atraso', 'Saldo'], l.map(function (x) { return [x.nome || x.cod, x.doc, x.parcela, dia(x.venc), pill(x.atraso + ' dias', corAtraso(x.atraso)), brl(x.saldo) + (x.moeda && x.moeda !== 'BRL' ? ' ' + x.moeda : '')]; }), 1); }
   function alerta(cls, v, t, fn) { var a = el('div', 'fn-al ' + cls + (fn ? ' click' : '')); a.appendChild(el('i')); var d = el('div'); d.appendChild(el('b', null, v)); d.appendChild(el('span', null, t)); a.appendChild(d); if (fn) { a.appendChild(el('span', 'ver', 'ver ›')); a.addEventListener('click', fn); } return a; }
+  var NOMES_MES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  function barraMes(c) {      // data de hoje + filtro por mês e ano (padrão: mês atual)
+    if (MES === undefined) MES = D.hoje.slice(0, 7);
+    var b = el('div', 'fn-tools'), hj = D.hoje.split('-'); var h = el('span', 'fn-pill', 'Hoje: ' + hj[2] + '/' + hj[1] + '/' + hj[0]); h.style.background = '#0f2a4a'; b.appendChild(h);
+    var sm = el('select'), sa = el('select'), at = MES ? MES.split('-') : [hj[0], hj[1]];
+    NOMES_MES.forEach(function (n, i) { var o = el('option', null, n.charAt(0).toUpperCase() + n.slice(1)); o.value = ('0' + (i + 1)).slice(-2); if (MES && o.value === at[1]) o.selected = true; sm.appendChild(o); });
+    for (var y = Number(hj[0]) - 2; y <= Number(hj[0]) + 1; y++) { var oy = el('option', null, String(y)); oy.value = String(y); if (MES && String(y) === at[0]) oy.selected = true; sa.appendChild(oy); }
+    function troca() { MES = sa.value + '-' + sm.value; desenhar(); } sm.addEventListener('change', troca); sa.addEventListener('change', troca);
+    [sm, sa].forEach(function (x) { x.style.cssText = 'padding:8px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px;background:#fff'; if (!MES) x.disabled = true; }); b.appendChild(sm); b.appendChild(sa);
+    var at1 = el('button', 'fn-dl', 'Mês atual'); at1.type = 'button'; at1.addEventListener('click', function () { MES = D.hoje.slice(0, 7); desenhar(); }); b.appendChild(at1);
+    var tt = el('button', 'fn-dl', 'Todos os meses'); tt.type = 'button'; tt.style.background = '#64748b'; tt.addEventListener('click', function () { MES = ''; desenhar(); }); b.appendChild(tt);
+    b.appendChild(el('span', 'fn-nota', MES ? 'Mostrando vencimentos de ' + NOMES_MES[Number(at[1]) - 1] + ' de ' + at[0] : 'Mostrando todos os meses')); b.lastChild.style.margin = '0'; c.appendChild(b);
+  }
+  function noMes(iso) { return !MES || String(iso || '').slice(0, 7) === MES; }
   function ir(v) { VIEW = v; desenhar(); window.scrollTo(0, 0); }
 
   function geral(c) {
@@ -89,20 +103,22 @@
       box.appendChild(el('div', 'fn-nota', nf(l.length) + ' títulos · ' + brl(l.reduce(function (t, x) { return t + x.saldo; }, 0)) + ' em aberto')); box.appendChild(tabTitulos(l.slice(0, 300), SENT === 'pagar')); } lista();
   }
   function exportacao(c) {
-    var K = D.kpis, cd = card('A receber de exportação', 'títulos em aberto de clientes do exterior' + (K.moedas.length ? ' · moeda: ' + K.moedas.join(', ') : '') + ' · ' + nf(K.export_n) + ' títulos · ' + brl(K.export) + (K.export_vencido ? ' · vencido ' + brl(K.export_vencido) : ''));
-    var dl = el('a', 'fn-dl', '⬇ Excel'); dl.href = URL_X + '?tipo=exportacao'; dl.style.marginBottom = '10px'; cd.appendChild(dl);
-    cd.appendChild(tabCol(['Cliente', 'Fatura / Dup.', 'Parcela', 'Vencimento', 'Situação', 'Saldo'], D.exportacao.map(function (x) { return [x.nome, x.doc, x.parcela, dia(x.venc), x.vencido ? pill(x.atraso + ' dias vencido', corAtraso(x.atraso)) : pill('a vencer', '#16a34a'), brl(x.saldo) + (x.moeda && x.moeda !== 'BRL' ? ' ' + x.moeda : '')]; }), 1)); c.appendChild(cd);
+    barraMes(c); var K = D.kpis, EX = D.exportacao.filter(function (x) { return noMes(x.venc); }), cd = card('A receber de exportação', 'títulos em aberto de clientes do exterior' + (K.moedas.length ? ' · moeda: ' + K.moedas.join(', ') : '') + ' · ' + nf(EX.length) + ' títulos no período · ' + brl(EX.reduce(function (t, x) { return t + x.saldo; }, 0)) + (EX.some(function (x) { return x.vencido; }) ? ' · vencido ' + brl(EX.filter(function (x) { return x.vencido; }).reduce(function (t, x) { return t + x.saldo; }, 0)) : ''));
+    var dl = el('a', 'fn-dl', '⬇ Excel'); dl.href = URL_X + '?tipo=exportacao&mes=' + (MES || ''); dl.style.marginBottom = '10px'; cd.appendChild(dl);
+    cd.appendChild(tabCol(['Cliente', 'Fatura / Dup.', 'Parcela', 'Vencimento', 'Situação', 'Saldo'], EX.map(function (x) { return [x.nome, x.doc, x.parcela, dia(x.venc), x.vencido ? pill(x.atraso + ' dias vencido', corAtraso(x.atraso)) : pill('a vencer', '#16a34a'), brl(x.saldo) + (x.moeda && x.moeda !== 'BRL' ? ' ' + x.moeda : '')]; }), 1)); c.appendChild(cd);
   }
   function prorrogacao(c) {
+    barraMes(c); var PR = D.prorrogacao.filter(function (x) { return noMes(x.venc); });
     var rg = el('div', 'fn-rules'); D.regras.forEach(function (r) { var d = el('div', 'fn-rule'); d.appendChild(el('b', null, r.nome)); d.appendChild(el('span', null, r.texto)); rg.appendChild(d); }); c.appendChild(rg);
-    var cd = card('Títulos para prorrogar o vencimento', 'vencimento cai em dia que o cliente não paga · novo vencimento = próximo dia em que ele paga · o arquivo segue para o componente de prorrogação de vencimento do TOTVS'), dl = el('a', 'fn-dl', '⬇ Baixar arquivo de prorrogação (Excel)'); dl.href = URL_X + '?tipo=prorrogacao'; dl.style.marginBottom = '10px'; cd.appendChild(dl);
+    var cd = card('Títulos para prorrogar o vencimento', 'vencimento cai em dia que o cliente não paga · novo vencimento = próximo dia em que ele paga · o arquivo segue para o componente de prorrogação de vencimento do TOTVS'), dl = el('a', 'fn-dl', '⬇ Baixar arquivo de prorrogação (Excel)'); dl.href = URL_X + '?tipo=prorrogacao&mes=' + (MES || ''); dl.style.marginBottom = '10px'; cd.appendChild(dl);
+    if (!PR.length && D.prorrogacao.length) { var vz = el('div', 'fn-nota'); vz.textContent = 'Nenhum título a prorrogar com vencimento neste mês. (Há ' + nf(D.prorrogacao.length) + ' em outros meses — use “Todos os meses”.)'; cd.appendChild(vz); }
     if (!D.prorrogacao.length) { var ex = el('div', 'fn-nota'); ex.style.background = '#fff7ed'; ex.appendChild(el('b', null, 'Por que está vazio? ')); ex.appendChild(document.createTextNode(D.total_receber_aberto ? 'Foram lidos ' + nf(D.total_receber_aberto) + ' títulos a receber em aberto. Conferência por cliente: ' : 'Nenhum título a receber em aberto foi lido ainda (veja a faixa vermelha no topo ou aguarde a primeira leitura). ')); cd.appendChild(ex);
       D.pror_diag.forEach(function (g) { var l = el('div', 'fn-nota'); l.style.background = '#fff7ed'; l.textContent = g.regra + ' (' + g.texto + '): ' + (g.titulos ? nf(g.titulos) + ' títulos em aberto encontrados (' + g.clientes.join(', ') + '), ' + nf(g.em_dia_proibido) + ' com vencimento em dia proibido.' : 'nenhum título encontrado — o nome do cliente no TOTVS pode ser diferente de “' + g.regra + '”.'); cd.appendChild(l); }); }
-    cd.appendChild(tabCol(['Cliente', 'Fatura / Dup.', 'Parcela', 'Vencimento atual', 'Novo vencimento', 'Prorrogar', 'Valor'], D.prorrogacao.map(function (x) { return [x.cliente + (x.vencido ? ' (vencido)' : ''), x.doc, x.parcela, dia(x.venc), dia(x.novo) + (x.deixa_de_ser_atraso ? ' ✓' : ''), '+' + x.dias + ' dias', brl(x.valor)]; }), 1));
+    cd.appendChild(tabCol(['Cliente', 'Fatura / Dup.', 'Parcela', 'Vencimento atual', 'Novo vencimento', 'Prorrogar', 'Valor'], PR.map(function (x) { return [x.cliente + (x.vencido ? ' (vencido)' : ''), x.doc, x.parcela, dia(x.venc), dia(x.novo) + (x.deixa_de_ser_atraso ? ' ✓' : ''), '+' + x.dias + ' dias', brl(x.valor)]; }), 1));
     cd.appendChild(el('div', 'fn-nota', '✓ = com o novo vencimento o título deixa de ser atraso. Nada é alterado no TOTVS por aqui: o Gestão só lê os títulos e monta a lista.')); c.appendChild(cd);
     var al = card('Alterações nos títulos (monitor)', 'o Gestão compara os títulos a cada leitura (10 min) e anota o que mudou: vencimento alterado, baixa, saldo, título novo');
-    var dl2 = el('a', 'fn-dl', '⬇ Excel'); dl2.href = URL_X + '?tipo=alteracoes'; dl2.style.marginBottom = '10px'; al.appendChild(dl2);
-    al.appendChild(tabela(['Quando', 'Tipo', 'Cliente', 'Fatura / Dup.', 'De', 'Para'], D.alteracoes.map(function (x) { return [quando(x.em), x.tipo, x.nome, x.doc + (x.parcela ? '/' + x.parcela : ''), /^\d{4}-/.test(x.de) ? dia(x.de) : (x.de || '–'), /^\d{4}-/.test(x.para) ? dia(x.para) : (x.para || '–')]; }))); c.appendChild(al);
+    var dl2 = el('a', 'fn-dl', '⬇ Excel'); dl2.href = URL_X + '?tipo=alteracoes&mes=' + (MES || ''); dl2.style.marginBottom = '10px'; al.appendChild(dl2);
+    al.appendChild(tabela(['Quando', 'Tipo', 'Cliente', 'Fatura / Dup.', 'De', 'Para'], D.alteracoes.filter(function (x) { return noMes(x.em); }).map(function (x) { return [quando(x.em), x.tipo, x.nome, x.doc + (x.parcela ? '/' + x.parcela : ''), /^\d{4}-/.test(x.de) ? dia(x.de) : (x.de || '–'), /^\d{4}-/.test(x.para) ? dia(x.para) : (x.para || '–')]; }))); c.appendChild(al);
   }
   function verificacao(c) {
     var cd = card('O que o TOTVS permite (boleto e alteração de vencimento)', 'só verificação: lista os recursos que o TOTVS oferece por API · nada é gerado nem alterado');
@@ -113,6 +129,19 @@
       if (x.resumo) { var r = el('div'); r.style.cssText = 'font-family:inherit;color:#334155;margin-top:4px;font-size:12px'; r.textContent = x.resumo; e.appendChild(r); }
       if (x.campos && x.campos.length) { var f = el('div'); f.style.cssText = 'font-family:inherit;color:#64748b;margin-top:3px;font-size:11px'; f.textContent = 'Campos: ' + x.campos.join(', '); e.appendChild(f); } return e; }
     function bloco(tit, lista, vazio) { var h = el('h4', null, tit); h.style.cssText = 'margin:16px 0 6px;font-size:12px;color:#64748b;text-transform:uppercase'; cd.appendChild(h); if (!lista.length) { cd.appendChild(el('div', 'fn-nota', vazio)); return; } lista.forEach(function (x) { cd.appendChild(ep(x)); }); }
+    var Q = VER.conclusao, gr = el('div', 'fn-grid');
+    var c1 = card('Boleto pelo próprio TOTVS: ' + (Q.boleto ? 'SIM, é possível' : 'não encontrei'), Q.boleto ? 'O TOTVS devolve o boleto bancário em PDF (base64) de uma parcela' : 'sem endpoint de boleto nos serviços lidos');
+    if (Q.boleto) { c1.appendChild(el('div', 'fn-ep', Q.boleto_endpoint)); c1.appendChild(el('div', 'fn-nota', (Q.boleto_texto || '') + ' Pede: ' + Q.boleto_campos.join(', ') + '. O banco/portador vem do próprio título (campo bearerName), então o boleto sai pelo banco cadastrado no título.')); }
+    var c2 = card('Alterar vencimento por API: ' + (Q.alterar_direto.length ? 'SIM' : 'não diretamente'), Q.alterar_direto.length ? Q.alterar_direto.join(', ') : 'não existe endpoint que só mude a data de vencimento de uma parcela');
+    if (Q.renegociar) { c2.appendChild(el('div', 'fn-ep w', Q.renegociar_endpoint)); c2.appendChild(el('div', 'fn-nota', 'O mais próximo é a renegociação de faturas (' + Q.renegociar_campos.join(', ') + '): ela troca as faturas antigas por novas, com nova data. Não é uma simples prorrogação; por isso o arquivo para o componente de prorrogação do TOTVS continua sendo o caminho seguro.')); }
+    gr.appendChild(c1); gr.appendChild(c2); cd.appendChild(gr);
+    var bt = card('Testar o boleto do TOTVS (um título)', 'só administrador · consulta o boleto de UM título no TOTVS e baixa o PDF se ele devolver · confirma antes'); var tl = D.banco_teste || [];
+    if (!tl.length) bt.appendChild(el('div', 'fn-nota', 'Sem título com banco/portador para testar.'));
+    bt.appendChild(tabela(['Cliente', 'Fatura', 'Parcela', 'Vencimento', 'Banco', ''], tl.map(function (x, i) { return [x.nome, x.doc, x.parcela, dia(x.venc), x.banco, 'teste-' + i]; }).map(function (l) { return l.slice(0, 5).concat([l[5]]); })));
+    bt.querySelectorAll('tbody tr').forEach(function (tr, i) { var td = tr.lastChild, x = tl[i]; td.textContent = ''; var b = el('button', 'fn-dl', 'Testar boleto'); b.type = 'button'; b.addEventListener('click', function () {
+      if (!confirm('Pedir ao TOTVS o boleto da fatura ' + x.doc + ' parcela ' + x.parcela + ' (' + x.nome + ')?')) return; b.textContent = 'Consultando…';
+      fetch('/financeiro/boleto-teste', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(x) }).then(function (r) { if ((r.headers.get('content-type') || '').indexOf('pdf') >= 0) return r.blob().then(function (bl) { var a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = 'boleto_' + x.doc + '_' + x.parcela + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); b.textContent = '✓ PDF baixado'; }); return r.json().then(function (j) { b.textContent = 'Testar boleto'; alert('O TOTVS não devolveu o PDF.\n\n' + (j.log || []).join('\n')); }); }).catch(function () { b.textContent = 'Testar boleto'; alert('Falha ao consultar.'); }); }); td.appendChild(b); });
+    cd.appendChild(bt);
     cd.appendChild(el('div', 'fn-nota', 'Serviços financeiros encontrados: ' + (VER.servicos.join(', ') || 'nenhum') + ' · ' + nf(VER.total_endpoints) + ' endpoints.'));
     bloco('Boleto pelo próprio TOTVS', VER.boleto, 'O TOTVS não expôs nenhum endpoint de boleto/CNAB/banco nesses serviços.');
     bloco('Possíveis caminhos para alterar vencimento / parcela', VER.vencimento.filter(function (x) { return x.escrita; }), 'Nenhum endpoint de escrita ligado a vencimento/parcela. Hoje o caminho continua sendo o arquivo para o componente de prorrogação.');
