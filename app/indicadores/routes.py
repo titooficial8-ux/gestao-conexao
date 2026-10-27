@@ -46,6 +46,19 @@ def diagnostico_dia():
     return jsonify(servico.diagnostico_dia(dia))
 
 
+@ind_bp.route('/comparar-planilha')
+@login_required
+def comparar_planilha():
+    """So administrador: compara o dia, maquina por maquina, com a planilha INDICADORES do servidor."""
+    if not current_user.is_admin:
+        abort(403)
+    try:
+        dia = date.fromisoformat(request.args.get('dia') or date.today().isoformat())
+    except ValueError:
+        abort(400)
+    return jsonify(servico.comparar_planilha(dia))
+
+
 @ind_bp.route('/reuniao')
 @login_required
 def reuniao():
