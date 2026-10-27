@@ -6,7 +6,7 @@ import re
 import unicodedata
 from datetime import datetime
 
-from flask import Blueprint, Response, abort, current_app, jsonify, redirect, request
+from flask import Blueprint, Response, abort, current_app, jsonify, redirect, request, session
 from flask_login import current_user, login_required, login_user
 
 from app.relatorio_fat import agenda, captura, dados, pptx_gen
@@ -45,9 +45,9 @@ def _usuario_id() -> int:
     from app.models import User
     if getattr(current_user, 'is_authenticated', False) and pode_gerar(current_user):
         return current_user.id
-    for u in User.query.order_by(User.id).all():
-        if pode_gerar(u):
-            return u.id
+    candidatos = [u for u in User.query.order_by(User.id).all() if pode_gerar(u)]
+    for u in sorted(candidatos, key=lambda x: bool(x.deve_trocar_senha)):         # prefere quem nao esta com senha provisoria
+        return u.id
     raise RuntimeError('nenhum usuario autorizado')
 
 
@@ -60,6 +60,7 @@ def entrar():
     if not u:
         abort(403)
     login_user(u)
+    session['robo_relatorio'] = True                 # esta sessao e so do Chromium do relatorio (token de uso unico, 2 min): dispensa a troca de senha provisoria
     return redirect('/aba/dashboard-comercial?' + '&'.join(f'{k}={request.args[k]}' for k in ('ano', 'mes', 'visao') if request.args.get(k)))
 
 
