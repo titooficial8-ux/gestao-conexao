@@ -50,6 +50,7 @@
 .xp-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 10px}.xp-strip div{background:var(--gray-100);border-radius:12px;padding:9px 12px}.xp-strip span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}.xp-strip b{font-size:19px;color:var(--xp-navy)}
 .xp-fvl{display:grid;grid-template-columns:14px 1fr auto;gap:2px 10px;align-items:center;margin:11px 0;font-size:13px}.xp-fvl i{width:12px;height:12px;border-radius:4px}.xp-fvl b{font-size:16px;color:var(--xp-navy)}.xp-fvl em{grid-column:2/4;font-style:normal;font-size:11px;color:var(--gray-500)}
 .xp-nff{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:0 0 12px}.xp-nff label span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500);margin-bottom:3px}.xp-nff select,.xp-nff input{padding:8px 12px;border:1px solid var(--gray-300);border-radius:10px;font-size:13px;background:#fff;color:var(--text)}
+.xp-chips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.xp-chipf{border:1px solid var(--gray-300);background:#fff;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:700;color:var(--gray-700,#334155);cursor:pointer;border-left:6px solid var(--c,#94a3b8)}.xp-chipf.on{background:var(--xp-navy);color:#fff;border-color:var(--xp-navy)}
 .xp-nfbar{display:flex;gap:10px;margin:6px 0 14px}.xp-nfbar input{flex:1;padding:12px 16px;border:1px solid var(--gray-300);border-radius:999px;font-size:15px;color:var(--text)}.xp-nfbar .xp-dl{border:0;cursor:pointer;margin:0;font-size:13px}
 .xp-nfs{font-size:15px;font-weight:800;color:var(--xp-navy);margin-right:14px}.xp-nfh .xp-pill{margin-right:8px;font-size:12px;padding:3px 12px}
 .xp-mod>div{max-width:1000px}
@@ -77,7 +78,8 @@
 .xp-tabs{display:inline-flex;background:var(--gray-100);border-radius:999px;padding:3px;float:right}.xp-tabs button{border:0;background:none;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;color:var(--gray-500);cursor:pointer}.xp-tabs button.on{background:#fff;color:var(--xp-navy);box-shadow:0 1px 3px #0002}
 .xp-chart{width:100%;height:auto;display:block}
 .xp-donut{display:flex;gap:18px;align-items:center;flex-wrap:wrap}.xp-leg{flex:1;min-width:150px;font-size:13px}
-.xp-leg div{display:flex;align-items:center;gap:8px;margin:7px 0}.xp-leg i{width:11px;height:11px;border-radius:3px;flex:none}.xp-leg em{margin-left:auto;font-style:normal;font-weight:700;white-space:nowrap}
+.xp-leg div{display:flex;align-items:center;gap:8px;margin:7px 0}.xp-leg i{width:11px;height:11px;border-radius:3px;flex:none}.xp-leg div.click{cursor:pointer;border-radius:8px;padding:2px 6px;margin-left:-6px}.xp-leg div.click:hover{background:#f1f7fb}
+.xp-leg em{margin-left:auto;font-style:normal;font-weight:700;white-space:nowrap}
 .xp-rk{display:grid;grid-template-columns:24px 1fr auto;gap:2px 10px;margin:11px 0;font-size:13px;align-items:center}
 .xp-rk .pos{font-weight:800;color:var(--gray-500);font-size:12px}.xp-rk .nome{line-height:1.25;min-width:0}.xp-rk .nome b{color:var(--xp-navy)}.xp-rk .nome small{display:block;color:var(--gray-500);font-size:11px;margin-top:1px}
 .xp-rk .val{text-align:right;white-space:nowrap;font-weight:800;color:var(--text)}.xp-rk .val small{display:block;font-weight:600;color:var(--gray-500);font-size:11px}
@@ -107,7 +109,7 @@
 
 <script>
 (function () {
-  var URL_DADOS = '{{ url_for("expedicao.dados") }}', URL_XLSX = '{{ url_for("expedicao.exportar") }}', URL_PED = '{{ url_for("expedicao.pedidos") }}', URL_NFB = '{{ url_for("expedicao.nf_buscar") }}', URL_NFD = '{{ url_for("expedicao.nf_detalhe") }}', URL_NFP = '{{ url_for("expedicao.nf_pdf") }}', VIEW = 'geral', P = null, ULTIMA = Date.now(), NFAB = false, NFQ = '', NFT = 'todas', NFDE = '', NFATE = '', NFLISTA = null, NFDET = null, NFERRO = '', PREV = {}, TKT = null, PREVC = {}, PREVG = {}, PREVV = {}, MAPA = false, D = null, METRICA = 'metros';
+  var URL_DADOS = '{{ url_for("expedicao.dados") }}', URL_XLSX = '{{ url_for("expedicao.exportar") }}', URL_PED = '{{ url_for("expedicao.pedidos") }}', URL_NFB = '{{ url_for("expedicao.nf_buscar") }}', URL_NFD = '{{ url_for("expedicao.nf_detalhe") }}', URL_NFP = '{{ url_for("expedicao.nf_pdf") }}', VIEW = 'geral', P = null, ULTIMA = Date.now(), NFAB = false, NFQ = '', NFT = 'todas', NFSIT = '', NFCONT = null, NFTOT = 0, NFDE = '', NFATE = '', NFLISTA = null, NFDET = null, NFERRO = '', PREV = {}, TKT = null, PREVC = {}, PREVG = {}, PREVV = {}, MAPA = false, D = null, METRICA = 'metros';
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.textContent = x; return e; }
   function nf(v, d) { return Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
   function brl(v) { v = Number(v || 0); return v >= 1e6 ? 'R$ ' + nf(v / 1e6, 2) + ' mi' : v >= 1e4 ? 'R$ ' + nf(v / 1e3, 0) + ' mil' : 'R$ ' + nf(v, 0); }
@@ -210,7 +212,7 @@
     a.firstChild.appendChild(tabs); if (N.por_dia.some(function (x) { return x.qtd; })) a.appendChild(grafico(N.por_dia)); else a.appendChild(el('div', 'xp-vazio', 'Nenhuma NF no período.'));
     c.appendChild(a); a.style.marginBottom = '16px';
     var b2 = card('NFs por situação', D.periodo), dn = el('div', 'xp-donut'); dn.appendChild(donut(N.por_situacao, nf(N.total), 'NFs'));
-    var lg = el('div', 'xp-leg'); N.por_situacao.forEach(function (s) { var d = el('div'), i = el('i'); i.style.background = corSit(s.situacao); d.appendChild(i); d.appendChild(el('span', null, s.situacao)); d.appendChild(el('em', null, nf(s.qtd) + ' · ' + brl(s.valor))); lg.appendChild(d); }); dn.appendChild(lg); b2.appendChild(dn);
+    var lg = el('div', 'xp-leg'); N.por_situacao.forEach(function (s) { var d = el('div'), i = el('i'); i.style.background = corSit(s.situacao); d.appendChild(i); d.appendChild(el('span', null, s.situacao)); d.appendChild(el('em', null, nf(s.qtd) + ' · ' + brl(s.valor))); d.className = 'click'; d.title = 'Clique para ver as NFs deste status no mês'; d.addEventListener('click', function () { VIEW = 'nf'; NFSIT = s.situacao; NFT = 'saida'; NFDE = D.hoje.slice(0, 8) + '01'; NFATE = ''; NFQ = ''; NFLISTA = null; desenhar(); window.scrollTo(0, 0); }); lg.appendChild(d); }); dn.appendChild(lg); b2.appendChild(dn);
     var p = card('NFs que precisam de atenção', 'rejeitadas, denegadas ou ainda não autorizadas');
     p.appendChild(tabela(['Data', 'NF', 'Situação', 'Cliente', 'Valor'], N.problemas.slice(0, 8).map(function (n) { return [dia(n.dia) + ' ' + n.hora, n.nf, { t: n.situacao }, n.cliente, brl(n.valor)]; })));
     var g2 = el('div', 'xp-grid eq'); g2.appendChild(b2); g2.appendChild(p); c.appendChild(g2);
@@ -315,7 +317,9 @@
     painel.appendChild(gs);
     clearInterval(TKT);
     if (P.prontos.length) { var tk = el('div', 'xp-ticker'), lst = P.prontos.slice(0, 14), idx = 0, cx = el('span', 'xp-tk');
-      function mostra() { var x = lst[idx]; cx.textContent = ''; var pd = el('i'); pd.style.background = corDias(x.dias_exp); cx.appendChild(pd); cx.appendChild(el('b', null, x.cliente)); cx.appendChild(document.createTextNode(' · ' + x.cod + ' · ' + (x.dias_exp > 180 ? '+180' : x.dias_exp) + ' dias na expedição · ' + (x.valor ? brl(x.valor) : mt(x.pronto)))); cx.appendChild(el('em', 'n', (idx + 1) + '/' + lst.length)); }
+      function mostra() { var x = lst[idx]; cx.textContent = ''; var pd = el('i'); pd.style.background = corDias(x.dias_exp); cx.appendChild(pd); cx.appendChild(el('b', null, x.cliente));
+        cx.appendChild(document.createTextNode(' · pedido ' + x.pedido + ' · artigo ' + x.cod + ' · ' + mt(x.pronto) + ' prontos' + (x.valor ? ' · ' + brl(x.valor) : '') + ' · parado há ' + (x.dias_exp > 180 ? 'mais de 180' : x.dias_exp) + ' dias na expedição'));
+        cx.appendChild(el('em', 'n', 'pedido ' + (idx + 1) + ' de ' + lst.length + ' mais antigos')); }
       mostra(); tk.appendChild(cx);
       TKT = setInterval(function () { if (!document.body.contains(tk)) { clearInterval(TKT); return; } cx.style.opacity = 0; setTimeout(function () { idx = (idx + 1) % lst.length; mostra(); cx.style.opacity = 1; }, 450); }, 10000);      // um aviso por vez, troca a cada 10 s (sem correr)
       painel.appendChild(tk); }
@@ -352,7 +356,14 @@
     c.appendChild(el('div', 'xp-nota', 'Como é calculado: os pedidos em aberto vêm do Relatório Pedidos (38). O artigo do pedido é ligado ao saldo da expedição pelo código do produto, e o saldo é distribuído entre os pedidos do mais antigo para o mais novo. O valor é o preço unitário líquido do pedido × metros prontos. O tempo na expedição conta desde a última entrada do artigo (kardex do TOTVS, limite de 180 dias).'));
   }
   function nfBuscar(q) {
-    NFQ = q; fetch(URL_NFB + '?q=' + encodeURIComponent(q) + '&tipo=' + NFT + '&de=' + NFDE + '&ate=' + NFATE, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { NFLISTA = d.notas || []; nfLista(); });
+    NFQ = q; fetch(URL_NFB + '?q=' + encodeURIComponent(q) + '&tipo=' + NFT + '&de=' + NFDE + '&ate=' + NFATE + '&sit=' + encodeURIComponent(NFSIT), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { NFLISTA = d.notas || []; NFCONT = d.contagem || {}; NFTOT = d.total || 0; nfChips(); nfLista(); });
+  }
+  function nfChips() {
+    var box = document.getElementById('xpNfChips'); if (!box) return; box.textContent = '';
+    var tot = Object.keys(NFCONT || {}).reduce(function (t, k) { return t + NFCONT[k]; }, 0);
+    function chip(rot, val, cor, qtd) { var b = el('button', 'xp-chipf' + (NFSIT === val ? ' on' : ''), rot + ' · ' + nf(qtd)); b.type = 'button'; if (cor) b.style.setProperty('--c', cor); b.addEventListener('click', function () { NFSIT = val; nfBuscar(NFQ); }); box.appendChild(b); }
+    chip('Todas', '', '#0f2a4a', tot);
+    Object.keys(NFCONT || {}).forEach(function (k) { chip(k === 'Autorizada' ? 'Autorizadas (faturadas)' : k === 'Cancelada' ? 'Canceladas' : k === 'Denegada' ? 'Denegadas' : k === 'Rejeitada' ? 'Rejeitadas' : k === 'Excluída' ? 'Excluídas' : k, k, corSit(k), NFCONT[k]); });
   }
   function nfLista() {
     var box = document.getElementById('xpNfLista'); if (!box) return; box.textContent = '';
@@ -402,9 +413,10 @@
     var st = el('select'); [['todas', 'Saídas e entradas'], ['saida', 'Só saídas (vendas)'], ['entrada', 'Só entradas (devoluções)']].forEach(function (o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === NFT) op.selected = true; st.appendChild(op); }); st.addEventListener('change', function () { NFT = st.value; nfBuscar(inp.value.trim()); }); campo('Tipo', st);
     var d1 = el('input'); d1.type = 'date'; d1.value = NFDE; d1.addEventListener('change', function () { NFDE = d1.value; nfBuscar(inp.value.trim()); }); campo('De', d1);
     var d2 = el('input'); d2.type = 'date'; d2.value = NFATE; d2.addEventListener('change', function () { NFATE = d2.value; nfBuscar(inp.value.trim()); }); campo('Até', d2);
-    var lp = el('button', 'xp-tg', 'Limpar filtros'); lp.type = 'button'; lp.style.float = 'none'; lp.addEventListener('click', function () { NFT = 'todas'; NFDE = ''; NFATE = ''; NFQ = ''; NFLISTA = null; desenhar(); }); fl.appendChild(lp); box.appendChild(fl);
+    var lp = el('button', 'xp-tg', 'Limpar filtros'); lp.type = 'button'; lp.style.float = 'none'; lp.addEventListener('click', function () { NFT = 'todas'; NFSIT = ''; NFDE = ''; NFATE = ''; NFQ = ''; NFLISTA = null; desenhar(); }); fl.appendChild(lp); box.appendChild(fl);
+    var chips = el('div', 'xp-chips'); chips.id = 'xpNfChips'; box.appendChild(chips);
     var lista = el('div'); lista.id = 'xpNfLista'; box.appendChild(lista); c.appendChild(box);
-        if (NFLISTA === null) nfBuscar(NFQ); else nfLista();
+        if (NFLISTA === null) nfBuscar(NFQ); else { nfChips(); nfLista(); }
   }
   function carregar() {
     fetch(URL_DADOS, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
