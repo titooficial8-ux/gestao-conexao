@@ -2,48 +2,48 @@
 {% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
 {% block content %}
 <style>
-.ex-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
-.ex-bar select{padding:8px 12px;border:1px solid var(--gray-300);border-radius:999px;font-size:14px;background:#fff;color:var(--text)}
-.ex-fonte{font-size:12px;color:var(--gray-500)}
-.ex-erro{background:#fde7e8;color:#b3262b;border-radius:10px;padding:9px 13px;font-size:13px;margin-bottom:12px}
-.ex-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
-.ex-kpi{background:#fff;border:1px solid var(--gray-200);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);border-top:4px solid var(--blue-600)}
-.ex-kpi.est{border-top-color:#0d9488}.ex-kpi.bad{border-top-color:#dc2626}
-.ex-kpi span{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}
-.ex-kpi strong{display:block;font-size:29px;line-height:1.1;margin:5px 0 2px;color:var(--text);white-space:nowrap;letter-spacing:-.01em}
-.ex-kpi.bad strong{color:#dc2626}
-.ex-kpi em{display:block;font-style:normal;font-size:12px;color:var(--gray-500)}
-.ex-sec{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-500);margin:22px 2px 10px}
-.ex-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-.ex-card{background:#fff;border:1px solid var(--gray-200);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);min-width:0}
-.ex-card h3{margin:0 0 12px;font-size:15px;color:var(--blue-800)}
-.ex-lin{display:grid;grid-template-columns:130px 1fr 120px;gap:10px;align-items:center;margin:8px 0;font-size:13px}
-.ex-lin .barra{height:12px;background:var(--gray-100);border-radius:999px;overflow:hidden}.ex-lin .barra i{display:block;height:100%;border-radius:999px}
-.ex-lin .val{text-align:right;white-space:nowrap;color:var(--gray-700)}.ex-lin .val b{color:var(--text)}
-.ex-top{display:grid;grid-template-columns:1fr auto;gap:2px 12px;margin:10px 0;font-size:13px}
-.ex-top .nome{font-weight:600;line-height:1.3}.ex-top .nome small{display:block;font-weight:500;color:var(--gray-500);font-size:11px}
-.ex-top .val{text-align:right;white-space:nowrap;font-weight:700}
-.ex-top .barra{grid-column:1/3;height:6px;background:var(--gray-100);border-radius:999px;overflow:hidden}.ex-top .barra i{display:block;height:100%;border-radius:999px}
-.ex-stack{display:flex;height:18px;border-radius:999px;overflow:hidden;background:var(--gray-100)}.ex-stack i{display:block;height:100%}
-.ex-leg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:9px;font-size:12px;color:var(--gray-700)}.ex-leg b{color:var(--text)}
-.ex-cols{display:flex;align-items:flex-end;gap:4px;height:150px;padding-top:6px}
-.ex-col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0}
-.ex-col i{display:block;width:100%;max-width:26px;background:linear-gradient(180deg,#2dd4bf,#0d9488);border-radius:5px 5px 0 0;min-height:3px}
-.ex-col b{font-size:10px;color:var(--text);margin-bottom:2px}.ex-col span{font-size:9px;color:var(--gray-500);margin-top:3px;white-space:nowrap}
-.ex-tb{width:100%;border-collapse:collapse;font-size:13px}.ex-tb th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500);padding:6px 8px;border-bottom:1px solid var(--gray-200)}
-.ex-tb td{padding:7px 8px;border-bottom:1px solid var(--gray-100);vertical-align:top}.ex-tb td.n{text-align:right;white-space:nowrap}
-.ex-pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap}
-.ex-vazio{padding:18px;text-align:center;color:var(--gray-500);font-size:13px}
-@media(max-width:900px){.ex-grid{grid-template-columns:1fr}.ex-lin{grid-template-columns:100px 1fr 100px}}
+.xp-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.xp-bar select{padding:8px 12px;border:1px solid var(--gray-300);border-radius:999px;font-size:14px;background:#fff;color:var(--text)}
+.xp-fonte{font-size:12px;color:var(--gray-500)}
+.xp-erro{background:#fde7e8;color:#b3262b;border-radius:10px;padding:9px 13px;font-size:13px;margin-bottom:12px}
+.xp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.xp-kpi{background:#fff;border:1px solid var(--gray-200);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);border-top:4px solid var(--blue-600)}
+.xp-kpi.est{border-top-color:#0d9488}.xp-kpi.bad{border-top-color:#dc2626}
+.xp-kpi span{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}
+.xp-kpi strong{display:block;font-size:29px;line-height:1.1;margin:5px 0 2px;color:var(--text);white-space:nowrap;letter-spacing:-.01em}
+.xp-kpi.bad strong{color:#dc2626}
+.xp-kpi em{display:block;font-style:normal;font-size:12px;color:var(--gray-500)}
+.xp-sec{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-500);margin:22px 2px 10px}
+.xp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.xp-card{background:#fff;border:1px solid var(--gray-200);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);min-width:0}
+.xp-card h3{margin:0 0 12px;font-size:15px;color:var(--blue-800)}
+.xp-lin{display:grid;grid-template-columns:130px 1fr 120px;gap:10px;align-items:center;margin:8px 0;font-size:13px}
+.xp-lin .barra{height:12px;background:var(--gray-100);border-radius:999px;overflow:hidden}.xp-lin .barra i{display:block;height:100%;border-radius:999px}
+.xp-lin .val{text-align:right;white-space:nowrap;color:var(--gray-700)}.xp-lin .val b{color:var(--text)}
+.xp-top{display:grid;grid-template-columns:1fr auto;gap:2px 12px;margin:10px 0;font-size:13px}
+.xp-top .nome{font-weight:600;line-height:1.3}.xp-top .nome small{display:block;font-weight:500;color:var(--gray-500);font-size:11px}
+.xp-top .val{text-align:right;white-space:nowrap;font-weight:700}
+.xp-top .barra{grid-column:1/3;height:6px;background:var(--gray-100);border-radius:999px;overflow:hidden}.xp-top .barra i{display:block;height:100%;border-radius:999px}
+.xp-stack{display:flex;height:18px;border-radius:999px;overflow:hidden;background:var(--gray-100)}.xp-stack i{display:block;height:100%}
+.xp-leg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:9px;font-size:12px;color:var(--gray-700)}.xp-leg b{color:var(--text)}
+.xp-cols{display:flex;align-items:flex-end;gap:4px;height:150px;padding-top:6px}
+.xp-col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0}
+.xp-col i{display:block;width:100%;max-width:26px;background:linear-gradient(180deg,#2dd4bf,#0d9488);border-radius:5px 5px 0 0;min-height:3px}
+.xp-col b{font-size:10px;color:var(--text);margin-bottom:2px}.xp-col span{font-size:9px;color:var(--gray-500);margin-top:3px;white-space:nowrap}
+.xp-tb{width:100%;border-collapse:collapse;font-size:13px}.xp-tb th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500);padding:6px 8px;border-bottom:1px solid var(--gray-200)}
+.xp-tb td{padding:7px 8px;border-bottom:1px solid var(--gray-100);vertical-align:top}.xp-tb td.n{text-align:right;white-space:nowrap}
+.xp-pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap}
+.xp-vazio{padding:18px;text-align:center;color:var(--gray-500);font-size:13px}
+@media(max-width:900px){.xp-grid{grid-template-columns:1fr}.xp-lin{grid-template-columns:100px 1fr 100px}}
 </style>
 
-<div class="ex-bar">
+<div class="xp-bar">
   <label style="font-size:14px;font-weight:600">Notas dos últimos:</label>
   <select id="exDias"><option value="7">7 dias</option><option value="30" selected>30 dias</option><option value="60">60 dias</option><option value="90">90 dias</option></select>
   <button type="button" class="btn-small" id="exAtualizar">Atualizar agora</button>
-  <span class="ex-fonte" id="exFonte"></span>
+  <span class="xp-fonte" id="exFonte"></span>
 </div>
-<div id="exErro" class="ex-erro" hidden></div>
+<div id="exErro" class="xp-erro" hidden></div>
 <div id="exCorpo"></div>
 
 <script>
@@ -57,31 +57,32 @@
   var COR = { 'Autorizada': '#16a34a', 'Cancelada': '#94a3b8', 'Denegada': '#dc2626', 'Rejeitada': '#dc2626', 'Pendente': '#f59e0b', 'Enviada': '#f59e0b', 'Enviando': '#f59e0b', 'Excluída': '#94a3b8', 'Inutilizada': '#94a3b8' };
   var CORF = ['#22c55e', '#84cc16', '#f59e0b', '#f97316', '#dc2626'];
   function corSit(s) { return COR[s] || '#f59e0b'; }
-  function kpi(r, v, s, cls) { var k = el('div', 'ex-kpi' + (cls ? ' ' + cls : '')); k.appendChild(el('span', null, r)); k.appendChild(el('strong', null, v)); if (s) k.appendChild(el('em', null, s)); return k; }
-  function card(t) { var c = el('div', 'ex-card'); c.appendChild(el('h3', null, t)); return c; }
+  function kpi(r, v, s, cls) { var k = el('div', 'xp-kpi' + (cls ? ' ' + cls : '')); k.appendChild(el('span', null, r)); k.appendChild(el('strong', null, v)); if (s) k.appendChild(el('em', null, s)); return k; }
+  function card(t) { var c = el('div', 'xp-card'); c.appendChild(el('h3', null, t)); return c; }
   function tabela(cols, linhas) {
-    if (!linhas.length) return el('div', 'ex-vazio', 'Nada no período.');
-    var t = el('table', 'ex-tb'), h = el('tr'); cols.forEach(function (c) { h.appendChild(el('th', null, c)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th);
+    if (!linhas.length) return el('div', 'xp-vazio', 'Nada no período.');
+    var t = el('table', 'xp-tb'), h = el('tr'); cols.forEach(function (c) { h.appendChild(el('th', null, c)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th);
     var tb = el('tbody'); linhas.forEach(function (l) { var r = el('tr'); l.forEach(function (c, i) { var td = el('td', typeof c === 'object' ? '' : (i >= 4 ? 'n' : ''));
-      if (c && typeof c === 'object') { var p = el('span', 'ex-pill', c.t); p.style.background = corSit(c.t); td.appendChild(p); } else td.textContent = c; r.appendChild(td); }); tb.appendChild(r); }); t.appendChild(tb);
+      if (c && typeof c === 'object') { var p = el('span', 'xp-pill', c.t); p.style.background = corSit(c.t); td.appendChild(p); } else td.textContent = c; r.appendChild(td); }); tb.appendChild(r); }); t.appendChild(tb);
     var w = el('div'); w.style.overflowX = 'auto'; w.appendChild(t); return w;
   }
   function linhas(lista, fmtv, cor) {
     var w = el('div'), max = Math.max.apply(null, lista.map(function (x) { return x.v; }).concat([1]));
-    lista.forEach(function (x) { var l = el('div', 'ex-lin'), b = el('span', 'barra'), i = el('i'); i.style.width = Math.max(3, Math.round(x.v / max * 100)) + '%'; i.style.background = x.cor || cor; b.appendChild(i);
+    lista.forEach(function (x) { var l = el('div', 'xp-lin'), b = el('span', 'barra'), i = el('i'); i.style.width = Math.max(3, Math.round(x.v / max * 100)) + '%'; i.style.background = x.cor || cor; b.appendChild(i);
       l.appendChild(el('span', null, x.nome)); l.appendChild(b); var v = el('span', 'val'); v.appendChild(el('b', null, x.q)); v.appendChild(document.createTextNode(x.extra ? ' · ' + x.extra : '')); l.appendChild(v); w.appendChild(l); });
-    if (!lista.length) w.appendChild(el('div', 'ex-vazio', 'Nada no período.')); return w;
+    if (!lista.length) w.appendChild(el('div', 'xp-vazio', 'Nada no período.')); return w;
   }
   function rank(lista, rotulo) {
-    var w = el('div'); if (!lista.length) { w.appendChild(el('div', 'ex-vazio', 'Sem dados de estoque ainda.')); return w; }
+    var w = el('div'); if (!lista.length) { w.appendChild(el('div', 'xp-vazio', 'Sem dados de estoque ainda.')); return w; }
     var max = Math.max.apply(null, lista.map(function (x) { return x.barra; }).concat([1]));
-    lista.forEach(function (x, k) { var l = el('div', 'ex-top'), n = el('div', 'nome'); n.appendChild(el('b', null, (k + 1) + '. ')); n.appendChild(document.createTextNode(x.nome)); n.appendChild(el('small', null, x.sub));
+    lista.forEach(function (x, k) { var l = el('div', 'xp-top'), n = el('div', 'nome'); n.appendChild(el('b', null, (k + 1) + '. ')); n.appendChild(document.createTextNode(x.nome)); n.appendChild(el('small', null, x.sub));
       var b = el('span', 'barra'), i = el('i'); i.style.width = Math.max(3, Math.round(x.barra / max * 100)) + '%'; i.style.background = x.cor || '#0d9488'; b.appendChild(i); l.appendChild(n); l.appendChild(el('span', 'val', x.val)); l.appendChild(b); w.appendChild(l); });
     return w;
   }
   function desenhar() {
     var c = document.getElementById('exCorpo'); c.textContent = ''; var N = D.notas, E = D.estoque;
-    var k = el('div', 'ex-kpis');
+    if (!D.notas_em && !D.estoque_em) { c.appendChild(el('div', 'xp-card', D.fonte.rodando ? 'Lendo as NFs e o estoque no TOTVS pela primeira vez… pode levar 1 a 2 minutos. A tela atualiza sozinha.' : 'Ainda sem leitura do TOTVS.')); return; }
+    var k = el('div', 'xp-kpis');
     k.appendChild(kpi('NFs autorizadas', nf(N.autorizadas), 'nos últimos ' + D.dias + ' dias · hoje: ' + N.hoje));
     k.appendChild(kpi('Faturado nas NFs', brl(N.valor), 'ticket médio ' + brl(N.ticket)));
     k.appendChild(kpi('Metros expedidos', mt(N.metros), 'soma das NFs autorizadas'));
@@ -89,14 +90,14 @@
     k.appendChild(kpi('Saldo em estoque', mt(E.total), nf(E.artigos) + ' artigos · ' + nf(E.lotes) + ' lotes', 'est'));
     k.appendChild(kpi('Cobertura', E.cobertura_dias === null ? '–' : nf(E.cobertura_dias) + ' dias', 'saldo ÷ saída média dos últimos 30 dias', 'est'));
     c.appendChild(k);
-    c.appendChild(el('div', 'ex-sec', 'Notas fiscais'));
-    var g = el('div', 'ex-grid'), a = card('NFs por situação');
+    c.appendChild(el('div', 'xp-sec', 'Notas fiscais'));
+    var g = el('div', 'xp-grid'), a = card('NFs por situação');
     a.appendChild(linhas(N.por_situacao.map(function (s) { return { nome: s.situacao, v: s.qtd, q: nf(s.qtd), extra: brl(s.valor), cor: corSit(s.situacao) }; }), null, '#2f7fe0'));
-    var b = card('NFs autorizadas por dia'), cols = el('div', 'ex-cols'), max = Math.max.apply(null, N.por_dia.map(function (x) { return x.qtd; }).concat([1]));
-    N.por_dia.slice(-31).forEach(function (x, k) { var col = el('div', 'ex-col'); col.title = dia(x.dia) + ': ' + x.qtd + ' NFs · ' + brl(x.valor) + ' · ' + mt(x.metros); col.appendChild(el('b', null, String(x.qtd))); var i = el('i'); i.style.height = Math.max(4, Math.round(x.qtd / max * 100)) + '%'; col.appendChild(i); col.appendChild(el('span', null, (k % 3 === 0) ? dia(x.dia) : '\u00a0')); cols.appendChild(col); });
-    if (N.por_dia.length) b.appendChild(cols); else b.appendChild(el('div', 'ex-vazio', 'Nenhuma NF no período.'));
+    var b = card('NFs autorizadas por dia'), cols = el('div', 'xp-cols'), max = Math.max.apply(null, N.por_dia.map(function (x) { return x.qtd; }).concat([1]));
+    N.por_dia.slice(-31).forEach(function (x, k) { var col = el('div', 'xp-col'); col.title = dia(x.dia) + ': ' + x.qtd + ' NFs · ' + brl(x.valor) + ' · ' + mt(x.metros); col.appendChild(el('b', null, String(x.qtd))); var i = el('i'); i.style.height = Math.max(4, Math.round(x.qtd / max * 100)) + '%'; col.appendChild(i); col.appendChild(el('span', null, (k % 3 === 0) ? dia(x.dia) : '\u00a0')); cols.appendChild(col); });
+    if (N.por_dia.length) b.appendChild(cols); else b.appendChild(el('div', 'xp-vazio', 'Nenhuma NF no período.'));
     g.appendChild(a); g.appendChild(b); c.appendChild(g);
-    var g2 = el('div', 'ex-grid'), p = card('NFs que precisam de atenção');
+    var g2 = el('div', 'xp-grid'), p = card('NFs que precisam de atenção');
     p.appendChild(tabela(['Dia', 'NF', 'Situação', 'Cliente', 'Valor'], N.problemas.map(function (n) { return [dia(n.dia) + ' ' + n.hora, n.nf, { t: n.situacao }, n.cliente, brl(n.valor)]; })));
     var u = card('Últimas NFs emitidas');
     u.appendChild(tabela(['Dia', 'NF', 'Situação', 'Cliente', 'Metros'], N.ultimas.map(function (n) { return [dia(n.dia) + ' ' + n.hora, n.nf, { t: n.situacao }, n.cliente, mt(n.metros)]; })));
@@ -105,20 +106,20 @@
     cl.appendChild(rank(N.clientes.map(function (x) { return { nome: x.cliente, sub: x.qtd + ' NFs · ' + mt(x.metros), val: brl(x.valor), barra: x.valor, cor: '#2f7fe0' }; })));
     c.appendChild(cl);
 
-    c.appendChild(el('div', 'ex-sec', 'Estoque Expedição (saldo 1)'));
-    var k2 = el('div', 'ex-kpis');
+    c.appendChild(el('div', 'xp-sec', 'Estoque Expedição (saldo 1)'));
+    var k2 = el('div', 'xp-kpis');
     k2.appendChild(kpi('Saldo total', mt(E.total), nf(E.artigos) + ' artigos', 'est'));
     k2.appendChild(kpi('Concentração', E.top5_pct + '%', 'dos metros estão nos 5 maiores artigos', 'est'));
     k2.appendChild(kpi('Saída média', mt(E.saida_30d), 'NFs autorizadas nos últimos 30 dias', 'est'));
     k2.appendChild(kpi('Parado há +90 dias', mt(E.parado_90), E.parado_90_pct + '% do estoque', E.parado_90_pct >= 30 ? 'bad' : 'est'));
     c.appendChild(k2);
-    var f = card('Há quanto tempo o estoque está parado'), st = el('div', 'ex-stack'), lg = el('div', 'ex-leg'), tot = E.faixas.reduce(function (s, x) { return s + x.metros; }, 0);
+    var f = card('Há quanto tempo o estoque está parado'), st = el('div', 'xp-stack'), lg = el('div', 'xp-leg'), tot = E.faixas.reduce(function (s, x) { return s + x.metros; }, 0);
     E.faixas.forEach(function (x, i) { if (x.metros) { var s = el('i'); s.style.width = (x.metros / tot * 100) + '%'; s.style.background = CORF[i]; s.title = x.faixa; st.appendChild(s); }
       var sp = el('span'), d = el('i'); d.style.cssText = 'display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;background:' + CORF[i]; sp.appendChild(d); sp.appendChild(document.createTextNode(x.faixa + ': ')); sp.appendChild(el('b', null, x.artigos + ' artigos · ' + mt(x.metros))); lg.appendChild(sp); });
     f.appendChild(st); f.appendChild(lg);
-    if (!E.datas_do_totvs && E.artigos) f.appendChild(el('div', 'ex-fonte', 'Tempo parado contado desde a data do lote no TOTVS; onde o TOTVS não informa, conta desde que o Gestão viu o lote pela primeira vez.'));
+    if (!E.datas_do_totvs && E.artigos) f.appendChild(el('div', 'xp-fonte', 'Tempo parado contado desde a data do lote no TOTVS; onde o TOTVS não informa, conta desde que o Gestão viu o lote pela primeira vez.'));
     c.appendChild(f);
-    var g3 = el('div', 'ex-grid'); g3.style.marginTop = '16px';
+    var g3 = el('div', 'xp-grid'); g3.style.marginTop = '16px';
     var m = card('Artigos com mais metros em estoque'), pa = card('Artigos há mais tempo parados na expedição');
     m.appendChild(rank(E.maiores.map(function (x) { return { nome: x.cod + ' · ' + (x.nome || ''), sub: x.lotes + (x.lotes === 1 ? ' lote' : ' lotes') + ' · parado há ' + x.dias + ' dias', val: mt(x.saldo), barra: x.saldo }; })));
     pa.appendChild(rank(E.parados.map(function (x) { return { nome: x.cod + ' · ' + (x.nome || ''), sub: mt(x.saldo) + ' · ' + x.lotes + (x.lotes === 1 ? ' lote' : ' lotes'), val: x.dias + ' dias', barra: x.dias, cor: x.dias > 90 ? '#dc2626' : x.dias > 60 ? '#f97316' : '#f59e0b' }; })));
@@ -136,6 +137,7 @@
   document.getElementById('exDias').addEventListener('change', carregar);
   document.getElementById('exAtualizar').addEventListener('click', function () { var b = this; b.disabled = true; b.textContent = 'Atualizando…'; fetch(URL_ATU, { method: 'POST', credentials: 'same-origin' }).then(function () { setTimeout(function () { b.disabled = false; b.textContent = 'Atualizar agora'; carregar(); }, 15000); }); });
   carregar(); setInterval(function () { if (!document.hidden) carregar(); }, 120000);
+  setInterval(function () { if (D && !D.notas_em && !D.estoque_em && !document.hidden) carregar(); }, 10000);      // primeira leitura: confere a cada 10 s
 })();
 </script>
 {% endblock %}
