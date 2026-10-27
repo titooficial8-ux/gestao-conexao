@@ -2749,10 +2749,14 @@ textarea.ticket-input { resize: vertical; }
 .seq-produzindo td { background: #fff !important; }
 .seq-produzindo .seq-num { background: #2aa55a; color: #fff; }
 /* cor das LETRAS da linha pela situacao da OP no TOTVS: PCP fase 1 (aguardando liberacao) amarelo, PCP fase 2 azul claro, estoque (local 34) verde claro, malharia (local 23) verde escuro */
-.seq-table tr.sit-fase1 td, .seq-table tr.sit-fase1 .seq-cliente, .seq-table tr.sit-fase1 .seq-artigo, .seq-table tr.sit-fase1 .seq-falta, .seq-table tr.sit-fase1 .seq-pct { color: #a87400 !important; }
-.seq-table tr.sit-fase2 td, .seq-table tr.sit-fase2 .seq-cliente, .seq-table tr.sit-fase2 .seq-artigo, .seq-table tr.sit-fase2 .seq-falta, .seq-table tr.sit-fase2 .seq-pct { color: #3aa3f2 !important; }
-.seq-table tr.sit-estoque td, .seq-table tr.sit-estoque .seq-cliente, .seq-table tr.sit-estoque .seq-artigo, .seq-table tr.sit-estoque .seq-falta, .seq-table tr.sit-estoque .seq-pct { color: #36b85e !important; }
-.seq-table tr.sit-malharia td, .seq-table tr.sit-malharia .seq-cliente, .seq-table tr.sit-malharia .seq-artigo, .seq-table tr.sit-malharia .seq-falta, .seq-table tr.sit-malharia .seq-pct { color: #0f5c32 !important; }
+.seq-table tr.sit-fase1 { --seq-cor: #a87400; }
+.seq-table tr.sit-fase1:not(.seq-atraso) td, .seq-table tr.sit-fase1:not(.seq-atraso) .seq-cliente, .seq-table tr.sit-fase1:not(.seq-atraso) .seq-artigo, .seq-table tr.sit-fase1:not(.seq-atraso) .seq-falta, .seq-table tr.sit-fase1:not(.seq-atraso) .seq-pct { color: #a87400 !important; }
+.seq-table tr.sit-fase2 { --seq-cor: #3aa3f2; }
+.seq-table tr.sit-fase2:not(.seq-atraso) td, .seq-table tr.sit-fase2:not(.seq-atraso) .seq-cliente, .seq-table tr.sit-fase2:not(.seq-atraso) .seq-artigo, .seq-table tr.sit-fase2:not(.seq-atraso) .seq-falta, .seq-table tr.sit-fase2:not(.seq-atraso) .seq-pct { color: #3aa3f2 !important; }
+.seq-table tr.sit-estoque { --seq-cor: #36b85e; }
+.seq-table tr.sit-estoque:not(.seq-atraso) td, .seq-table tr.sit-estoque:not(.seq-atraso) .seq-cliente, .seq-table tr.sit-estoque:not(.seq-atraso) .seq-artigo, .seq-table tr.sit-estoque:not(.seq-atraso) .seq-falta, .seq-table tr.sit-estoque:not(.seq-atraso) .seq-pct { color: #36b85e !important; }
+.seq-table tr.sit-malharia { --seq-cor: #0f5c32; }
+.seq-table tr.sit-malharia:not(.seq-atraso) td, .seq-table tr.sit-malharia:not(.seq-atraso) .seq-cliente, .seq-table tr.sit-malharia:not(.seq-atraso) .seq-artigo, .seq-table tr.sit-malharia:not(.seq-atraso) .seq-falta, .seq-table tr.sit-malharia:not(.seq-atraso) .seq-pct { color: #0f5c32 !important; }
 .seq-table tr.sit-fase1 td, .seq-table tr.sit-fase2 td, .seq-table tr.sit-estoque td, .seq-table tr.sit-malharia td { font-weight: 700; }
 .seq-table tr[class*="sit-"] .seq-op-btn, .seq-table tr[class*="sit-"] .badge-ok, .seq-table tr[class*="sit-"] .badge-info, .seq-table tr[class*="sit-"] .badge-warn, .seq-table tr[class*="sit-"] .badge-neutral { font-weight: 700; }
 .seq-legenda { display: flex; gap: 14px; flex-wrap: wrap; margin: 6px 0 12px; font-size: 12px; color: #475569; }
@@ -2915,3 +2919,15 @@ textarea.ticket-input { resize: vertical; }
 .pd-pill.dup { background: #fff3dc; color: #9a6200; }
 .cd-card .cd-det { font-size: 12px; color: #5d6e84; white-space: normal; max-width: 360px; }
 .cd-card .ex-grid { margin: 6px 0 16px; }
+
+/* OP atrasada (termino da malharia depois da data do cliente): as letras da linha piscam devagar em vermelho */
+@keyframes seqPisca { 0%, 100% { color: var(--seq-cor, #1e293b); } 50% { color: #e11d1d; } }
+.seq-table tr.seq-atraso td, .seq-table tr.seq-atraso td .seq-cliente, .seq-table tr.seq-atraso td .seq-artigo, .seq-table tr.seq-atraso td .seq-falta, .seq-table tr.seq-atraso td .seq-pct, .seq-table tr.seq-atraso td strong { animation: seqPisca 3.6s ease-in-out infinite; font-weight: 700; }
+/* maquina em gargalo (tem OP passando da data do cliente): card vermelho; pisca devagar 5 s (2 vezes) e para 5 s, e repete */
+@keyframes cardGargalo {
+  0%, 25%, 50%, 100% { background: #fff1f1; box-shadow: 0 0 0 0 rgba(225, 29, 29, 0); }
+  12.5%, 37.5% { background: #ffc9c9; box-shadow: 0 0 0 4px rgba(225, 29, 29, .35); }
+}
+.machine-card-gargalo { border-color: #e11d1d !important; border-top-color: #e11d1d !important; background: #fff1f1; animation: cardGargalo 10s ease-in-out infinite; }
+.machine-card-gargalo::after { content: 'GARGALO'; position: absolute; top: 6px; right: 8px; font-size: 9px; font-weight: 800; letter-spacing: .08em; color: #b91c1c; }
+.machine-summary-card.machine-card-gargalo { background: #fff1f1; }

@@ -1,7 +1,7 @@
 {% if machines %}
 <div class="machines-grid">
   {% for m in machines %}
-  <a href="{{ url_for('main.maquina_detalhe', numero=m.number) }}" class="machine-card {{ 'machine-card-manutencao' if m.status == 'manutencao' else ('machine-card-sem-programacao' if m.status == 'sem_programacao' else ('machine-card-inoperante' if m.status == 'inoperante' else '')) }}">
+  <a href="{{ url_for('main.maquina_detalhe', numero=m.number) }}" class="machine-card {{ 'machine-card-gargalo' if (maquinas_gargalo and m.number in maquinas_gargalo) else '' }} {{ 'machine-card-manutencao' if m.status == 'manutencao' else ('machine-card-sem-programacao' if m.status == 'sem_programacao' else ('machine-card-inoperante' if m.status == 'inoperante' else '')) }}">
     <span class="machine-status-dot"></span>
     {% set ind = ind_maquinas.get(m.id) if ind_maquinas else None %}
     <span class="machine-ind-row">
