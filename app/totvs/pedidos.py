@@ -215,7 +215,7 @@ def buscar() -> list[dict]:
     fixos = {}
     try:                                                       # ligacao real pedido <-> OP (relatorio de pedidos do TOTVS, importado no PCP Hub); sem ela, vale a regra por ordem de criacao
         from app import pcphub
-        if pcphub.configurado():
+        if os.getenv('PEDIDOS_VINCULO_HUB', '0') == '1' and pcphub.configurado():      # desligado por padrao: o Gestao usa so o TOTVS (a regra por ordem de criacao acerta ~65%)
             fixos = pcphub.buscar_vinculos_pedidos()
             ESTADO['vinculos_reais'] = len(fixos)
     except Exception as e:  # noqa: BLE001
