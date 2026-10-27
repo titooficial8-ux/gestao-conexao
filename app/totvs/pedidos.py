@@ -85,16 +85,27 @@ def _paginar(cli, url, corpo, tam=500):
         pag += 1
 
 
-def _vl_unit(it: dict, qtd: float) -> float:
-    """Preco unitario liquido do item do pedido (tenta os campos de unitario; senao valor liquido / quantidade)."""
-    for k in ('unitNetValue', 'netUnitValue', 'unitValue', 'unitPrice'):
+def _vl_unit(it: dict, qtd: float, pedido: dict = None) -> float:
+    """Preco unitario liquido (R$ por metro) do item do pedido. Tenta, na ordem: campos de preco unitario do item (nomes conhecidos e qualquer
+    campo com 'unit' + 'price/value' no nome), valor liquido / quantidade do item e, por fim, valor liquido / quantidade do pedido inteiro."""
+    for k in ('unitNetValue', 'netUnitValue', 'unitValue', 'unitPrice', 'unitNetPrice', 'netPrice', 'price'):
         v = _num(it.get(k))
         if v > 0:
             return round(v, 4)
-    for k in ('netValue', 'totalValue', 'grossValue', 'value'):
+    for k, val in it.items():
+        kl = k.lower()
+        if 'unit' in kl and ('price' in kl or 'value' in kl) and _num(val) > 0 and 'measure' not in kl:
+            return round(_num(val), 4)
+    for k in ('netValue', 'totalValue', 'grossValue', 'value', 'totalNetValue'):
         v = _num(it.get(k))
         if v > 0 and qtd > 0:
             return round(v / qtd, 4)
+    if pedido:
+        q = _num(pedido.get('quantity'))
+        for k in ('netValue', 'totalValue', 'grossValue', 'productValue'):
+            v = _num(pedido.get(k))
+            if v > 0 and q > 0:
+                return round(v / q, 4)
     return 0.0
 
 
@@ -171,7 +182,8 @@ def buscar() -> list[dict]:
 
     from app.main.routes import normalize_client_name          # filiais Ortobom entram como ORTOBOM, como no PCP Hub
     if itens:
-        ESTADO['amostra_item'] = {k: v for k, v in itens[0][1].items() if not isinstance(v, (list, dict))}      # campos do item do pedido (para conferir o preco)
+        ESTADO['amostra_item'] = {k: v for k, v in itens[0][1].items() if not isinstance(v, (list, dict))}
+        ESTADO['amostra_pedido'] = {k: v for k, v in itens[0][0].items() if not isinstance(v, (list, dict))}      # campos do item do pedido (para conferir o preco)
     linhas = []
     for p, it, solicitada, faturada, pendente in sorted(itens, key=lambda t: (str(t[0].get('orderDate')), t[0].get('orderCode') or 0)):
         pid = it.get('productCode')
@@ -189,7 +201,7 @@ def buscar() -> list[dict]:
                 qt_solicitada=solicitada, qt_faturada=faturada, qt_pendente=pendente,
                 nr_cicloop=str(op['cycleCode']) if op else '', nr_op=str(op['orderCode']) if op else '', ops_extra='',
                 qt_finalizada=fin1, qt_pendenteop=_num(op.get('pendingQuantity')) if op else 0.0,
-                qt_afaturar=max(fin1 - faturada, 0.0) if op else 0.0, qt_saldo=saldo.get(pid, 0.0), region='BR', vl_unitario=_vl_unit(it, solicitada)))
+                qt_afaturar=max(fin1 - faturada, 0.0) if op else 0.0, qt_saldo=saldo.get(pid, 0.0), region='BR', vl_unitario=_vl_unit(it, solicitada, p)))
     return linhas
 
 
