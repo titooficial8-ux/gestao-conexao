@@ -217,7 +217,7 @@ def _malharia_calc() -> dict:
         h = datetime.fromisoformat(r['dt_real'].replace('Z', '')) - timedelta(hours=3)
         alvo = dias[dia_producao(h)]['t'][turno(h)]
         alvo['pecas'] += 1
-        alvo['metros'] += r.get('metro_padrao') or 0
+        alvo['metros'] += r.get('qt_movimento') or r.get('metro_padrao') or 0          # metros REAIS da peca (o kg usa os mesmos metros); o metro padrao do artigo so entra se a peca nao tiver metros
         alvo['kg'] += r.get('qt_pesos') or 0
     saida = {d.isoformat(): _fechar(v) for d, v in dias.items()}
     return saida
@@ -247,6 +247,14 @@ def _faturamento_calc(ano: int, mes: int) -> dict:
         d = x['data'].date().isoformat() if hasattr(x['data'], 'date') else str(x['data'])[:10]
         metros[d] += x['quant']
         valor[d] += x['bruta']
+    try:                                                           # o Relatorio 150 e atualizado 1x por dia (08:00): o dia de hoje vem direto das NFs lidas a cada 2 min (Expedicao)
+        from app.totvs import expedicao
+        hoje = date.today()
+        for d, (m, v) in expedicao.vendas_por_dia(ano, mes).items():
+            if d == hoje.isoformat() or d not in metros:
+                metros[d], valor[d] = m, v
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
     return {d: dict(metros=round(metros[d], 1), valor=round(valor[d], 2), ticket=round(valor[d] / metros[d], 3) if metros[d] else 0) for d in sorted(metros)}
 
 
@@ -720,3 +728,28 @@ def _scrap_ou_none(avisos: list, dia: date):
         traceback.print_exc()
         avisos.append(f'Scrap: {type(e).__name__}: {str(e)[:160]}')
         return None
+
+
+def diagnostico_dia(dia: date) -> dict:
+    """Conferencia: de onde vem cada numero do dia (malharia, acabamento, faturamento), com as primeiras pecas e as contas."""
+    from app.main.routes import _api_baixas, _hub_movimentos_json
+    ch = dia.isoformat()
+    linhas = json.loads('[' + _api_baixas(dict(_hub_movimentos_json())) + ']')
+    mal = []
+    for r in linhas:
+        if r.get('cod_artigo') and 'amostra' in r['cod_artigo'].lower():
+            continue
+        h = datetime.fromisoformat(r['dt_real'].replace('Z', '')) - timedelta(hours=3)
+        if dia_producao(h).isoformat() == ch:
+            mal.append(dict(op=r.get('op'), artigo=(r.get('cod_artigo') or '')[:50], hora=h.strftime('%H:%M'), turno=turno(h) + 1, metros_reais=r.get('qt_movimento'), metro_padrao=r.get('metro_padrao'), kg=r.get('qt_pesos')))
+    aca = []
+    prod = {p.codigo: p for p in IndProduto.query.all()}
+    for r in IndAcabamento.query.order_by(IndAcabamento.mudou).all():
+        if dia_producao(r.mudou).isoformat() == ch:
+            p = prod.get(r.produto)
+            aca.append(dict(transacao=r.codigo, operacao=r.operacao, hora=r.mudou.strftime('%H:%M'), turno=turno(r.mudou) + 1, produto=r.produto, nome=(p.nome if p else '')[:40], metros=r.metros, gramatura=p.gramatura if p else None, largura=p.largura if p else None, kg=r.kg))
+    soma = lambda l, k: round(sum((x.get(k) or 0) for x in l), 1)
+    return dict(dia=ch, regra_do_dia='dia de producao = 06:20 ate 06:20 do dia seguinte; turnos 06:20-14:20, 14:20-22:20, 22:20-06:20',
+                malharia=dict(pecas=len(mal), metros_reais=soma(mal, 'metros_reais'), metros_padrao=soma(mal, 'metro_padrao'), kg=soma(mal, 'kg'), primeiras=mal[:8]),
+                acabamento=dict(pecas=len(aca), metros=soma(aca, 'metros'), kg=soma(aca, 'kg'), por_operacao={str(o): sum(1 for x in aca if x['operacao'] == o) for o in {x['operacao'] for x in aca}}, sem_gramatura_ou_largura=sum(1 for x in aca if not x['kg']), primeiras=aca[:8]),
+                faturamento_hoje_nfs={k: v for k, v in __import__('app.totvs.expedicao', fromlist=['x']).vendas_por_dia(dia.year, dia.month).items() if k == ch})

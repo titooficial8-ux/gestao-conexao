@@ -33,6 +33,19 @@ def _autorizar():
         abort(403)
 
 
+@ind_bp.route('/diagnostico-dia')
+@login_required
+def diagnostico_dia():
+    """So administrador: de onde vem cada numero do dia (pecas, metros reais x padrao, kg, contas do acabamento)."""
+    if not current_user.is_admin:
+        abort(403)
+    try:
+        dia = date.fromisoformat(request.args.get('dia') or date.today().isoformat())
+    except ValueError:
+        abort(400)
+    return jsonify(servico.diagnostico_dia(dia))
+
+
 @ind_bp.route('/reuniao')
 @login_required
 def reuniao():
