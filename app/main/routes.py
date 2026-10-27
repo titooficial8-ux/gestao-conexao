@@ -2362,6 +2362,13 @@ def maquina_detalhe(numero):
     total_pcs_maquina = sum(s.total_pcs or 0 for s in sequencias)
     produzindo_count = sum(1 for s in sequencias if s.status == 'PRODUZINDO')
     artigos = {s.id: dados_do_artigo(s.artigo) for s in sequencias}   # gramatura/composicao lidas do TOTVS
+    pedidos_op = {}                                                   # pedido(s) de cada OP (Relatorio Pedidos); sem pedido = OP avulsa (ex.: criada direto no PCPFM156)
+    ops_da_maquina = [str(x.op) for x in sequencias if x.op]
+    if ops_da_maquina:
+        for r in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.in_(ops_da_maquina)).all():
+            lista = pedidos_op.setdefault(str(r.nr_op), [])
+            if r.cod_pedido and r.cod_pedido not in [x['pedido'] for x in lista]:
+                lista.append(dict(pedido=r.cod_pedido, cliente=r.nome_cliente or '', solicitada=int(r.qt_solicitada or 0), pendente=int(r.qt_pendente or 0)))
     ds_metros = {s.id: resolve_metros_from_article(s.artigo) for s in sequencias}   # metragem padrao do artigo (METRO IDEAL LOTE do TOTVS)
     # entrega da maquina em 24 h pela conta voltas/RPM (ineficiencia incluida): da OP que esta produzindo; se ela ainda nao tem
     # voltas/RPM na base, usa a primeira OP da fila que tem (e o cartao avisa de qual OP veio)
@@ -2384,7 +2391,7 @@ def maquina_detalhe(numero):
                           op_produzindo=produzindo.op if produzindo else None)
     return render_template(
         'main/maquina_detalhe.html',
-        artigos=artigos, ds_metros=ds_metros, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
+        artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
         tab=tab,
         machine=machine,
         sequencias=sequencias,

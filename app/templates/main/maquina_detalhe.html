@@ -84,6 +84,7 @@
           <th>{{ t('estrutura') }}</th>
           <th>DS.METROS</th>
           <th>OP</th>
+          <th>PEDIDO</th>
           <th>{{ t('cod_segmento') }}</th>
           <th>{{ t('status') }}</th>
         </tr>
@@ -110,6 +111,14 @@
           {% set ar = artigos.get(s.id) %}
           <td>{{ ds_metros.get(s.id) or '–' }}</td>
           <td><button type="button" class="seq-op seq-op-btn" data-op="{{ s.op }}" data-estrutura="{{ s.estrutura or (ar.estrutura if ar else '') or '' }}" data-gramatura="{{ (ar.gramatura|round(0)|int) if ar and ar.gramatura else '' }}" data-largura="{{ ar.largura if ar and ar.largura else '' }}" data-composicao="{{ ar.composicao if ar and ar.composicao else '' }}" data-voltas="{{ s.prev_voltas|int if s.prev_voltas else '' }}" data-rpm="{{ s.prev_rpm if s.prev_rpm else '' }}" data-pecasdia="{{ s.pecas_dia|round(1) if s.pecas_dia else '' }}" data-termino="{{ s.termino_malharia.strftime('%d/%m/%Y') if s.termino_malharia else '' }}" data-terminohora="{{ s.termino_hora_aprox or '' }}" data-calculado="{{ 1 if s.termino_calculado else 0 }}" data-fonte="{{ s.prev_fonte or '' }}" title="Ver pesagens na MALHARIA PESAGEM">{{ s.op }}</button></td>
+          {% set peds = pedidos_op.get(s.op|string) if pedidos_op else None %}
+          <td class="seq-pedido">
+            {% if peds %}
+            <span class="seq-ped" title="{% for x in peds %}Pedido {{ x.pedido }} · {{ x.cliente }} · solicitado {{ x.solicitada }} · pendente {{ x.pendente }}{{ '\n' if not loop.last }}{% endfor %}">{{ peds[0].pedido }}{% if peds|length > 1 %} <small>+{{ peds|length - 1 }}</small>{% endif %}</span>
+            {% else %}
+            <span class="badge-neutral" title="Nenhum pedido encontrado para esta OP (cliente + artigo + data). Pode ser OP avulsa, criada direto no PCPFM156.">AVULSA</span>
+            {% endif %}
+          </td>
           <td>{{ s.cod_segmento or '–' }}</td>
           <td>
             {% set sit = s.situacao or ('PRODUZINDO' if s.status == 'PRODUZINDO' else ('PCP - Fase¹' if s.status == 'PCP' else 'MALHARIA')) %}
@@ -128,7 +137,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="14" class="prod-table-empty">{{ t('sequencias_em_breve') }}</td>
+          <td colspan="16" class="prod-table-empty">{{ t('sequencias_em_breve') }}</td>
         </tr>
         {% endfor %}
       </tbody>

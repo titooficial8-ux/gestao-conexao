@@ -185,10 +185,18 @@ def buscar() -> list[dict]:
         ESTADO['amostra_item'] = {k: v for k, v in itens[0][1].items() if not isinstance(v, (list, dict))}
         ESTADO['amostra_pedido'] = {k: v for k, v in itens[0][0].items() if not isinstance(v, (list, dict))}      # campos do item do pedido (para conferir o preco)
     linhas = []
-    for p, it, solicitada, faturada, pendente in sorted(itens, key=lambda t: (str(t[0].get('orderDate')), t[0].get('orderCode') or 0)):
+    ordenados = sorted(itens, key=lambda t: (str(t[0].get('orderDate')), t[0].get('orderCode') or 0))
+    # 1a passada: so pedidos AINDA PENDENTES consomem a quantidade das OPs (necessidade = o que falta atender); 2a: os ja atendidos usam so a sobra (OPs ja produzidas)
+    aloc = {}
+    for passo in (1, 2):
+        for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
+            if p.get('statusOrder') == 'Canceled' or (pendente > 0.5) != (passo == 1):
+                continue
+            aloc[k] = alocar(p, it.get('productCode'), pendente if passo == 1 else solicitada, _data(p.get('orderDate')))
+    for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
         pid = it.get('productCode')
         dt_pedido = _data(p.get('orderDate'))
-        ops_pedido = [] if p.get('statusOrder') == 'Canceled' else alocar(p, pid, solicitada, dt_pedido)
+        ops_pedido = aloc.get(k, [])
         prev = _data(it.get('billingForecastDate')) or _data(p.get('billingForecastDate'))
         for op in ops_pedido or [None]:                        # uma linha por OP (ou uma so, sem OP)
             fin1 = _num((op.get('orderFinishedQuantitiesTypes') or {}).get('normalFinishedQuantity')) if op else 0.0
