@@ -87,6 +87,17 @@ def nf_pdf():
         return Response(expedicao.nf_html(n).replace('</body>', '<script>window.onload=function(){window.print()}</script></body>'), mimetype='text/html')      # sem Chromium: abre a pagina pronta para "Salvar como PDF"
 
 
+def _filtro_prontos(x, tipo):
+    d = x['dias_exp'] or 0
+    if tipo == 'prontos90' and d <= 90:
+        return False
+    fx = request.args.get('faixa', type=int)
+    if fx is not None and not ((0, 30), (31, 60), (61, 90), (91, 10 ** 6))[max(0, min(fx, 3))][0] <= d <= ((0, 30), (31, 60), (61, 90), (91, 10 ** 6))[max(0, min(fx, 3))][1]:
+        return False
+    cl = request.args.get('cliente')
+    return not cl or (x['cliente'] or '') == cl
+
+
 @exp_bp.route('/exportar')
 @login_required
 def exportar():
@@ -99,18 +110,22 @@ def exportar():
     from openpyxl.styles import Font, PatternFill
     from app.totvs import expedicao
     tipo = request.args.get('tipo', 'parados')
-    p = expedicao.painel(request.args.get('dias', 30, type=int)) if tipo not in ('prontos', 'prontos90', 'sem_pedido') else {}
+    p = expedicao.painel(request.args.get('dias', 30, type=int)) if tipo not in ('prontos', 'prontos90', 'sem_pedido', 'hist') else {}
     E = p.get('estoque')
     dia = lambda v: date.fromisoformat(v).strftime('%d/%m/%Y') if v else ''
     if tipo == 'inspecao':
         I = E['inspecao']
         nome, cab = 'Aguardando inspeção', ['Produto', 'Descrição', f"Saldo em inspeção ({I['unidade']})", 'Saldo na expedição (m)', 'Peças na expedição']
         linhas = [[x['cod'], x['nome'], x['saldo'], x['exp_m'], x['exp_pecas']] for x in I['lista']]
-    elif tipo in ('prontos', 'prontos90', 'sem_pedido'):
+    elif tipo in ('prontos', 'prontos90', 'sem_pedido', 'hist'):
         P = expedicao.pedidos_x_expedicao()
         if tipo in ('prontos', 'prontos90'):
             nome, cab = ('Prontos aguardando faturar' if tipo == 'prontos' else 'Prontos há mais de 90 dias'), ['Cliente', 'Unidade', 'Pedido', 'Artigo', 'Descrição', 'Data do pedido', 'Dias de pedido', 'Pendente a faturar (m)', 'Pronto na expedição (m)', 'Preço unitário (R$)', 'Valor pronto (R$)', 'Última entrada na expedição', 'Dias na expedição', 'Pedido → expedição (dias)']
-            linhas = [[x['cliente'], x['unidade'], x['pedido'], x['cod'], x['nome'], dia(x['dt_pedido']), x['idade_pedido'], x['pendente'], x['pronto'], x['vl_unit'], x['valor'], dia(x['ult_entrada']) or 'sem entrada em 180 dias', x['dias_exp'], x['lead']] for x in P['prontos'] if tipo == 'prontos' or (x['dias_exp'] or 0) > 90]
+            linhas = [[x['cliente'], x['unidade'], x['pedido'], x['cod'], x['nome'], dia(x['dt_pedido']), x['idade_pedido'], x['pendente'], x['pronto'], x['vl_unit'], x['valor'], dia(x['ult_entrada']) or 'sem entrada em 180 dias', x['dias_exp'], x['lead']] for x in P['prontos'] if _filtro_prontos(x, tipo)]
+        elif tipo == 'hist':
+            f = P['hist'][max(0, min(request.args.get('i', 0, type=int), len(P['hist']) - 1))]
+            nome, cab = 'Pedido até expedição ' + f['faixa'], ['Artigo', 'Descrição', 'Metros', 'Peças', 'Pedido há (dias)', 'Prazo pedido → expedição (dias)', 'Na expedição há (dias)', 'Valor pronto (R$)']
+            linhas = [[x['cod'], x['nome'], x['saldo'], x['pecas'], x['idade_pedido'], x['lead'], x['dias_exp'], x['valor']] for x in f['lista']]
         else:
             nome, cab = 'Estoque sem pedido', ['Artigo', 'Descrição', 'Metros', 'Peças', 'Dias desde a última entrada', 'Última entrada']
             linhas = [[x['cod'], x['nome'], x['saldo'], x['pecas'], x['dias_exp'], dia(x['ult_entrada']) or 'sem entrada em 180 dias'] for x in P['sem_pedido']]

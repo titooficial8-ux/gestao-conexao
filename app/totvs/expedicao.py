@@ -557,7 +557,7 @@ def pedidos_x_expedicao() -> dict:
     leads = [a['lead'] for a in com_pedido if a['lead'] is not None and a['lead'] >= 0]
     exps = [a['dias_exp'] for a in artigos if a['dias_exp'] is not None]
     faixas_lead = [('até 15 dias', 15), ('16 a 30 dias', 30), ('31 a 45 dias', 45), ('46 a 60 dias', 60), ('mais de 60 dias', 10 ** 6)]
-    hist = [dict(faixa=n, artigos=0, metros=0.0) for n, _ in faixas_lead]
+    hist = [dict(faixa=n, artigos=0, metros=0.0, lista=[]) for n, _ in faixas_lead]
     for a in com_pedido:
         if a['lead'] is None or a['lead'] < 0:
             continue
@@ -565,12 +565,16 @@ def pedidos_x_expedicao() -> dict:
             if a['lead'] <= lim:
                 hist[i]['artigos'] += 1
                 hist[i]['metros'] += a['saldo']
+                hist[i]['lista'].append(dict(cod=a['cod'], nome=a['nome'], saldo=a['saldo'], pecas=a['pecas'], idade_pedido=a['idade_pedido'], dias_exp=a['dias_exp'], lead=a['lead'], pedidos=a['pedidos'], valor=a['valor']))
                 break
     por_cli = {}
     for i in prontos:
-        c = por_cli.setdefault(i['cliente'] or '–', dict(cliente=i['cliente'] or '–', metros=0.0, valor=0.0, pedidos=0, dias=0))
+        c = por_cli.setdefault(i['cliente'] or '–', dict(cliente=i['cliente'] or '–', metros=0.0, valor=0.0, pedidos=0, dias=0, fv=[0.0] * 4, fm=[0.0] * 4))
         c['metros'] += i['pronto']
         c['valor'] += i['valor']
+        fx = 0 if (i['dias_exp'] or 0) <= 30 else 1 if (i['dias_exp'] or 0) <= 60 else 2 if (i['dias_exp'] or 0) <= 90 else 3
+        c['fv'][fx] += i['valor']
+        c['fm'][fx] += i['pronto']
         c['pedidos'] += 1
         c['dias'] = max(c['dias'], i['dias_exp'] or 0)
     r2 = lambda v: round(v, 2)
@@ -593,7 +597,7 @@ def pedidos_x_expedicao() -> dict:
         hist=[dict(h, metros=r2(h['metros'])) for h in hist],
         pontos=[dict(cod=a['cod'], nome=a['nome'], x=a['idade_pedido'], y=a['dias_exp'], saldo=a['saldo'], pedidos=a['pedidos'], lead=a['lead'], valor=a['valor']) for a in com_pedido if a['dias_exp'] is not None],
         prontos=prontos[:600], sem_pedido=sem_pedido[:400],
-        clientes=[dict(c, metros=r2(c['metros']), valor=r2(c['valor'])) for c in sorted(por_cli.values(), key=lambda c: -(c['valor'] or c['metros']))[:8]])
+        clientes=[dict(c, metros=r2(c['metros']), valor=r2(c['valor']), fv=[r2(v) for v in c['fv']], fm=[r2(v) for v in c['fm']]) for c in sorted(por_cli.values(), key=lambda c: -(c['valor'] or c['metros']))[:10]])
 
 
 # ---------------------------------------------------------------- consulta de NF
