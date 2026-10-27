@@ -768,22 +768,30 @@ def diagnostico_dia(dia: date) -> dict:
 
 def comparar_planilha(dia: date) -> dict:
     """Compara, maquina a maquina e turno a turno, o que o Gestao calcula com a planilha INDICADORES (abas MALHARIA e ACABAMENTO) para o dia."""
+    import json
     import openpyxl
+    from pathlib import Path
     from app.indicadores import scrap
     from app.models import BaixaFio
-    arq = scrap.caminho()
-    if not arq or not arq.exists():
-        return dict(erro='Planilha INDICADORES nao encontrada no servidor (use "enviar planilha atualizada" na aba Indicadores).')
     plan, aca_plan = {}, None
-    wb = openpyxl.load_workbook(arq, read_only=True, data_only=True)
-    for r in wb['MALHARIA'].iter_rows(min_row=2, max_col=40, values_only=True):
-        d = r[1].date() if isinstance(r[1], datetime) else None
-        if d == dia and r[0] is not None:
-            plan[int(r[0])] = dict(metros=[r[17] or 0, r[18] or 0, r[19] or 0], pecas=[r[33] or 0, r[34] or 0, r[35] or 0], kg=[round(r[37] or 0, 1), round(r[38] or 0, 1), round(r[39] or 0, 1)])
-    for r in wb['ACABAMENTO'].iter_rows(min_row=2, max_col=13, values_only=True):
-        if isinstance(r[0], datetime) and r[0].date() == dia:
-            aca_plan = dict(pecas=[r[2], r[3], r[4]], metros=[round(r[6] or 0, 1), round(r[7] or 0, 1), round(r[8] or 0, 1)], kg=[round(r[10] or 0, 1), round(r[11] or 0, 1), round(r[12] or 0, 1)])
-    wb.close()
+    arq = scrap.caminho()
+    if arq and arq.exists():
+        wb = openpyxl.load_workbook(arq, read_only=True, data_only=True)
+        for r in wb['MALHARIA'].iter_rows(min_row=2, max_col=40, values_only=True):
+            d = r[1].date() if isinstance(r[1], datetime) else None
+            if d == dia and r[0] is not None:
+                plan[int(r[0])] = dict(metros=[r[17] or 0, r[18] or 0, r[19] or 0], pecas=[r[33] or 0, r[34] or 0, r[35] or 0], kg=[round(r[37] or 0, 1), round(r[38] or 0, 1), round(r[39] or 0, 1)])
+        for r in wb['ACABAMENTO'].iter_rows(min_row=2, max_col=13, values_only=True):
+            if isinstance(r[0], datetime) and r[0].date() == dia:
+                aca_plan = dict(pecas=[r[2], r[3], r[4]], metros=[round(r[6] or 0, 1), round(r[7] or 0, 1), round(r[8] or 0, 1)], kg=[round(r[10] or 0, 1), round(r[11] or 0, 1), round(r[12] or 0, 1)])
+        wb.close()
+    if not plan:                                    # sem a planilha no servidor: usa o retrato do dia guardado no sistema (26/10/2026, enviado pela diretoria)
+        f = Path(__file__).with_name('planilha_verdade.json')
+        v = json.loads(f.read_text(encoding='utf-8')).get(dia.isoformat()) if f.exists() else None
+        if not v:
+            return dict(erro='Planilha INDICADORES nao encontrada no servidor (use "enviar planilha atualizada" na aba Indicadores).')
+        plan = {int(k): x for k, x in v['malharia'].items()}
+        aca_plan = v.get('acabamento')
     nos, pecas_por_maq = {}, {}
     for b in BaixaFio.query.order_by(BaixaFio.mudou).all():
         if not b.mudou or dia_producao(b.mudou) != dia or (b.artigo_desc and 'amostra' in b.artigo_desc.lower()):

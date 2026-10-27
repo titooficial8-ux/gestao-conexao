@@ -56,7 +56,22 @@ def comparar_planilha():
         dia = date.fromisoformat(request.args.get('dia') or date.today().isoformat())
     except ValueError:
         abort(400)
-    return jsonify(servico.comparar_planilha(dia))
+    d = servico.comparar_planilha(dia)
+    if request.args.get('json') or d.get('erro'):
+        return jsonify(d)
+    from markupsafe import escape
+    f = lambda v: ' / '.join(f'{x:,.1f}'.replace(',', 'X').replace('.', ',').replace('X', '.') if isinstance(x, float) and x % 1 else f'{x:,.0f}'.replace(',', '.') for x in v)
+    linhas = ''.join(
+        f'<tr><td rowspan="2"><b>Máq. {m["maquina"]}</b></td><td>Planilha</td><td>{f(m["planilha"]["metros"])}</td><td>{f(m["planilha"]["pecas"])}</td><td>{f(m["planilha"]["kg"])}</td></tr>'
+        f'<tr style="background:#fff7ed"><td>Gestão</td><td>{f(m["gestao"]["metros"])}</td><td>{f(m["gestao"]["pecas"])}</td><td>{f(m["gestao"]["kg"])}</td></tr>'
+        for m in d['maquinas_que_diferem'])
+    pecas = ''.join(f'<tr><td>{m["maquina"]}</td><td>{escape(p["op"])}</td><td>{escape(p["artigo"])}</td><td>{p["hora"]}</td><td>{p["turno"]}º</td><td>{p["metro_padrao"]}</td><td>{p["metros_reais"]}</td><td>{p["kg_baixa_fio"]}</td><td>{p["gramatura"]}</td><td>{p["largura"]}</td></tr>'
+                    for m in d['maquinas_que_diferem'] for p in m['pecas_gestao'])
+    return (f'<meta charset="utf-8"><style>body{{font:14px Arial;margin:20px}}td,th{{border:1px solid #ccc;padding:4px 8px}}table{{border-collapse:collapse;margin:10px 0}}</style>'
+            f'<h2>Comparação {dia.strftime("%d/%m/%Y")} — Malharia</h2><p>Planilha: {d["planilha_malharia"]} <br>Gestão: {d["gestao_malharia"]}</p>'
+            f'<p>Valores por turno (1º / 2º / 3º). Só aparecem as máquinas que diferem.</p><table><tr><th>Máquina</th><th></th><th>Metros</th><th>Peças</th><th>KG</th></tr>{linhas}</table>'
+            f'<h3>Peças do Gestão nessas máquinas</h3><table><tr><th>Máq.</th><th>OP</th><th>Artigo</th><th>Hora</th><th>Turno</th><th>Metro padrão</th><th>Metros reais</th><th>KG baixa fio</th><th>Gramatura</th><th>Largura</th></tr>{pecas}</table>'
+            f'<p>Acabamento — planilha: {d["acabamento_planilha"]}<br>Gestão: {d["acabamento_gestao"]}</p>')
 
 
 @ind_bp.route('/reuniao')
