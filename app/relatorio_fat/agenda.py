@@ -116,8 +116,19 @@ def enviar_agora(app) -> dict:
         titulo = 'Relatório de Faturamento e o Relatório de Entrada de Pedidos'
     else:
         assunto, titulo = f'Relatório de Faturamento — {ref}', 'Relatório de Faturamento'
-    envio.enviar(destinos, assunto, envio.corpo_padrao(ref, f'{agora_brasilia():%d/%m/%Y %H:%M}', True, titulo=titulo), anexos, prioridade_alta=com_pedidos)
-    return dict(ok=True, enviado_para=destinos)
+    rec = envio.enviar(destinos, assunto, envio.corpo_padrao(ref, f'{agora_brasilia():%d/%m/%Y %H:%M}', True, titulo=titulo), anexos, prioridade_alta=com_pedidos)
+    registrar_envio(app, assunto, destinos, rec, 'automatico')
+    return dict(ok=True, enviado_para=destinos, recibo=rec)
+
+
+def registrar_envio(app, assunto: str, destinos: list, rec: dict, origem: str) -> None:
+    """Historico dos ultimos envios (comprovante do SMTP): quando, assunto, quem recebeu, quem o servidor recusou, ID da mensagem e anexos."""
+    est = _ler(app)
+    hist = est.get('historico') or []
+    hist.insert(0, dict(quando=agora_brasilia().isoformat(timespec='seconds'), origem=origem, assunto=assunto, para=destinos, recusados=rec.get('recusados') or {}, message_id=rec.get('message_id'),
+                        de=rec.get('de'), servidor=rec.get('servidor'), anexos=rec.get('anexos')))
+    est['historico'] = hist[:40]
+    _gravar(app, est)
 
 
 def _enviados(est: dict, cfg: dict) -> dict:
@@ -200,6 +211,7 @@ def _tick(app) -> None:
             traceback.print_exc()
             r = dict(ok=False, erro=str(e)[:300])
         est['tentativa'] = agora.isoformat(timespec='seconds')
+        est['historico'] = _ler(app).get('historico') or est.get('historico') or []      # o comprovante gravado durante o envio nao pode ser sobrescrito
         if r['ok']:
             env[chave] = agora.date().isoformat()
             est.update(enviados=env, enviado_em=agora.date().isoformat(), erro=None, erro_horario=None, para=r['enviado_para'])

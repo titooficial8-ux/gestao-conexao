@@ -114,7 +114,10 @@ def _resumo_envio_automatico() -> str:
             f'Origem da lista: {"RELATORIO_FAT_DESTINOS do arquivo .env" if os.getenv("RELATORIO_FAT_DESTINOS") else "lista padrao do sistema"}\n'
             f'Ultimo envio por horario: {", ".join(f"{k} em {v}" for k, v in sorted(enviados.items())) or "nenhum ainda"}' + (f' para {", ".join(est.get("para") or [])}' if est.get('para') else '') + '\n'
             f'Ultima tentativa: {est.get("tentativa") or "nenhuma"}' + (f' (horario {est.get("erro_horario")})' if est.get('erro_horario') else '') + '\n'
-            f'Ultimo erro: {est.get("erro") or "nenhum"}')
+            f'Ultimo erro: {est.get("erro") or "nenhum"}\n\nCOMPROVANTES DE ENVIO (ultimos 8; "aceito" = o servidor de e-mail confirmou o recebimento da mensagem para a entrega)\n'
+            + ('\n'.join(f'- {h.get("quando", "")[:16].replace("T", " ")} · {h.get("origem")} · de {h.get("de")} via {h.get("servidor")} · "{h.get("assunto")}" · aceito para {len(h.get("para") or []) - len(h.get("recusados") or {})} de {len(h.get("para") or [])} destinatarios'
+                         + (f' · RECUSADOS: {", ".join(h["recusados"])}' if h.get("recusados") else '') + f' · anexos: {", ".join(f"{n} ({t // 1024} KB)" for n, t in (h.get("anexos") or []))} · ID {h.get("message_id")}'
+                         for h in (est.get('historico') or [])[:8]) or 'nenhum envio registrado depois desta atualizacao'))
 
 
 @rel_fat_bp.route('/quem')
@@ -175,7 +178,8 @@ def enviar():
             assunto, titulo = f'Relatório de Faturamento — {ref}', 'Relatório de Faturamento'
         if teste:
             assunto = '[TESTE] ' + assunto
-        envio.enviar(destinos, assunto, envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), titulo=titulo), anexos, prioridade_alta=pedidos)
+        rec = envio.enviar(destinos, assunto, envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), titulo=titulo), anexos, prioridade_alta=pedidos)
+        agenda.registrar_envio(current_app, assunto, destinos, rec, 'manual (' + (getattr(current_user, 'name', '') or '?') + ')')
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=f'Não foi possível enviar: {e}'), 502
     return jsonify(ok=True, enviado_para=destinos, anexos=[a[0] for a in anexos])

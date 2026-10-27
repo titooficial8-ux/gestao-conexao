@@ -6,6 +6,7 @@ import re
 import smtplib
 import ssl
 from email.message import EmailMessage
+from email.utils import make_msgid
 
 VARIAVEIS = ('SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD')
 
@@ -27,8 +28,8 @@ def validar(destinos: str) -> list[str]:
     return lista
 
 
-def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str, bytes, str]], prioridade_alta: bool = False) -> None:
-    """anexos = [(nome_do_arquivo, bytes, mime 'tipo/subtipo')]."""
+def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str, bytes, str]], prioridade_alta: bool = False) -> dict:
+    """anexos = [(nome_do_arquivo, bytes, mime 'tipo/subtipo')]. Devolve {'message_id', 'recusados': {email: motivo}, 'servidor'} para o historico de envios."""
     if not configurado():
         raise RuntimeError('E-mail não configurado: preencha no .env ' + ', '.join(faltando()) + '.')
     host, porta = os.environ['SMTP_HOST'], int(os.getenv('SMTP_PORT', '587'))
@@ -37,6 +38,7 @@ def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str
     msg['Subject'] = assunto
     msg['From'] = os.getenv('SMTP_FROM') or usuario
     msg['To'] = ', '.join(destinos)
+    msg['Message-ID'] = make_msgid(domain=(usuario.split('@')[-1] if '@' in usuario else None))
     if prioridade_alta:
         msg['X-Priority'] = '1 (Highest)'
         msg['Importance'] = 'High'
@@ -49,12 +51,14 @@ def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str
     if porta == 465:
         with smtplib.SMTP_SSL(host, porta, context=ctx, timeout=60) as s:
             s.login(usuario, senha)
-            s.send_message(msg)
+            recusados = s.send_message(msg)
     else:
         with smtplib.SMTP(host, porta, timeout=60) as s:
             s.starttls(context=ctx)
             s.login(usuario, senha)
-            s.send_message(msg)
+            recusados = s.send_message(msg)
+    return dict(message_id=msg['Message-ID'], recusados={k: (v[1].decode(errors='replace') if isinstance(v[1], bytes) else str(v[1])) for k, v in (recusados or {}).items()},
+                servidor=host, de=msg['From'], anexos=[(n, len(d)) for n, d, _ in anexos])
 
 
 def corpo_padrao(ref: str, gerado: str, automatico: bool = False, titulo: str = 'Relatório de Faturamento') -> str:
