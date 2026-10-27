@@ -120,18 +120,19 @@
   function card(t, s) { var c = el('div', 'xp-card'); c.appendChild(el('h3', null, t)); c.appendChild(el('div', 'sub', s || '')); return c; }
 
   function grafico(serie) {
-    var W = 1100, H = 340, pl = 56, pb = 28, pt = 58, pr = 8, k = METRICA, w = W - pl - pr, h = H - pb - pt;
+    var W = 1100, H = 330, pl = 56, pb = 28, pt = 36, pr = 8, k = METRICA, w = W - pl - pr, h = H - pb - pt;
     var max = Math.max.apply(null, serie.map(function (x) { return x[k]; }).concat([1])) * 1.0; var nice = Math.pow(10, Math.floor(Math.log10(max))); max = Math.ceil(max / nice * 2) / 2 * nice || 1;
     var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'xp-chart' });
     var fmtY = k === 'metros' ? mt : k === 'valor' ? brl : function (v) { return nf(v); };
     for (var g = 0; g <= 4; g++) { var y = pt + h - h * g / 4;
       svg.appendChild(sv('line', { x1: pl, x2: W - pr, y1: y, y2: y, stroke: '#e8eef5', 'stroke-width': 1 }));
       var t = sv('text', { x: pl - 6, y: y + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#8494a6' }); var yv = max * g / 4; t.textContent = yv >= 1e6 ? nf(yv / 1e6, 1) + ' mi' : yv >= 1e3 ? nf(yv / 1e3, 0) + ' mil' : nf(yv); svg.appendChild(t); }
+    var un = sv('text', { x: pl, y: 12, 'font-size': 12, 'font-weight': 800, fill: '#0d9488' }); un.textContent = k === 'metros' ? 'Números em MIL METROS (ex.: 29,5 = 29.500 m)' : k === 'valor' ? 'Números em MIL REAIS (ex.: 349,8 = R$ 349.800)' : 'Números = quantidade de NFs'; svg.appendChild(un);
     var n = serie.length, bw = w / n, pts = [];
     serie.forEach(function (x, i) { var bh = x[k] / max * h, bx = pl + i * bw + bw * 0.15, by = pt + h - bh, r = sv('rect', { x: bx, y: by, width: bw * 0.7, height: Math.max(bh, x[k] ? 2 : 0), rx: 3, fill: '#0d9488', opacity: 0.88 });
       var tt = sv('title'); tt.textContent = dia(x.dia) + ' · ' + nf(x.qtd) + ' NFs · ' + brl(x.valor) + ' · ' + mt(x.metros); r.appendChild(tt); svg.appendChild(r); pts.push([pl + i * bw + bw / 2, by]);
-      if (n <= 31 && x[k]) { var cx = pl + i * bw + bw / 2, dy = n > 14 ? (i % 3) * 15 : 0, vl = sv('text', { x: cx, y: by - 6 - dy, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: '#0f2a4a' });      // na horizontal; de três em três sobe um pouco para nenhum número encostar no vizinho
-        vl.textContent = k === 'qtd' ? nf(x[k]) : (x[k] >= 1e6 ? nf(x[k] / 1e6, 1) + ' mi' : x[k] >= 1e3 ? nf(x[k] / 1e3, 1) + ' mil' : nf(x[k])); svg.appendChild(vl); }
+      if (n <= 31 && x[k]) { var cx = pl + i * bw + bw / 2, vl = sv('text', { x: cx, y: by - 6, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#0f2a4a' });      // só o número (a unidade está no aviso do topo): cabe sem encostar no vizinho
+        vl.textContent = k === 'qtd' ? nf(x[k]) : nf(x[k] / 1000, 1); svg.appendChild(vl); }
       if (i % Math.ceil(n / 10) === 0) { var l = sv('text', { x: pl + i * bw + bw / 2, y: H - 6, 'text-anchor': 'middle', 'font-size': 12, fill: '#8494a6' }); l.textContent = dia(x.dia); svg.appendChild(l); } });
     return svg;
   }
