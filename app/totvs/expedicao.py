@@ -16,6 +16,9 @@ from .pedidos import _em_lotes, _paginar
 BASE = api.BASE_URL
 BATCH_URL = f'{BASE}/api/totvsmoda/product/v2/batch/search'
 BALANCES_URL = f'{BASE}/api/totvsmoda/product/v2/balances/search'
+PRODUCTS_URL = f'{BASE}/api/totvsmoda/product/v2/products/search'
+SALDO_INSPECAO = os.getenv('EXPEDICAO_SALDO_INSPECAO', '').strip()     # codigo do saldo 'aguardando inspecao'; vazio = acha pelo nome (INSPE)
+UNIDADE_INSPECAO = os.getenv('EXPEDICAO_UNIDADE_INSPECAO', 'KG').strip().upper()
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
 SALDO = int(os.getenv('EXPEDICAO_SALDO', '1'))
 NF_DIAS = int(os.getenv('EXPEDICAO_NF_DIAS', '90'))
@@ -28,7 +31,7 @@ MOV_INTERVALO_MIN = max(5, int(os.getenv('EXPEDICAO_MOV_MIN', '30')))
 MOV_DIAS = 179                                                  # a API limita o kardex a 180 dias
 _trava_mov = threading.Lock()
 _fmt_data = {'so_data': False}
-ESTADO = dict(rodando=False, ultima=None, erro=None, msg='', erro_notas=None, erro_estoque=None, erro_mov=None)
+ESTADO = dict(rodando=False, ultima=None, erro=None, msg='', erro_notas=None, erro_estoque=None, erro_mov=None, erro_inspecao=None)
 _trava = threading.Lock()
 _ult_completa = 0.0
 CHAVES_DATA = ('lastMovementDate', 'lastMovement', 'entryDate', 'inclusionDate', 'insertDate', 'creationDate', 'date', 'batchDate')
@@ -120,6 +123,10 @@ def atualizar_estoque(cli, dados: dict) -> None:
             p['lotes'].append([lid, round(bal, 2), data or visto[f'{pc}|{lid}'], bool(data)])
     for k in [k for k in visto if k.split('|')[0] not in produtos]:
         visto.pop(k)                                         # produto saiu do estoque
+    try:
+        _flags(cli, list(produtos), dados)                     # acabado? unidade? (so tecido acabado em metros fica no painel)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
     nomes = dados.get('artigos', {})
     faltam = [pc for pc in produtos if pc not in nomes]
     if faltam:
@@ -131,6 +138,48 @@ def atualizar_estoque(cli, dados: dict) -> None:
             traceback.print_exc()
     dados.update(estoque={pc: dict(p, saldo=round(p['saldo'], 2)) for pc, p in produtos.items()}, visto=visto, artigos=nomes,
                  estoque_em=datetime.now().isoformat(timespec='seconds'), amostra_lote=amostra)
+
+
+def _flags(cli, pcs, dados: dict) -> dict:
+    """{productCode: [acabado?, unidade, nome]} do cadastro (so busca o que ainda nao esta no cache)."""
+    flags = dados.setdefault('flags', {})
+    for lote in _em_lotes([p for p in pcs if str(p) not in flags and str(p).isdigit()], 100):
+        achados = {}
+        for x in _paginar(cli, PRODUCTS_URL, dict(filter=dict(productCodeList=[int(c) for c in lote]), option=dict(branchInfoCode=EMPRESA)), tam=100):
+            achados[str(x.get('productCode'))] = x
+        for c in lote:
+            x = achados.get(str(c)) or {}
+            flags[str(c)] = [bool(x.get('isFinishedProduct')) and not x.get('isRawMaterial'), str(x.get('measuredUnit') or '').strip().upper(), str(x.get('productName') or '')[:120]]
+    return flags
+
+
+def _achar_inspecao(cli, dados: dict):
+    """(codigo, descricao) do saldo 'aguardando inspecao': EXPEDICAO_SALDO_INSPECAO ou o estoque cujo nome traz INSPE."""
+    if SALDO_INSPECAO.isdigit():
+        return int(SALDO_INSPECAO), dados.get('inspecao_desc') or f'saldo {SALDO_INSPECAO}'
+    if dados.get('inspecao_cod') is not None:
+        return dados['inspecao_cod'], dados.get('inspecao_desc')
+    from . import almoxarifado
+    est = almoxarifado.descobrir_estoques(cli)
+    dados['estoques_vistos'] = {str(k): v for k, v in est.items()}
+    cand = [(c, d) for c, d in est.items() if 'INSPE' in d.upper()]
+    if not cand:
+        raise RuntimeError('Nao achei um saldo com "INSPE" no nome. Saldos vistos: ' + '; '.join(f'{c}={d}' for c, d in sorted(est.items())[:25]) + ' (defina EXPEDICAO_SALDO_INSPECAO no .env)')
+    dados.update(inspecao_cod=cand[0][0], inspecao_desc=cand[0][1])
+    return cand[0]
+
+
+def atualizar_inspecao(cli, dados: dict) -> None:
+    cod, desc = _achar_inspecao(cli, dados)
+    itens = _paginar(cli, BALANCES_URL, dict(filter=dict(hasStock=True, branchStockCode=EMPRESA, stockCode=cod), option=dict(balances=[dict(branchCode=EMPRESA, stockCodeList=[cod])])), tam=1000)
+    saldos = {}
+    for x in itens:
+        for b in x.get('balances') or []:
+            if b.get('stockCode') == cod and _num(b.get('stock')) > 0:
+                saldos[str(x.get('productCode'))] = round(_num(b.get('stock')), 3)
+    flags = _flags(cli, list(saldos), dados)
+    kg = {pc: [v, flags.get(pc, [0, '', ''])[2]] for pc, v in saldos.items() if not UNIDADE_INSPECAO or flags.get(pc, [0, '', ''])[1] == UNIDADE_INSPECAO}
+    dados.update(inspecao=kg, inspecao_total_itens=len(saldos), inspecao_em=datetime.now().isoformat(timespec='seconds'))
 
 
 # ---------------------------------------------------------------- notas
@@ -187,17 +236,17 @@ def atualizar(completa: bool = True) -> bool:
     global _ult_completa
     if not _trava.acquire(blocking=False):
         return False
-    ESTADO.update(rodando=True, erro=None, erro_notas=None, erro_estoque=None, msg='Lendo Expedição no TOTVS...')
+    ESTADO.update(rodando=True, erro=None, erro_notas=None, erro_estoque=None, erro_inspecao=None, msg='Lendo Expedição no TOTVS...')
     try:
         cli = api.TotvsModaClient()
         cli.autenticar()
         dados = ler()
-        for nome, fn in (('estoque', lambda: atualizar_estoque(cli, dados)), ('notas', lambda: atualizar_notas(cli, dados, completa))):
+        for nome, fn in (('estoque', lambda: atualizar_estoque(cli, dados)), ('notas', lambda: atualizar_notas(cli, dados, completa)), ('inspecao', lambda: atualizar_inspecao(cli, dados))):
             try:
                 fn()
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
-                ESTADO['erro_' + ('estoque' if nome == 'estoque' else 'notas')] = str(e)[:300]
+                ESTADO['erro_' + nome] = str(e)[:300]
         _gravar(dados)
         if completa:
             _ult_completa = time.time()
@@ -253,7 +302,9 @@ def atualizar_mov() -> bool:
         return False
     try:
         from concurrent.futures import ThreadPoolExecutor
-        produtos = list((ler().get('estoque') or {}).keys())
+        base = ler()
+        flags = base.get('flags') or {}
+        produtos = [pc for pc in (base.get('estoque') or {}) if not flags.get(pc) or (flags[pc][0] and flags[pc][1] in ('MT', 'M'))]      # so tecido acabado
         if not produtos:
             return False
         cli = api.TotvsModaClient()
@@ -364,17 +415,25 @@ def painel(dias: int = 30) -> dict:
         dd = (hoje - timedelta(days=dias - 1 - i)).isoformat()
         serie.append(por_dia.get(dd) or dict(dia=dd, qtd=0, valor=0.0, metros=0.0))
     # estoque
-    est, art = d.get('estoque') or {}, d.get('artigos') or {}
+    est, art, flags = d.get('estoque') or {}, d.get('artigos') or {}, d.get('flags') or {}
+
+    def vale(pc):                       # so tecido ACABADO em metros; 2a qualidade e sucata nao entram na expedicao
+        f = flags.get(pc)
+        if f and (not f[0] or f[1] not in ('MT', 'M')):
+            return False
+        nome = (str(art.get(pc, ['', ''])[0]) + ' ' + str(art.get(pc, ['', ''])[1]) + ' ' + (f[2] if f else '')).upper()
+        return 'SEGUNDA' not in nome and 'SUCATA' not in nome
+    est = {pc: p for pc, p in est.items() if vale(pc)}
     tem_mov = bool(mov)
     por_art = {}
     for pc, p in est.items():
         cod, nome = art.get(pc, [pc, ''])
-        a = por_art.setdefault(cod, dict(cod=cod, nome=nome, saldo=0.0, lotes=0, dias=None, ult_entrada=None, segunda='SEGUNDA' in (str(nome) + str(cod)).upper()))
+        a = por_art.setdefault(cod, dict(cod=cod, nome=nome, saldo=0.0, lotes=0, dias=None, ult_entrada=None, segunda=False))
         a['saldo'] += p['saldo']
         a['lotes'] += len(p['lotes'])
         if pc in mov:
             m = mov[pc]
-            dias_pc = (hoje - date.fromisoformat(m[0])).days if m else MOV_DIAS + 1          # sem movimento em 180 dias: "mais de 180"
+            dias_pc = (hoje - date.fromisoformat(m[0])).days if m else 181          # sem movimento em 180 dias: "mais de 180"
             a['dias'] = dias_pc if a['dias'] is None else min(a['dias'], dias_pc)
             if m and m[1]:
                 a['ult_entrada'] = max(a['ult_entrada'] or m[1], m[1])
@@ -391,24 +450,28 @@ def painel(dias: int = 30) -> dict:
     m30 = sum(n[7] for n in todas if n[0] >= (hoje - timedelta(days=29)).isoformat() and _situacao(n) == 'Autorizada')
     parados = sorted(datados, key=lambda a: (a['dias'], a['saldo']), reverse=True)
     r2 = lambda v: round(v, 2)
+    ins = d.get('inspecao') or {}
+    insp = dict(cod=d.get('inspecao_cod'), nome=d.get('inspecao_desc'), unidade=UNIDADE_INSPECAO, kg=r2(sum(v[0] for v in ins.values())), itens=len(ins), outros=max(0, (d.get('inspecao_total_itens') or 0) - len(ins)),
+                em=d.get('inspecao_em'), lista=[dict(cod=pc, nome=v[1], saldo=v[0]) for pc, v in sorted(ins.items(), key=lambda kv: -kv[1][0])[:300]])
     p90 = sum(a['saldo'] for a in datados if a['dias'] > 90)
     return dict(
         ok=True, dias=dias, hoje=hoje.isoformat(), notas_em=d.get('notas_em'), estoque_em=d.get('estoque_em'), mov_em=ler_mov().get('atualizado'),
         atualizado=max([x for x in (d.get('notas_em'), d.get('estoque_em')) if x] or [None]) if (d.get('notas_em') or d.get('estoque_em')) else None,
-        fonte=dict(ultima=ESTADO['ultima'], erro=ESTADO['erro'], erro_notas=ESTADO['erro_notas'], erro_estoque=ESTADO['erro_estoque'], erro_mov=ESTADO['erro_mov'], rodando=ESTADO['rodando']),
-        notas=dict(total=len(notas), autorizadas=ok['qtd'], valor=r2(ok['valor']), metros=r2(ok['metros']), hoje=sum(1 for n in notas if n[0] == hoje.isoformat() and _situacao(n) == 'Autorizada'),
+        fonte=dict(ultima=ESTADO['ultima'], erro=ESTADO['erro'], erro_notas=ESTADO['erro_notas'], erro_estoque=ESTADO['erro_estoque'], erro_mov=ESTADO['erro_mov'], erro_inspecao=ESTADO['erro_inspecao'], rodando=ESTADO['rodando']),
+        notas=dict(total=len(notas), autorizadas=ok['qtd'], metros_hoje=r2(sum(n[7] for n in notas if n[0] == hoje.isoformat() and _situacao(n) == 'Autorizada')), valor=r2(ok['valor']), metros=r2(ok['metros']), hoje=sum(1 for n in notas if n[0] == hoje.isoformat() and _situacao(n) == 'Autorizada'),
                    pendentes=len(problemas), ticket=r2(ok['valor'] / ok['qtd']) if ok['qtd'] else 0,
                    var=dict(valor=_pct(ok['valor'], sum(n[8] for n in anteriores)), metros=_pct(ok['metros'], sum(n[7] for n in anteriores)), qtd=_pct(ok['qtd'], len(anteriores))) if anteriores is not None else None,
                    por_situacao=sorted((dict(v, valor=r2(v['valor']), metros=r2(v['metros'])) for v in por_sit.values()), key=lambda v: -v['qtd']),
                    por_dia=[dict(x, valor=r2(x['valor']), metros=r2(x['metros'])) for x in serie],
                    clientes=[dict(x, valor=r2(x['valor']), metros=r2(x['metros'])) for x in sorted(por_cli.values(), key=lambda x: -x['valor'])[:6]],
-                   ultimas=[fmt(n) for n in ultimas], problemas=[fmt(n) for n in problemas[:8]]),
+                   ultimas=[fmt(n) for n in ultimas], problemas=[fmt(n) for n in problemas[:60]]),
         estoque=dict(total=r2(total), artigos=len(arts), lotes=sum(a['lotes'] for a in arts),
                      top5_pct=round(sum(a['saldo'] for a in arts[:5]) / total * 100) if total else 0, top10_pct=round(sum(a['saldo'] for a in arts[:10]) / total * 100) if total else 0,
                      saida_30d=r2(m30), cobertura_dias=round(total / (m30 / 30)) if m30 else None,
                      parado_90=r2(p90), parado_90_pct=round(p90 / total * 100) if total else 0, parado_90_artigos=sum(1 for a in datados if a['dias'] > 90),
                      idade_pronta=tem_mov, idade_cobertura=round(len(datados) / len(arts) * 100) if arts else 0,
-                     segunda=r2(sum(a['saldo'] for a in arts if a['segunda'])),
+                     parados90=[dict(a, saldo=r2(a['saldo'])) for a in parados if a['dias'] > 90][:300],
+                     inspecao=insp,
                      maiores=[dict(a, saldo=r2(a['saldo']), pct=round(a['saldo'] / total * 100, 1) if total else 0) for a in arts[:8]],
                      parados=[dict(a, saldo=r2(a['saldo'])) for a in parados[:8]],
                      faixas=[dict(f, metros=r2(f['metros'])) for f in faixas]))
