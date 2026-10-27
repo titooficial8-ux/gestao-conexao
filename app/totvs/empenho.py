@@ -230,10 +230,10 @@ def dashboard() -> dict:
     mats = [m for m in mats if m['total'] > 0]
     from app.models import PedidoRelatorio
     ped_op = {}
-    for r in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.isnot(None), PedidoRelatorio.qt_pendente > 0).all():
+    for r in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.isnot(None), PedidoRelatorio.nr_op != '').all():      # todos os pedidos da OP, atendidos ou nao
         lst = ped_op.setdefault(str(r.nr_op), [])
         if r.cod_pedido and r.cod_pedido not in [x['pedido'] for x in lst]:
-            lst.append(dict(pedido=r.cod_pedido, cliente=r.nome_cliente or '', pendente=int(r.qt_pendente or 0), dt_pedido=r.dt_pedido.isoformat() if r.dt_pedido else None, dt_prev=r.dt_prevfaturamento.isoformat() if r.dt_prevfaturamento else None, artigo=r.ds_produto or ''))
+            lst.append(dict(atendido=(r.tp_situacao or '').upper() == 'ATENDIDO' or (r.qt_pendente or 0) <= 0.5, situacao=r.tp_situacao or '', pedido=r.cod_pedido, cliente=r.nome_cliente or '', pendente=int(r.qt_pendente or 0), dt_pedido=r.dt_pedido.isoformat() if r.dt_pedido else None, dt_prev=r.dt_prevfaturamento.isoformat() if r.dt_prevfaturamento else None, artigo=r.ds_produto or ''))
     ops, empenhos = [], {}
     for op, itens in (d.get('por_op') or {}).items():
         s = seqs.get(op)
@@ -241,27 +241,32 @@ def dashboard() -> dict:
         if not s and not peds:
             continue
         lista = sorted(([c, v[0], v[1]] for c, v in itens.items()), key=lambda x: -x[2])
+        atendido = bool(peds) and all(x['atendido'] for x in peds)           # todos os pedidos da OP ja atendidos: o fio dela ja foi consumido
         datas = [x['dt_prev'] for x in peds if x['dt_prev']]
         entradas = [x['dt_pedido'] for x in peds if x['dt_pedido']]
         info = dict(op=op, origem='maquina' if s else 'carteira', maquina=s.machine.number if s and s.machine else None, artigo=(s.artigo if s else (peds[0]['artigo'] if peds else '')),
-                    cliente=(s.cliente if s else (peds[0]['cliente'] if peds else '')), status=(s.status if s else 'CARTEIRA'), ordem=(s.sequence_order if s and s.sequence_order is not None else 10 ** 6),
+                    cliente=(s.cliente if s else (peds[0]['cliente'] if peds else '')), status=(s.status if s else 'CARTEIRA'), atendido=atendido, ordem=(s.sequence_order if s and s.sequence_order is not None else 10 ** 6),
                     termino=s.termino_malharia.isoformat() if s and s.termino_malharia else None, dt_entrada=min(entradas) if entradas else None, dt_prev=min(datas) if datas else (s.dt_cliente.isoformat() if s and s.dt_cliente else None),
-                    pedidos=[dict(pedido=x['pedido'], cliente=x['cliente'], pendente=x['pendente'], dt_pedido=x['dt_pedido'], dt_prev=x['dt_prev']) for x in sorted(peds, key=lambda x: x['dt_prev'] or '9')[:4]])
+                    pedidos=[dict(atendido=x['atendido'], pedido=x['pedido'], cliente=x['cliente'], pendente=x['pendente'], dt_pedido=x['dt_pedido'], dt_prev=x['dt_prev']) for x in sorted(peds, key=lambda x: x['dt_prev'] or '9')[:4]])
         ops.append(dict(info, total=round(sum(x[2] for x in lista), 1), materias=[dict(codigo=c, nome=(saldos.get(c) or {}).get('nome') or n, kg=k) for c, n, k in lista]))
         for c, n, k in lista:
             empenhos.setdefault(c, []).append(dict(info, kg=k))
 
     def prioridade(e):                      # quem produz primeiro consome primeiro: em producao, depois fila das maquinas, depois carteira; dentro, a data mais proxima
-        return (0 if e['status'] == 'PRODUZINDO' else 1 if e['origem'] == 'maquina' else 2, e['dt_prev'] or '9999', e['ordem'])
+        return (1 if e['atendido'] else 0, 0 if e['status'] == 'PRODUZINDO' else 1 if e['origem'] == 'maquina' else 2, e['dt_prev'] or '9999', e['ordem'])
     for m in mats:
         lista = sorted(empenhos.get(m['codigo'], []), key=prioridade)
         acum, sd = 0.0, m['saldo']
         for e in lista:
+            if e['atendido']:                                  # pedido ja atendido: nao entra na conta de cobertura
+                e['acum'], e['coberta'] = round(acum, 1), None
+                continue
             acum += e['kg']
             e['acum'] = round(acum, 1)
             e['coberta'] = None if sd is None else acum <= sd
         m['empenhos'] = lista[:40]
-        m['n_empenhos'] = len(lista)
+        m['n_empenhos'] = len([e for e in lista if not e['atendido']])
+        m['n_atendidas'] = len([e for e in lista if e['atendido']])
         m['kg_identificado'] = round(acum, 1)
         m['kg_sem_op'] = round(max(m['demanda'] - acum, 0), 1)
     return dict(pronto=True, atualizado=d.get('atualizado'), materias=sorted(mats, key=lambda x: -x['total']), ops=sorted(ops, key=lambda x: -x['total']), n_ops_programacao=len(ops_resumo(seqs)),
