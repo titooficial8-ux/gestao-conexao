@@ -95,6 +95,10 @@ def ler_classificacoes(prod: dict) -> dict:
             saida['composicao'] = nome or c.get('code')
     saida['classificacoes'] = '; '.join(cru)[:4000]
     saida['descricao'] = (prod.get('productName') or prod.get('name') or '')[:200]
+    m = re.match(r'\s*(\d{3,})\b', saida['descricao'])
+    if m:                                             # o codigo do ARTIGO e o numero que inicia a descricao do produto (ex.: '3370005 TP ML BOL 180G...'), nao a classificacao 506
+        saida['codigo_506'] = saida.get('codigo_artigo')
+        saida['codigo_artigo'] = m.group(1)
     for k, v in prod.items():                         # campos adicionais do proprio produto (quando a API devolve)
         if 'additional' in k.lower() and isinstance(v, list):
             extra = ler_campos_adicionais({'productAdditionalField': v})
