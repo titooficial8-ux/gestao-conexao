@@ -195,11 +195,12 @@ def iniciar_agendador(app) -> None:
 
 # ---------------------------------------------------------------- agregacao por dia de producao e turno
 def _vazio():
-    return {'t': [dict(pecas=0, metros=0.0, kg=0.0) for _ in range(3)]}
+    return {'t': [dict(pecas=0, metros=0.0, kg=0.0, m_real=0.0, m_padrao=0.0, sem_metros=0) for _ in range(3)]}
 
 
 def _fechar(d: dict) -> dict:
-    d['total'] = dict(pecas=sum(t['pecas'] for t in d['t']), metros=round(sum(t['metros'] for t in d['t']), 1), kg=round(sum(t['kg'] for t in d['t']), 1))
+    d['total'] = dict(pecas=sum(t['pecas'] for t in d['t']), metros=round(sum(t['metros'] for t in d['t']), 1), kg=round(sum(t['kg'] for t in d['t']), 1),
+                      m_real=round(sum(t.get('m_real', 0) for t in d['t']), 1), m_padrao=round(sum(t.get('m_padrao', 0) for t in d['t']), 1), sem_metros=sum(t.get('sem_metros', 0) for t in d['t']))
     for t in d['t']:
         t['metros'] = round(t['metros'], 1)
         t['kg'] = round(t['kg'], 1)
@@ -217,7 +218,11 @@ def _malharia_calc() -> dict:
         h = datetime.fromisoformat(r['dt_real'].replace('Z', '')) - timedelta(hours=3)
         alvo = dias[dia_producao(h)]['t'][turno(h)]
         alvo['pecas'] += 1
-        alvo['metros'] += r.get('qt_movimento') or r.get('metro_padrao') or 0          # metros REAIS da peca (o kg usa os mesmos metros); o metro padrao do artigo so entra se a peca nao tiver metros
+        real, padrao = r.get('qt_movimento') or 0, r.get('metro_padrao') or 0
+        alvo['metros'] += padrao or real                          # como o Controle de Producao: metro padrao do artigo (o metro real fica na conferencia)
+        alvo['m_real'] += real
+        alvo['m_padrao'] += padrao
+        alvo['sem_metros'] += 0 if (real or padrao) else 1
         alvo['kg'] += r.get('qt_pesos') or 0
     saida = {d.isoformat(): _fechar(v) for d, v in dias.items()}
     return saida
@@ -230,6 +235,7 @@ def _acabamento_calc() -> dict:
         alvo['pecas'] += 1
         alvo['metros'] += r.metros or 0
         alvo['kg'] += r.kg or 0
+        alvo['sem_metros'] += 0 if r.kg else 1                     # aqui 'sem_metros' = pecas sem kg (artigo sem gramatura/largura no cadastro)
     return {d.isoformat(): _fechar(v) for d, v in dias.items()}
 
 
