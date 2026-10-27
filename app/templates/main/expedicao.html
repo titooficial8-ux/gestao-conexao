@@ -330,11 +330,6 @@
     var lgf = el('div', 'xp-legp'); [['#22c55e', 'até 30 dias'], ['#f59e0b', '31 a 60'], ['#f97316', '61 a 90'], ['#dc2626', 'mais de 90 dias na expedição']].forEach(function (x) { var s_ = el('span'), i = el('i'); i.style.background = x[0]; s_.appendChild(i); s_.appendChild(document.createTextNode(x[1])); lgf.appendChild(s_); }); fila.appendChild(lgf);
     fila.style.marginBottom = '16px'; c.appendChild(fila);
 
-    var m = card('Mapa de bolhas · tempo de pedido × tempo armazenado', 'detalhe artigo por artigo · tamanho = metros · cor = tempo armazenado'), bt0 = el('button', 'xp-tg', MAPA ? 'Esconder mapa' : 'Ver mapa de bolhas'); bt0.type = 'button'; bt0.addEventListener('click', function () { MAPA = !MAPA; desenhar(); }); m.firstChild.appendChild(bt0);
-    var crit = P.pontos.filter(function (p) { return p.x >= 60 && p.y >= 30; });
-    if (MAPA) { if (P.pontos.length) m.appendChild(mapa(P.pontos)); else m.appendChild(el('div', 'xp-vazio', 'Sem artigos com pedido em aberto e tempo calculado ainda.')); } else m.appendChild(el('div', 'xp-nota', nf(P.pontos.length) + ' artigos com pedido em aberto · ' + nf(crit.length) + ' na zona crítica (pedido com mais de 60 dias e peça há mais de 30 dias na expedição).'));
-    m.style.marginBottom = '16px'; c.appendChild(m);
-
     var g1 = el('div', 'xp-grid eq'), fv = card('Faturamento travado por tempo na expedição', preco ? 'valor dos pedidos com peça já pronta, por quanto tempo a peça está na expedição' : 'metros prontos por tempo na expedição (preço do pedido ainda não disponível)');
     var tv = P.faixas_valor.reduce(function (t, x) { return t + (preco ? x.valor : x.metros); }, 0) || 1, st = el('div', 'xp-stack'), CF = ['#22c55e', '#f59e0b', '#f97316', '#dc2626'];
     P.faixas_valor.forEach(function (x, i) { var q = preco ? x.valor : x.metros; if (q) { var sg = el('i'); sg.style.width = (q / tv * 100) + '%'; sg.style.background = CF[i]; sg.title = x.faixa; st.appendChild(sg); } }); fv.appendChild(st);
