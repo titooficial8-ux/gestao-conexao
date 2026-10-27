@@ -58,6 +58,7 @@
   .dq-det[open] summary { margin-bottom: 12px; }
   @media (max-width: 1000px) { .dq-hero { grid-template-columns: 1fr; } .dq-hero-mid { padding-left: 0; border-left: 0; } .dq-kpis { grid-template-columns: repeat(2, 1fr); } .dq-grid > * { grid-column: span 12 !important; } .dq-big { font-size: 42px; } }
   @media (max-width: 900px) { .ind-grid > * { grid-column: span 12 !important; } }
+.ind-conf{color:#64748b;font-size:11px}
 </style>
 <div class="ind">
   <div class="ind-topo">
@@ -144,8 +145,10 @@
     var m = d.malharia, a = d.acabamento, f = d.faturamento;
     var mc = el('div'); mc.appendChild(kpis(k('Metros', nf(m.total.metros)), k('Peças', nf(m.total.pecas)), k('KG', nf(m.total.kg, 1)), k('Média', nf(m.media)), k('Setups', m.setups === null || m.setups === undefined ? '—' : nf(m.setups)))); mc.appendChild(tabelaTurnos(m, true, true));
     mc.appendChild(el('div', 'ind-nota', 'Produção líquida (descontando retalho, reprovas e retrabalho) aguarda a análise dessas fontes.'));
+    mc.appendChild(el('div', 'ind-nota ind-conf', 'Conferência · metros pelo metro padrão do artigo: ' + nf(m.total.m_padrao) + ' · metros reais da peça: ' + nf(m.total.m_real) + ' · peças sem metros: ' + nf(m.total.sem_metros) + ' · o KG usa os metros reais × gramatura × largura.'));
     g.appendChild(cartao('Produção Malharia (bruto)', '', mc, 6));
     var ac = el('div'); ac.appendChild(kpis(k('Peças acabadas', nf(a.total.pecas)), k('Metros', nf(a.total.metros)), k('KG', nf(a.total.kg, 1)), k('Média', nf(a.media)))); ac.appendChild(tabelaTurnos(a, true));
+    ac.appendChild(el('div', 'ind-nota ind-conf', 'Conferência · peças sem kg (artigo sem gramatura/largura no cadastro): ' + nf(a.total.sem_metros) + ' de ' + nf(a.total.pecas) + ' · kg = metros × gramatura × largura.'));
     g.appendChild(cartao('Acabamento (local 29)', 'verde', ac, 6));
     var fc = el('div'); fc.appendChild(kpis(k('Metros do dia', nf(f.metros)), k('Ticket diário', 'R$ ' + nf(f.ticket_dia, 2)), k('Ticket mensal', 'R$ ' + nf(f.ticket_mes, 2)),
       k('% Prod.', pc(f.pct_prod), f.pct_prod === null ? '' : (f.pct_prod >= 0 ? 'bom' : 'ruim')), k('% Aca.', pc(f.pct_aca), f.pct_aca === null ? '' : (f.pct_aca >= 0 ? 'bom' : 'ruim'))));
