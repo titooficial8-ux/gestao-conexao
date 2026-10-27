@@ -85,6 +85,12 @@ def gerar():
     elif modo == 'historico':  # carga inicial: de janeiro do ano passado ate hoje (pula meses ja carregados)
         iniciou = servico.iniciar(servico.inicio_historico(), date.today(), 'base', 'historico')
     else:
+        if servico.ESTADO.get('rodando') and servico.ESTADO.get('origem') in ('agenda', 'historico_auto'):
+            servico.cancelar()                              # o pedido de uma pessoa passa na frente da atualizacao automatica (que volta sozinha depois)
+            for _ in range(60):
+                if not servico.ESTADO.get('rodando'):
+                    break
+                time.sleep(0.5)
         iniciou = servico.iniciar(ini, fim, 'custom', 'botao')
     return _json(dict(ok=iniciou, erro=None if iniciou else 'Ja existe uma geracao em andamento.'))
 

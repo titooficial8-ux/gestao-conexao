@@ -558,6 +558,9 @@ def _quando(item: dict):
     return None, False
 
 
+_ULT_SETUPS = {}
+
+
 def _setups_calc(ch: str) -> dict:
     """Setups do dia de producao `ch`. A API (/api/v1/setups) ja filtra de/ate pelo dia de producao (06h20 -> 06h19) e traz
     `diaProducao` e `turnoInicio` ("1º turno 20/10") de cada setup; sem esses campos o turno sai da hora de `inicio`."""
@@ -573,7 +576,9 @@ def _setups_calc(ch: str) -> dict:
         except ValueError:
             time.sleep(1.5)
     if dados is None:
-        raise RuntimeError(f'a API de setups respondeu fora do formato JSON (HTTP 200): {r.text[:100]!r}')
+        if ch in _ULT_SETUPS:                           # API fora do ar: mantem o ultimo valor bom do dia em vez de apagar
+            return _ULT_SETUPS[ch]
+        raise RuntimeError('a API de setups devolveu uma pagina HTML em vez de dados (confira o servidor de setups; detalhes em /indicadores/setups-diagnostico)')
     n, maqs, turnos, sem_turno = 0, set(), [0, 0, 0], 0
     for it in _lista(dados):
         tipo = str(it.get('tipo') or it.get('type') or 'SETUP').strip().upper()
@@ -592,7 +597,9 @@ def _setups_calc(ch: str) -> dict:
             else:
                 sem_turno += 1
         maqs.add(str(it.get('maquina') or it.get('machine') or it.get('maquina_id') or ''))
-    return dict(n=n, turnos=turnos if n and not sem_turno else None, maquinas=len(maqs - {''}))
+    res = dict(n=n, turnos=turnos if n and not sem_turno else None, maquinas=len(maqs - {''}))
+    _ULT_SETUPS[ch] = res
+    return res
 
 
 def _setups_resumo(r) -> dict:
