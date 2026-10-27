@@ -161,17 +161,17 @@ window.pmIniciar = (function () {
   function dtbr(v) { return v ? v.slice(8, 10) + '/' + v.slice(5, 7) + '/' + v.slice(0, 4) : '—'; }
   function empenhoDetalhe(x) {
     var d = el('div', 'pm-emp'), corte = false;
-    d.appendChild(el('div', 'pm-emp-res', 'Em estoque ' + nf(x.saldo) + ' kg · empenhado por ' + x.n_empenhos + ' OP(s): ' + nf(x.kg_identificado) + ' kg' + (x.kg_sem_op ? ' · ' + nf(x.kg_sem_op) + ' kg da demanda sem OP identificada (lotes/outros)' : '') + '. Ordem: em produção → fila das máquinas → carteira, pela data mais próxima. O estoque cobre as OPs de cima até a linha tracejada.'));
+    d.appendChild(el('div', 'pm-emp-res', 'Em estoque ' + nf(x.saldo) + ' kg · empenhado por ' + x.n_empenhos + ' OP(s): ' + nf(x.kg_identificado) + ' kg' + (x.kg_sem_op ? ' · ' + nf(x.kg_sem_op) + ' kg da demanda sem OP identificada (lotes/outros)' : '') + '. Ordem: em produção → fila das máquinas → carteira, pela data mais próxima. O estoque cobre as OPs de cima até a linha tracejada.' + (x.n_atendidas ? ' ' + x.n_atendidas + ' OP(s) com pedido já ATENDIDO aparecem no fim e não entram na conta.' : '')));
     var t = document.createElement('table'), h = document.createElement('tr');
     ['Origem', 'Máq.', 'OP', 'Pedido(s) da carteira', 'Cliente', 'Artigo', 'Dt. entrada pedido', 'Data prev.', 'kg desta OP', 'kg acumulado', 'Cobre?'].forEach(function (c) { h.appendChild(el('th', null, c)); }); t.appendChild(h);
     x.empenhos.forEach(function (e) {
       var tr = document.createElement('tr'); if (e.coberta === false && !corte) { tr.className = 'corte'; corte = true; }
       var o = el('td'); o.appendChild(el('span', 'pm-tag ' + (e.status === 'PRODUZINDO' ? 'p' : e.origem === 'maquina' ? 'm' : 'c'), e.status === 'PRODUZINDO' ? 'produzindo' : e.origem === 'maquina' ? 'na fila' : 'carteira')); tr.appendChild(o);
       tr.appendChild(el('td', null, e.maquina || '—')); tr.appendChild(el('td', null, e.op));
-      tr.appendChild(el('td', null, e.pedidos.length ? e.pedidos.map(function (p) { return p.pedido; }).join(', ') : 'sem pedido (avulsa)'));
+      tr.appendChild(el('td', null, e.pedidos.length ? e.pedidos.map(function (p) { return p.pedido + (p.atendido ? ' ✓' : ''); }).join(', ') : 'sem pedido (avulsa)'));
       tr.appendChild(el('td', null, nomeCurto(e.cliente || ''))); tr.appendChild(el('td', null, nomeCurto(e.artigo || '')));
       tr.appendChild(el('td', null, dtbr(e.dt_entrada))); tr.appendChild(el('td', null, dtbr(e.dt_prev || e.termino))); tr.appendChild(el('td', 'n', nf(e.kg))); tr.appendChild(el('td', 'n', nf(e.acum)));
-      tr.appendChild(el('td', e.coberta === null ? '' : e.coberta ? 'ok' : 'rx', e.coberta === null ? '—' : e.coberta ? 'sim' : 'FALTA')); t.appendChild(tr);
+      tr.appendChild(el('td', e.atendido ? 'ok' : e.coberta === null ? '' : e.coberta ? 'ok' : 'rx', e.atendido ? 'ATENDIDO' : e.coberta === null ? '—' : e.coberta ? 'sim' : 'FALTA')); if (e.atendido) tr.style.opacity = '.6'; t.appendChild(tr);
     });
     d.appendChild(t); return d;
   }
