@@ -348,13 +348,18 @@ def painel() -> dict:
     exp = [t for t in rec if t['export']]
     # prorrogacao: titulos a receber de clientes com regra cujo vencimento cai em dia que o cliente nao paga
     pror = []
+    diag = {r['nome']: dict(regra=r['nome'], texto=r['texto'], titulos=0, em_dia_proibido=0, clientes=set()) for r in REGRAS}
     for t in rec:
         rg = regra_do_cliente(t['nome'])
         if not rg:
             continue
         v = date.fromisoformat(t['venc'])
+        dg = diag[rg['nome']]
+        dg['titulos'] += 1
+        dg['clientes'].add(t['nome'])
         if rg['ok'](v):
             continue
+        dg['em_dia_proibido'] += 1
         novo = proximo_valido(rg, v)
         pror.append(dict(cliente=t['nome'], regra=rg['nome'], doc=t['doc'], parcela=t['parcela'], venc=t['venc'], novo=novo.isoformat(), dias=(novo - v).days, valor=t['saldo'], vencido=t['vencido'], deixa_de_ser_atraso=t['vencido'] and novo >= hoje, banco=t['banco'], nosso=t['nosso']))
     pror.sort(key=lambda x: x['venc'])
@@ -370,4 +375,4 @@ def painel() -> dict:
         aging=[dict(a, valor=r2(a['valor'])) for a in aging], semanas=sem,
         devedores=[dict(c, valor=r2(c['valor'])) for c in sorted(dev.values(), key=lambda c: -c['valor'])[:10]],
         vencidos_receber=sorted(rv, key=lambda t: -t['atraso'])[:800], vencidos_pagar=sorted(pv, key=lambda t: -t['atraso'])[:800], exportacao=sorted(exp, key=lambda t: t['venc'])[:800],
-        prorrogacao=pror[:800], regras=[dict(nome=r['nome'], texto=r['texto']) for r in REGRAS], alteracoes=(d.get('alteracoes') or [])[:100])
+        prorrogacao=pror[:800], pror_diag=[dict(d, clientes=sorted(d['clientes'])[:5]) for d in diag.values()], total_receber_aberto=len(rec), regras=[dict(nome=r['nome'], texto=r['texto']) for r in REGRAS], alteracoes=(d.get('alteracoes') or [])[:100])
