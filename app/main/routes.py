@@ -222,6 +222,53 @@ def resolve_dt_cliente_from_pedidos(op, artigo):
         datas = [p.dt_prevfaturamento for p in candidatos if p.dt_prevfaturamento]
     return min(datas) if datas else None
 
+@main_bp.route('/raport', methods=['GET', 'POST'])
+@login_required
+def raport_cadastro():
+    """So administrador: raport por estrutura, excecao por maquina (ex.: 4 e 8 em CM = 4,0), RPM instalado e tamanho da peca por artigo."""
+    if not current_user.is_admin:
+        abort(403)
+    from app import previsao
+    from app.models import ArtigoTamanho, MaquinaRpm, RaportEstrutura, RaportMaquinaEstrutura
+    previsao.semear_raport()
+
+    def num(v):
+        try:
+            return float(str(v).replace(',', '.'))
+        except ValueError:
+            return None
+    if request.method == 'POST':
+        f = request.form
+        for chave, valor in f.items():
+            tipo, _, ident = chave.partition(':')
+            v = num(valor)
+            if tipo == 'e' and v:
+                RaportEstrutura.query.filter_by(estrutura=ident).update({'raport': v})
+            elif tipo == 'r' and ident.isdigit():
+                MaquinaRpm.query.filter_by(maquina=int(ident)).update({'rpm_instalado': v}) if v else None
+            elif tipo == 'x':
+                RaportMaquinaEstrutura.query.filter_by(id=int(ident)).delete() if f.get('del:' + ident) else (v and RaportMaquinaEstrutura.query.filter_by(id=int(ident)).update({'raport': v}))
+            elif tipo == 't' and v:
+                ArtigoTamanho.query.filter_by(artigo=ident).update({'metros_peca': v})
+        m, e, r = num(f.get('novo_maq')), (f.get('novo_estr') or '').strip().upper(), num(f.get('novo_raport'))
+        if m and e and r:
+            RaportMaquinaEstrutura.query.filter_by(maquina=int(m), estrutura=e).delete()
+            db.session.add(RaportMaquinaEstrutura(maquina=int(m), estrutura=e, raport=r))
+        if num(f.get('novo_rpm_maq')) and num(f.get('novo_rpm')):
+            mq = int(num(f['novo_rpm_maq']))
+            MaquinaRpm.query.filter_by(maquina=mq).delete()
+            db.session.add(MaquinaRpm(maquina=mq, rpm_instalado=num(f['novo_rpm'])))
+        if (f.get('novo_art') or '').strip() and num(f.get('novo_tam')):
+            ArtigoTamanho.query.filter_by(artigo=f['novo_art'].strip()).delete()
+            db.session.add(ArtigoTamanho(artigo=f['novo_art'].strip(), metros_peca=num(f['novo_tam']), estrutura=(f.get('novo_art_estr') or '').strip().upper() or None))
+        db.session.commit()
+        flash('Raport salvo. A previsao usa os novos valores no proximo calculo (a cada poucos minutos).', 'success')
+        return redirect(url_for('main.raport_cadastro'))
+    return render_template('main/raport.html', estruturas=RaportEstrutura.query.order_by(RaportEstrutura.estrutura).all(),
+                           excecoes=RaportMaquinaEstrutura.query.order_by(RaportMaquinaEstrutura.maquina).all(),
+                           rpms=MaquinaRpm.query.order_by(MaquinaRpm.maquina).all(), artigos=ArtigoTamanho.query.order_by(ArtigoTamanho.artigo).all())
+
+
 @main_bp.route('/aba/dt-cliente-diagnostico')
 @login_required
 def dt_cliente_diagnostico():
