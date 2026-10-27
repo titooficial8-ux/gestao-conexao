@@ -101,6 +101,8 @@ def create_app():
     app.register_blueprint(dev_bp)
     from app.comercial_mi import cmi_bp
     app.register_blueprint(cmi_bp)
+    from app.expedicao import exp_bp
+    app.register_blueprint(exp_bp)
     from app.perfil import perfil_bp
     app.register_blueprint(perfil_bp)
     from app.presenca import presenca_bp
@@ -270,6 +272,8 @@ def create_app():
             db.session.commit()
         from app.desenvolvimento.routes import garantir_abas
         garantir_abas()                                                  # abas do Desenvolvimento (Cronograma, Cotacoes, Amostras, Projetos)
+        from app.expedicao import garantir_aba as garantir_expedicao
+        garantir_expedicao()                                             # aba Expedicao (Planejamento)
         from app.indicadores.routes import garantir_aba as garantir_indicadores
         garantir_indicadores()                                           # aba Indicadores (Producao)
         # contas iniciais por setor (idempotente)
@@ -294,6 +298,8 @@ def create_app():
         iniciar_pedidos(app)      # Relatorio Pedidos: a cada 2 min
         from app.totvs.rodagem import iniciar_agendador as iniciar_rodagem
         iniciar_rodagem(app)      # OPs por artigo (artigos que nao rodam): a cada 2 min
+        from app.totvs.expedicao import iniciar_agendador as iniciar_expedicao
+        iniciar_expedicao(app)    # NFs e estoque da Expedicao: a cada 2 min
         from app.totvs.historico_mi import iniciar_agendador as iniciar_historico_mi
         iniciar_historico_mi(app)  # pedidos MI desde 2023 (clientes que nao compram): a cada 2 min
         from app.totvs.artigos import iniciar_agendador as iniciar_artigos
