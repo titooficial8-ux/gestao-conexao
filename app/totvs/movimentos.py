@@ -554,19 +554,31 @@ def situacao_op(o: dict) -> str:
     return FASE1                                                   # status 10 do TOTVS: aguardando liberacao
 
 
+CLIENTE_CONEXAO = int(os.getenv('OP_CLIENTE_CONEXAO', '110000001'))     # cliente das OPs criadas pela propria Conexao (PCPFM156) = OP avulsa, sem pedido
+
+
+def op_avulsa(o: dict) -> bool:
+    """OP avulsa = criada pela Conexao (cliente 110000001 - CONEXAO MALHAS E DESENVOLVIMENTO) direto no PCPFM156, nao nasceu de pedido de venda."""
+    try:
+        return int(o.get('customerCode')) == CLIENTE_CONEXAO
+    except (TypeError, ValueError):
+        return False
+
+
 def _sincronizar_quantidade(s, o: dict) -> bool:
-    """A quantidade da OP no TOTVS manda: se alguem aumentou/diminuiu a quantidade da OP (ex.: 20 -> 24 pecas), a Programacao acompanha.
-    qt_solicitada = quantidade da OP (m); total de pecas = quantidade / metro padrao (METRO IDEAL LOTE do artigo). Variacao absurda (fora de 0,2x a 5x) e ignorada."""
+    """A quantidade vem do TOTVS (o PCP Hub nao manda mais): QT.SOLICITADA = quantidade da OP (m); total de pecas = quantidade / metro padrao (METRO IDEAL LOTE do artigo).
+    OP avulsa (cliente Conexao, criada no PCPFM156): QT.AVULSA = a propria quantidade da OP; as demais ficam com QT.AVULSA zerada."""
     qtd = _num(o.get('quantity'))
     if qtd <= 0:
         return False
-    antigo = s.qt_solicitada or 0
-    if antigo and not 0.2 <= qtd / antigo <= 5:
-        return False
     metro = _campos_artigo(o).get('metro_ideal') or _metro_padrao(s)      # calculado antes de mexer nos valores
     mudou = False
-    if int(round(qtd)) != antigo:
-        s.qt_solicitada, mudou = int(round(qtd)), True
+    q = int(round(qtd))
+    if q != (s.qt_solicitada or 0):
+        s.qt_solicitada, mudou = q, True
+    avulsa = q if op_avulsa(o) else 0
+    if avulsa != (s.qt_avulsa or 0):
+        s.qt_avulsa, mudou = avulsa, True
     if metro:
         pcs = int(round(qtd / metro))
         if pcs > 0 and pcs != (s.total_pcs or 0):

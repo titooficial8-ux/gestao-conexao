@@ -174,9 +174,8 @@ def aplicar(linhas: list, agora=None) -> dict:
         if s:
             if s.termino_calculado:                      # o termino vem da previsao por voltas/RPM, nao do PCP Hub
                 campos.pop('termino_malharia', None)
-            if str(s.op) in no_totvs:                    # a quantidade (pecas e metros) da OP vem direto do TOTVS, nao do PCP Hub
-                campos.pop('total_pcs', None)
-                campos.pop('qt_solicitada', None)
+            for k in ('total_pcs', 'qt_solicitada', 'qt_avulsa'):     # quantidade e avulsa vem do TOTVS (quantidade da OP e cliente Conexao); o PCP Hub so cria a linha
+                campos.pop(k, None)
             for k, v in campos.items():
                 setattr(s, k, v)                      # situacao e pecas_produzidas (calculadas pelo TOTVS) ficam como estao
             atualizadas += 1
