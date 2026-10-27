@@ -125,7 +125,12 @@ def verificacao(cli) -> dict:
                 receber.append(item)
             if svc == 'accounts-payable':
                 pagar.append(item)
-    return dict(servicos=list(cat.keys()), boleto=boleto, vencimento=venc, receber=receber, pagar=pagar, total_endpoints=sum(len(v) for v in cat.values()))
+    bs = next((x for x in boleto if x['path'].lower().endswith('bank-slip')), None)
+    rn = next((x for x in venc if 'renegot' in x['path'].lower()), None)
+    direto = [x for x in venc if x['escrita'] and any(k in x['path'].lower() for k in ('expir', 'due', 'extens', 'prorrog', 'postpone', 'maturity', 'reschedul'))]
+    conclusao = dict(boleto=bool(bs), boleto_endpoint=bs['path'] if bs else None, boleto_texto=(bs or {}).get('resumo'), boleto_campos=(bs or {}).get('campos') or [],
+                     renegociar=bool(rn), renegociar_endpoint=rn['path'] if rn else None, renegociar_campos=(rn or {}).get('campos') or [], alterar_direto=[x['path'] for x in direto])
+    return dict(conclusao=conclusao, servicos=list(cat.keys()), boleto=boleto, vencimento=venc, receber=receber, pagar=pagar, total_endpoints=sum(len(v) for v in cat.values()))
 
 
 RECEBER_URL = os.getenv('FIN_RECEBER_URL', f'{BASE}/api/totvsmoda/accounts-receivable/v2/documents/search')
@@ -417,4 +422,48 @@ def painel() -> dict:
         aging=[dict(a, valor=r2(a['valor'])) for a in aging], semanas=sem,
         devedores=[dict(c, valor=r2(c['valor'])) for c in sorted(dev.values(), key=lambda c: -c['valor'])[:10]],
         vencidos_receber=sorted(rv, key=lambda t: -t['atraso'])[:800], vencidos_pagar=sorted(pv, key=lambda t: -t['atraso'])[:800], exportacao=sorted(exp, key=lambda t: t['venc'])[:800],
-        prorrogacao=pror[:800], pror_diag=[dict(d, clientes=sorted(d['clientes'])[:5]) for d in diag.values()], total_receber_aberto=len(rec), regras=[dict(nome=r['nome'], texto=r['texto']) for r in REGRAS], alteracoes=(d.get('alteracoes') or [])[:100])
+        prorrogacao=pror[:800], pror_diag=[dict(d, clientes=sorted(d['clientes'])[:5]) for d in diag.values()], total_receber_aberto=len(rec), regras=[dict(nome=r['nome'], texto=r['texto']) for r in REGRAS], alteracoes=(d.get('alteracoes') or [])[:300], banco_teste=[dict(doc=t['doc'], parcela=t['parcela'], cod=t['cod'], cnpj=t['cnpj'], nome=t['nome'], venc=t['venc'], saldo=t['saldo'], banco=t['banco']) for t in rec if t['doc'] and t['banco']][:8])
+
+
+BOLETO_URL = f'{BASE}/api/totvsmoda/accounts-receivable/v2/bank-slip'
+
+
+def boleto_totvs(doc: str, parcela: str, cod: str, cnpj: str = '') -> tuple:
+    """(pdf, log): pede ao TOTVS o boleto bancario (base64) de UMA parcela. So para verificar se o TOTVS consegue gerar/devolver o boleto."""
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    corpo = dict(branchCode=EMPRESA, customerCode=int(cod) if str(cod).isdigit() else cod, receivableCode=int(doc) if str(doc).isdigit() else doc, installmentNumber=int(parcela) if str(parcela).isdigit() else parcela)
+    if cnpj:
+        corpo['customerCpfCnpj'] = cnpj
+    r = cli.post(BOLETO_URL, corpo)
+    log = [f'POST bank-slip {corpo}: HTTP {r.status_code}', r.text[:300] if r.status_code != 200 else 'ok']
+    if r.status_code != 200:
+        return None, log
+    try:
+        j = r.json()
+    except ValueError:
+        return (r.content, log) if r.content[:4] == b'%PDF' else (None, log + ['resposta nao e JSON'])
+    pdf = _acha_pdf_b64(j)
+    return (pdf, log) if pdf else (None, log + ['resposta sem PDF (JVBER...): ' + str(j)[:200]])
+
+
+def _acha_pdf_b64(obj):
+    import base64
+    if isinstance(obj, str):
+        t = obj.strip()
+        if t.startswith('JVBER'):
+            try:
+                return base64.b64decode(t)
+            except Exception:  # noqa: BLE001
+                return None
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            r = _acha_pdf_b64(v)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = _acha_pdf_b64(v)
+            if r:
+                return r
+    return None

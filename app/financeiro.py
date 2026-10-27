@@ -41,6 +41,24 @@ def verificacao():
         return jsonify(ok=False, erro=str(e)[:300])
 
 
+@fin_bp.route('/boleto-teste', methods=['POST'])
+@login_required
+def boleto_teste():
+    """So administrador: pede ao TOTVS o boleto de UMA parcela, para verificar se ele devolve o PDF."""
+    if not current_user.is_admin:
+        abort(403)
+    from flask import Response
+    from app.totvs import financeiro
+    j = request.get_json(silent=True) or {}
+    try:
+        pdf, log = financeiro.boleto_totvs(str(j.get('doc', '')), str(j.get('parcela', '')), str(j.get('cod', '')), str(j.get('cnpj', '')))
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, log=[str(e)[:300]])
+    if pdf:
+        return Response(pdf, mimetype='application/pdf', headers={'Content-Disposition': f"attachment; filename=boleto_{j.get('doc')}_{j.get('parcela')}.pdf"})
+    return jsonify(ok=False, log=log)
+
+
 @fin_bp.route('/diagnostico')
 @login_required
 def diagnostico():
@@ -61,15 +79,18 @@ def exportar():
     from app.totvs import financeiro
     p = financeiro.painel()
     tipo = request.args.get('tipo', 'receber')
+    mes = request.args.get('mes', '')                      # AAAA-MM; vazio = tudo
     dia = lambda v: date.fromisoformat(v).strftime('%d/%m/%Y') if v else ''
     if tipo == 'prorrogacao':
         nome, cab = 'Prorrogação de vencimento', ['Cliente', 'Regra de pagamento', 'Fatura / Duplicata', 'Parcela', 'Vencimento atual', 'Novo vencimento', 'Dias a prorrogar', 'Valor (R$)', 'Já vencido?', 'Banco', 'Nosso número']
-        linhas = [[x['cliente'], x['regra'], x['doc'], x['parcela'], dia(x['venc']), dia(x['novo']), x['dias'], x['valor'], 'Sim' if x['vencido'] else 'Não', x['banco'], x['nosso']] for x in p['prorrogacao']]
+        linhas = [[x['cliente'], x['regra'], x['doc'], x['parcela'], dia(x['venc']), dia(x['novo']), x['dias'], x['valor'], 'Sim' if x['vencido'] else 'Não', x['banco'], x['nosso']] for x in p['prorrogacao'] if not mes or x['venc'][:7] == mes]
     elif tipo == 'alteracoes':
         nome, cab = 'Alterações nos títulos', ['Quando', 'Tipo', 'Cliente', 'Fatura / Duplicata', 'Parcela', 'De', 'Para', 'Valor (R$)']
-        linhas = [[x['em'].replace('T', ' '), x['tipo'], x['nome'], x['doc'], x['parcela'], x['de'], x['para'], x['valor']] for x in p['alteracoes']]
+        linhas = [[x['em'].replace('T', ' '), x['tipo'], x['nome'], x['doc'], x['parcela'], x['de'], x['para'], x['valor']] for x in p['alteracoes'] if not mes or x['em'][:7] == mes]
     else:
         lista = {'receber': p['vencidos_receber'], 'pagar': p['vencidos_pagar'], 'exportacao': p['exportacao']}.get(tipo, p['vencidos_receber'])
+        if mes and tipo == 'exportacao':
+            lista = [x for x in lista if (x['venc'] or '')[:7] == mes]
         nome = {'receber': 'Vencidos a receber', 'pagar': 'Vencidos a pagar', 'exportacao': 'A receber exportação'}.get(tipo, 'Vencidos')
         cab = ['Cliente / Fornecedor', 'Fatura / Duplicata', 'Parcela', 'Emissão', 'Vencimento', 'Dias de atraso', 'Valor original', 'Saldo em aberto', 'Moeda', 'Banco', 'Situação']
         linhas = [[x['nome'], x['doc'], x['parcela'], dia(x['emissao']), dia(x['venc']), x['atraso'], x['valor'], x['saldo'], x['moeda'], x['banco'], x['status']] for x in lista]
