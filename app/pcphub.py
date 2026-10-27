@@ -50,6 +50,20 @@ def buscar_linhas() -> list:
         ini += 1000
 
 
+def buscar_impedimentos() -> list:
+    token = _login()
+    cab = dict(apikey=CHAVE, Authorization=f'Bearer {token}')
+    r = requests.get(f'{URL}/rest/v1/artigo_maquina_impedimentos', params=dict(select='*', region=f'eq.{REGIAO}', order='movido_em.desc'), headers=cab, timeout=60)
+    if r.status_code != 200:
+        raise RuntimeError(f'Leitura dos impedimentos falhou (HTTP {r.status_code}): {r.text[:160]}')
+    return r.json()
+
+
+def gravar_impedimentos_hub(linhas: list) -> int:
+    from app.auditoria import gravar_impedimentos
+    return gravar_impedimentos(linhas)
+
+
 def buscar_paises() -> list:
     """client_country_mapping do PCP Hub: {nome_cliente, nome_normalizado, country}."""
     token = _login()
@@ -109,7 +123,7 @@ def aplicar(linhas: list, agora=None) -> dict:
         atuais[(s.machine_id, s.op or f'#{s.sequence_order}')] = s
     from app.models import PesagemResumo
     no_totvs = {r.op for r in PesagemResumo.query.filter(PesagemResumo.encontrada.is_(True), PesagemResumo.quantidade_op > 0)}   # OPs cuja quantidade o TOTVS ja informa
-    vistos, criadas, atualizadas = set(), 0, 0
+    vistos, criadas, atualizadas, novas_seqs = set(), 0, 0, []
     for r in linhas:
         try:
             numero = int(str(r.get('machine')).strip())
@@ -138,14 +152,22 @@ def aplicar(linhas: list, agora=None) -> dict:
                 setattr(s, k, v)                      # situacao e pecas_produzidas (calculadas pelo TOTVS) ficam como estao
             atualizadas += 1
         else:
-            db.session.add(Sequencia(machine_id=m.id, pecas_produzidas=_int(r.get('quantity_pieces')), **campos))
+            novo = Sequencia(machine_id=m.id, pecas_produzidas=_int(r.get('quantity_pieces')), **campos)
+            db.session.add(novo)
+            novas_seqs.append((novo, m.number))
             criadas += 1
     removidas = 0
     if vistos:                                          # nunca apaga tudo se a leitura veio vazia
+        saiu = {}
         for chave, s in atuais.items():
             if chave not in vistos:
+                saiu[str(s.op)] = (s, s.machine.number if s.machine else None)
                 db.session.delete(s)
                 removidas += 1
+        if saiu:                                        # OP que mudou de maquina durante uma auditoria vai para o log (origem -> destino)
+            from app.auditoria import registrar_movimentacoes
+            novas = {str(n.op): (n, num) for n, num in novas_seqs if n.op}
+            registrar_movimentacoes(saiu, novas, {})
     db.session.commit()
     return dict(criadas=criadas, atualizadas=atualizadas, removidas=removidas)
 
@@ -158,6 +180,10 @@ def atualizar(app) -> bool:
         linhas = buscar_linhas()
         with app.app_context():
             res = aplicar(linhas)
+            try:                                              # Controle de Artigos (impedimentos artigo x maquina)
+                ESTADO['impedimentos'] = gravar_impedimentos_hub(buscar_impedimentos())
+            except Exception as e_imp:  # noqa: BLE001
+                ESTADO['impedimentos_erro'] = str(e_imp)[:200]
             try:                                              # pais dos clientes de exportacao (bandeira no cartao da maquina)
                 ESTADO['paises'] = gravar_paises(buscar_paises())
             except Exception as e_pais:  # noqa: BLE001

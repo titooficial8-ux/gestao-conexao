@@ -13,6 +13,8 @@
       <h1 class="page-heading prod-toolbar-heading">{{ t('producao_por_maquina') }}</h1>
       <div class="prod-toolbar-meta">
         <span>{{ sequencias|length }} {{ t('artigos_meta') }}</span>
+        {% if aud_sessao %}<span class="au-em-curso">&#9881; Auditoria em andamento · mecânico {{ aud_sessao.mecanico }}</span><button type="button" class="au-btn au-btn-fim" id="btnEncerrarAud">Encerrar auditoria</button>
+        {% else %}<button type="button" class="au-btn" id="btnIniciarAud">Iniciar Auditoria</button>{% endif %}
         <span>&bull;</span>
         <span>{{ t('maquina') }} {{ '%02d'|format(machine.number) }}</span>
       </div>
@@ -20,7 +22,7 @@
   </div>
   <div class="prod-toolbar-actions">
     <button type="button" class="prod-btn" disabled>{{ t('acao_lista') }}</button>
-    <button type="button" class="prod-btn" disabled>{{ t('acao_atualizar') }}</button>
+    <button type="button" class="prod-btn prod-btn-accent" id="btnAuditoria" data-maquina="{{ machine.number }}">&#9881; Auditoria</button>
     <button type="button" class="prod-btn prod-btn-accent" id="btnHistProd">&#128200; Histórico de produção</button>
     <button type="button" class="prod-btn" disabled>{{ t('acao_download') }}</button>
     <button type="button" class="prod-btn prod-btn-warn" disabled>{{ t('acao_dias_sem_producao') }}</button>
@@ -92,7 +94,9 @@
       <tbody>
         {% for s in sequencias %}
         <tr class="{{ 'seq-produzindo' if s.status == 'PRODUZINDO' else '' }}">
-          <td><span class="seq-num">{{ loop.index }}º</span></td>
+          <td><span class="seq-num">{{ loop.index }}º</span>
+            <button type="button" class="au-gear {{ 'ok' if s.aud_ok else 'no' }}" data-seq="{{ s.id }}" {{ '' if aud_sessao else 'disabled' }} title="{{ 'Verificado na máquina pelo mecanico e PCP' if s.aud_ok else 'Ainda não verificado' }}">&#9881;</button>
+            {% if impedidos.get(s.id) %}<span class="au-bloq" title="{{ impedidos[s.id] }}">&#9940;</span>{% endif %}</td>
           {% set pct = ((s.pecas_produzidas or 0) / s.total_pcs * 100) | round | int if s.total_pcs else 0 %}
           <td class="seq-prog">
             <strong>{{ s.pecas_produzidas }}</strong>
@@ -388,4 +392,47 @@
   modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
 })();
 </script>
+<style>
+.au-btn{border:0;background:#0f2a4a;color:#fff;font-weight:700;font-size:12px;border-radius:8px;padding:5px 12px;cursor:pointer}.au-btn-fim{background:#b91c1c;margin-left:6px}
+.au-em-curso{font-weight:700;color:#166534;background:#dcfce7;border-radius:8px;padding:3px 10px}
+.au-gear{border:0;background:transparent;font-size:24px;line-height:1;cursor:pointer;margin-left:6px;vertical-align:middle;transition:transform .25s}.au-gear.no{color:#dc2626}.au-gear.ok{color:#16a34a}
+.au-gear:not([disabled]):hover{transform:rotate(60deg) scale(1.15)}.au-gear[disabled]{cursor:default;opacity:.75}.au-bloq{font-size:20px;margin-left:4px;cursor:help}
+.au-lista{display:flex;flex-direction:column;gap:6px;margin:12px 0}.au-lista button{padding:9px 12px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;font-size:14px;cursor:pointer;text-align:left}.au-lista button:hover{background:#eff6ff}
+</style>
+<div class="modal-backdrop" id="modalMecanico" hidden>
+  <div class="modal-box op-modal-box" style="max-width:420px">
+    <div class="modal-head"><h3>Mecânico responsável</h3><button type="button" class="modal-close" id="fecharMecanico">&times;</button></div>
+    <div class="au-lista" id="auLista">{% for n in mecanicos %}<button type="button" data-n="{{ n }}">{{ n }}</button>{% endfor %}<button type="button" data-n="">Outro…</button></div>
+    <div id="auOutro" hidden><input type="text" id="auNome" class="prod-search" placeholder="Nome do mecânico" style="width:100%"><button type="button" class="au-btn" id="auOk" style="margin-top:8px">Iniciar</button></div>
+  </div>
+</div>
+<script>
+(function () {
+  var MAQ = {{ machine.number }};
+  function post(url, corpo) { return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)}).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.erro || 'Erro'); return d; }); }); }
+  var modal = document.getElementById('modalMecanico'), ini = document.getElementById('btnIniciarAud'), fim = document.getElementById('btnEncerrarAud');
+  function iniciar(nome) { post('{{ url_for("auditoria.iniciar") }}', {maquina: MAQ, mecanico: nome}).then(function () { location.reload(); }).catch(function (e) { alert(e.message); }); }
+  if (ini) ini.addEventListener('click', function () { modal.hidden = false; });
+  if (modal) {
+    document.getElementById('fecharMecanico').addEventListener('click', function () { modal.hidden = true; });
+    document.getElementById('auLista').addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.n) return iniciar(b.dataset.n);
+      document.getElementById('auOutro').hidden = false; document.getElementById('auNome').focus();
+    });
+    document.getElementById('auOk').addEventListener('click', function () { var n = document.getElementById('auNome').value.trim(); if (n) iniciar(n); });
+  }
+  if (fim) fim.addEventListener('click', function () { if (confirm('Encerrar a auditoria desta máquina?')) post('{{ url_for("auditoria.encerrar") }}', {maquina: MAQ}).then(function () { location.reload(); }); });
+  document.querySelectorAll('.au-gear:not([disabled])').forEach(function (g) {
+    g.addEventListener('click', function (e) {
+      e.stopPropagation();
+      post('{{ url_for("auditoria.verificar") }}', {sequencia: g.dataset.seq}).then(function (d) {
+        g.classList.toggle('ok', d.verificado); g.classList.toggle('no', !d.verificado);
+        g.title = d.verificado ? 'Verificado na máquina pelo mecanico e PCP' : 'Ainda não verificado';
+      }).catch(function (er) { alert(er.message); });
+    });
+  });
+})();
+</script>
+{% include 'main/_auditoria_log.html' %}
 {% endblock %}

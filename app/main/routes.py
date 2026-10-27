@@ -1327,6 +1327,9 @@ def view_tab(slug):
     if slug == 'expedicao':
         return render_template('main/expedicao.html', tab=tab)
 
+    if slug == 'controle-artigos':
+        return render_template('main/controle_artigos.html', tab=tab)
+
     if slug == 'pedidos-comercial-mi':
         return render_template('main/comercial_mi.html', tab=tab)
 
@@ -2398,6 +2401,7 @@ def maquina_detalhe(numero):
     tab = Tab.query.filter_by(slug='programacao').first_or_404()
     if not tab.visible_to(current_user):
         abort(403)
+    from app.auditoria import MECANICOS, impedidos_por_sequencia, sessao_aberta
     machine = Machine.query.filter_by(number=numero).first_or_404()
     sequencias = (
         Sequencia.query.filter_by(machine_id=machine.id)
@@ -2438,6 +2442,7 @@ def maquina_detalhe(numero):
                           op_produzindo=produzindo.op if produzindo else None)
     return render_template(
         'main/maquina_detalhe.html',
+        aud_sessao=sessao_aberta(machine.number), impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
         artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
         tab=tab,
         machine=machine,

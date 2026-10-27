@@ -32,7 +32,7 @@
   </div>
   <div class="prod-toolbar-actions">
     <button type="button" class="prod-btn" disabled>{{ t('acao_lista') }}</button>
-    <a href="{{ url_for('main.view_tab', slug='programacao') }}" class="prod-btn">{{ t('acao_atualizar') }}</a>
+    <button type="button" class="prod-btn prod-btn-accent" id="btnAuditoria">&#9881; Auditoria</button>
     <button type="button" class="prod-btn" id="btnHistorico">{{ t('acao_historico') }}</button>
     <button type="button" class="prod-btn" id="btnDownload">{{ t('acao_download') }}</button>
     <button type="button" class="prod-btn prod-btn-warn" id="btnDiasSemProducao">{{ t('acao_dias_sem_producao') }}</button>
@@ -383,4 +383,5 @@ window.initFactoryCorridors = function () {
 
 window.initFactoryCorridors();
 </script>
+{% include 'main/_auditoria_log.html' %}
 {% endblock %}

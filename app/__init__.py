@@ -103,6 +103,8 @@ def create_app():
     app.register_blueprint(cmi_bp)
     from app.expedicao import exp_bp
     app.register_blueprint(exp_bp)
+    from app.auditoria import aud_bp
+    app.register_blueprint(aud_bp)
     from app.financeiro import fin_bp
     app.register_blueprint(fin_bp)
     from app.perfil import perfil_bp
@@ -184,7 +186,7 @@ def create_app():
         # colunas novas em bancos antigos (o create_all so cria tabelas que ainda nao existem)
         from sqlalchemy import inspect, text
         tabelas = set(inspect(db.engine).get_table_names())
-        for tabela, novas in (('users', (('setor_id', 'INTEGER'), ('verificado', 'BOOLEAN DEFAULT 0'), ('deve_trocar_senha', 'BOOLEAN DEFAULT 0'), ('foto_versao', 'INTEGER DEFAULT 0'), ('capa_versao', 'INTEGER DEFAULT 0'), ('capa_x', 'INTEGER DEFAULT 50'), ('capa_y', 'INTEGER DEFAULT 50'), ('segundos_acesso', 'INTEGER DEFAULT 0'), ('selo_parabens_pendente', 'BOOLEAN DEFAULT 0'))), ('pedidos_relatorio', (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)'), ('vl_unitario', 'FLOAT DEFAULT 0'))), ('pesagens_malharia', (('visto_em', 'DATETIME'), ('hora_real', 'DATETIME'), ('hora_origem', 'VARCHAR(10)'), ('trx_codigo', 'INTEGER'), ('peso_kg', 'FLOAT'))), ('pesagens_malharia_resumo', (('artigo_desc', 'VARCHAR(200)'), ('gramatura', 'FLOAT'), ('largura', 'FLOAT'), ('metro_ideal', 'FLOAT'), ('cliente_cod', 'INTEGER'))), ('baixas_fio', (('gramatura', 'FLOAT'), ('largura', 'FLOAT'))), ('sequencias', (('situacao', 'VARCHAR(20)'), ('pecas_dia', 'FLOAT'), ('termino_calculado', 'BOOLEAN DEFAULT 0'), ('prev_fonte', 'VARCHAR(30)'), ('prev_rpm', 'FLOAT'), ('prev_voltas', 'FLOAT'), ('prev_raport', 'FLOAT'), ('prev_termino_em', 'DATETIME'))),
+        for tabela, novas in (('users', (('setor_id', 'INTEGER'), ('verificado', 'BOOLEAN DEFAULT 0'), ('deve_trocar_senha', 'BOOLEAN DEFAULT 0'), ('foto_versao', 'INTEGER DEFAULT 0'), ('capa_versao', 'INTEGER DEFAULT 0'), ('capa_x', 'INTEGER DEFAULT 50'), ('capa_y', 'INTEGER DEFAULT 50'), ('segundos_acesso', 'INTEGER DEFAULT 0'), ('selo_parabens_pendente', 'BOOLEAN DEFAULT 0'))), ('pedidos_relatorio', (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)'), ('vl_unitario', 'FLOAT DEFAULT 0'))), ('pesagens_malharia', (('visto_em', 'DATETIME'), ('hora_real', 'DATETIME'), ('hora_origem', 'VARCHAR(10)'), ('trx_codigo', 'INTEGER'), ('peso_kg', 'FLOAT'))), ('pesagens_malharia_resumo', (('artigo_desc', 'VARCHAR(200)'), ('gramatura', 'FLOAT'), ('largura', 'FLOAT'), ('metro_ideal', 'FLOAT'), ('cliente_cod', 'INTEGER'))), ('baixas_fio', (('gramatura', 'FLOAT'), ('largura', 'FLOAT'))), ('sequencias', (('situacao', 'VARCHAR(20)'), ('pecas_dia', 'FLOAT'), ('termino_calculado', 'BOOLEAN DEFAULT 0'), ('prev_fonte', 'VARCHAR(30)'), ('prev_rpm', 'FLOAT'), ('prev_voltas', 'FLOAT'), ('prev_raport', 'FLOAT'), ('aud_ok', 'BOOLEAN DEFAULT 0'), ('aud_em', 'DATETIME'), ('prev_termino_em', 'DATETIME'))),
                                 ('historico_producao', (('motivo_cancelamento', 'VARCHAR(500)'), ('justificado_por', 'VARCHAR(120)'), ('justificado_em', 'DATETIME')))):
             if tabela not in tabelas:
                 continue
@@ -276,6 +278,8 @@ def create_app():
         garantir_abas()                                                  # abas do Desenvolvimento (Cronograma, Cotacoes, Amostras, Projetos)
         from app.expedicao import garantir_aba as garantir_expedicao
         garantir_expedicao()                                             # aba Expedicao (Planejamento)
+        from app.auditoria import garantir_aba as garantir_controle_artigos
+        garantir_controle_artigos()                                      # aba Controle de Artigos (Planejamento)
         from app.indicadores.routes import garantir_aba as garantir_indicadores
         garantir_indicadores()                                           # aba Indicadores (Producao)
         # contas iniciais por setor (idempotente)
