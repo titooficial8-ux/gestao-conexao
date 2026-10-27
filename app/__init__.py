@@ -148,7 +148,7 @@ def create_app():
     @app.before_request
     def exigir_troca_de_senha():
         # senha provisoria: ate trocar, so a tela de troca (e sair) ficam disponiveis
-        if current_user.is_authenticated and getattr(current_user, 'deve_trocar_senha', False):
+        if current_user.is_authenticated and getattr(current_user, 'deve_trocar_senha', False) and not session.get('robo_relatorio'):      # o Chromium do relatorio entra por token interno e nao pode parar na troca de senha
             if request.endpoint not in ('auth.trocar_senha', 'auth.logout', 'auth.set_lang', 'presenca.ping', 'static'):
                 return redirect(url_for('auth.trocar_senha'))
 
