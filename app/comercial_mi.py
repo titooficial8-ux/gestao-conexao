@@ -119,7 +119,59 @@ def artigos_parados(meses: int = 3) -> list:
     return saida
 
 
-def indicadores(clientes: list, artigos: list) -> dict:
+def _bases(meses: int) -> dict:
+    """Denominadores dos indicadores: quantos clientes/artigos existem na base e quanto foi faturado/rodado nos ultimos 12 meses."""
+    hoje, corte, limite = _corte(meses)
+    um_ano = hoje - timedelta(days=365)
+    ult, receita_12m = {}, 0.0
+    for d, valor, _m, nome in _registros_mi():
+        if nome == 'SEM CLIENTE':
+            continue
+        dd = date.fromisoformat(d)
+        if dd > hoje:
+            continue
+        ult[nome] = max(ult.get(nome, dd), dd)
+        if dd > um_ano:
+            receita_12m += valor
+    clientes_base = sum(1 for u in ult.values() if u >= limite)
+    clientes_ativos = sum(1 for u in ult.values() if u >= corte)
+    ativos_art = {str(s.artigo or '').split()[0] for s in Sequencia.query.all() if (s.status or '') in ATIVAS and s.artigo}
+    art_base = art_ativos = 0
+    metros_12m = 0.0
+    for a in ArtigoRodagem.query.all():
+        try:
+            ops = json.loads(a.ops_json or '[]')
+        except ValueError:
+            continue
+        datas = [date.fromisoformat(o[0]) for o in ops if o and o[0]]
+        if not datas:
+            continue
+        ultima = max(datas)
+        metros_12m += sum((o[1] or 0) for o in ops if o and o[0] and date.fromisoformat(o[0]) > um_ano)
+        if ultima >= limite:
+            art_base += 1
+            if ultima >= corte or a.cod_artigo in ativos_art:
+                art_ativos += 1
+    return dict(receita_12m=round(receita_12m, 2), clientes_base=clientes_base, clientes_ativos=clientes_ativos,
+                artigos_base=art_base, artigos_ativos=art_ativos, metros_rodados_12m=round(metros_12m, 1))
+
+
+def _faixas(lista: list, meses: int, campo_valor: str) -> list:
+    """Quanto tempo faz que pararam: de `meses` ate 6, 6-12, 12-24 e 24+ (recente = mais facil de recuperar)."""
+    cortes = [c for c in (6, 12, 24) if c > meses]
+    limites = [meses] + cortes + [10 ** 6]
+    saida = []
+    for i in range(len(limites) - 1):
+        ini, fim = limites[i], limites[i + 1]
+        itens = [x for x in lista if ini <= x['meses'] < fim]
+        rotulo = f'{ini} a {fim} meses' if fim < 10 ** 6 else f'mais de {ini} meses'
+        saida.append(dict(faixa=rotulo, qtd=len(itens), valor=round(sum(x[campo_valor] for x in itens), 2)))
+    return saida
+
+
+def indicadores(clientes: list, artigos: list, meses: int = 3, bases: dict = None) -> dict:
+    bases = bases or {}
+
     def agrupar(lista, motivos, campo_valor):
         g = {m: dict(motivo=m, qtd=0, valor=0.0) for m in motivos + [SEM_MOTIVO]}
         for x in lista:
@@ -127,20 +179,39 @@ def indicadores(clientes: list, artigos: list) -> dict:
             g[k]['qtd'] += 1
             g[k]['valor'] += x[campo_valor]
         return [dict(v, valor=round(v['valor'], 2)) for v in g.values()]
+
+    def sem_motivo(lista, campo_valor):
+        return [dict(nome=x['nome'], valor=x[campo_valor], meses=x['meses']) for x in lista if not x['motivo']][:5]
+
     por_mes = {}
     for x in clientes:
         k = x['ultima'][:7]
         por_mes[k] = por_mes.get(k, 0) + 1
     inf_c = sum(1 for x in clientes if x['motivo'])
     inf_a = sum(1 for x in artigos if x['motivo'])
+    risco = round(sum(x['valor_12m'] for x in clientes), 2)
+    top3 = sum(x['valor_12m'] for x in clientes[:3])
+    top10 = sum(x['valor_12m'] for x in clientes[:10])
+    m_par = round(sum(x['metros_12m'] for x in artigos), 1)
     return dict(
-        clientes=dict(total=len(clientes), valor_em_risco=round(sum(x['valor_12m'] for x in clientes), 2), informados=inf_c,
-                      pct_informado=round(inf_c / len(clientes) * 100) if clientes else 0, por_motivo=agrupar(clientes, MOTIVOS_CLIENTE, 'valor_12m'),
-                      top=[dict(nome=x['nome'], valor=x['valor_12m'], meses=x['meses'], motivo=x['motivo']) for x in clientes[:10]],
+        clientes=dict(total=len(clientes), base=bases.get('clientes_base', 0), ativos=bases.get('clientes_ativos', 0),
+                      pct_base=round(len(clientes) / bases['clientes_base'] * 100) if bases.get('clientes_base') else 0,
+                      valor_em_risco=risco, receita_12m=bases.get('receita_12m', 0),
+                      pct_receita=round(risco / bases['receita_12m'] * 100) if bases.get('receita_12m') else 0,
+                      pct_top3=round(top3 / risco * 100) if risco else 0, pct_top10=round(top10 / risco * 100) if risco else 0,
+                      informados=inf_c, pct_informado=round(inf_c / len(clientes) * 100) if clientes else 0,
+                      por_motivo=agrupar(clientes, MOTIVOS_CLIENTE, 'valor_12m'), faixas=_faixas(clientes, meses, 'valor_12m'),
+                      top=[dict(nome=x['nome'], valor=x['valor_12m'], meses=x['meses'], motivo=x['motivo']) for x in clientes[:5]],
+                      sem_motivo=sem_motivo(clientes, 'valor_12m'),
                       saida_por_mes=[dict(mes=k, qtd=v) for k, v in sorted(por_mes.items())]),
-        artigos=dict(total=len(artigos), metros_12m=round(sum(x['metros_12m'] for x in artigos), 1), informados=inf_a,
-                     pct_informado=round(inf_a / len(artigos) * 100) if artigos else 0, por_motivo=agrupar(artigos, MOTIVOS_ARTIGO, 'metros_12m'),
-                     top=[dict(nome=x['nome'], valor=x['metros_12m'], meses=x['meses'], motivo=x['motivo']) for x in artigos[:10]]))
+        artigos=dict(total=len(artigos), base=bases.get('artigos_base', 0), ativos=bases.get('artigos_ativos', 0),
+                     pct_base=round(len(artigos) / bases['artigos_base'] * 100) if bases.get('artigos_base') else 0,
+                     metros_12m=m_par, metros_rodados_12m=bases.get('metros_rodados_12m', 0),
+                     pct_metros=round(m_par / (m_par + bases['metros_rodados_12m']) * 100) if bases.get('metros_rodados_12m') and m_par else 0,
+                     informados=inf_a, pct_informado=round(inf_a / len(artigos) * 100) if artigos else 0,
+                     por_motivo=agrupar(artigos, MOTIVOS_ARTIGO, 'metros_12m'), faixas=_faixas(artigos, meses, 'metros_12m'),
+                     top=[dict(nome=x['nome'], valor=x['metros_12m'], meses=x['meses'], motivo=x['motivo']) for x in artigos[:5]],
+                     sem_motivo=sem_motivo(artigos, 'metros_12m')))
 
 
 def _meses():
@@ -157,7 +228,7 @@ def dados():
     meses = _meses()
     cl, ar = clientes_inativos(meses), artigos_parados(meses)
     from app.totvs import rodagem
-    return jsonify(ok=True, meses=meses, clientes=cl, artigos=ar, indicadores=indicadores(cl, ar),
+    return jsonify(ok=True, meses=meses, clientes=cl, artigos=ar, indicadores=indicadores(cl, ar, meses, _bases(meses)),
                    motivos=dict(cliente=MOTIVOS_CLIENTE, artigo=MOTIVOS_ARTIGO),
                    fonte_artigos=dict(ultima=rodagem.ESTADO.get('ultima'), erro=rodagem.ESTADO.get('erro'), rodando=bool(rodagem.ESTADO.get('rodando')),
                                       total=ArtigoRodagem.query.count()))

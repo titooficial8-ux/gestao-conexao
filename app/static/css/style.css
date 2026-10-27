@@ -488,6 +488,8 @@ button { font-family: inherit; cursor: pointer; }
 .machine-status-ribbon-red { background: var(--danger); color: var(--white); }
 .machine-status-ribbon-yellow { background: #b8860b; color: var(--white); }
 
+.machine-ind { position: absolute; left: 8px; top: 8px; width: 26px; height: 17px; object-fit: contain; border-radius: 2px; }
+.machine-ind-logo { width: 40px; height: 15px; border-radius: 0; top: 9px; }
 .machine-est {
   margin-top: 6px;
   padding: 2px 10px;

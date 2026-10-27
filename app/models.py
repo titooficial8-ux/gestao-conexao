@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -197,6 +197,15 @@ class Sequencia(db.Model):
     prev_fonte = db.Column(db.String(30), nullable=True)      # de onde vieram as voltas/RPM: OP, maquina+artigo ou artigo
     prev_rpm = db.Column(db.Float, nullable=True)
     prev_voltas = db.Column(db.Float, nullable=True)
+    prev_termino_em = db.Column(db.DateTime, nullable=True)   # data e hora previstas de termino (voltas/RPM + fila da maquina)
+
+    @property
+    def termino_hora_aprox(self):
+        """Hora aproximada do termino prevista, arredondada para meia hora (ex.: '14h30')."""
+        if not self.prev_termino_em:
+            return None
+        t = self.prev_termino_em + timedelta(minutes=15)
+        return f'{t.hour:02d}h{30 if t.minute >= 30 else 0:02d}' if t.minute >= 30 else f'{t.hour:02d}h00'
 
     machine = db.relationship('Machine', backref='sequencias')
 
@@ -492,6 +501,16 @@ class ArtigoRodagem(db.Model):
     descricao = db.Column(db.String(200))
     ops_json = db.Column(db.Text)                      # [[data da OP, quantidade (m), cliente, numero da OP], ...]
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ClientePais(db.Model):
+    """Pais de cada cliente de exportacao (copia do client_country_mapping do PCP Hub): define a bandeira no cartao da maquina."""
+    __tablename__ = 'cliente_pais'
+
+    id = db.Column(db.Integer, primary_key=True)
+    nome_normalizado = db.Column(db.String(160), index=True)
+    nome = db.Column(db.String(200))
+    pais = db.Column(db.String(40))
 
 
 class GramaturaMetrosRule(db.Model):
