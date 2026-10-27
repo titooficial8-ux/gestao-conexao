@@ -2749,15 +2749,15 @@ textarea.ticket-input { resize: vertical; }
 .seq-produzindo td { background: #f0faf3 !important; }
 .seq-produzindo td:first-child { box-shadow: inset 4px 0 0 #2aa55a; }
 .seq-produzindo .seq-num { background: #2aa55a; color: #fff; }
-/* cor da linha pela situacao da OP no TOTVS: PCP fase 1 (aguardando liberacao) amarelo, PCP fase 2 azul claro, estoque (local 34) verde claro, malharia (local 23) verde escuro */
-.seq-table tr.sit-fase1 td { background: #fff3a8 !important; } .seq-table tr.sit-fase1 td:first-child { box-shadow: inset 4px 0 0 #e0b400; }
-.seq-table tr.sit-fase2 td { background: #d4ebff !important; } .seq-table tr.sit-fase2 td:first-child { box-shadow: inset 4px 0 0 #3b9be8; }
-.seq-table tr.sit-estoque td { background: #d6f5dc !important; } .seq-table tr.sit-estoque td:first-child { box-shadow: inset 4px 0 0 #4cc46a; }
-.seq-table tr.sit-malharia td { background: #1f7a4d !important; color: #fff; } .seq-table tr.sit-malharia td:first-child { box-shadow: inset 4px 0 0 #0f4d2e; }
-.seq-table tr.sit-malharia td, .seq-table tr.sit-malharia .seq-cliente, .seq-table tr.sit-malharia .seq-artigo, .seq-table tr.sit-malharia .seq-falta, .seq-table tr.sit-malharia .seq-pct { color: #fff !important; }
-.seq-table tr.sit-malharia .seq-num { background: #fff; color: #1f7a4d; } .seq-table tr.sit-malharia .seq-barra { background: rgba(255,255,255,.3); }
+/* cor das LETRAS da linha pela situacao da OP no TOTVS: PCP fase 1 (aguardando liberacao) amarelo, PCP fase 2 azul claro, estoque (local 34) verde claro, malharia (local 23) verde escuro */
+.seq-table tr.sit-fase1 td, .seq-table tr.sit-fase1 .seq-cliente, .seq-table tr.sit-fase1 .seq-artigo, .seq-table tr.sit-fase1 .seq-falta, .seq-table tr.sit-fase1 .seq-pct { color: #d19a00 !important; }
+.seq-table tr.sit-fase2 td, .seq-table tr.sit-fase2 .seq-cliente, .seq-table tr.sit-fase2 .seq-artigo, .seq-table tr.sit-fase2 .seq-falta, .seq-table tr.sit-fase2 .seq-pct { color: #3aa3f2 !important; }
+.seq-table tr.sit-estoque td, .seq-table tr.sit-estoque .seq-cliente, .seq-table tr.sit-estoque .seq-artigo, .seq-table tr.sit-estoque .seq-falta, .seq-table tr.sit-estoque .seq-pct { color: #36b85e !important; }
+.seq-table tr.sit-malharia td, .seq-table tr.sit-malharia .seq-cliente, .seq-table tr.sit-malharia .seq-artigo, .seq-table tr.sit-malharia .seq-falta, .seq-table tr.sit-malharia .seq-pct { color: #0f5c32 !important; }
+.seq-table tr.sit-fase1 td, .seq-table tr.sit-fase2 td, .seq-table tr.sit-estoque td, .seq-table tr.sit-malharia td { font-weight: 700; }
+.seq-table tr[class*="sit-"] .seq-op-btn, .seq-table tr[class*="sit-"] .badge-ok, .seq-table tr[class*="sit-"] .badge-info, .seq-table tr[class*="sit-"] .badge-warn, .seq-table tr[class*="sit-"] .badge-neutral { font-weight: 700; }
 .seq-legenda { display: flex; gap: 14px; flex-wrap: wrap; margin: 6px 0 12px; font-size: 12px; color: #475569; }
-.seq-legenda span { display: inline-flex; align-items: center; gap: 6px; } .seq-legenda i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; border: 1px solid rgba(0,0,0,.15); }
+.seq-legenda span { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
 .seq-op { display: inline-block; padding: 3px 9px; border-radius: 6px; background: #eef1f6; color: #17325c; font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .seq-falta { font-weight: 700; color: #b45309; }
 .seq-prog { min-width: 84px; }
