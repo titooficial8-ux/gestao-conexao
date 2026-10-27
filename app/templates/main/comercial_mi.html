@@ -253,7 +253,7 @@
     var m = document.getElementById('cmMeses').value;
     fetch(URL_DADOS + '?meses=' + m, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       var e = document.getElementById('cmErro'); if (!d.ok) { e.hidden = false; e.textContent = d.erro || 'Não foi possível carregar.'; return; } e.hidden = true; D = d; desenharTudo();
-      document.getElementById('cmFonte').textContent = 'Clientes: pedidos de venda do mercado interno (TOTVS + planilha 2023–2025). Artigos: OPs do TOTVS (data de abertura da OP). Os valores "12 m antes" somam os 12 meses anteriores à última compra/OP.';
+      document.getElementById('cmFonte').textContent = 'Clientes: pedidos de venda do mercado interno e Artigos: OPs (data de abertura), tudo lido direto do TOTVS e atualizado a cada 2 minutos. Os valores "12 m antes" somam os 12 meses anteriores à última compra/OP.';
     }).catch(function () { var e = document.getElementById('cmErro'); e.hidden = false; e.textContent = 'Falha ao carregar os dados.'; });
   }
   document.querySelectorAll('.cm-tab').forEach(function (b) { b.addEventListener('click', function () { aba = b.dataset.aba; mostrar(); if (aba === 'ind' && sujo) { sujo = false; carregar(); } }); });
@@ -261,6 +261,7 @@
   document.getElementById('cmBusca').addEventListener('input', function () { if (D) { desenharCli(); desenharArt(); } });
   document.getElementById('cmCsv').addEventListener('click', function () { location.href = URL_EXPORT + '?tipo=' + (aba === 'art' ? 'artigos' : 'clientes') + '&meses=' + document.getElementById('cmMeses').value; });
   carregar();
+  setInterval(function () { var a = document.activeElement; if (document.hidden || (a && /INPUT|SELECT|TEXTAREA/.test(a.tagName))) return; carregar(); }, 120000);   // atualiza sozinho a cada 2 min (sem atrapalhar quem esta digitando)
 })();
 </script>
 {% endblock %}

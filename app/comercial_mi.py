@@ -1,6 +1,6 @@
 """Comercial MI: clientes que nao compram e artigos que nao rodam ha N meses, motivo informado pelo comercial e indicadores para a diretoria.
 
-Clientes: pedidos de venda do mercado interno (TOTVS de 2026 em diante + planilha 2023-2025, os mesmos da Entrada de Pedidos).
+Clientes: pedidos de venda do mercado interno lidos direto do TOTVS (desde 2023).
 Artigos: OPs lidas do TOTVS (app/totvs/rodagem.py). Motivos ficam em motivos_inativos."""
 import csv
 import io
@@ -35,25 +35,13 @@ def _corte(meses: int):
 
 
 def _registros_mi():
-    """[(data ISO, valor, metros, cliente)] de pedidos do mercado interno."""
+    """[(data ISO, valor, metros, cliente)] de pedidos do mercado interno, lidos do TOTVS (app/totvs/historico_mi.py)."""
     from app.main.routes import normalize_client_name
-    from app.totvs import entrada, planilha_pedidos
-    dados = entrada._ler()
-    if dados.get('versao') != entrada.VERSAO:
-        dados = {}
+    from app.totvs import historico_mi
+    dados = historico_mi.ler()
     fantasia = dados.get('clientes', {})
-    regs = []
-    for d, valor, metros, local, cod, _ins, razao in (dados.get('pedidos') or {}).values():
-        if local == 'MI' and int(d[:4]) in entrada.ANOS_TOTVS:
-            regs.append((d, valor, metros, normalize_client_name(fantasia.get(str(cod)) or razao) or 'SEM CLIENTE'))
-    try:
-        plan = planilha_pedidos.ler()
-    except Exception:  # noqa: BLE001
-        plan = {}
-    for d, valor, metros, local, cliente in plan.get('pedidos', []):
-        if local == 'MI' and int(d[:4]) not in entrada.ANOS_TOTVS:
-            regs.append((d, valor, metros, normalize_client_name(cliente) or 'SEM CLIENTE'))
-    return regs
+    return [(d, valor, metros, normalize_client_name(fantasia.get(str(cod)) or razao) or 'SEM CLIENTE')
+            for d, valor, metros, cod, razao in (dados.get('pedidos') or {}).values()]
 
 
 def _motivos(tipo: str) -> dict:
@@ -227,9 +215,10 @@ def dados():
     _autorizar()
     meses = _meses()
     cl, ar = clientes_inativos(meses), artigos_parados(meses)
-    from app.totvs import rodagem
+    from app.totvs import historico_mi, rodagem
     return jsonify(ok=True, meses=meses, clientes=cl, artigos=ar, indicadores=indicadores(cl, ar, meses, _bases(meses)),
                    motivos=dict(cliente=MOTIVOS_CLIENTE, artigo=MOTIVOS_ARTIGO),
+                   fonte_clientes=dict(ultima=historico_mi.ESTADO.get('ultima'), erro=historico_mi.ESTADO.get('erro'), n=historico_mi.ESTADO.get('n')),
                    fonte_artigos=dict(ultima=rodagem.ESTADO.get('ultima'), erro=rodagem.ESTADO.get('erro'), rodando=bool(rodagem.ESTADO.get('rodando')),
                                       total=ArtigoRodagem.query.count()))
 
