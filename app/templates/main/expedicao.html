@@ -12,7 +12,8 @@
 .xp-live select{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:6px 12px;font-size:13px}.xp-live select option{color:#16283c}
 .xp-heads{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px}
 .xp-head{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:14px 16px;min-width:0}
-.xp-head{position:relative;overflow:hidden}.xp-head>span,.xp-head>strong,.xp-head>em{position:relative;z-index:2}
+.xp-head{position:relative;overflow:hidden}.xp-head.click{cursor:pointer;transition:transform .12s}.xp-head.click:hover{transform:translateY(-2px)}
+.xp-head>span,.xp-head>strong,.xp-head>em{position:relative;z-index:2}
 .xp-fill{position:absolute;left:0;right:0;bottom:0;z-index:1;transition:height 2.4s cubic-bezier(.2,.8,.2,1);pointer-events:none}
 .xp-fill .mar{position:absolute;left:0;right:0;top:18px;bottom:0;background:rgba(45,212,191,.24)}
 .xp-fill .onda{position:absolute;left:0;top:0;width:200%;height:22px;animation:xpOnda 7s linear infinite}.xp-fill .onda.b{animation-duration:11s;animation-direction:reverse;top:3px}
@@ -135,7 +136,7 @@
     var de = PREVV[id] === undefined ? 0 : PREVV[id], t0 = null; PREVV[id] = val;
     (function passo(t) { if (!t0) t0 = t; else if (!document.body.contains(e)) return; var f = Math.min((t - t0) / 1600, 1), k = 1 - Math.pow(1 - f, 3); e.textContent = fmt(de + (val - de) * k); if (f < 1) requestAnimationFrame(passo); })(performance.now());
   }
-  function head(r, val, fmt, sub, vr, id, deco) { var h = el('div', 'xp-head'); if (deco) h.appendChild(deco); h.appendChild(el('span', null, r)); var st = el('strong', null, fmt(0)); h.appendChild(st); contar(st, id, val, fmt); var e = el('em'); var b = varBadge(vr); if (b) e.appendChild(b); e.appendChild(document.createTextNode(sub)); h.appendChild(e); return h; }
+  function head(r, val, fmt, sub, vr, id, deco, fn) { var h = el('div', 'xp-head' + (fn ? ' click' : '')); if (fn) { h.addEventListener('click', fn); h.title = 'Clique para ver como esse saldo é calculado'; } if (deco) h.appendChild(deco); h.appendChild(el('span', null, r)); var st = el('strong', null, fmt(0)); h.appendChild(st); contar(st, id, val, fmt); var e = el('em'); var b = varBadge(vr); if (b) e.appendChild(b); e.appendChild(document.createTextNode(sub)); h.appendChild(e); return h; }
   function tanque(total) {      // líquido que enche (ou baixa) conforme o saldo; a referência é o maior saldo já visto nesta tela
     var pk = total; try { pk = Math.max(parseFloat(localStorage.getItem('xpPico') || 0) || 0, total); localStorage.setItem('xpPico', String(pk)); } catch (e) { }
     var nivel = pk ? 10 + total / pk * 62 : 10, box = el('div', 'xp-fill'); box.title = 'Nível do estoque comparado ao maior saldo já visto nesta tela';
@@ -155,6 +156,18 @@
   }
   function alerta(cls, v, t) { var a = el('div', 'xp-al ' + cls); a.appendChild(el('i')); var d = el('div'); d.appendChild(el('b', null, v)); d.appendChild(el('span', null, t)); a.appendChild(d); return a; }
   function un(v, u) { u = String(u || '').toUpperCase(); return u === 'KG' ? nf(v, v >= 1000 ? 0 : 1) + ' kg' : mt(v); }
+  function conferencia(E) {
+    var C = E.conferencia, corpo = el('div');
+    var t = el('table', 'xp-ft'), th = el('tr'); ['', 'Produtos', 'Peças', 'Metros'].forEach(function (x) { th.appendChild(el('th', null, x)); }); t.appendChild(th);
+    function lin(nome, pr, pc, mtr, forte) { var r = el('tr'); r.appendChild(el('td', null, nome)); r.appendChild(el('td', null, nf(pr))); r.appendChild(el('td', null, nf(pc))); r.appendChild(el('td', null, mtr === null ? '–' : mt(mtr))); if (forte) r.style.fontWeight = '800'; t.appendChild(r); }
+    lin('Tudo que o TOTVS tem no saldo 1 (Expedição)', C.produtos_total, C.pecas_total, null, true);
+    C.fora.forEach(function (m) { lin('− ' + m.motivo, m.produtos, m.pecas, m.saldo); });
+    lin('= Saldo mostrado no painel (tecido acabado em metros)', C.produtos, C.pecas, E.total, true);
+    corpo.appendChild(t);
+    corpo.appendChild(el('div', 'xp-nota', 'Para conferir: no relatório 040 (VR_PRD_LOTEI), saldo 1, filtre só tecido acabado em metros e compare com a última linha. Cada peça = um item de lote com saldo maior que zero. Os metros das linhas "−" estão na unidade do próprio produto.'));
+    C.fora.forEach(function (m) { if (!m.top.length) return; var h = el('h4', null, 'Maiores itens fora: ' + m.motivo); h.style.cssText = 'margin:16px 0 6px;font-size:12px;color:#64748b;text-transform:uppercase'; corpo.appendChild(h); corpo.appendChild(tabela(['Artigo', 'Descrição', 'Saldo'], m.top.map(function (x) { return [x.cod, x.nome, nf(x.saldo, 1)]; }))); });
+    abrir('Como o saldo em estoque é calculado', 'saldo 1 da Expedição · só tecido acabado em metros, sem 2ª qualidade e sem sucata', corpo);
+  }
   function listaArtigos(l) { return tabela(['Artigo', 'Descrição', 'Peças', 'Parado há', 'Última entrada', 'Metros'], l.map(function (x) { return [x.cod, x.nome, nf(x.lotes), x.dias > 180 ? '+180 dias' : x.dias + ' dias', x.ult_entrada ? dia(x.ult_entrada) : 'sem entrada em 180 d', mt(x.saldo)]; })); }
   function clicavel(a, fn) { a.classList.add('click'); a.appendChild(el('span', 'ver', 'ver detalhes ›')); a.addEventListener('click', fn); }
   function abrir(titulo, sub, corpo, xlsx) {
@@ -213,7 +226,7 @@
     lv.appendChild(el('span', null, atual ? 'Atualizado em ' + atual : 'Aguardando a primeira leitura…'));
     var per = el('span', 'xp-per', 'Mês atual · ' + D.periodo); lv.appendChild(per); lv.appendChild(el('em', 'xp-ago', '')); top.appendChild(lv); hero.appendChild(top);
     var hs = el('div', 'xp-heads');
-    hs.appendChild(head('Saldo em estoque', E.total, mt, nf(E.artigos) + ' artigos · ' + nf(E.lotes) + ' peças', null, 'h1', tanque(E.total)));
+    hs.appendChild(head('Saldo em estoque', E.total, mt, nf(E.artigos) + ' artigos · ' + nf(E.lotes) + ' peças · conferir ›', null, 'h1', tanque(E.total), function () { conferencia(E); }));
     hs.appendChild(head('Metros expedidos', N.metros, mt, D.periodo, N.var && N.var.metros, 'h2'));
     hs.appendChild(head('Faturado nas NFs', N.valor, brl, D.periodo, N.var && N.var.valor, 'h3', linhaFat(N.por_dia)));
     hs.appendChild(head('NFs autorizadas', N.autorizadas, nf, 'hoje: ' + nf(N.hoje), N.var && N.var.qtd, 'h4'));
