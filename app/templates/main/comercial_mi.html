@@ -68,8 +68,22 @@
 .cm-col i{display:block;width:100%;max-width:34px;background:linear-gradient(180deg,#1d9bf0,var(--blue-700));border-radius:6px 6px 0 0;min-height:3px}
 .cm-col b{font-size:11px;color:var(--text);margin-bottom:3px}
 .cm-col span{font-size:10px;color:var(--gray-500);margin-top:4px;white-space:nowrap}
+.cm-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 4px}
+.cm-tile{background:var(--gray-50,#f6f8fb);border-radius:12px;padding:12px 14px;min-width:0}
+.cm-tile span{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}
+.cm-tile strong{display:block;font-size:30px;line-height:1.1;color:var(--text);margin:4px 0 2px;white-space:nowrap;letter-spacing:-.01em}
+.cm-tile em{display:block;font-style:normal;font-size:12px;color:var(--gray-500)}
+.cm-grp.art .cm-tile:nth-child(2) strong{color:#0f766e}.cm-grp:not(.art) .cm-tile:nth-child(2) strong{color:var(--blue-800)}
+.cm-mot{display:grid;grid-template-columns:150px 1fr 110px;gap:10px;align-items:center;margin:7px 0;font-size:13px}
+.cm-mot .barra{height:12px;background:var(--gray-100);border-radius:999px;overflow:hidden}.cm-mot .barra i{display:block;height:100%;border-radius:999px}
+.cm-mot .val{text-align:right;white-space:nowrap;color:var(--gray-700)}.cm-mot .val b{color:var(--text)}
+.cm-top{display:grid;grid-template-columns:1fr auto;gap:2px 12px;margin:10px 0;font-size:13px}
+.cm-top .nome{font-weight:600;line-height:1.3}.cm-top .nome small{display:block;font-weight:500;color:var(--gray-500);font-size:11px}
+.cm-top .val{text-align:right;white-space:nowrap}
+.cm-top .barra{grid-column:1/3;height:6px;background:var(--gray-100);border-radius:999px;overflow:hidden}.cm-top .barra i{display:block;height:100%;background:var(--blue-600);border-radius:999px}
 .cm-prio{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:980px){.cm-hero,.cm-prio{grid-template-columns:1fr}}
+@media(max-width:520px){.cm-tiles{grid-template-columns:1fr}.cm-mot{grid-template-columns:110px 1fr 90px}}
 @media(max-width:860px){.cm-grid2{grid-template-columns:1fr}.cm-linha{grid-template-columns:100px 1fr 120px}}
 </style>
 
@@ -117,18 +131,23 @@
     var t2 = document.createElementNS(SVGNS, 'text'); t2.setAttribute('x', 70); t2.setAttribute('y', 88); t2.setAttribute('text-anchor', 'middle'); t2.setAttribute('font-size', 10); t2.setAttribute('fill', '#8494a6'); t2.textContent = sub; svg.appendChild(t2);
     return svg;
   }
-  function motivos(lista, fmt, tituloCentro) {
-    var total = lista.reduce(function (a, x) { return a + x.qtd; }, 0), informados = total - (lista.filter(function (x) { return x.motivo === 'Sem motivo informado'; })[0] || { qtd: 0 }).qtd;
-    var w = el('div', 'cm-donut'); w.appendChild(donut(lista, total ? Math.round(informados / total * 100) + '%' : '—', 'com motivo'));
-    var leg = el('div', 'cm-leg');
-    lista.forEach(function (x) { var d = el('div'), i = el('i'); i.style.background = COR[x.motivo] || '#2f7fe0'; d.appendChild(i); d.appendChild(el('span', null, x.motivo)); d.appendChild(el('em', null, x.qtd + ' · ' + fmt(x.valor))); leg.appendChild(d); });
-    w.appendChild(leg); return w;
+  function motivos(lista, fmt) {
+    var w = el('div'), total = lista.reduce(function (t, x) { return t + x.qtd; }, 0);
+    lista.filter(function (x) { return x.qtd; }).sort(function (p, q) { return (p.motivo === 'Sem motivo informado') - (q.motivo === 'Sem motivo informado') || q.qtd - p.qtd; }).forEach(function (x) {
+      var l = el('div', 'cm-mot'), n = el('span', 'nome', x.motivo), b = el('span', 'barra'), i = el('i'), v = el('span', 'val');
+      i.style.width = Math.max(3, Math.round(x.qtd / total * 100)) + '%'; i.style.background = COR[x.motivo] || '#2f7fe0'; b.appendChild(i);
+      v.appendChild(el('b', null, String(x.qtd))); v.appendChild(document.createTextNode(' · ' + fmt(x.valor)));
+      l.appendChild(n); l.appendChild(b); l.appendChild(v); w.appendChild(l);
+    });
+    if (!total) w.appendChild(el('p', 'cm-vazio', 'Nada no período.'));
+    return w;
   }
   var CORF = ['#22c55e', '#f59e0b', '#f97316', '#dc2626'];
   function faixas(lista, fmt) {
     var w = el('div'), total = lista.reduce(function (a, x) { return a + x.qtd; }, 0), st = el('div', 'cm-stack'), lg = el('div', 'cm-stackleg');
     lista.forEach(function (x, i) {
       if (x.qtd) { var seg = el('i'); seg.style.width = (x.qtd / total * 100) + '%'; seg.style.background = CORF[i] || '#dc2626'; seg.title = x.faixa + ': ' + x.qtd; st.appendChild(seg); }
+      if (!x.qtd) return;
       var sp = el('span'), dot = el('i'); dot.style.cssText = 'display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;background:' + (CORF[i] || '#dc2626'); sp.appendChild(dot);
       sp.appendChild(document.createTextNode(x.faixa + ': ')); sp.appendChild(el('b', null, x.qtd + ' · ' + fmt(x.valor))); lg.appendChild(sp);
     });
@@ -137,9 +156,10 @@
   function lista5(lista, fmt) {
     var w = el('div'); if (!lista.length) { w.appendChild(el('p', 'cm-vazio', 'Nada no período.')); return w; }
     var max = Math.max.apply(null, lista.map(function (x) { return x.valor; }).concat([1]));
-    lista.forEach(function (x) {
-      var l = el('div', 'cm-linha'), n = el('span', 'nome', x.nome); n.title = x.nome; l.appendChild(n);
-      var b = el('span', 'barra'), i = el('i'); i.style.width = Math.round(x.valor / max * 100) + '%'; b.appendChild(i); l.appendChild(b); l.appendChild(el('span', 'val', fmt(x.valor))); w.appendChild(l);
+    lista.forEach(function (x, k) {
+      var l = el('div', 'cm-top'), n = el('div', 'nome'); n.appendChild(el('b', null, (k + 1) + '. ')); n.appendChild(document.createTextNode(x.nome)); n.appendChild(el('small', null, 'parado há ' + nf(x.meses, 1) + ' meses'));
+      var b = el('span', 'barra'), i = el('i'); i.style.width = Math.round(x.valor / max * 100) + '%'; b.appendChild(i);
+      l.appendChild(n); l.appendChild(el('b', 'val', fmt(x.valor))); l.appendChild(b); w.appendChild(l);
     });
     return w;
   }
@@ -148,14 +168,19 @@
     var g = el('div', 'cm-gov'), i = el('i'); i.style.width = pct + '%'; i.style.background = pct >= 80 ? '#22c55e' : pct >= 40 ? '#f59e0b' : '#ef4444'; g.appendChild(i); w.appendChild(g); return w;
   }
   function grupo(cls, tag, sub, big, bigTxt, money, moneySub, mot, fmt, fx, concentr, top, topTit, pct) {
+    var tagQtd = cls ? 'Artigos parados' : 'Clientes parados', tagVal = cls ? 'Volume parado' : 'Faturamento em risco';
     var g = el('div', 'cm-grp' + (cls ? ' ' + cls : '')), h = el('div'); h.appendChild(el('span', 'cm-tag', tag)); h.appendChild(el('span', 'cm-sub', sub)); g.appendChild(h);
-    var b = el('div', 'cm-big'); b.appendChild(el('b', null, big)); var sp = el('span'); sp.appendChild(document.createTextNode(bigTxt)); b.appendChild(sp); g.appendChild(b);
-    var m = el('div', 'cm-money', money); m.appendChild(el('small', null, moneySub)); g.appendChild(m);
+    var t = el('div', 'cm-tiles'), cor = pct >= 80 ? '#16a34a' : pct >= 40 ? '#d97706' : '#dc2626';
+    function tile(r, v, sb, c) { var d = el('div', 'cm-tile'); d.appendChild(el('span', null, r)); var st = el('strong', null, v); if (c) st.style.color = c; d.appendChild(st); d.appendChild(el('em', null, sb)); return d; }
+    t.appendChild(tile(tagQtd, big, bigTxt));
+    t.appendChild(tile(tagVal, money, moneySub));
+    t.appendChild(tile('Com motivo', pct + '%', pct ? 'informado pelo comercial' : 'nenhum informado ainda', cor));
+    g.appendChild(t);
     g.appendChild(el('div', 'cm-h', 'Por que pararam')); g.appendChild(mot);
     g.appendChild(el('div', 'cm-h', 'Há quanto tempo pararam (mais recente = mais fácil de recuperar)')); g.appendChild(fx);
     if (concentr) { g.appendChild(el('div', 'cm-h', 'Concentração')); g.appendChild(el('span', 'cm-chip', concentr[0])); g.appendChild(el('span', 'cm-chip', concentr[1])); }
     g.appendChild(el('div', 'cm-h', topTit)); g.appendChild(top);
-    g.appendChild(el('div', 'cm-h', 'Governança')); g.appendChild(gov(pct)); return g;
+    return g;
   }
   function prioridade(titulo, lista, fmt) {
     var c = el('div', 'cm-card'); c.appendChild(el('h3', null, titulo));
@@ -166,13 +191,13 @@
   function desenharInd() {
     var s = document.getElementById('aba-ind'); s.textContent = ''; var I = D.indicadores, c = I.clientes, a = I.artigos, semOps = !D.fonte_artigos.total;
     var hero = el('div', 'cm-hero');
-    hero.appendChild(grupo('', 'CLIENTES', 'sem comprar há ' + D.meses + '+ meses', String(c.total), c.base ? 'de ' + c.base + ' clientes da base (' + c.pct_base + '%)' : 'clientes',
-      brl(c.valor_em_risco), 'faturamento em risco' + (c.pct_receita ? ' · ≈ ' + c.pct_receita + '% da receita MI dos últimos 12 meses' : ''),
+    hero.appendChild(grupo('', 'CLIENTES', 'sem comprar há ' + D.meses + '+ meses', String(c.total), c.base ? 'de ' + c.base + ' da base (' + c.pct_base + '%)' : 'clientes',
+      brl(c.valor_em_risco), 'em 12 meses' + (c.pct_receita ? ' · ' + c.pct_receita + '% da receita MI' : ''),
       motivos(c.por_motivo, brl), brl, faixas(c.faixas, brl), c.pct_top10 ? ['3 maiores = ' + c.pct_top3 + '% do risco', '10 maiores = ' + c.pct_top10 + '% do risco'] : null,
       lista5(c.top, brl), 'Maiores faturamentos em risco', c.pct_informado));
     if (semOps) { var av = el('div', 'cm-grp art'); var h = el('div'); h.appendChild(el('span', 'cm-tag', 'ARTIGOS')); av.appendChild(h); av.appendChild(el('div', 'cm-aviso', 'A leitura das OPs no TOTVS ainda não rodou. Ela roda sozinha a cada hora, ou abra a aba "Artigos que não rodam" e clique em "Atualizar OPs do TOTVS".')); hero.appendChild(av); }
-    else hero.appendChild(grupo('art', 'ARTIGOS', 'sem rodar há ' + D.meses + '+ meses', String(a.total), a.base ? 'de ' + a.base + ' artigos do portfólio (' + a.pct_base + '%)' : 'artigos',
-      metros(a.metros_12m), 'metros que rodavam por ano e pararam' + (a.pct_metros ? ' · ≈ ' + a.pct_metros + '% do volume' : ''),
+    else hero.appendChild(grupo('art', 'ARTIGOS', 'sem rodar há ' + D.meses + '+ meses', String(a.total), a.base ? 'de ' + a.base + ' do portfólio (' + a.pct_base + '%)' : 'artigos',
+      metros(a.metros_12m), 'metros/ano' + (a.pct_metros ? ' · ' + a.pct_metros + '% do volume' : ''),
       motivos(a.por_motivo, metros), metros, faixas(a.faixas, metros), null, lista5(a.top, metros), 'Mais metros parados', a.pct_informado));
     s.appendChild(hero);
     var pr = el('div', 'cm-prio'); pr.appendChild(prioridade('Ação: clientes de maior valor sem motivo informado', c.sem_motivo, brl));
