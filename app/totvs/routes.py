@@ -5,7 +5,7 @@ from functools import lru_cache
 import threading
 import time
 
-from flask import Blueprint, Response, abort, current_app, jsonify, request, send_from_directory
+from flask import Blueprint, Response, abort, current_app, jsonify, redirect, request, send_from_directory, url_for
 from flask_login import current_user, login_required
 
 from app.comercial_me.routes import idioma_atual
@@ -63,6 +63,42 @@ def dados():
     p = painel.montar(tag, idioma_atual(), filtros)
     p['meta'] = servico.meta(tag)
     return _json(p)
+
+
+@bi_bp.route('/conciliar-150')
+@login_required
+def conciliar_150():
+    """So administrador: concilia o total do FISFL076 (por data de emissao) com o Relatorio 150, por status e por operacao."""
+    if not current_user.is_admin:
+        abort(403)
+    from markupsafe import escape
+    from app.totvs import conciliacao
+    ini = _data(request.args.get('ini')) or date.today().replace(day=1)
+    fim = _data(request.args.get('fim')) or date.today()
+    if request.args.get('rodar') or (not conciliacao.ESTADO['resultado'] and not conciliacao.ESTADO['rodando'] and not conciliacao.ESTADO['erro']):
+        conciliacao.iniciar(ini, fim)
+        return redirect(url_for('bi_comercial.conciliar_150', ini=ini.isoformat(), fim=fim.isoformat()))
+    e = conciliacao.ESTADO
+    brl = lambda v: f'{v:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
+    cab = '<meta charset="utf-8"><style>body{font:14px Arial;margin:20px}td,th{border:1px solid #ccc;padding:4px 8px;text-align:left}table{border-collapse:collapse;margin:8px 0}.n{text-align:right}.b{background:#fff3cd}</style>'
+    if e['rodando']:
+        return cab + f'<meta http-equiv="refresh" content="6"><h3>Buscando as notas de {e["periodo"]} no TOTVS… (esta página atualiza sozinha)</h3>'
+    if e['erro']:
+        return cab + f'<h3>Erro</h3><p>{escape(e["erro"])}</p><p><a href="?rodar=1&ini={ini}&fim={fim}">Tentar de novo</a></p>'
+    r = e['resultado']
+    t = r['totais']
+    ops = ''.join(f'<tr class="{"" if o["no_150"] else "b"}"><td>{o["operacao"]}</td><td>{escape(o["nome"] or "")}</td><td>{escape(o["tipo"])}</td><td>{"sim" if o["financeiro"] else "não"}</td><td>{"ENTRA" if o["no_150"] else "fora"}</td><td class="n">{o["notas"]}</td><td class="n">{brl(o["total_nf"])}</td><td class="n">{brl(o["soma_itens"])}</td></tr>' for o in r['operacoes'])
+    st = ''.join(f'<tr><td>{escape(k)}</td><td class="n">{v["notas"]}</td><td class="n">{brl(v["total_nf"])}</td></tr>' for k, v in r['por_status'].items())
+    dv = ''.join(f'<tr><td>{x["nf"]}</td><td>{x["operacao"]}</td><td>{x["emissao"]}</td><td>{x["fatura"]}</td><td class="n">{brl(x["total_nf"])}</td><td class="n">{brl(x["soma_itens"])}</td><td class="n">{brl(x["diferenca"])}</td></tr>' for x in r['notas_com_total_diferente_dos_itens'])
+    fm = ''.join(f'<tr><td>{x["nf"]}</td><td>{x["emissao"]}</td><td>{x["fatura"]}</td><td class="n">{brl(x["total_nf"])}</td></tr>' for x in r['emissao_e_fatura_em_meses_diferentes'])
+    return (cab + f'<h2>Conciliação {r["periodo"]} (por data de emissão)</h2><p>Notas recebidas da API: {r["notas_recebidas"]} · filtro do 150: {escape(r["modo_150"])} · <a href="?rodar=1&ini={ini}&fim={fim}">recalcular</a></p>'
+            f'<h3>Totais (válidas = Normal/Issued)</h3><table><tr><td>Todas as válidas — Total NF</td><td class="n">{brl(t["todas_validas_total_nf"])}</td></tr>'
+            f'<tr><td>Só saídas — Total NF</td><td class="n">{brl(t["saidas_total_nf"])}</td></tr><tr><td>O que entra no 150 — Total NF</td><td class="n">{brl(t["no_150_total_nf"])}</td></tr>'
+            f'<tr><td>O que entra no 150 — soma dos itens (TOT.LIQUID)</td><td class="n">{brl(t["no_150_soma_itens"])}</td></tr><tr><td>Fora do 150 — Total NF</td><td class="n">{brl(t["fora_do_150_total_nf"])}</td></tr></table>'
+            f'<h3>Por status</h3><table><tr><th>Status</th><th>Notas</th><th>Total NF</th></tr>{st}</table>'
+            f'<h3>Por operação (linhas amarelas ficam fora do 150)</h3><table><tr><th>Oper.</th><th>Descrição</th><th>Tipo</th><th>Financeiro</th><th>No 150</th><th>Notas</th><th>Total NF</th><th>Soma itens</th></tr>{ops}</table>'
+            f'<h3>Notas do 150 cujo total da NF difere da soma dos itens ({r["qtd_dessas"]} notas, diferença total {brl(r["soma_dessas_diferencas"])})</h3><table><tr><th>NF</th><th>Oper.</th><th>Emissão</th><th>Fatura</th><th>Total NF</th><th>Soma itens</th><th>Diferença</th></tr>{dv}</table>'
+            f'<h3>Emissão e fatura em meses diferentes (no 150)</h3><table><tr><th>NF</th><th>Emissão</th><th>Fatura</th><th>Total NF</th></tr>{fm}</table>')
 
 
 @bi_bp.route('/gerar', methods=['POST'])
