@@ -437,6 +437,26 @@ def painel(dias: int = 0) -> dict:
         nome = (str(art.get(pc, ['', ''])[0]) + ' ' + str(art.get(pc, ['', ''])[1]) + ' ' + (f[2] if f else '')).upper()
         return 'SEGUNDA' not in nome and 'SUCATA' not in nome
     est_raw = est
+
+    def motivo_fora(pc):
+        f = flags.get(pc)
+        if f and not f[0]:
+            return 'Não é produto acabado (matéria-prima, fio, embalagem...)'
+        if f and f[1] not in ('MT', 'M'):
+            return f'Unidade {f[1] or "sem unidade"} (não é metro)'
+        return '2ª qualidade / sucata'
+    conf = {}
+    for pc, p in est_raw.items():
+        if vale(pc):
+            continue
+        m = conf.setdefault(motivo_fora(pc), dict(motivo=motivo_fora(pc), saldo=0.0, pecas=0, produtos=0, top=[]))
+        m['saldo'] += p['saldo']
+        m['pecas'] += len(p['lotes'])
+        m['produtos'] += 1
+        m['top'].append(dict(cod=art.get(pc, [pc, ''])[0], nome=art.get(pc, ['', ''])[1] or (flags.get(pc) or ['', '', ''])[2], saldo=round(p['saldo'], 2)))
+    for m in conf.values():
+        m['top'] = sorted(m['top'], key=lambda x: -x['saldo'])[:6]
+        m['saldo'] = round(m['saldo'], 2)
     est = {pc: p for pc, p in est.items() if vale(pc)}
     tem_mov = bool(mov)
     por_art = {}
@@ -488,6 +508,7 @@ def painel(dias: int = 0) -> dict:
                      saida_30d=r2(m30), cobertura_dias=round(total / (m30 / 30)) if m30 else None,
                      parado_90=r2(p90), parado_90_pct=round(p90 / total * 100) if total else 0, parado_90_artigos=sum(1 for a in datados if a['dias'] > 90),
                      idade_pronta=tem_mov, idade_cobertura=round(len(datados) / len(arts) * 100) if arts else 0,
+                     conferencia=dict(produtos_total=len(est_raw), pecas_total=sum(len(p['lotes']) for p in est_raw.values()), produtos=len(est), pecas=sum(len(p['lotes']) for p in est.values()), fora=sorted(conf.values(), key=lambda m: -m['pecas'])),
                      parados90=[dict(a, saldo=r2(a['saldo'])) for a in parados if a['dias'] > 90],
                      idade_media=round(sum(a['dias'] * a['saldo'] for a in datados) / sum(a['saldo'] for a in datados)) if datados and sum(a['saldo'] for a in datados) else None,
                      mov_30_pct=round(sum(a['saldo'] for a in datados if a['dias'] <= 30) / sum(a['saldo'] for a in datados) * 100) if datados and sum(a['saldo'] for a in datados) else None,
