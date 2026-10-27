@@ -20,7 +20,7 @@ BATCH_URL = f'{BASE}/api/totvsmoda/product/v2/batch/search'
 BALANCES_URL = f'{BASE}/api/totvsmoda/product/v2/balances/search'
 PRODUCTS_URL = f'{BASE}/api/totvsmoda/product/v2/products/search'
 SALDO_INSPECAO = os.getenv('EXPEDICAO_SALDO_INSPECAO', '').strip()     # codigo do saldo 'aguardando inspecao'; vazio = acha pelo nome (INSPE)
-UNIDADE_INSPECAO = os.getenv('EXPEDICAO_UNIDADE_INSPECAO', 'KG').strip().upper()
+UNIDADE_INSPECAO = os.getenv('EXPEDICAO_UNIDADE_INSPECAO', 'MT').strip().upper()
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
 SALDO = int(os.getenv('EXPEDICAO_SALDO', '1'))
 NF_DIAS = int(os.getenv('EXPEDICAO_NF_DIAS', '90'))
@@ -181,7 +181,7 @@ def atualizar_inspecao(cli, dados: dict) -> None:
                 saldos[str(x.get('productCode'))] = round(_num(b.get('stock')), 3)
     flags = _flags(cli, list(saldos), dados)
     kg = {pc: [v, flags.get(pc, [0, '', ''])[2]] for pc, v in saldos.items() if not UNIDADE_INSPECAO or flags.get(pc, [0, '', ''])[1] == UNIDADE_INSPECAO}
-    dados.update(inspecao=kg, inspecao_total_itens=len(saldos), inspecao_em=datetime.now().isoformat(timespec='seconds'))
+    dados.update(inspecao=kg, inspecao_unidade=UNIDADE_INSPECAO, inspecao_total_itens=len(saldos), inspecao_em=datetime.now().isoformat(timespec='seconds'))
 
 
 # ---------------------------------------------------------------- notas
@@ -467,7 +467,7 @@ def painel(dias: int = 0) -> dict:
     m30 = sum(n[7] for n in todas if n[0] >= (hoje - timedelta(days=29)).isoformat() and _situacao(n) == 'Autorizada')
     parados = sorted(datados, key=lambda a: (a['dias'], a['saldo']), reverse=True)
     r2 = lambda v: round(v, 2)
-    ins = d.get('inspecao') or {}
+    ins = (d.get('inspecao') or {}) if d.get('inspecao_unidade') == UNIDADE_INSPECAO else {}      # lista guardada com outra unidade nao vale
     insp = dict(cod=d.get('inspecao_cod'), nome=d.get('inspecao_desc'), unidade=UNIDADE_INSPECAO, total=r2(sum(v[0] for v in ins.values())), itens=len(ins), outros=max(0, (d.get('inspecao_total_itens') or 0) - len(ins)),
                 em=d.get('inspecao_em'), lista=[dict(cod=pc, nome=v[1], saldo=v[0], exp_m=r2((est_raw.get(pc) or {}).get('saldo', 0)), exp_pecas=len((est_raw.get(pc) or {}).get('lotes', []))) for pc, v in sorted(ins.items(), key=lambda kv: -kv[1][0])])
     p90 = sum(a['saldo'] for a in datados if a['dias'] > 90)

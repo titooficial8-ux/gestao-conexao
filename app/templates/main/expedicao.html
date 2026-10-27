@@ -201,7 +201,7 @@
     if (E.idade_pronta && E.parado_90_artigos) clicavel(a3, function () { abrir('Estoque parado há mais de 90 dias', nf(E.parado_90_artigos) + ' artigos · ' + nf(E.pecas_90) + ' peças · ' + mt(E.parado_90) + ' · sem movimentação na expedição', listaArtigos(E.parados90), 'tipo=parados'); });
     al.appendChild(a3);
     var I = E.inspecao, a4 = I.cod === null || I.cod === undefined ? alerta('info', 'Inspeção', D.fonte.erro_inspecao ? 'saldo ainda não localizado' : 'localizando o saldo no TOTVS…') : alerta(I.total ? 'warn' : 'ok', un(I.total, I.unidade), 'aguardando inspeção · ' + nf(I.itens) + ' produtos em aberto');
-    if (I.itens) clicavel(a4, function () { abrir('Saldo aguardando inspeção (' + I.unidade + ')', 'saldos em aberto para inventariar ou limpar no sistema · ' + (I.nome || ''), tabela(['Produto', 'Descrição', 'Em inspeção', 'Na expedição', 'Peças na expedição'], I.lista.map(function (x) { return [x.cod, x.nome, un(x.saldo, I.unidade), x.exp_m ? mt(x.exp_m) : '—', x.exp_pecas ? nf(x.exp_pecas) : '—']; })), 'tipo=inspecao'); });
+    if (I.itens) clicavel(a4, function () { abrir('Saldo aguardando inspeção (metros)', 'saldos em aberto para inventariar ou limpar no sistema · ' + (I.nome || ''), tabela(['Produto', 'Descrição', 'Em inspeção', 'Na expedição', 'Peças na expedição'], I.lista.map(function (x) { return [x.cod, x.nome, un(x.saldo, I.unidade), x.exp_m ? mt(x.exp_m) : '—', x.exp_pecas ? nf(x.exp_pecas) : '—']; })), 'tipo=inspecao'); });
     al.appendChild(a4); c.appendChild(al);
 
     c.appendChild(el('div', 'xp-sec', 'Notas fiscais'));
