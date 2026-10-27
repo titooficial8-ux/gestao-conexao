@@ -528,7 +528,7 @@ def previsao_status():
     ativas = [x for x in Sequencia.query.all() if (x.status or '') in previsao.ATIVAS]
     arq = previsao.caminho_base()
     return _json(dict(
-        planilha_no_servidor=arq.exists(), caminho=str(arq), linhas_na_base=ProducaoRef.query.count(),
+        fonte_voltas_rpm=previsao.ESTADO_BASE, planilha_no_servidor=arq.exists(), caminho=str(arq), linhas_na_base=ProducaoRef.query.count(),
         ops_ativas=len(ativas), ops_com_previsao=sum(1 for x in ativas if x.termino_calculado),
         ops_sem_base=[f'{x.op} (artigo {x.artigo})' for x in ativas if not x.termino_calculado][:20],
         ineficiencia=previsao.INEFICIENCIA, troca_horas=previsao.TROCA_HORAS, erro=erro or movimentos.ESTADO.get('previsao_erro'),

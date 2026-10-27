@@ -12,6 +12,7 @@ Sequencia.termino_malharia (Termino Malharia) e Sequencia.pecas_dia. Voltas e RP
 import os
 import re
 import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -66,18 +67,26 @@ def importar(path) -> int:
         raise ValueError(f'Planilha sem as colunas: {", ".join(faltam)}')
     novas = []
     for r in linhas:
-        maq = _num(r[ix['Maquina']])
-        rpm, voltas = _num(r[ix['RPM']]), _num(r[ix['Voltas']])
-        artigo = str(r[ix['Artigo']] or '').strip()
-        if maq is None or not artigo or not rpm or not voltas or rpm <= 0 or voltas <= 0:
-            continue
-        ref = r[ix['Criado']] if 'Criado' in ix and isinstance(r[ix['Criado']], datetime) else None
-        novas.append(ProducaoRef(
-            op=str(r[ix['numOp']] or '').strip() if 'numOp' in ix else None, maquina=int(maq), artigo=artigo,
-            estrutura=str(r[ix['Estrutura']] or '').strip() if 'Estrutura' in ix else None, rpm=rpm, voltas=voltas,
-            tam_volta=_num(r[ix['tamVolta']]) if 'tamVolta' in ix else None, metros_peca=_num(r[ix['metrosPeca']]) if 'metrosPeca' in ix else None, referencia=ref))
+        ref = _ref_de_valores(r[ix['numOp']] if 'numOp' in ix else None, r[ix['Maquina']], r[ix['Artigo']], r[ix['Estrutura']] if 'Estrutura' in ix else None,
+                              r[ix['RPM']], r[ix['Voltas']], r[ix['tamVolta']] if 'tamVolta' in ix else None, r[ix['metrosPeca']] if 'metrosPeca' in ix else None,
+                              r[ix['Criado']] if 'Criado' in ix else None)
+        if ref:
+            novas.append(ref)
+    return _substituir_base(novas)
+
+
+def _ref_de_valores(op, maquina, artigo, estrutura, rpm, voltas, tam_volta, metros_peca, criado):
+    maq, rpm, voltas = _num(maquina), _num(rpm), _num(voltas)
+    artigo = str(artigo or '').strip()
+    if maq is None or not artigo or not rpm or not voltas or rpm <= 0 or voltas <= 0:
+        return None
+    return ProducaoRef(op=str(op or '').strip() or None, maquina=int(maq), artigo=artigo, estrutura=str(estrutura or '').strip() or None, rpm=rpm, voltas=voltas,
+                       tam_volta=_num(tam_volta), metros_peca=_num(metros_peca), referencia=criado if isinstance(criado, datetime) else None)
+
+
+def _substituir_base(novas: list) -> int:
     if not novas:
-        raise ValueError('A planilha nao tem linhas validas (maquina, artigo, RPM e voltas).')
+        raise ValueError('A base nao tem linhas validas (maquina, artigo, RPM e voltas).')
     try:
         ProducaoRef.query.delete()
         db.session.bulk_save_objects(novas)
@@ -86,6 +95,70 @@ def importar(path) -> int:
         db.session.rollback()
         raise
     return len(novas)
+
+
+# ---- leitura automatica da lista producaoDIARIA no SharePoint (Graph, so leitura) ------------------------------------------
+SP_MIN = float(os.getenv('PRODUCAODIARIA_MIN', '10'))
+ESTADO_BASE = dict(fonte=None, sharepoint_ultima=None, sharepoint_erro=None, sharepoint_linhas=0)
+_ult_sp = [0.0]
+
+
+def sincronizar_sharepoint() -> int:
+    """Le a lista producaoDIARIA (site Colchaonacional) pelo Graph e troca a base. Colunas: numOp, Maquina, Artigo, Estrutura, metrosPeca, RPM, Voltas, tamVolta."""
+    from app.indicadores import sharepoint as sp
+    host = os.getenv('PRODUCAODIARIA_HOST', 'conexaomalhasedes.sharepoint.com')
+    site_path = os.getenv('PRODUCAODIARIA_SITE', 'Colchaonacional')
+    lista_nome = os.getenv('PRODUCAODIARIA_LISTA', 'producaoDIARIA')
+    site = os.getenv('PRODUCAODIARIA_SITE_ID') or sp._get(f'{sp.GRAPH}/sites/{host}:/sites/{site_path}')['id']
+    lista = os.getenv('PRODUCAODIARIA_LISTA_ID')
+    if not lista:
+        for l in sp._get(f'{sp.GRAPH}/sites/{site}/lists', {'$select': 'id,displayName,name', '$top': 200}).get('value') or []:
+            if lista_nome.lower() in (str(l.get('displayName') or '').lower(), str(l.get('name') or '').lower()):
+                lista = l['id']
+                break
+    if not lista:
+        raise RuntimeError(f'Lista "{lista_nome}" nao encontrada no site {site_path}.')
+    nome_de = {}                                               # titulo da coluna -> nome interno
+    for c in sp._get(f'{sp.GRAPH}/sites/{site}/lists/{lista}/columns').get('value') or []:
+        nome_de[str(c.get('displayName') or '').lower()] = c.get('name')
+        nome_de[str(c.get('name') or '').lower()] = c.get('name')
+
+    def campo(f, titulo):
+        return f.get(nome_de.get(titulo.lower(), titulo))
+
+    novas, url, params = [], f'{sp.GRAPH}/sites/{site}/lists/{lista}/items', {'$expand': 'fields', '$top': 999}
+    while url and len(novas) < 60000:
+        j = sp._get(url, params)
+        for it in j.get('value') or []:
+            f = it.get('fields') or {}
+            criado = None
+            try:
+                criado = datetime.fromisoformat(str(it.get('createdDateTime') or '').replace('Z', '+00:00')).replace(tzinfo=None)
+            except ValueError:
+                pass
+            ref = _ref_de_valores(campo(f, 'numOp'), campo(f, 'Maquina'), campo(f, 'Artigo'), campo(f, 'Estrutura'), campo(f, 'RPM'), campo(f, 'Voltas'),
+                                  campo(f, 'tamVolta'), campo(f, 'metrosPeca'), criado)
+            if ref:
+                novas.append(ref)
+        url, params = j.get('@odata.nextLink'), None
+    return _substituir_base(novas)
+
+
+def verificar_fontes() -> None:
+    """A base de voltas/RPM vem do SharePoint (automatico, a cada PRODUCAODIARIA_MIN min). Se o SharePoint nao responder, usa a planilha da pasta do projeto."""
+    from app.indicadores import sharepoint as sp
+    if sp.configurado() and time.time() - _ult_sp[0] >= SP_MIN * 60:
+        _ult_sp[0] = time.time()
+        try:
+            n = sincronizar_sharepoint()
+            ESTADO_BASE.update(fonte='sharepoint', sharepoint_ultima=datetime.now().isoformat(timespec='seconds'), sharepoint_erro=None, sharepoint_linhas=n)
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            ESTADO_BASE.update(sharepoint_erro=str(e)[:300])
+    if ESTADO_BASE['fonte'] != 'sharepoint':                   # SharePoint nunca respondeu: usa a planilha da pasta do projeto, se houver
+        verificar_arquivo()
+        if ProducaoRef.query.count():
+            ESTADO_BASE['fonte'] = 'planilha'
 
 
 def verificar_arquivo() -> None:
@@ -103,6 +176,20 @@ def verificar_arquivo() -> None:
     except Exception as e:  # noqa: BLE001
         _arquivo_lido['mtime'] = mt          # nao tenta de novo a cada ciclo
         print(f'[previsao] base de voltas/RPM nao importada: {e}', flush=True)
+
+
+def atualizar_status_maquinas() -> None:
+    """Maquina com OP na fila = ativa; sem nenhuma OP = sem programacao (automatico). Manutencao e inoperante continuam como foram marcadas."""
+    com_fila = {m for (m,) in db.session.query(Sequencia.machine_id).filter(Sequencia.status.in_(ATIVAS)).distinct()}
+    mudou = False
+    for m in Machine.query.all():
+        if m.status in (Machine.STATUS_MANUTENCAO, Machine.STATUS_INOPERANTE):
+            continue
+        novo = Machine.STATUS_ATIVA if m.id in com_fila else Machine.STATUS_SEM_PROGRAMACAO
+        if m.status != novo:
+            m.status, mudou = novo, True
+    if mudou:
+        db.session.commit()
 
 
 def _indices():
@@ -148,7 +235,8 @@ def calcular(agora=None) -> int:
     if not _trava.acquire(blocking=False):
         return 0
     try:
-        verificar_arquivo()
+        verificar_fontes()
+        atualizar_status_maquinas()
         idx = _indices()
         if not any(idx):
             return 0
