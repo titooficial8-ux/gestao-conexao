@@ -229,11 +229,27 @@ def dashboard() -> dict:
                          cobertura=round(sd / demanda * 100, 0) if sd is not None and demanda else None))
     mats = [m for m in mats if m['total'] > 0]
     from app.models import PedidoRelatorio
-    ped_op = {}
-    for r in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.isnot(None), PedidoRelatorio.nr_op != '').all():      # todos os pedidos da OP, atendidos ou nao
+    ped_op, linhas = {}, PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.isnot(None), PedidoRelatorio.nr_op != '').all()
+    # Estoque de acabados (saldo do relatorio 040 = local 1): o saldo de cada artigo cobre os pedidos pendentes, do mais antigo ao mais novo; o que o estoque cobre nao precisa mais ser produzido
+    itens, saldo_prod = {}, {}
+    for r in PedidoRelatorio.query.filter(PedidoRelatorio.qt_pendente > 0).order_by(PedidoRelatorio.dt_pedido, PedidoRelatorio.cod_pedido).all():
+        if (r.tp_situacao or '').upper() == 'ATENDIDO':
+            continue
+        itens.setdefault((r.cod_pedido, r.cod_produto), r)
+        saldo_prod[r.cod_produto] = max(saldo_prod.get(r.cod_produto, 0.0), r.qt_saldo or 0.0)
+    resta, cobre = dict(saldo_prod), {}
+    for (ped, prod), r in itens.items():
+        usa = min(resta.get(prod, 0.0), r.qt_pendente or 0.0)
+        resta[prod] = resta.get(prod, 0.0) - usa
+        cobre[(ped, prod)] = dict(pendente=r.qt_pendente or 0.0, estoque=usa, saldo=saldo_prod.get(prod, 0.0))
+    for r in linhas:
         lst = ped_op.setdefault(str(r.nr_op), [])
         if r.cod_pedido and r.cod_pedido not in [x['pedido'] for x in lst]:
-            lst.append(dict(atendido=(r.tp_situacao or '').upper() == 'ATENDIDO' or (r.qt_pendente or 0) <= 0.5, situacao=r.tp_situacao or '', pedido=r.cod_pedido, cliente=r.nome_cliente or '', pendente=int(r.qt_pendente or 0), dt_pedido=r.dt_pedido.isoformat() if r.dt_pedido else None, dt_prev=r.dt_prevfaturamento.isoformat() if r.dt_prevfaturamento else None, artigo=r.ds_produto or ''))
+            c = cobre.get((r.cod_pedido, r.cod_produto))
+            lst.append(dict(atendido=(r.tp_situacao or '').upper() == 'ATENDIDO' or (r.qt_pendente or 0) <= 0.5, situacao=r.tp_situacao or '', pedido=r.cod_pedido,
+                            cliente=r.nome_cliente or '', pendente=int(r.qt_pendente or 0), dt_pedido=r.dt_pedido.isoformat() if r.dt_pedido else None,
+                            dt_prev=r.dt_prevfaturamento.isoformat() if r.dt_prevfaturamento else None, artigo=r.ds_produto or '',
+                            estoque_cobre=int(c['estoque']) if c else 0, saldo_estoque=int(c['saldo']) if c else int(r.qt_saldo or 0)))
     ops, empenhos = [], {}
     for op, itens in (d.get('por_op') or {}).items():
         s = seqs.get(op)
@@ -241,16 +257,19 @@ def dashboard() -> dict:
         if not s and not peds:
             continue
         lista = sorted(([c, v[0], v[1]] for c, v in itens.items()), key=lambda x: -x[2])
-        atendido = bool(peds) and all(x['atendido'] for x in peds)           # todos os pedidos da OP ja atendidos: o fio dela ja foi consumido
+        pend_t = sum(x['pendente'] for x in peds if not x['atendido'])
+        cobre_t = sum(x['estoque_cobre'] for x in peds if not x['atendido'])
+        fracao = 1.0 if pend_t <= 0 else max(1 - cobre_t / pend_t, 0.0)       # parte do pedido que o estoque de acabados nao cobre (e ainda precisa de fio)
+        atendido = bool(peds) and (all(x['atendido'] for x in peds) or (pend_t > 0 and fracao <= 0.01))      # pedidos atendidos, ou totalmente cobertos pelo estoque
         datas = [x['dt_prev'] for x in peds if x['dt_prev']]
         entradas = [x['dt_pedido'] for x in peds if x['dt_pedido']]
         info = dict(op=op, origem='maquina' if s else 'carteira', maquina=s.machine.number if s and s.machine else None, artigo=(s.artigo if s else (peds[0]['artigo'] if peds else '')),
-                    cliente=(s.cliente if s else (peds[0]['cliente'] if peds else '')), status=(s.status if s else 'CARTEIRA'), atendido=atendido, ordem=(s.sequence_order if s and s.sequence_order is not None else 10 ** 6),
+                    cliente=(s.cliente if s else (peds[0]['cliente'] if peds else '')), status=(s.status if s else 'CARTEIRA'), atendido=atendido, por_estoque=bool(peds) and not all(x['atendido'] for x in peds) and fracao < 1.0, fracao=round(fracao, 3), ordem=(s.sequence_order if s and s.sequence_order is not None else 10 ** 6),
                     termino=s.termino_malharia.isoformat() if s and s.termino_malharia else None, dt_entrada=min(entradas) if entradas else None, dt_prev=min(datas) if datas else (s.dt_cliente.isoformat() if s and s.dt_cliente else None),
-                    pedidos=[dict(atendido=x['atendido'], pedido=x['pedido'], cliente=x['cliente'], pendente=x['pendente'], dt_pedido=x['dt_pedido'], dt_prev=x['dt_prev']) for x in sorted(peds, key=lambda x: x['dt_prev'] or '9')[:4]])
+                    pedidos=[dict(atendido=x['atendido'], estoque_cobre=x['estoque_cobre'], saldo_estoque=x['saldo_estoque'], pedido=x['pedido'], cliente=x['cliente'], pendente=x['pendente'], dt_pedido=x['dt_pedido'], dt_prev=x['dt_prev']) for x in sorted(peds, key=lambda x: x['dt_prev'] or '9')[:4]])
         ops.append(dict(info, total=round(sum(x[2] for x in lista), 1), materias=[dict(codigo=c, nome=(saldos.get(c) or {}).get('nome') or n, kg=k) for c, n, k in lista]))
         for c, n, k in lista:
-            empenhos.setdefault(c, []).append(dict(info, kg=k))
+            empenhos.setdefault(c, []).append(dict(info, kg=round(k * (fracao if not atendido else 1.0), 1), kg_total=k))
 
     def prioridade(e):                      # quem produz primeiro consome primeiro: em producao, depois fila das maquinas, depois carteira; dentro, a data mais proxima
         return (1 if e['atendido'] else 0, 0 if e['status'] == 'PRODUZINDO' else 1 if e['origem'] == 'maquina' else 2, e['dt_prev'] or '9999', e['ordem'])
