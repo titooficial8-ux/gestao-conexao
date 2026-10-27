@@ -180,10 +180,12 @@ def atualizar(app) -> bool:
         linhas = buscar_linhas()
         with app.app_context():
             res = aplicar(linhas)
-            try:                                              # Controle de Artigos (impedimentos artigo x maquina)
-                ESTADO['impedimentos'] = gravar_impedimentos_hub(buscar_impedimentos())
-            except Exception as e_imp:  # noqa: BLE001
-                ESTADO['impedimentos_erro'] = str(e_imp)[:200]
+            from app.models import ArtigoImpedimento
+            if not ArtigoImpedimento.query.first():          # Controle de Artigos e do Gestao; do PCP Hub so a importacao inicial, uma unica vez
+                try:
+                    ESTADO['impedimentos'] = gravar_impedimentos_hub(buscar_impedimentos())
+                except Exception as e_imp:  # noqa: BLE001
+                    ESTADO['impedimentos_erro'] = str(e_imp)[:200]
             try:                                              # pais dos clientes de exportacao (bandeira no cartao da maquina)
                 ESTADO['paises'] = gravar_paises(buscar_paises())
             except Exception as e_pais:  # noqa: BLE001

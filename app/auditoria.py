@@ -5,6 +5,7 @@ Auditoria: o PCP clica em "Iniciar Auditoria" na maquina, escolhe o mecanico e a
 durante a auditoria entram no log com origem e destino (detectado na leitura do PCP Hub).
 Controle de Artigos: espelho somente leitura de artigo_maquina_impedimentos do PCP Hub (la o sistema trava a programacao do artigo na maquina)."""
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, abort, jsonify, render_template, request
@@ -166,18 +167,81 @@ def _maq(v):
 
 
 def gravar_impedimentos(linhas: list) -> int:
-    """Troca o espelho local pelas linhas do PCP Hub (nunca apaga se a leitura veio vazia)."""
-    if not linhas:
+    """Importacao unica do PCP Hub (so quando o Controle de Artigos do Gestao ainda esta vazio). Depois o Gestao e a fonte: nada e apagado nem sobrescrito."""
+    if not linhas or ArtigoImpedimento.query.first():
         return 0
-    ArtigoImpedimento.query.delete()
     for r in linhas:
         db.session.add(ArtigoImpedimento(id=str(r.get('id')), artigo=str(r.get('article') or '').strip(), artigo_norm=_norm_artigo(r.get('article')), op=r.get('op'),
                                          qt_solicitada=float(r.get('qt_solicitada') or 0), maquina=_maq(r.get('maquina_origem')), destino=str(r.get('maquina_destino') or ''),
                                          motivo=r.get('motivo'), justificativa=r.get('justificativa'), movido_por=r.get('movido_por_nome'), movido_em=_dt(r.get('movido_em')),
                                          ativo=bool(r.get('ativo')), desativado_por=r.get('desativado_por_nome'), desativado_em=_dt(r.get('desativado_em')),
-                                         motivo_desativacao=r.get('motivo_desativacao')))
+                                         motivo_desativacao=r.get('motivo_desativacao'), origem_registro='hub'))
     db.session.commit()
     return len(linhas)
+
+
+def bloqueio(artigo, numero_maquina) -> str:
+    """Mensagem de bloqueio se o artigo tem impedimento ativo nesta maquina; senao ''."""
+    try:
+        numero = int(numero_maquina)
+    except (TypeError, ValueError):
+        return ''
+    i = ArtigoImpedimento.query.filter_by(ativo=True, maquina=numero, artigo_norm=_norm_artigo(artigo)).order_by(ArtigoImpedimento.movido_em.desc()).first()
+    if not i:
+        return ''
+    quando = i.movido_em.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=-3))).strftime('%d/%m/%Y %H:%M') if i.movido_em else ''
+    return f'O artigo {i.artigo} não roda na máquina {numero} (registrado em {quando} — {MOTIVOS.get(i.motivo, i.motivo)}: "{i.justificativa}" — por {i.movido_por or "?"}). Para liberar, desative o impedimento em Controle de Artigos.'
+
+
+def _tab_ca():
+    tab = Tab.query.filter_by(slug='controle-artigos').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+    return tab
+
+
+@aud_bp.route('/impedimentos/registrar', methods=['POST'])
+@login_required
+def registrar_impedimento():
+    _tab_ca()
+    d = request.get_json(silent=True) or {}
+    artigo = re.sub(r'\s+', ' ', str(d.get('artigo') or '')).strip()[:60]
+    maquina = _maq(d.get('maquina'))
+    destino = re.sub(r'\D', '', str(d.get('destino') or ''))
+    motivo = str(d.get('motivo') or '').upper()
+    just = re.sub(r'\s+', ' ', str(d.get('justificativa') or '')).strip()
+    if not artigo or not maquina:
+        return jsonify(erro='Informe o artigo e a máquina onde ele não roda.'), 400
+    if motivo not in MOTIVOS:
+        return jsonify(erro='Escolha o motivo (Malha, Problema técnico ou Outro).'), 400
+    if len(just) < 10:
+        return jsonify(erro='A justificativa precisa ter pelo menos 10 caracteres.'), 400
+    if ArtigoImpedimento.query.filter_by(ativo=True, maquina=maquina, artigo_norm=_norm_artigo(artigo)).first():
+        return jsonify(erro=f'O artigo {artigo} já está bloqueado na máquina {maquina}.'), 409
+    try:
+        qt = float(str(d.get('qt') or 0).replace(',', '.'))
+    except ValueError:
+        qt = 0
+    db.session.add(ArtigoImpedimento(id=uuid.uuid4().hex, artigo=artigo, artigo_norm=_norm_artigo(artigo), op=str(d.get('op') or '').strip()[:30] or None, qt_solicitada=qt, maquina=maquina,
+                                     destino=destino, motivo=motivo, justificativa=just, movido_por=_usuario(), movido_em=datetime.utcnow(), ativo=True, origem_registro='gestao'))
+    db.session.commit()
+    return jsonify(ok=True)
+
+
+@aud_bp.route('/impedimentos/<id>/desativar', methods=['POST'])
+@login_required
+def desativar_impedimento(id):
+    _tab_ca()
+    d = request.get_json(silent=True) or {}
+    motivo = re.sub(r'\s+', ' ', str(d.get('motivo') or '')).strip()
+    if len(motivo) < 10:
+        return jsonify(erro='A justificativa para liberar precisa ter pelo menos 10 caracteres.'), 400
+    i = db.session.get(ArtigoImpedimento, id)
+    if not i or not i.ativo:
+        return jsonify(erro='Impedimento ativo não encontrado.'), 404
+    i.ativo, i.desativado_por, i.desativado_em, i.motivo_desativacao = False, _usuario(), datetime.utcnow(), motivo
+    db.session.commit()
+    return jsonify(ok=True)
 
 
 def impedidos_por_sequencia(sequencias, numero_maquina: int) -> dict:
@@ -207,4 +271,5 @@ def artigos_dados():
     if not tab.visible_to(current_user):
         abort(403)
     itens = ArtigoImpedimento.query.order_by(ArtigoImpedimento.artigo_norm, ArtigoImpedimento.movido_em.desc()).all()
-    return jsonify(itens=[_item(i) for i in itens], motivos=MOTIVOS)
+    from app.models import Machine
+    return jsonify(itens=[_item(i) for i in itens], motivos=MOTIVOS, maquinas=[m.number for m in Machine.query.order_by(Machine.number).all()])

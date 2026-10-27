@@ -13,12 +13,17 @@
 .ca-art{font-size:20px;font-weight:800;color:#7f1d2d;letter-spacing:-.01em}.ca-sub{font-size:12px;color:#64748b}
 .ca-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}.ca-chip{background:#fee2e2;color:#991b1b;font-weight:800;font-size:13px;border-radius:999px;padding:3px 12px}.ca-chip.off{background:#e5e7eb;color:#6b7280;text-decoration:line-through}
 .ca-item{border-top:1px dashed #e5e7eb;padding:8px 0;font-size:13px;color:#334155}.ca-item b{color:#0f172a}.ca-mot{display:inline-block;background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;margin-left:6px}
+.ca-novo{margin-top:14px;border:0;background:#fff;color:#7f1d2d;font-weight:800;border-radius:10px;padding:9px 18px;cursor:pointer;font-size:13px}.ca-lib{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;margin-left:6px;color:#334155}
+.ca-mod{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:2000}.ca-mod[hidden]{display:none}.ca-box{background:#fff;border-radius:14px;padding:22px;width:min(520px,94vw);max-height:92vh;overflow:auto}
+.ca-box h3{margin:0 0 12px}.ca-box label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:10px 0 3px}.ca-box input,.ca-box select,.ca-box textarea{width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box}
+.ca-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ca-acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.ca-acoes button{border:0;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer}.ca-ok{background:#7f1d2d;color:#fff}.ca-cancel{background:#e5e7eb}.ca-err{color:#b91c1c;font-size:13px;margin-top:8px;min-height:16px}
 .ca-vazio{padding:40px;text-align:center;color:#64748b;background:#fff;border-radius:12px;border:1px dashed #cbd5e1}.ca-aviso{font-size:12px;color:#64748b;margin-top:14px}
 </style>
 <div class="ca">
   <div class="ca-hero">
     <h2>&#9940; Controle de Artigos</h2>
     <p>Artigos que <b>não rodam</b> em determinadas máquinas, registrados no PCP Hub quando a OP precisou sair da máquina. No PCP Hub o sistema trava a programação do artigo nessas máquinas; aqui você consulta o histórico e vê o alerta nas OPs da Programação.</p>
+    <button type="button" class="ca-novo" id="caNovo">+ Registrar impedimento</button>
     <div class="ca-stats"><div class="ca-stat"><strong id="caNArt">–</strong><span>Artigos bloqueados</span></div><div class="ca-stat"><strong id="caNBloq">–</strong><span>Bloqueios ativos</span></div><div class="ca-stat"><strong id="caNMaq">–</strong><span>Máquinas afetadas</span></div></div>
   </div>
   <div class="ca-bar">
@@ -26,7 +31,20 @@
     <label><input type="checkbox" id="caOff"> Mostrar bloqueios já desativados</label>
   </div>
   <div id="caLista" class="ca-grid"></div>
-  <p class="ca-aviso">Dados lidos do PCP Hub a cada poucos minutos. Para liberar um artigo numa máquina, desative o impedimento no PCP Hub.</p>
+  <p class="ca-aviso">Registre aqui quando um artigo não roda numa máquina. Ele fica bloqueado: não dá para programá-lo nessa máquina (Novo registro e Pré-Programação) e a OP aparece com ⛔ na Programação. Para liberar, use "Liberar" com uma justificativa.</p>
+</div>
+<div class="ca-mod" id="caMod" hidden><div class="ca-box">
+  <h3 id="caModTitulo">Registrar impedimento</h3>
+  <div id="caFormNovo">
+    <div class="ca-row"><div><label>Artigo</label><input type="text" id="fArt" placeholder="ex.: 310087"></div><div><label>OP (opcional)</label><input type="text" id="fOp"></div></div>
+    <div class="ca-row"><div><label>Não roda na máquina</label><select id="fMaq"></select></div><div><label>Foi para a máquina</label><select id="fDest"></select></div></div>
+    <div class="ca-row"><div><label>Motivo</label><select id="fMot"><option value="MALHA">Malha</option><option value="PROBLEMA_TECNICO">Problema técnico</option><option value="OUTRO">Outro</option></select></div><div><label>Quantidade (un)</label><input type="text" id="fQt"></div></div>
+    <label>Justificativa (mín. 10 caracteres)</label><textarea id="fJust" rows="3"></textarea>
+  </div>
+  <div id="caFormLib" hidden><label id="fLibInfo"></label><label>Justificativa para liberar (mín. 10 caracteres)</label><textarea id="fLib" rows="3"></textarea></div>
+  <div class="ca-err" id="caErr"></div>
+  <div class="ca-acoes"><button type="button" class="ca-cancel" id="caCancel">Cancelar</button><button type="button" class="ca-ok" id="caSalvar">Salvar</button></div>
+</div>
 </div>
 <script>
 (function () {
@@ -44,7 +62,7 @@
         g.map(function (i) {
           return '<div class="ca-item"><b>Máq. ' + esc(i.maquina) + '</b> → foi para <b>' + esc(i.destino) + '</b><span class="ca-mot">' + esc(i.motivo) + '</span><br>' + esc(i.justificativa) +
             '<br><span class="ca-sub">OP ' + esc(i.op) + ' · ' + i.qt + ' un · ' + esc(i.por) + ' em ' + esc(i.em) + '</span>' +
-            (i.ativo ? '' : '<br><span class="ca-sub">Desativado por ' + esc(i.desativado_por) + ' em ' + esc(i.desativado_em) + ': ' + esc(i.motivo_desativacao) + '</span>') + '</div>';
+            (i.ativo ? '<br><button type="button" class="ca-lib" data-lib="' + esc(i.id) + '" data-info="' + esc(i.artigo + ' · máquina ' + i.maquina) + '">Liberar</button>' : '<br><span class="ca-sub">Desativado por ' + esc(i.desativado_por) + ' em ' + esc(i.desativado_em) + ': ' + esc(i.motivo_desativacao) + '</span>') + '</div>';
         }).join('') + '</div>';
     }).join('') : '<div class="ca-vazio">Nenhum artigo bloqueado encontrado.</div>';
     var ativos = itens.filter(function (i) { return i.ativo; });
@@ -52,8 +70,25 @@
     document.getElementById('caNBloq').textContent = ativos.length;
     document.getElementById('caNMaq').textContent = new Set(ativos.map(function (i) { return i.maquina; })).size;
   }
-  fetch('{{ url_for("auditoria.artigos_dados") }}', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (d) { itens = d.itens; desenhar(); })
-    .catch(function () { lista.innerHTML = '<div class="ca-vazio">Não consegui carregar os dados.</div>'; });
+  var maquinas = [], libId = null, $ = function (i) { return document.getElementById(i); };
+  function carregar() {
+    return fetch('{{ url_for("auditoria.artigos_dados") }}', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (d) {
+      itens = d.itens; maquinas = d.maquinas || []; desenhar();
+      var op = maquinas.map(function (m) { return '<option value="' + m + '">' + m + '</option>'; }).join('');
+      $('fMaq').innerHTML = '<option value="">—</option>' + op; $('fDest').innerHTML = '<option value="">—</option>' + op;
+    }).catch(function () { lista.innerHTML = '<div class="ca-vazio">Não consegui carregar os dados.</div>'; });
+  }
+  function abrir(modoLib) { $('caFormNovo').hidden = modoLib; $('caFormLib').hidden = !modoLib; $('caModTitulo').textContent = modoLib ? 'Liberar artigo na máquina' : 'Registrar impedimento'; $('caErr').textContent = ''; $('caMod').hidden = false; }
+  function post(url, corpo) { return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)}).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.erro || 'Erro'); return d; }); }); }
+  $('caNovo').addEventListener('click', function () { libId = null; abrir(false); });
+  $('caCancel').addEventListener('click', function () { $('caMod').hidden = true; });
+  lista.addEventListener('click', function (e) { var b = e.target.closest('[data-lib]'); if (!b) return; libId = b.dataset.lib; $('fLibInfo').textContent = b.dataset.info; $('fLib').value = ''; abrir(true); });
+  $('caSalvar').addEventListener('click', function () {
+    var p = libId ? post('/auditoria/impedimentos/' + encodeURIComponent(libId) + '/desativar', {motivo: $('fLib').value})
+      : post('{{ url_for("auditoria.registrar_impedimento") }}', {artigo: $('fArt').value, op: $('fOp').value, maquina: $('fMaq').value, destino: $('fDest').value, motivo: $('fMot').value, qt: $('fQt').value, justificativa: $('fJust').value});
+    p.then(function () { $('caMod').hidden = true; ['fArt', 'fOp', 'fQt', 'fJust'].forEach(function (i) { $(i).value = ''; }); return carregar(); }).catch(function (er) { $('caErr').textContent = er.message; });
+  });
+  carregar();
   document.getElementById('caBusca').addEventListener('input', desenhar);
   document.getElementById('caOff').addEventListener('change', desenhar);
 })();
