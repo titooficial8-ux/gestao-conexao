@@ -124,6 +124,8 @@ def indicadores_maquinas(machines):
         nome_cli = _strip_accents(cliente.upper())
         if 'ORTOBOM' in nome_cli:
             saida[m.id] = dict(tipo='ortobom', titulo=f'Ortobom · {cliente}')
+        elif 'GAZIN' in nome_cli:
+            saida[m.id] = dict(tipo='gazin', titulo=f'Gazin · {cliente}')
         elif 'ECOFLEX' in nome_cli:
             saida[m.id] = dict(tipo='ecoflex', titulo=f'Ecoflex · {cliente}')
         elif re.search(r'\bFLEX\b', nome_cli):
