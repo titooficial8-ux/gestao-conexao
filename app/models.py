@@ -241,6 +241,7 @@ class PedidoRelatorio(db.Model):
     qt_pendenteop = db.Column(db.Float, default=0)
     qt_afaturar = db.Column(db.Float, default=0)
     qt_saldo = db.Column(db.Float, default=0)
+    vl_unitario = db.Column(db.Float, default=0)    # preco unitario liquido do item (R$ por metro): valor dos prontos na Expedicao
     region = db.Column(db.String(2))
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 

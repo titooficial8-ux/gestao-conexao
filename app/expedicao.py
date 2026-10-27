@@ -49,6 +49,44 @@ def pedidos():
     return jsonify(expedicao.pedidos_x_expedicao())
 
 
+@exp_bp.route('/nf/buscar')
+@login_required
+def nf_buscar():
+    _autorizar()
+    from app.totvs import expedicao
+    return jsonify(ok=True, notas=expedicao.buscar_nfs(request.args.get('q', '')))
+
+
+@exp_bp.route('/nf/detalhe')
+@login_required
+def nf_detalhe():
+    _autorizar()
+    from app.totvs import expedicao
+    try:
+        return jsonify(ok=True, nota=expedicao.detalhe_nf(request.args.get('seq', ''), request.args.get('data', '')))
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, erro=str(e)[:300])
+
+
+@exp_bp.route('/nf/pdf')
+@login_required
+def nf_pdf():
+    _autorizar()
+    from flask import Response
+    from app.totvs import expedicao
+    try:
+        n = expedicao.detalhe_nf(request.args.get('seq', ''), request.args.get('data', ''))
+    except Exception as e:  # noqa: BLE001
+        return Response(f'Não foi possível consultar a NF: {e}', status=502)
+    nome = f"NF_{n['nf']}.pdf"
+    try:
+        return Response(expedicao.nf_pdf(n), mimetype='application/pdf', headers={'Content-Disposition': f'attachment; filename={nome}'})
+    except Exception:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        return Response(expedicao.nf_html(n).replace('</body>', '<script>window.onload=function(){window.print()}</script></body>'), mimetype='text/html')      # sem Chromium: abre a pagina pronta para "Salvar como PDF"
+
+
 @exp_bp.route('/exportar')
 @login_required
 def exportar():
@@ -61,18 +99,18 @@ def exportar():
     from openpyxl.styles import Font, PatternFill
     from app.totvs import expedicao
     tipo = request.args.get('tipo', 'parados')
-    p = expedicao.painel(request.args.get('dias', 30, type=int)) if tipo not in ('prontos', 'sem_pedido') else {}
+    p = expedicao.painel(request.args.get('dias', 30, type=int)) if tipo not in ('prontos', 'prontos90', 'sem_pedido') else {}
     E = p.get('estoque')
     dia = lambda v: date.fromisoformat(v).strftime('%d/%m/%Y') if v else ''
     if tipo == 'inspecao':
         I = E['inspecao']
         nome, cab = 'Aguardando inspeção', ['Produto', 'Descrição', f"Saldo em inspeção ({I['unidade']})", 'Saldo na expedição (m)', 'Peças na expedição']
         linhas = [[x['cod'], x['nome'], x['saldo'], x['exp_m'], x['exp_pecas']] for x in I['lista']]
-    elif tipo in ('prontos', 'sem_pedido'):
+    elif tipo in ('prontos', 'prontos90', 'sem_pedido'):
         P = expedicao.pedidos_x_expedicao()
-        if tipo == 'prontos':
-            nome, cab = 'Prontos aguardando faturar', ['Cliente', 'Unidade', 'Pedido', 'Artigo', 'Descrição', 'Data do pedido', 'Dias de pedido', 'Pendente a faturar (m)', 'Pronto na expedição (m)', 'Última entrada na expedição', 'Dias na expedição', 'Pedido → expedição (dias)']
-            linhas = [[x['cliente'], x['unidade'], x['pedido'], x['cod'], x['nome'], dia(x['dt_pedido']), x['idade_pedido'], x['pendente'], x['pronto'], dia(x['ult_entrada']) or 'sem entrada em 180 dias', x['dias_exp'], x['lead']] for x in P['prontos']]
+        if tipo in ('prontos', 'prontos90'):
+            nome, cab = ('Prontos aguardando faturar' if tipo == 'prontos' else 'Prontos há mais de 90 dias'), ['Cliente', 'Unidade', 'Pedido', 'Artigo', 'Descrição', 'Data do pedido', 'Dias de pedido', 'Pendente a faturar (m)', 'Pronto na expedição (m)', 'Preço unitário (R$)', 'Valor pronto (R$)', 'Última entrada na expedição', 'Dias na expedição', 'Pedido → expedição (dias)']
+            linhas = [[x['cliente'], x['unidade'], x['pedido'], x['cod'], x['nome'], dia(x['dt_pedido']), x['idade_pedido'], x['pendente'], x['pronto'], x['vl_unit'], x['valor'], dia(x['ult_entrada']) or 'sem entrada em 180 dias', x['dias_exp'], x['lead']] for x in P['prontos'] if tipo == 'prontos' or (x['dias_exp'] or 0) > 90]
         else:
             nome, cab = 'Estoque sem pedido', ['Artigo', 'Descrição', 'Metros', 'Peças', 'Dias desde a última entrada', 'Última entrada']
             linhas = [[x['cod'], x['nome'], x['saldo'], x['pecas'], x['dias_exp'], dia(x['ult_entrada']) or 'sem entrada em 180 dias'] for x in P['sem_pedido']]
@@ -117,4 +155,4 @@ def diagnostico():
     return jsonify(amostra_lote=d.get('amostra_lote'), amostra_nf=d.get('amostra_nf'), n_produtos=len(d.get('estoque') or {}), mov=dict(atualizado=expedicao.ler_mov().get('atualizado'), n=len(expedicao.ler_mov().get('produtos') or {}), erros=expedicao.ler_mov().get('erros'), amostra_erro=expedicao.ler_mov().get('amostra_erro')), n_notas=len(d.get('notas') or {}),
                    inspecao=dict(cod=d.get('inspecao_cod'), nome=d.get('inspecao_desc'), n=len(d.get('inspecao') or {}), total_itens=d.get('inspecao_total_itens'), saldos_vistos=d.get('estoques_vistos')),
                    flags_amostra=dict(list((d.get('flags') or {}).items())[:5]), status_nf=sorted({n[3] for n in (d.get('notas') or {}).values()}), status_nfe=sorted({n[4] for n in (d.get('notas') or {}).values()}),
-                   estado=expedicao.ESTADO)
+                   estado=expedicao.ESTADO, amostra_item_pedido=__import__('app.totvs.pedidos', fromlist=['ESTADO']).ESTADO.get('amostra_item'))
