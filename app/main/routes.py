@@ -222,6 +222,22 @@ def resolve_dt_cliente_from_pedidos(op, artigo):
         datas = [p.dt_prevfaturamento for p in candidatos if p.dt_prevfaturamento]
     return min(datas) if datas else None
 
+@main_bp.route('/aba/dt-cliente-diagnostico')
+@login_required
+def dt_cliente_diagnostico():
+    """So administrador: por que uma OP ficou sem Dt.Cliente? Mostra as linhas do Relatorio Pedidos ligadas a ela e as datas de previsao."""
+    if not current_user.is_admin:
+        abort(403)
+    op = (request.args.get('op') or '').strip()
+    linhas = PedidoRelatorio.query.filter_by(nr_op=op).all()
+    seq = Sequencia.query.filter_by(op=op).first()
+    return jsonify(op=op, artigo_na_programacao=seq.artigo if seq else None, dt_cliente_na_programacao=seq.dt_cliente.isoformat() if seq and seq.dt_cliente else None,
+                   resolvido=(resolve_dt_cliente_from_pedidos(op, seq.artigo if seq else None).isoformat() if seq and resolve_dt_cliente_from_pedidos(op, seq.artigo) else None),
+                   linhas=[dict(pedido=p.cod_pedido, cliente=p.nome_cliente, situacao=p.tp_situacao, dt_pedido=str(p.dt_pedido or ''), dt_prev_faturamento=str(p.dt_prevfaturamento or ''), chegada30=str(p.dt_chegada30 or ''),
+                                cod_produto=p.cod_produto, produto=p.ds_produto, qt_solicitada=p.qt_solicitada, qt_pendente=p.qt_pendente) for p in linhas],
+                   outras_op_do_mesmo_cliente_artigo=[dict(op=p.nr_op, pedido=p.cod_pedido, dt_prev=str(p.dt_prevfaturamento or '')) for p in PedidoRelatorio.query.filter(PedidoRelatorio.nome_cliente == (seq.cliente if seq else None)).limit(20).all()] if seq else [])
+
+
 MESES_PT = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',

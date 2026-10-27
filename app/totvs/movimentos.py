@@ -10,6 +10,7 @@ A API nao tem o peso (kg) nem a hora da pesagem (so a data).
 """
 import threading
 import time
+import traceback
 from datetime import date, datetime, time as hora_do_dia, timedelta
 
 from . import api
@@ -881,6 +882,29 @@ _ULT_FILA = 0.0
 FILA_AUTO_DIAS = int(os.getenv('FILA_AUTO_DIAS', '30'))        # OPs 'aguardando liberacao' criadas nos ultimos N dias vao para a Pre-Programacao
 
 
+def _corrigir_artigos_fila(cli) -> None:
+    """Itens que ja estao na fila com o codigo de artigo antigo (classificacao 506, ex.: 5100) passam a usar o numero que inicia a descricao do produto."""
+    from app import db
+    from app.models import FilaPreProgramacao
+    from app.totvs import artigos
+    espera = [f for f in FilaPreProgramacao.query.filter_by(status='WAITING').all() if f.op and str(f.op).isdigit()]
+    if not espera:
+        return
+    prod_da_op = {}
+    for lote in [espera[i:i + 50] for i in range(0, len(espera), 50)]:
+        for o in artigos._ops(cli, [int(f.op) for f in lote]):
+            it = (o.get('items') or [{}])[0]
+            prod_da_op[str(o.get('orderCode'))] = it.get('productCode')
+    cods = artigos.codigos_de_artigo(cli, [p for p in prod_da_op.values() if p is not None])
+    mudou = False
+    for f in espera:
+        novo = cods.get(str(prod_da_op.get(str(f.op))))
+        if novo and novo != f.artigo:
+            f.artigo, mudou = novo, True
+    if mudou:
+        db.session.commit()
+
+
 def fila_automatica(cli) -> int:
     """OP gerada no TOTVS (PCPFP141) fica 'Aguardando liberacao' (status 10): entra sozinha na Pre-Programacao > Analisar sequencia
     (fila WAITING), a menos que ja esteja numa maquina da Programacao ou na fila. Quando a OP chega numa maquina, o item da fila vira MOVED."""
@@ -895,6 +919,10 @@ def fila_automatica(cli) -> int:
         if sq and sq.machine:
             f.status, f.moved_to_machine, f.moved_at = 'MOVED', str(sq.machine.number), agora
             movidas += 1
+    try:
+        _corrigir_artigos_fila(cli)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
     na_fila = {str(f.op) for f in FilaPreProgramacao.query.all() if f.op}
     limite = date.today() - timedelta(days=FILA_AUTO_DIAS)
     candidatas, pag = [], 1
