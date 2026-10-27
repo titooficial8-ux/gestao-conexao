@@ -488,8 +488,10 @@ button { font-family: inherit; cursor: pointer; }
 .machine-status-ribbon-red { background: var(--danger); color: var(--white); }
 .machine-status-ribbon-yellow { background: #b8860b; color: var(--white); }
 
-.machine-ind { position: absolute; left: 8px; top: 8px; width: 26px; height: 17px; object-fit: contain; border-radius: 2px; }
-.machine-ind-logo { width: 40px; height: 15px; border-radius: 0; top: 9px; }
+.machine-ind-row { display: flex; justify-content: center; align-items: center; height: 18px; margin-bottom: 3px; }
+.machine-ind { height: 16px; width: 24px; object-fit: contain; border-radius: 2px; }
+.machine-ind-logo { height: 17px; width: auto; max-width: 56px; border-radius: 0; }
+.machine-ind-exp { font-size: 9px; font-weight: 800; letter-spacing: 0.08em; color: #64748b; background: #e8eef6; border-radius: 4px; padding: 1px 6px; }
 .machine-est {
   margin-top: 6px;
   padding: 2px 10px;
