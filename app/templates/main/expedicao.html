@@ -61,9 +61,8 @@
 .xp-gauge{text-align:center;background:var(--gray-100);border-radius:16px;padding:12px 10px 14px;position:relative}.xp-gauge .g{width:100%;max-width:230px;height:auto;display:block;margin:0 auto}
 .xp-gauge .agulha{transition:transform 1.6s cubic-bezier(.2,.9,.25,1)}
 .xp-gauge .num{font-size:30px;font-weight:800;color:var(--xp-navy);margin-top:8px;position:relative;letter-spacing:-.02em}.xp-gauge .tit{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-700,#334155);margin-top:4px}.xp-gauge .sb{font-size:11px;color:var(--gray-500)}
-.xp-ticker{overflow:hidden;background:#0f2a4a;border-radius:12px;padding:10px 0;margin-top:4px}.xp-ticker-in{display:inline-flex;white-space:nowrap;animation:xpTk 55s linear infinite}.xp-ticker:hover .xp-ticker-in{animation-play-state:paused}
-.xp-tk{color:#d6e8f6;font-size:13px;padding:0 26px;display:inline-flex;align-items:center;gap:8px}.xp-tk b{color:#fff}.xp-tk i{width:9px;height:9px;border-radius:50%;display:inline-block}
-@keyframes xpTk{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.xp-ticker{background:#0f2a4a;border-radius:12px;padding:12px 18px;margin-top:4px;text-align:center;min-height:46px}
+.xp-tk{color:#d6e8f6;font-size:14px;display:inline-flex;align-items:center;gap:8px;transition:opacity .45s}.xp-tk b{color:#fff}.xp-tk i{width:10px;height:10px;border-radius:50%;display:inline-block}.xp-tk em.n{font-style:normal;font-size:11px;color:#7fa3c2;margin-left:10px}
 .xp-fila{display:grid;grid-template-columns:220px 1fr 130px;gap:14px;align-items:center;margin:12px 0}.xp-fila .nm b{display:block;font-size:14px;color:var(--xp-navy)}.xp-fila .nm small{color:var(--gray-500);font-size:11px}
 .xp-fila .trilho{display:flex;height:22px;background:var(--gray-100);border-radius:999px;overflow:hidden}.xp-fila .trilho i{display:block;height:100%;transition:width 1.4s cubic-bezier(.2,.9,.25,1)}
 .xp-fila .vl{text-align:right}.xp-fila .vl b{display:block;font-size:15px;color:var(--text)}.xp-fila .vl small{color:var(--gray-500);font-size:11px}
@@ -107,7 +106,7 @@
 
 <script>
 (function () {
-  var URL_DADOS = '{{ url_for("expedicao.dados") }}', URL_XLSX = '{{ url_for("expedicao.exportar") }}', URL_PED = '{{ url_for("expedicao.pedidos") }}', URL_NFB = '{{ url_for("expedicao.nf_buscar") }}', URL_NFD = '{{ url_for("expedicao.nf_detalhe") }}', URL_NFP = '{{ url_for("expedicao.nf_pdf") }}', VIEW = 'geral', P = null, ULTIMA = Date.now(), NFAB = false, NFQ = '', NFLISTA = null, NFDET = null, NFERRO = '', PREV = {}, PREVC = {}, PREVG = {}, PREVV = {}, MAPA = false, D = null, METRICA = 'metros';
+  var URL_DADOS = '{{ url_for("expedicao.dados") }}', URL_XLSX = '{{ url_for("expedicao.exportar") }}', URL_PED = '{{ url_for("expedicao.pedidos") }}', URL_NFB = '{{ url_for("expedicao.nf_buscar") }}', URL_NFD = '{{ url_for("expedicao.nf_detalhe") }}', URL_NFP = '{{ url_for("expedicao.nf_pdf") }}', VIEW = 'geral', P = null, ULTIMA = Date.now(), NFAB = false, NFQ = '', NFLISTA = null, NFDET = null, NFERRO = '', PREV = {}, TKT = null, PREVC = {}, PREVG = {}, PREVV = {}, MAPA = false, D = null, METRICA = 'metros';
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.textContent = x; return e; }
   function nf(v, d) { return Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
   function brl(v) { v = Number(v || 0); return v >= 1e6 ? 'R$ ' + nf(v / 1e6, 2) + ' mi' : v >= 1e4 ? 'R$ ' + nf(v / 1e3, 0) + ' mil' : 'R$ ' + nf(v, 0); }
@@ -313,7 +312,12 @@
     gs.appendChild(gauge('g3', 'Prazo pedido → expedição', K.lead_medio, 90, ' dias', [[20, '#22c55e'], [40, '#f59e0b'], [90, '#dc2626']], 'até o artigo chegar'));
     gs.appendChild(gauge('g4', 'Estoque com pedido', K.artigos ? Math.round(K.artigos_com_pedido / K.artigos * 100) : null, 100, '%', [[50, '#dc2626'], [80, '#f59e0b'], [100, '#22c55e']], 'dos artigos têm pedido em aberto'));
     painel.appendChild(gs);
-    if (P.prontos.length) { var tk = el('div', 'xp-ticker'), tr = el('div', 'xp-ticker-in'); for (var rep_ = 0; rep_ < 2; rep_++) P.prontos.slice(0, 14).forEach(function (x) { var it = el('span', 'xp-tk'), pd = el('i'); pd.style.background = corDias(x.dias_exp); it.appendChild(pd); it.appendChild(el('b', null, x.cliente)); it.appendChild(document.createTextNode(' · ' + x.cod + ' · ' + (x.dias_exp > 180 ? '+180' : x.dias_exp) + ' dias na expedição · ' + (x.valor ? brl(x.valor) : mt(x.pronto)))); tr.appendChild(it); }); tk.appendChild(tr); painel.appendChild(tk); }
+    clearInterval(TKT);
+    if (P.prontos.length) { var tk = el('div', 'xp-ticker'), lst = P.prontos.slice(0, 14), idx = 0, cx = el('span', 'xp-tk');
+      function mostra() { var x = lst[idx]; cx.textContent = ''; var pd = el('i'); pd.style.background = corDias(x.dias_exp); cx.appendChild(pd); cx.appendChild(el('b', null, x.cliente)); cx.appendChild(document.createTextNode(' · ' + x.cod + ' · ' + (x.dias_exp > 180 ? '+180' : x.dias_exp) + ' dias na expedição · ' + (x.valor ? brl(x.valor) : mt(x.pronto)))); cx.appendChild(el('em', 'n', (idx + 1) + '/' + lst.length)); }
+      mostra(); tk.appendChild(cx);
+      TKT = setInterval(function () { if (!document.body.contains(tk)) { clearInterval(TKT); return; } cx.style.opacity = 0; setTimeout(function () { idx = (idx + 1) % lst.length; mostra(); cx.style.opacity = 1; }, 450); }, 10000);      // um aviso por vez, troca a cada 10 s (sem correr)
+      painel.appendChild(tk); }
     painel.style.marginBottom = '16px'; c.appendChild(painel);
 
     var fila = card('Fila por cliente · pedidos prontos esperando faturar', 'cada barra mostra quanto ' + (preco ? '(R$)' : '(metros)') + ' está pronto e há quanto tempo a peça espera na expedição'), CFc = ['#22c55e', '#f59e0b', '#f97316', '#dc2626'];
