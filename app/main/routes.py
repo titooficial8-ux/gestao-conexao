@@ -2405,6 +2405,61 @@ def maquina_historico_producao(numero):
     return jsonify(ok=True, maquina=numero, de=de.isoformat(), ate=ate.isoformat(), dias=dias_lista[::-1], resumo=resumo)
 
 
+@main_bp.route('/aba/programacao/auditoria-quantidades')
+@login_required
+def auditoria_quantidades():
+    """Confere, maquina a maquina (da 2a sequencia em diante), a QT.SOLICITADA da Programacao contra os pedidos ligados a cada OP e aponta o que parece errado."""
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+    from markupsafe import escape
+    filtro_maq = request.args.get('maquina', type=int)
+    so_prob = request.args.get('problemas') == '1'
+    seqs = (Sequencia.query.join(Machine).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).order_by(Machine.number, Sequencia.sequence_order, Sequencia.id).all())
+    peds = {}
+    for r in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.isnot(None), PedidoRelatorio.nr_op != '').all():
+        peds.setdefault(str(r.nr_op), {})[(r.cod_pedido, r.cod_produto)] = r
+    por_maq = {}
+    for q in seqs:
+        por_maq.setdefault(q.machine.number, []).append(q)
+    linhas, total_prob = [], 0
+    for numero, lista in por_maq.items():
+        if filtro_maq and numero != filtro_maq:
+            continue
+        ordens = [q.sequence_order for q in lista]
+        for pos, q in enumerate(lista):
+            if pos == 0:
+                continue                                       # a 1a sequencia (produzindo) nao entra na conferencia
+            rows = list(peds.get(str(q.op), {}).values())
+            sol, pend = sum(r.qt_solicitada or 0 for r in rows), sum(r.qt_pendente or 0 for r in rows)
+            base, qa, pcs = q.qt_solicitada or 0, q.qt_avulsa or 0, q.total_pcs or 0
+            avisos = []
+            if rows:
+                if pend and base < pend * 0.95:
+                    avisos.append(f'OP ({base:.0f}) menor que o pendente do pedido ({pend:.0f})')
+                elif sol and base > sol * 1.15:
+                    avisos.append(f'OP ({base:.0f}) maior que o pedido ({sol:.0f}) em {(base / sol - 1) * 100:.0f}%')
+            else:
+                if qa and qa == pcs and base > qa * 3:
+                    avisos.append(f'QT.AVULSA ({qa}) parece estar em peças; a OP tem {base} m')
+                elif qa and base and abs(qa - base) / base > 0.05:
+                    avisos.append(f'QT.AVULSA ({qa}) diferente da QT.SOLICITADA ({base})')
+                elif not qa:
+                    avisos.append('OP sem pedido ligado e sem QT.AVULSA')
+            if ordens.count(q.sequence_order) > 1:
+                avisos.append(f'sequência {q.sequence_order} repetida na máquina')
+            total_prob += 1 if avisos else 0
+            if so_prob and not avisos:
+                continue
+            linhas.append(f'<tr class="{"bad" if avisos else ""}"><td>{numero}</td><td>{q.sequence_order}º</td><td>{escape(q.op or "")}</td><td>{escape((q.artigo or "")[:12])}</td><td>{escape(q.cliente or "")}</td><td>{escape(q.situacao or q.status or "")}</td>'
+                          f'<td class="n">{base}</td><td class="n">{qa or ""}</td><td class="n">{pcs}</td><td>{escape(", ".join(sorted({r.cod_pedido for r in rows})) or "—")}</td><td class="n">{sol:.0f}</td><td class="n">{pend:.0f}</td><td>{escape("; ".join(avisos)) or "ok"}</td></tr>')
+    return ('<meta charset="utf-8"><style>body{font:13px Arial;margin:18px}td,th{border:1px solid #ccc;padding:3px 7px;text-align:left}table{border-collapse:collapse}.n{text-align:right}tr.bad td{background:#fff1f0}</style>'
+            f'<h2>Conferência da QT.SOLICITADA (da 2ª sequência em diante)</h2><p>{len(linhas)} linha(s) · {total_prob} com aviso · <a href="?problemas=1">só os avisos</a> · <a href="?">todas</a> · filtro por máquina: <code>?maquina=2</code></p>'
+            '<table><tr><th>Máq.</th><th>Seq.</th><th>OP</th><th>Artigo</th><th>Cliente</th><th>Situação</th><th>QT.SOLICITADA (máquina)</th><th>QT.AVULSA</th><th>Peças</th><th>Pedido(s) ligado(s)</th><th>Pedido: solicitado</th><th>Pedido: pendente</th><th>Conferência</th></tr>'
+            + ''.join(linhas) + '</table>'
+            '<p>QT.SOLICITADA da máquina é a quantidade da OP no TOTVS (em metros, arredondada em peças inteiras), por isso costuma ficar alguns % acima do pedido. O aviso só aparece quando a OP é menor que o pendente do pedido, maior que o pedido em mais de 15%, ou quando a QT.AVULSA está incoerente.</p>')
+
+
 @main_bp.route('/aba/programacao/maquina/<int:numero>')
 @login_required
 def maquina_detalhe(numero):

@@ -130,6 +130,16 @@ def _int(v):
         return 0
 
 
+_CORRECOES_CLIENTE = {'OROTOBM': 'ORTOBOM', 'ORTOBON': 'ORTOBOM'}
+
+
+def limpar_cliente(nome):
+    """Nome do cliente como vem digitado no PCP Hub, sem lixo de digitacao: tira ordinal no fim ('ORTOBOM 1°' -> 'ORTOBOM') e corrige erros conhecidos ('OROTOBM')."""
+    import re
+    t = re.sub(r'\s+[0-9]+\s*[°ºª]\s*$', '', str(nome or '')).strip()
+    return _CORRECOES_CLIENTE.get(t.upper(), t) or None
+
+
 def aplicar(linhas: list, agora=None) -> dict:
     """Atualiza as Sequencias do banco com as linhas (mesmo formato do PCP Hub). Precisa estar dentro do app_context."""
     from app import db
@@ -156,7 +166,7 @@ def aplicar(linhas: list, agora=None) -> dict:
             maquinas[numero] = m
         chave = (m.id, str(r.get('op') or '') or f'#{r.get("sequence_order")}')
         vistos.add(chave)
-        campos = dict(sequence_order=r.get('sequence_order'), artigo=r.get('article'), cliente=r.get('client'), op=r.get('op'), status=r.get('status'), total_pcs=_int(r.get('total_pcs')),
+        campos = dict(sequence_order=r.get('sequence_order'), artigo=r.get('article'), cliente=limpar_cliente(r.get('client')), op=r.get('op'), status=r.get('status'), total_pcs=_int(r.get('total_pcs')),
                       qt_solicitada=_int(r.get('requested_quantity')), qt_avulsa=_int(r.get('qt_avulsa')), cod_segmento=r.get('cod_segmento'), dt_cliente=_data(r.get('client_date')),
                       production_month=r.get('production_month'), termino_malharia=_data(r.get('estimated_end_date')), estrutura=resolve_estrutura_from_article(r.get('article')),
                       region=r.get('region') or 'BR', synced_at=agora)
