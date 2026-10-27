@@ -233,7 +233,7 @@ def dashboard() -> dict:
     for r in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.isnot(None), PedidoRelatorio.qt_pendente > 0).all():
         lst = ped_op.setdefault(str(r.nr_op), [])
         if r.cod_pedido and r.cod_pedido not in [x['pedido'] for x in lst]:
-            lst.append(dict(pedido=r.cod_pedido, cliente=r.nome_cliente or '', pendente=int(r.qt_pendente or 0), dt_prev=r.dt_prevfaturamento.isoformat() if r.dt_prevfaturamento else None, artigo=r.ds_produto or ''))
+            lst.append(dict(pedido=r.cod_pedido, cliente=r.nome_cliente or '', pendente=int(r.qt_pendente or 0), dt_pedido=r.dt_pedido.isoformat() if r.dt_pedido else None, dt_prev=r.dt_prevfaturamento.isoformat() if r.dt_prevfaturamento else None, artigo=r.ds_produto or ''))
     ops, empenhos = [], {}
     for op, itens in (d.get('por_op') or {}).items():
         s = seqs.get(op)
@@ -242,10 +242,11 @@ def dashboard() -> dict:
             continue
         lista = sorted(([c, v[0], v[1]] for c, v in itens.items()), key=lambda x: -x[2])
         datas = [x['dt_prev'] for x in peds if x['dt_prev']]
+        entradas = [x['dt_pedido'] for x in peds if x['dt_pedido']]
         info = dict(op=op, origem='maquina' if s else 'carteira', maquina=s.machine.number if s and s.machine else None, artigo=(s.artigo if s else (peds[0]['artigo'] if peds else '')),
                     cliente=(s.cliente if s else (peds[0]['cliente'] if peds else '')), status=(s.status if s else 'CARTEIRA'), ordem=(s.sequence_order if s and s.sequence_order is not None else 10 ** 6),
-                    termino=s.termino_malharia.isoformat() if s and s.termino_malharia else None, dt_prev=min(datas) if datas else (s.dt_cliente.isoformat() if s and s.dt_cliente else None),
-                    pedidos=[dict(pedido=x['pedido'], cliente=x['cliente'], pendente=x['pendente'], dt_prev=x['dt_prev']) for x in sorted(peds, key=lambda x: x['dt_prev'] or '9')[:4]])
+                    termino=s.termino_malharia.isoformat() if s and s.termino_malharia else None, dt_entrada=min(entradas) if entradas else None, dt_prev=min(datas) if datas else (s.dt_cliente.isoformat() if s and s.dt_cliente else None),
+                    pedidos=[dict(pedido=x['pedido'], cliente=x['cliente'], pendente=x['pendente'], dt_pedido=x['dt_pedido'], dt_prev=x['dt_prev']) for x in sorted(peds, key=lambda x: x['dt_prev'] or '9')[:4]])
         ops.append(dict(info, total=round(sum(x[2] for x in lista), 1), materias=[dict(codigo=c, nome=(saldos.get(c) or {}).get('nome') or n, kg=k) for c, n, k in lista]))
         for c, n, k in lista:
             empenhos.setdefault(c, []).append(dict(info, kg=k))
