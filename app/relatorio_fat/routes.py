@@ -97,14 +97,22 @@ def _resumo_envio_automatico() -> str:
     cfg = agenda.configuracao()
     est = agenda._ler(current_app)
     dias = ', '.join(['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'][d] for d in sorted(cfg['dias']))
+    import threading
+    horas = ', '.join(f'{h:02d}:{m:02d}' for h, m in cfg['horas'])
+    janela_h = int(cfg['janela'].total_seconds() // 3600)
+    enviados = agenda._enviados(est, cfg)
+    vivo = any(t.name == 'relatorio-fat-envio' and t.is_alive() for t in threading.enumerate())
     return ('\n\nENVIO AUTOMATICO\n'
             f'Ligado: {"SIM" if cfg["ativo"] else "NAO"}\n'
-            f'Horario (Brasilia): {cfg["hora"][0]:02d}:{cfg["hora"][1]:02d} (se o Gestao ligar depois de {cfg["ate"][0]:02d}:{cfg["ate"][1]:02d}, pula o dia)\n'
+            f'Agendador rodando neste processo: {"SIM" if vivo else "NAO (so roda com BI_AGENDADOR=1 no .env; sem ele nenhum e-mail automatico sai)"}\n'
+            f'Horarios (Brasilia): {horas} (se o Gestao so ligar mais de {janela_h} h depois do horario, pula aquele envio)\n'
+            f'Hora agora (Brasilia): {agenda.agora_brasilia():%d/%m/%Y %H:%M}\n'
             f'Dias: {dias}\n'
             f'Formato: {cfg["formato"]}' + (' + PDF da Entrada de Pedidos (alta prioridade)' if os.getenv('RELATORIO_FAT_ENVIO_PEDIDOS', '1') != '0' else '') + '\n'
             f'Destinatarios ({len(cfg["destinos"].split(","))}): {cfg["destinos"]}\n'
             f'Origem da lista: {"RELATORIO_FAT_DESTINOS do arquivo .env" if os.getenv("RELATORIO_FAT_DESTINOS") else "lista padrao do sistema"}\n'
-            f'Ultimo envio: {est.get("enviado_em") or "nenhum ainda"}' + (f' para {", ".join(est.get("para") or [])}' if est.get('para') else '') + '\n'
+            f'Ultimo envio por horario: {", ".join(f"{k} em {v}" for k, v in sorted(enviados.items())) or "nenhum ainda"}' + (f' para {", ".join(est.get("para") or [])}' if est.get('para') else '') + '\n'
+            f'Ultima tentativa: {est.get("tentativa") or "nenhuma"}' + (f' (horario {est.get("erro_horario")})' if est.get('erro_horario') else '') + '\n'
             f'Ultimo erro: {est.get("erro") or "nenhum"}')
 
 
