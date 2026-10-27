@@ -773,3 +773,4 @@ class ArtigoImpedimento(db.Model):
     desativado_por = db.Column(db.String(120))
     desativado_em = db.Column(db.DateTime)
     motivo_desativacao = db.Column(db.Text)
+    origem_registro = db.Column(db.String(10), default='gestao')   # 'hub' = importado do PCP Hub uma unica vez; 'gestao' = registrado aqui

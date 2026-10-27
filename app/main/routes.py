@@ -1725,6 +1725,11 @@ def mover_pre_programacao():
         flash('novo_registro_maquina_invalida', 'error')
         return redirect(url_for('main.view_tab', slug='pre-programacao', aba='analisar'))
 
+    from app.auditoria import bloqueio
+    aviso = bloqueio(item.artigo, machine.number)
+    if aviso:
+        flash(aviso, 'error')
+        return redirect(url_for('main.view_tab', slug='pre-programacao', aba='analisar'))
     estrutura = resolve_estrutura_from_article(item.artigo)
     cliente = normalize_client_name(item.cliente)
     dt_cliente = resolve_dt_cliente_from_pedidos(item.op, item.artigo)
@@ -2258,6 +2263,11 @@ def novo_registro_programacao():
 
     artigo = request.form.get('artigo', '').strip()
     op = request.form.get('op', '').strip()
+    from app.auditoria import bloqueio
+    aviso = bloqueio(artigo, machine.number)
+    if aviso:                                           # Controle de Artigos: artigo que nao roda nesta maquina nao pode ser programado nela
+        flash(aviso, 'error')
+        return redirect(url_for('main.maquina_detalhe', numero=machine.number))
 
     cliente = request.form.get('cliente', '').strip() or resolve_client_from_article(artigo)
     estrutura = (request.form.get('estrutura', '').strip() or resolve_estrutura_from_article(artigo) or '').upper()
