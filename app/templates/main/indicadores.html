@@ -87,6 +87,7 @@
   function pc(v, d) { return v === null || v === undefined ? '—' : nf(v * 100, d === undefined ? 1 : d) + '%'; }
   function dbr(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : ''; }
   function diaProd() { var d = new Date(hoje.getTime() - (6 * 60 + 20) * 60000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  var IS_ADMIN = {{ 'true' if current_user.is_admin else 'false' }};
   $('indDia').value = diaProd(); $('indMes').value = diaProd().slice(0, 7);
 
   function abas() {
@@ -146,6 +147,7 @@
     var mc = el('div'); mc.appendChild(kpis(k('Metros', nf(m.total.metros)), k('Peças', nf(m.total.pecas)), k('KG', nf(m.total.kg, 1)), k('Média', nf(m.media)), k('Setups', m.setups === null || m.setups === undefined ? '—' : nf(m.setups)))); mc.appendChild(tabelaTurnos(m, true, true));
     mc.appendChild(el('div', 'ind-nota', 'Produção líquida (descontando retalho, reprovas e retrabalho) aguarda a análise dessas fontes.'));
     mc.appendChild(el('div', 'ind-nota ind-conf', 'Conferência · metros pelo metro padrão do artigo: ' + nf(m.total.m_padrao) + ' · metros reais da peça: ' + nf(m.total.m_real) + ' · peças sem metros: ' + nf(m.total.sem_metros) + ' · o KG usa os metros reais × gramatura × largura.'));
+    if (IS_ADMIN) { var cmp = el('div', 'ind-nota ind-conf', ''); cmp.innerHTML = '<a href="/indicadores/comparar-planilha?dia=' + $('indDia').value + '" target="_blank">Comparar este dia com a planilha, máquina a máquina →</a>'; mc.appendChild(cmp); }
     g.appendChild(cartao('Produção Malharia (bruto)', '', mc, 6));
     var ac = el('div'); ac.appendChild(kpis(k('Peças acabadas', nf(a.total.pecas)), k('Metros', nf(a.total.metros)), k('KG', nf(a.total.kg, 1)), k('Média', nf(a.media)))); ac.appendChild(tabelaTurnos(a, true));
     ac.appendChild(el('div', 'ind-nota ind-conf', 'Conferência · peças sem kg (artigo sem gramatura/largura no cadastro): ' + nf(a.total.sem_metros) + ' de ' + nf(a.total.pecas) + ' · kg = metros × gramatura × largura.'));
