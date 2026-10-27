@@ -1,0 +1,29 @@
+<style>
+.au-tab{width:100%;border-collapse:collapse;font-size:13px}.au-tab th{text-align:left;background:#f1f5f9;padding:7px 9px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#475569;position:sticky;top:0}
+.au-tab td{padding:6px 9px;border-bottom:1px solid #eef2f7}.au-acao{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+.au-INICIO,.au-FIM{background:#e0e7ff;color:#3730a3}.au-VERIFICADO{background:#dcfce7;color:#166534}.au-DESMARCADO{background:#fee2e2;color:#991b1b}.au-MOVIMENTACAO{background:#fef3c7;color:#92400e}
+</style>
+<div class="modal-backdrop" id="modalAuditoria" hidden>
+  <div class="modal-box op-modal-box" style="max-width:1100px;width:96vw">
+    <div class="modal-head"><h3>Auditoria · registro de tudo que foi feito</h3><button type="button" class="modal-close" id="fecharAuditoria">&times;</button></div>
+    <div style="max-height:68vh;overflow:auto"><table class="au-tab"><thead><tr><th>Data/hora</th><th>Ação</th><th>Máquina</th><th>Artigo</th><th>OP</th><th>Dt. cliente</th><th>Movimentado de</th><th>Foi rodar em</th><th>Mecânico</th><th>PCP</th></tr></thead><tbody id="auCorpo"></tbody></table></div>
+  </div>
+</div>
+<script>
+(function () {
+  var NOMES = {INICIO: 'Auditoria iniciada', FIM: 'Auditoria encerrada', VERIFICADO: 'Verificado', DESMARCADO: 'Desmarcado', MOVIMENTACAO: 'Movimentação'};
+  var modal = document.getElementById('modalAuditoria'), btn = document.getElementById('btnAuditoria'), corpo = document.getElementById('auCorpo');
+  if (!modal || !btn) return;
+  function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+  btn.addEventListener('click', function () {
+    modal.hidden = false; corpo.innerHTML = '<tr><td colspan="10">Carregando…</td></tr>';
+    fetch('{{ url_for("auditoria.log") }}' + (btn.dataset.maquina ? '?maquina=' + btn.dataset.maquina : ''), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (d) {
+      corpo.innerHTML = d.itens.length ? d.itens.map(function (a) {
+        return '<tr><td>' + esc(a.quando) + '</td><td><span class="au-acao au-' + a.acao + '">' + esc(NOMES[a.acao] || a.acao) + '</span></td><td>' + esc(a.maquina) + '</td><td>' + esc(a.artigo) + '</td><td>' + esc(a.op) + '</td><td>' + esc(a.dt_cliente) + '</td><td>' + esc(a.origem) + '</td><td>' + esc(a.destino) + '</td><td>' + esc(a.mecanico) + '</td><td>' + esc(a.usuario) + '</td></tr>';
+      }).join('') : '<tr><td colspan="10">Nenhuma auditoria registrada ainda.</td></tr>';
+    }).catch(function () { corpo.innerHTML = '<tr><td colspan="10">Não consegui carregar o registro.</td></tr>'; });
+  });
+  document.getElementById('fecharAuditoria').addEventListener('click', function () { modal.hidden = true; });
+  modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
+})();
+</script>

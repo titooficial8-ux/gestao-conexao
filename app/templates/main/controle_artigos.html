@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<style>
+.ca{max-width:1300px}.ca-hero{background:linear-gradient(120deg,#3b0a17 0%,#7f1d2d 60%,#b4233a 130%);color:#fff;border-radius:18px;padding:22px 26px;margin-bottom:16px;box-shadow:0 10px 30px rgba(127,29,45,.25)}
+.ca-hero h2{margin:0;font-size:22px;color:#fff}.ca-hero p{margin:4px 0 0;font-size:13px;color:#fbd0d6;max-width:760px}
+.ca-stats{display:flex;gap:14px;flex-wrap:wrap;margin-top:16px}.ca-stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:10px 18px;min-width:130px}
+.ca-stat strong{display:block;font-size:28px;line-height:1.1}.ca-stat span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#fbd0d6;font-weight:700}
+.ca-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}.ca-bar input[type=text]{flex:1;min-width:240px;padding:10px 14px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px}
+.ca-bar label{font-size:13px;color:#475569;display:flex;gap:6px;align-items:center}
+.ca-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px}
+.ca-card{background:#fff;border:1px solid #e5e7eb;border-left:5px solid #dc2626;border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}.ca-card.off{border-left-color:#9ca3af;opacity:.8}
+.ca-art{font-size:20px;font-weight:800;color:#7f1d2d;letter-spacing:-.01em}.ca-sub{font-size:12px;color:#64748b}
+.ca-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}.ca-chip{background:#fee2e2;color:#991b1b;font-weight:800;font-size:13px;border-radius:999px;padding:3px 12px}.ca-chip.off{background:#e5e7eb;color:#6b7280;text-decoration:line-through}
+.ca-item{border-top:1px dashed #e5e7eb;padding:8px 0;font-size:13px;color:#334155}.ca-item b{color:#0f172a}.ca-mot{display:inline-block;background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;margin-left:6px}
+.ca-vazio{padding:40px;text-align:center;color:#64748b;background:#fff;border-radius:12px;border:1px dashed #cbd5e1}.ca-aviso{font-size:12px;color:#64748b;margin-top:14px}
+</style>
+<div class="ca">
+  <div class="ca-hero">
+    <h2>&#9940; Controle de Artigos</h2>
+    <p>Artigos que <b>não rodam</b> em determinadas máquinas, registrados no PCP Hub quando a OP precisou sair da máquina. No PCP Hub o sistema trava a programação do artigo nessas máquinas; aqui você consulta o histórico e vê o alerta nas OPs da Programação.</p>
+    <div class="ca-stats"><div class="ca-stat"><strong id="caNArt">–</strong><span>Artigos bloqueados</span></div><div class="ca-stat"><strong id="caNBloq">–</strong><span>Bloqueios ativos</span></div><div class="ca-stat"><strong id="caNMaq">–</strong><span>Máquinas afetadas</span></div></div>
+  </div>
+  <div class="ca-bar">
+    <input type="text" id="caBusca" placeholder="Buscar por artigo, máquina, OP ou justificativa…" autocomplete="off">
+    <label><input type="checkbox" id="caOff"> Mostrar bloqueios já desativados</label>
+  </div>
+  <div id="caLista" class="ca-grid"></div>
+  <p class="ca-aviso">Dados lidos do PCP Hub a cada poucos minutos. Para liberar um artigo numa máquina, desative o impedimento no PCP Hub.</p>
+</div>
+<script>
+(function () {
+  var itens = [], lista = document.getElementById('caLista');
+  function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+  function desenhar() {
+    var q = document.getElementById('caBusca').value.trim().toLowerCase(), off = document.getElementById('caOff').checked;
+    var vis = itens.filter(function (i) { return (off || i.ativo) && (!q || [i.artigo, i.maquina, i.op, i.justificativa, i.por, i.destino, i.motivo].join(' ').toLowerCase().indexOf(q) >= 0); });
+    var grupos = {}, ordem = [];
+    vis.forEach(function (i) { var k = i.artigo; if (!grupos[k]) { grupos[k] = []; ordem.push(k); } grupos[k].push(i); });
+    lista.innerHTML = ordem.length ? ordem.map(function (k) {
+      var g = grupos[k], ativo = g.some(function (i) { return i.ativo; });
+      return '<div class="ca-card' + (ativo ? '' : ' off') + '"><div class="ca-art">' + esc(k) + '</div><div class="ca-sub">' + g.length + ' registro(s)</div><div class="ca-chips">' +
+        g.map(function (i) { return '<span class="ca-chip' + (i.ativo ? '' : ' off') + '">Máq. ' + esc(i.maquina) + '</span>'; }).join('') + '</div>' +
+        g.map(function (i) {
+          return '<div class="ca-item"><b>Máq. ' + esc(i.maquina) + '</b> → foi para <b>' + esc(i.destino) + '</b><span class="ca-mot">' + esc(i.motivo) + '</span><br>' + esc(i.justificativa) +
+            '<br><span class="ca-sub">OP ' + esc(i.op) + ' · ' + i.qt + ' un · ' + esc(i.por) + ' em ' + esc(i.em) + '</span>' +
+            (i.ativo ? '' : '<br><span class="ca-sub">Desativado por ' + esc(i.desativado_por) + ' em ' + esc(i.desativado_em) + ': ' + esc(i.motivo_desativacao) + '</span>') + '</div>';
+        }).join('') + '</div>';
+    }).join('') : '<div class="ca-vazio">Nenhum artigo bloqueado encontrado.</div>';
+    var ativos = itens.filter(function (i) { return i.ativo; });
+    document.getElementById('caNArt').textContent = new Set(ativos.map(function (i) { return i.artigo; })).size;
+    document.getElementById('caNBloq').textContent = ativos.length;
+    document.getElementById('caNMaq').textContent = new Set(ativos.map(function (i) { return i.maquina; })).size;
+  }
+  fetch('{{ url_for("auditoria.artigos_dados") }}', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (d) { itens = d.itens; desenhar(); })
+    .catch(function () { lista.innerHTML = '<div class="ca-vazio">Não consegui carregar os dados.</div>'; });
+  document.getElementById('caBusca').addEventListener('input', desenhar);
+  document.getElementById('caOff').addEventListener('change', desenhar);
+})();
+</script>
+{% endblock %}

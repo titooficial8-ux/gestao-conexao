@@ -197,6 +197,8 @@ class Sequencia(db.Model):
     prev_fonte = db.Column(db.String(30), nullable=True)      # de onde vieram as voltas/RPM: OP, maquina+artigo ou artigo
     prev_rpm = db.Column(db.Float, nullable=True)
     prev_voltas = db.Column(db.Float, nullable=True)
+    aud_ok = db.Column(db.Boolean, default=False)             # engrenagem da auditoria: verde = artigo verificado na maquina pelo mecanico e PCP
+    aud_em = db.Column(db.DateTime, nullable=True)
     prev_raport = db.Column(db.Float, nullable=True)          # raport (cm) usado quando a previsao saiu de raport x RPM instalado
     prev_termino_em = db.Column(db.DateTime, nullable=True)   # data e hora previstas de termino (voltas/RPM + fila da maquina)
 
@@ -720,3 +722,54 @@ class ArtigoTamanho(db.Model):
     artigo = db.Column(db.String(30), primary_key=True)
     metros_peca = db.Column(db.Float)
     estrutura = db.Column(db.String(10))
+
+
+class AuditoriaSessao(db.Model):
+    """Auditoria semanal da maquina com o mecanico (reuniao que define que artigo roda em cada maquina)."""
+    __tablename__ = 'auditoria_sessoes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    maquina = db.Column(db.Integer, index=True, nullable=False)
+    mecanico = db.Column(db.String(80), nullable=False)
+    iniciado_por = db.Column(db.String(120))
+    iniciado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    encerrado_em = db.Column(db.DateTime, nullable=True)
+
+
+class AuditoriaLog(db.Model):
+    """Tudo que acontece numa auditoria: inicio/fim, engrenagem marcada/desmarcada, OP movimentada de uma maquina para outra."""
+    __tablename__ = 'auditoria_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sessao_id = db.Column(db.Integer, index=True)
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    usuario = db.Column(db.String(120))
+    mecanico = db.Column(db.String(80))
+    acao = db.Column(db.String(40))           # INICIO, VERIFICADO, DESMARCADO, MOVIMENTACAO, FIM
+    maquina = db.Column(db.Integer)
+    artigo = db.Column(db.String(60))
+    op = db.Column(db.String(30))
+    dt_cliente = db.Column(db.Date)
+    origem = db.Column(db.String(20))
+    destino = db.Column(db.String(20))
+
+
+class ArtigoImpedimento(db.Model):
+    """Espelho de artigo_maquina_impedimentos do PCP Hub (Controle de Artigos): artigos que NAO rodam em determinada maquina."""
+    __tablename__ = 'artigo_impedimentos'
+
+    id = db.Column(db.String(40), primary_key=True)
+    artigo = db.Column(db.String(60), index=True)
+    artigo_norm = db.Column(db.String(60), index=True)
+    op = db.Column(db.String(30))
+    qt_solicitada = db.Column(db.Float)
+    maquina = db.Column(db.Integer, index=True)           # maquina onde o artigo nao rodou
+    destino = db.Column(db.String(20))                    # para onde foi movido
+    motivo = db.Column(db.String(30))
+    justificativa = db.Column(db.Text)
+    movido_por = db.Column(db.String(120))
+    movido_em = db.Column(db.DateTime)
+    ativo = db.Column(db.Boolean, default=True, index=True)
+    desativado_por = db.Column(db.String(120))
+    desativado_em = db.Column(db.DateTime)
+    motivo_desativacao = db.Column(db.Text)
