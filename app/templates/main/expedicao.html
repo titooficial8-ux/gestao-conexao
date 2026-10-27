@@ -368,7 +368,10 @@
       ph.textContent = ''; ph.className = '';
       if (!d.ok) { ph.appendChild(el('div', 'xp-erro', 'Não consegui consultar a NF: ' + d.erro)); m.p.textContent = ''; return; }
       var N = d.nota; m.p.textContent = (N.cliente.nome || '') + ' · emitida em ' + (data_(N.emissao) || dia(n.dia) + '/' + n.dia.slice(0, 4) + ' ' + n.hora);
-      var qs = '?seq=' + encodeURIComponent(n.seq) + '&data=' + encodeURIComponent(n.data), dl = el('a', 'xp-dl', '⬇ Baixar PDF da NF (TOTVS)'); dl.href = URL_NFP + qs; dl.title = 'DANFE oficial, direto do TOTVS'; m.h.insertBefore(dl, m.x);
+      var qs = '?seq=' + encodeURIComponent(n.seq) + '&data=' + encodeURIComponent(n.data), dl = el('a', 'xp-dl', '⬇ Baixar PDF da NF (TOTVS)'); dl.href = URL_NFP + qs; dl.title = 'DANFE oficial, direto do TOTVS (leva cerca de 20 segundos)'; m.h.insertBefore(dl, m.x);
+      dl.addEventListener('click', function (e) { e.preventDefault(); if (dl.dataset.busy) return; dl.dataset.busy = '1'; var txt = dl.textContent; dl.textContent = '⏳ Gerando o PDF no TOTVS… (~20 s)'; dl.style.opacity = .75;
+        fetch(dl.href, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error(t); }); return r.blob(); }).then(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'NF_' + N.nf + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); })
+          .catch(function (er) { alert('Não consegui baixar o PDF da NF no TOTVS:\n\n' + String(er.message || er).slice(0, 600)); }).then(function () { dl.textContent = txt; dl.style.opacity = 1; delete dl.dataset.busy; }); });
       var rs = el('a', 'xp-dl2', 'resumo'); rs.href = URL_NFP + qs + '&resumo=1'; rs.title = 'Resumo dos dados (sem valor fiscal)'; m.h.insertBefore(rs, m.x);
       nfDetalhe(ph, N, n);
     }).catch(function () { ph.textContent = ''; ph.appendChild(el('div', 'xp-erro', 'Falha ao consultar a NF.')); });
