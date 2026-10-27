@@ -287,7 +287,7 @@ table.pr-wrap > thead > tr > td, table.pr-wrap > tbody > tr > td, table.pr-wrap 
   }
   $('biGerar').addEventListener('click', function () {
     var ini = $('biGIni').value, fim = $('biGFim').value;
-    if (st && st.estado.rodando) {                                    // ja ha uma busca no TOTVS (ex.: atualizacao automatica): entra na fila e comeca sozinha
+    if (st && st.estado.rodando && ['agenda', 'historico_auto'].indexOf(st.estado.origem) < 0) {   // busca manual em andamento: entra na fila (a automatica e interrompida pelo servidor)
       filaGerar = { ini: ini, fim: fim };
       var ant = $('biAvisoFila'); if (ant) ant.remove();
       var av = ui.el('div', 'bi-info', (ES ? '⏳ Hay una actualización en curso. El informe ' : '⏳ Há uma atualização do TOTVS em andamento. O relatório de ') + dataBR(ini) + ' → ' + dataBR(fim) + (ES ? ' empieza al terminar y se descarga solo.' : ' entra na fila: começa assim que ela terminar e baixa sozinho. Se preferir, clique em "Parar busca".')); av.id = 'biAvisoFila';
