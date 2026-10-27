@@ -10,6 +10,8 @@ import time
 import traceback
 from datetime import date, datetime, timedelta
 
+from app import db
+
 from . import api
 from .pedidos import _em_lotes, _paginar
 
@@ -18,7 +20,7 @@ BATCH_URL = f'{BASE}/api/totvsmoda/product/v2/batch/search'
 BALANCES_URL = f'{BASE}/api/totvsmoda/product/v2/balances/search'
 PRODUCTS_URL = f'{BASE}/api/totvsmoda/product/v2/products/search'
 SALDO_INSPECAO = os.getenv('EXPEDICAO_SALDO_INSPECAO', '').strip()     # codigo do saldo 'aguardando inspecao'; vazio = acha pelo nome (INSPE)
-UNIDADE_INSPECAO = os.getenv('EXPEDICAO_UNIDADE_INSPECAO', 'MT').strip().upper()
+UNIDADE_INSPECAO = os.getenv('EXPEDICAO_UNIDADE_INSPECAO', 'KG').strip().upper()
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
 SALDO = int(os.getenv('EXPEDICAO_SALDO', '1'))
 NF_DIAS = int(os.getenv('EXPEDICAO_NF_DIAS', '90'))
@@ -283,7 +285,7 @@ def _kardex(cli, pc: str, hoje: date):
         raise RuntimeError(f'kardex {pc}: HTTP {r.status_code} {r.text[:120]}')
     j = r.json()
     movs = (j[0] if isinstance(j, list) and j else j if isinstance(j, dict) else {}).get('movements') or []
-    ult = ent = sai = None
+    ult = ent = sai = prim = None
     for m in movs:
         d = str(m.get('movementDate') or '')[:10]
         if not d:
@@ -291,9 +293,10 @@ def _kardex(cli, pc: str, hoje: date):
         ult = max(ult or d, d)
         if abs(_num(m.get('inQuantity'))) > 0:
             ent = max(ent or d, d)
+            prim = min(prim or d, d)
         if abs(_num(m.get('outQuantity'))) > 0:
             sai = max(sai or d, d)
-    return [ult, ent, sai] if ult else None
+    return [ult, ent, sai, prim] if ult else None
 
 
 def atualizar_mov() -> bool:
@@ -483,3 +486,87 @@ def painel(dias: int = 30) -> dict:
                      maiores=[dict(a, saldo=r2(a['saldo']), pct=round(a['saldo'] / total * 100, 1) if total else 0) for a in arts[:8]],
                      parados=[dict(a, saldo=r2(a['saldo'])) for a in parados[:8]],
                      faixas=[dict(f, metros=r2(f['metros'])) for f in faixas]))
+
+
+# ---------------------------------------------------------------- pedidos x expedicao
+def pedidos_x_expedicao() -> dict:
+    """Cruza os pedidos em aberto (Relatorio Pedidos / 38) com o que ja esta na Expedicao: quanto tempo o pedido levou para o artigo chegar
+    e quanto tempo ele ja esta armazenado. O saldo de cada artigo e distribuido entre os pedidos abertos, do mais antigo para o mais novo."""
+    from app.models import PedidoRelatorio
+    d, mov = ler(), ler_mov().get('produtos') or {}
+    hoje = date.today()
+    est, art, flags = d.get('estoque') or {}, d.get('artigos') or {}, d.get('flags') or {}
+
+    def vale(pc):
+        f = flags.get(pc)
+        if f and (not f[0] or f[1] not in ('MT', 'M')):
+            return False
+        nome = (str(art.get(pc, ['', ''])[0]) + ' ' + str(art.get(pc, ['', ''])[1]) + ' ' + (f[2] if f else '')).upper()
+        return 'SEGUNDA' not in nome and 'SUCATA' not in nome
+    est = {pc: p for pc, p in est.items() if vale(pc)}
+    abertos, vistos = {}, set()
+    for r in PedidoRelatorio.query.filter(db.or_(PedidoRelatorio.region == 'BR', PedidoRelatorio.region.is_(None))).all():
+        if (r.tp_situacao or '') in ('ATENDIDO', 'CANCELADO') or not (r.qt_pendente or 0) > 0 or not r.dt_pedido:
+            continue
+        k = (r.cod_pedido, r.cod_produto)
+        if k in vistos:
+            continue                                        # o relatorio tem uma linha por OP: conta o pedido uma vez
+        vistos.add(k)
+        abertos.setdefault(str(r.cod_produto), []).append(r)
+    itens, artigos = [], []
+    for pc, p in est.items():
+        cod, nome = art.get(pc, [pc, ''])
+        m = mov.get(pc)
+        ult_ent = m[1] if m else None
+        prim_ent = (m[3] if m and len(m) > 3 else None) or ult_ent
+        ult_mov = m[0] if m else None
+        if pc in mov:
+            dias_exp = (hoje - date.fromisoformat(ult_ent)).days if ult_ent else 181          # sem entrada nos ultimos 180 dias
+        else:
+            dias_exp = None
+        peds = sorted(abertos.get(pc, []), key=lambda r: (r.dt_pedido, r.cod_pedido or ''))
+        saldo = p['saldo']
+        a = dict(cod=cod, nome=nome, saldo=round(saldo, 2), pecas=len(p['lotes']), dias_exp=dias_exp, ult_entrada=ult_ent, ult_mov=ult_mov, pedidos=len(peds),
+                 pendente=round(sum(r.qt_pendente or 0 for r in peds), 2), pedido_mais_antigo=peds[0].dt_pedido.isoformat() if peds else None,
+                 idade_pedido=(hoje - peds[0].dt_pedido).days if peds else None,
+                 lead=((date.fromisoformat(ult_ent) - peds[0].dt_pedido).days if ult_ent and peds else None))
+        artigos.append(a)
+        resto = saldo
+        for r in peds:
+            pronto = min(r.qt_pendente or 0, max(resto, 0))
+            resto -= pronto
+            itens.append(dict(cliente=r.nome_cliente or '', unidade=r.unidade or '', pedido=r.cod_pedido, cod=cod, nome=nome, dt_pedido=r.dt_pedido.isoformat(),
+                              idade_pedido=(hoje - r.dt_pedido).days, pendente=round(r.qt_pendente or 0, 2), pronto=round(pronto, 2), ult_entrada=ult_ent, dias_exp=dias_exp,
+                              lead=((date.fromisoformat(ult_ent) - r.dt_pedido).days if ult_ent else None), situacao=r.tp_situacao or ''))
+    prontos = sorted((i for i in itens if i['pronto'] > 0), key=lambda i: (-(i['dias_exp'] or 0), -i['pronto']))
+    sem_pedido = sorted((a for a in artigos if not a['pedidos']), key=lambda a: -a['saldo'])
+    com_pedido = [a for a in artigos if a['pedidos']]
+    leads = [a['lead'] for a in com_pedido if a['lead'] is not None and a['lead'] >= 0]
+    exps = [a['dias_exp'] for a in artigos if a['dias_exp'] is not None]
+    faixas_lead = [('até 15 dias', 15), ('16 a 30 dias', 30), ('31 a 45 dias', 45), ('46 a 60 dias', 60), ('mais de 60 dias', 10 ** 6)]
+    hist = [dict(faixa=n, artigos=0, metros=0.0) for n, _ in faixas_lead]
+    for a in com_pedido:
+        if a['lead'] is None or a['lead'] < 0:
+            continue
+        for i, (_n, lim) in enumerate(faixas_lead):
+            if a['lead'] <= lim:
+                hist[i]['artigos'] += 1
+                hist[i]['metros'] += a['saldo']
+                break
+    por_cli = {}
+    for i in prontos:
+        c = por_cli.setdefault(i['cliente'] or '–', dict(cliente=i['cliente'] or '–', metros=0.0, pedidos=0, dias=0))
+        c['metros'] += i['pronto']
+        c['pedidos'] += 1
+        c['dias'] = max(c['dias'], i['dias_exp'] or 0)
+    r2 = lambda v: round(v, 2)
+    return dict(
+        ok=True, atualizado=d.get('estoque_em'), mov_pronto=bool(mov), pedidos_em=None,
+        kpis=dict(prontos_metros=r2(sum(i['pronto'] for i in prontos)), prontos_pedidos=len(prontos), prontos_clientes=len(por_cli),
+                  lead_medio=round(sum(leads) / len(leads)) if leads else None, armazenado_medio=round(sum(exps) / len(exps)) if exps else None,
+                  prontos_90=r2(sum(i['pronto'] for i in prontos if (i['dias_exp'] or 0) > 90)),
+                  sem_pedido_metros=r2(sum(a['saldo'] for a in sem_pedido)), sem_pedido_artigos=len(sem_pedido), artigos=len(artigos), artigos_com_pedido=len(com_pedido)),
+        hist=[dict(h, metros=r2(h['metros'])) for h in hist],
+        pontos=[dict(cod=a['cod'], nome=a['nome'], x=a['idade_pedido'], y=a['dias_exp'], saldo=a['saldo'], pedidos=a['pedidos'], lead=a['lead']) for a in com_pedido if a['dias_exp'] is not None],
+        prontos=prontos[:400], sem_pedido=sem_pedido[:400],
+        clientes=[dict(c, metros=r2(c['metros'])) for c in sorted(por_cli.values(), key=lambda c: -c['metros'])[:8]])
