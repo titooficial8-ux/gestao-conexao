@@ -4,17 +4,21 @@
   <a href="{{ url_for('main.maquina_detalhe', numero=m.number) }}" class="machine-card {{ 'machine-card-manutencao' if m.status == 'manutencao' else ('machine-card-sem-programacao' if m.status == 'sem_programacao' else ('machine-card-inoperante' if m.status == 'inoperante' else '')) }}">
     <span class="machine-status-dot"></span>
     {% set ind = ind_maquinas.get(m.id) if ind_maquinas else None %}
-    {% if ind %}
-    {% if ind.tipo == 'ortobom' %}
-    <img class="machine-ind machine-ind-logo" src="{{ url_for('static', filename='img/logo_ortobom.png') }}" alt="Ortobom" title="{{ ind.titulo }}">
-    {% elif ind.codigo == 'br' %}
-    <img class="machine-ind" src="{{ url_for('static', filename='img/flag_br.webp') }}" alt="Brasil" title="{{ ind.titulo }}">
-    {% elif ind.codigo == 'gt' %}
-    <img class="machine-ind" src="{{ url_for('static', filename='img/flag_gt.webp') }}" alt="Guatemala" title="{{ ind.titulo }}">
-    {% else %}
-    <img class="machine-ind" src="{{ url_for('static', filename='img/flags/' + ind.codigo + '.svg') }}" alt="{{ ind.codigo }}" title="{{ ind.titulo }}">
-    {% endif %}
-    {% endif %}
+    <span class="machine-ind-row">
+      {% if ind %}
+      {% if ind.tipo == 'ortobom' %}
+      <img class="machine-ind machine-ind-logo" src="{{ url_for('static', filename='img/logo_ortobom.png') }}" alt="Ortobom" title="{{ ind.titulo }}">
+      {% elif ind.tipo == 'exp' %}
+      <span class="machine-ind-exp" title="{{ ind.titulo }}">EXP</span>
+      {% elif ind.codigo == 'br' %}
+      <img class="machine-ind" src="{{ url_for('static', filename='img/flag_br.webp') }}" alt="Brasil" title="{{ ind.titulo }}">
+      {% elif ind.codigo == 'gt' %}
+      <img class="machine-ind" src="{{ url_for('static', filename='img/flag_gt.webp') }}" alt="Guatemala" title="{{ ind.titulo }}">
+      {% else %}
+      <img class="machine-ind" src="{{ url_for('static', filename='img/flags/' + ind.codigo + '.svg') }}" alt="{{ ind.codigo }}" title="{{ ind.titulo }}">
+      {% endif %}
+      {% endif %}
+    </span>
     {% if m.status == 'manutencao' %}
     <span class="machine-status-ribbon machine-status-ribbon-red">{{ t('status_manutencao') }}</span>
     {% elif m.status == 'sem_programacao' %}

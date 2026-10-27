@@ -125,7 +125,10 @@ def indicadores_maquinas(machines):
             saida[m.id] = dict(tipo='ortobom', titulo=f'Ortobom · {cliente}')
         elif (prod.cod_segmento or '').strip().upper() == 'COLCHAO ME':
             cod = pais_do_cliente(cliente, tabela)
-            saida[m.id] = dict(tipo='flag', codigo=cod or 'globo', titulo=f'Exportação · {PAISES[cod][0]} · {cliente}' if cod else f'Exportação · país não cadastrado · {cliente}')
+            if cod:
+                saida[m.id] = dict(tipo='flag', codigo=cod, titulo=f'Exportação · {PAISES[cod][0]} · {cliente}')
+            else:
+                saida[m.id] = dict(tipo='exp', titulo=f'Exportação · país não cadastrado · {cliente}')
         else:
             saida[m.id] = dict(tipo='flag', codigo='br', titulo=f'Nacional · {cliente}')
     return saida
