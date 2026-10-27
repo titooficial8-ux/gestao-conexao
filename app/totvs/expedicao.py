@@ -754,7 +754,7 @@ def _acha_xml(obj):
     return None
 
 
-def danfe_totvs(chave: str, nota: dict = None) -> tuple:
+def _danfe_descoberta(chave: str, nota: dict = None) -> tuple:
     """(pdf em bytes ou None, log). Descobre pelo swagger do servico fiscal os endpoints de DANFE/XML e tenta obter o PDF oficial da NF (so leitura)."""
     log = []
     cli = api.TotvsModaClient()
@@ -836,3 +836,43 @@ def danfe_totvs(chave: str, nota: dict = None) -> tuple:
                 return pdf, log
             xml = xml or _acha_xml(j)
     return None, log
+
+
+XML_URL = f'{BASE}/api/totvsmoda/fiscal/v2/xml-contents'
+DANFE_URL = f'{BASE}/api/totvsmoda/fiscal/v2/danfe-search'
+
+
+def danfe_totvs(chave: str, nota: dict = None) -> tuple:
+    """(pdf, log): DANFE oficial em 2 passos do TOTVS (so leitura):
+    1. GET fiscal/v2/xml-contents/{chave} -> mainInvoiceXml (404 = nota nunca autorizada)
+    2. POST fiscal/v2/danfe-search {mainInvoiceXml, nfeDocumentType: NFeNormal} -> danfePdfBase64 (leva ~20 s)"""
+    import base64
+    log = []
+    chave = ''.join(c for c in str(chave or '') if c.isdigit())
+    if len(chave) != 44:
+        return None, [f'chave de acesso invalida ({len(chave)} digitos)']
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    r = cli.get(f'{XML_URL}/{chave}', {})
+    log.append(f'GET xml-contents: HTTP {r.status_code}')
+    if r.status_code == 404:
+        return None, log + ['NF nunca foi autorizada (sem XML)']
+    if r.status_code != 200:
+        return None, log + [r.text[:200]]
+    j = r.json()
+    xml = (j.get('mainInvoiceXml') if isinstance(j, dict) else None) or _acha_xml(j)
+    if not xml:
+        return None, log + ['resposta sem mainInvoiceXml']
+    r = cli.post(DANFE_URL, dict(mainInvoiceXml=xml, nfeDocumentType='NFeNormal'))
+    log.append(f'POST danfe-search: HTTP {r.status_code}')
+    if r.status_code != 200:
+        return None, log + [r.text[:200]]
+    j = r.json()
+    b64 = j.get('danfePdfBase64') if isinstance(j, dict) else None
+    if b64:
+        try:
+            return base64.b64decode(b64), log
+        except Exception as e:  # noqa: BLE001
+            return None, log + [f'base64 invalido: {e}']
+    pdf = _acha_pdf(j)
+    return (pdf, log) if pdf else (None, log + ['resposta sem danfePdfBase64'])
