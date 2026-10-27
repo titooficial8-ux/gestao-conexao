@@ -197,6 +197,7 @@ class Sequencia(db.Model):
     prev_fonte = db.Column(db.String(30), nullable=True)      # de onde vieram as voltas/RPM: OP, maquina+artigo ou artigo
     prev_rpm = db.Column(db.Float, nullable=True)
     prev_voltas = db.Column(db.Float, nullable=True)
+    prev_raport = db.Column(db.Float, nullable=True)          # raport (cm) usado quando a previsao saiu de raport x RPM instalado
     prev_termino_em = db.Column(db.DateTime, nullable=True)   # data e hora previstas de termino (voltas/RPM + fila da maquina)
 
     @property
@@ -684,3 +685,38 @@ class PesagemResumo(db.Model):
     saiu = db.Column(db.Float, default=0)
     quantidade_op = db.Column(db.Float, default=0)
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class RaportEstrutura(db.Model):
+    """Raport (cm de tecido por volta) de cada estrutura: CM, XN, CF, PL, XP, NV."""
+    __tablename__ = 'raport_estrutura'
+
+    estrutura = db.Column(db.String(10), primary_key=True)
+    raport = db.Column(db.Float, nullable=False)
+
+
+class RaportMaquinaEstrutura(db.Model):
+    """Raport especifico de uma maquina para uma estrutura (ex.: maquinas 4 e 8 em CM = 4,0 cm). Vale mais que o da estrutura."""
+    __tablename__ = 'raport_maquina_estrutura'
+
+    id = db.Column(db.Integer, primary_key=True)
+    maquina = db.Column(db.Integer, index=True, nullable=False)
+    estrutura = db.Column(db.String(10), nullable=False)
+    raport = db.Column(db.Float, nullable=False)
+
+
+class MaquinaRpm(db.Model):
+    """RPM instalado de cada maquina (planilha Acompanhamento Producao)."""
+    __tablename__ = 'maquina_rpm'
+
+    maquina = db.Column(db.Integer, primary_key=True)
+    rpm_instalado = db.Column(db.Float, nullable=False)
+
+
+class ArtigoTamanho(db.Model):
+    """Tamanho da peca (m) e estrutura de cada artigo (codigo = numero do inicio da descricao)."""
+    __tablename__ = 'artigo_tamanho'
+
+    artigo = db.Column(db.String(30), primary_key=True)
+    metros_peca = db.Column(db.Float)
+    estrutura = db.Column(db.String(10))

@@ -8,7 +8,10 @@
 As OPs de cada maquina andam na ordem da fila: a OP produzindo comeca agora (descontando o que ja foi produzido) e cada
 proxima comeca quando a anterior termina, pulando os dias sem producao (feriados e paradas). O resultado vai para
 Sequencia.termino_malharia (Termino Malharia) e Sequencia.pecas_dia. Voltas e RPM vem da base (ProducaoRef):
-1) da propria OP, 2) do ultimo registro da maquina+artigo, 3) do ultimo registro do artigo. Sem base: mantem o termino do PCP Hub."""
+1) da propria OP, 2) do ultimo registro da maquina+artigo, 3) do ultimo registro do artigo. Sem base: usa Raport x RPM instalado (ver abaixo); sem isso, mantem o termino do PCP Hub.
+
+Raport (cm de tecido por volta): metros por dia = raport/100 x RPM instalado x 85 % x 1440; voltas da peca = metros da peca x 100 / raport.
+O raport vem da estrutura (CM, XN, CF, PL, XP, NV), com excecao por maquina (ex.: maquinas 4 e 8 em CM = 4,0 cm); o RPM instalado e da maquina."""
 import os
 import re
 import threading
@@ -19,7 +22,7 @@ from pathlib import Path
 from flask import current_app
 
 from app import db
-from app.models import Machine, NonWorkingDay, ProducaoRef, Sequencia
+from app.models import (ArtigoTamanho, Machine, MaquinaRpm, NonWorkingDay, ProducaoRef, RaportMaquinaEstrutura, RaportEstrutura, Sequencia)
 
 INEFICIENCIA = float(os.getenv('INEFICIENCIA_MAQUINA', '0.15'))
 MIN_DIA = 1440 * (1 - INEFICIENCIA)
@@ -207,6 +210,63 @@ def _codigo(artigo) -> str:
     return m.group(1) if m else ''
 
 
+RAPORT_ESTRUTURA = {'CM': 3.5, 'XN': 3.0, 'CF': 2.0, 'PL': 2.0, 'XP': 2.5, 'NV': 2.0}
+RAPORT_MAQUINA = {(4, 'CM'): 4.0, (8, 'CM'): 4.0}
+RPM_INSTALADO = {1: 19.1, 2: 18.5, 3: 18.5, 4: 16.8, 5: 18.9, 6: 19.0, 8: 16.7, 9: 20.9, 10: 17.0, 12: 20.8, 17: 21.0, 22: 20.7, 23: 21.0, 25: 20.7,
+                 40: 13.9, 41: 16.8, 43: 17.0, 44: 16.8, 45: 18.0, 46: 17.0, 47: 16.8, 48: 18.7, 49: 17.0, 50: 17.0, 51: 16.8, 52: 16.8, 53: 16.8, 54: 17.0, 55: 17.0}
+ARTIGOS_TAMANHO = {2230016: ('CM', 52), 21992: ('PL', 52), 410036: ('CM', 42), 3540003: ('CM', 52), 21975: ('CM', 42), 190044: ('NV', 32), 1130024: ('CM', 52),
+                   2410025: ('PL', 52), 190025: ('CM', 42), 3530001: ('CM', 52), 2830025: ('PL', 52), 20849: ('CM', 42), 3030073: ('PL', 52), 2070053: ('CM', 52),
+                   3710001: ('CM', 52), 21875: ('CM', 52), 1910028: ('XP', 52), 2830013: ('PL', 52), 1130031: ('CM', 52), 21974: ('CM', 52), 2830026: ('NV', 52),
+                   3540018: ('CM', 52), 2070065: ('XP', 22), 1130030: ('XP', 52), 61573: ('XP', 32), 3530002: ('CM', 52)}
+_NOMES_ESTRUTURA = {'COMUM': 'CM', 'PLANO': 'PL', 'NOVA': 'NV', 'XPREMIUM': 'XP', 'X PREMIUM': 'XP', 'XNEW': 'XN', 'X NEW': 'XN', 'COMFORT': 'CF', 'CONFORT': 'CF'}
+
+
+def semear_raport() -> None:
+    """Grava os valores iniciais (planilha Acompanhamento Producao) so onde a tabela ainda esta vazia; depois a tela /raport edita."""
+    if not RaportEstrutura.query.first():
+        db.session.add_all(RaportEstrutura(estrutura=e, raport=r) for e, r in RAPORT_ESTRUTURA.items())
+        db.session.add_all(RaportMaquinaEstrutura(maquina=m, estrutura=e, raport=r) for (m, e), r in RAPORT_MAQUINA.items())
+    if not MaquinaRpm.query.first():
+        db.session.add_all(MaquinaRpm(maquina=m, rpm_instalado=r) for m, r in RPM_INSTALADO.items())
+    if not ArtigoTamanho.query.first():
+        db.session.add_all(ArtigoTamanho(artigo=str(a), estrutura=e, metros_peca=t) for a, (e, t) in ARTIGOS_TAMANHO.items())
+    db.session.commit()
+
+
+def codigo_estrutura(texto):
+    """'ESTRUTURA COMUM' / 'COMUM' / 'CM' -> 'CM'."""
+    t = re.sub(r'\s+', ' ', re.sub(r'^ESTRUTURA\s*', '', _sem_acento(texto).upper().strip())).strip()
+    if not t:
+        return None
+    return _NOMES_ESTRUTURA.get(t, t if len(t) == 2 else None)
+
+
+def _sem_acento(t):
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', str(t or '')) if unicodedata.category(c) != 'Mn')
+
+
+def _cfg_raport():
+    return ({r.estrutura: r.raport for r in RaportEstrutura.query.all()},
+            {(r.maquina, r.estrutura): r.raport for r in RaportMaquinaEstrutura.query.all()},
+            {r.maquina: r.rpm_instalado for r in MaquinaRpm.query.all()},
+            {r.artigo: r for r in ArtigoTamanho.query.all()})
+
+
+def previsao_raport(cfg, maquina: int, s, idx_art):
+    """(voltas, rpm85, raport) da OP pelo raport da estrutura e RPM instalado da maquina, ou None se faltar algum dado."""
+    por_estr, por_maq, rpms, artigos = cfg
+    art = _codigo(s.artigo)
+    tam = artigos.get(art)
+    estr = codigo_estrutura(s.estrutura) or (tam.estrutura if tam else None)
+    rpm = rpms.get(maquina)
+    raport = por_maq.get((maquina, estr)) or por_estr.get(estr)
+    metros = (idx_art.get(art).metros_peca if idx_art.get(art) and idx_art[art].metros_peca else None) or (tam.metros_peca if tam else None)
+    if not (estr and rpm and raport and metros):
+        return None
+    return metros * 100 / raport, rpm * 0.85, raport
+
+
 def referencia(idx, maquina: int, op, artigo):
     por_op, por_maq_art, por_art = idx
     art = _codigo(artigo)
@@ -237,8 +297,10 @@ def calcular(agora=None) -> int:
     try:
         verificar_fontes()
         atualizar_status_maquinas()
+        semear_raport()
         idx = _indices()
-        if not any(idx):
+        cfg = _cfg_raport()
+        if not any(idx) and not cfg[2]:
             return 0
         agora = agora or datetime.now()
         parados_global = {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.date >= agora.date()).all() if d.machine_id is None}
@@ -250,19 +312,24 @@ def calcular(agora=None) -> int:
             cursor = agora
             for s in seqs:
                 ref, fonte = referencia(idx, m.number, s.op, s.artigo)
-                if not ref:
+                rap = None if ref else previsao_raport(cfg, m.number, s, idx[2])
+                if not ref and not rap:
                     s.termino_calculado = False
-                    s.pecas_dia = s.prev_fonte = s.prev_rpm = s.prev_voltas = s.prev_termino_em = None
+                    s.pecas_dia = s.prev_fonte = s.prev_rpm = s.prev_voltas = s.prev_raport = s.prev_termino_em = None
                     if s.termino_malharia:                              # sem base: a fila segue pelo termino que o PCP Hub informou
                         cursor = max(cursor, datetime.combine(s.termino_malharia, datetime.min.time()))
                     continue
                 if s.status != 'PRODUZINDO' and TROCA_HORAS:
                     cursor = cursor + timedelta(hours=TROCA_HORAS)
-                tempo_peca = ref.voltas / ref.rpm                       # minutos por peca
-                pecas_dia = MIN_DIA / tempo_peca
+                if ref:
+                    voltas, rpm, minutos_dia, s.prev_raport = ref.voltas, ref.rpm, MIN_DIA, None
+                else:                                                   # raport x RPM instalado (ja com 85 % do RPM, sem desconto extra)
+                    (voltas, rpm, s.prev_raport), minutos_dia, fonte = rap, 1440, 'raport'
+                tempo_peca = voltas / rpm                               # minutos por peca
+                pecas_dia = minutos_dia / tempo_peca
                 restam = max((s.total_pcs or 0) - (s.pecas_produzidas or 0), 0)
                 fim = _pular_dias(cursor, restam / pecas_dia, parados)
-                s.pecas_dia, s.prev_fonte, s.prev_rpm, s.prev_voltas = round(pecas_dia, 2), fonte, ref.rpm, ref.voltas
+                s.pecas_dia, s.prev_fonte, s.prev_rpm, s.prev_voltas = round(pecas_dia, 2), fonte, round(rpm, 3), round(voltas, 1)
                 s.termino_malharia, s.termino_calculado, s.prev_termino_em = fim.date(), True, fim
                 cursor = fim
                 n += 1

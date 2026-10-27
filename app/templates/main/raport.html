@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block page_title %}Raport e RPM instalado{% endblock %}
+{% block content %}
+<style>.rp{max-width:1000px}.rp h3{margin:22px 0 8px}.rp table{border-collapse:collapse;background:#fff}.rp td,.rp th{border:1px solid #e2e8f0;padding:5px 9px;font-size:13px;text-align:left}.rp input{width:90px;padding:4px 6px}.rp .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;align-items:start}</style>
+<div class="rp">
+<h2>Raport e RPM instalado</h2>
+<p>Quando a OP não tem voltas/RPM na base, a previsão usa: metros por dia = raport ÷ 100 × RPM instalado × 85% × 1440; peças por dia = metros por dia ÷ tamanho da peça.</p>
+<form method="post">
+<div class="g">
+<div><h3>Raport por estrutura (cm)</h3><table>{% for e in estruturas %}<tr><td>{{ e.estrutura }}</td><td><input name="e:{{ e.estrutura }}" value="{{ e.raport }}"></td></tr>{% endfor %}</table></div>
+<div><h3>Exceção por máquina (cm)</h3><table><tr><th>Máq.</th><th>Estrut.</th><th>Raport</th><th>Excluir</th></tr>
+{% for x in excecoes %}<tr><td>{{ x.maquina }}</td><td>{{ x.estrutura }}</td><td><input name="x:{{ x.id }}" value="{{ x.raport }}"></td><td><input type="checkbox" name="del:{{ x.id }}" style="width:auto"></td></tr>{% endfor %}
+<tr><td><input name="novo_maq" placeholder="máq." style="width:50px"></td><td><input name="novo_estr" placeholder="CM" style="width:50px"></td><td><input name="novo_raport" placeholder="cm"></td><td></td></tr></table></div>
+<div><h3>RPM instalado</h3><table>{% for r in rpms %}<tr><td>Máq. {{ r.maquina }}</td><td><input name="r:{{ r.maquina }}" value="{{ r.rpm_instalado }}"></td></tr>{% endfor %}
+<tr><td><input name="novo_rpm_maq" placeholder="máq." style="width:50px"></td><td><input name="novo_rpm" placeholder="rpm"></td></tr></table></div>
+<div><h3>Tamanho da peça (m) por artigo</h3><table><tr><th>Artigo</th><th>Estr.</th><th>Metros</th></tr>{% for a in artigos %}<tr><td>{{ a.artigo }}</td><td>{{ a.estrutura or '' }}</td><td><input name="t:{{ a.artigo }}" value="{{ a.metros_peca or '' }}"></td></tr>{% endfor %}
+<tr><td><input name="novo_art" placeholder="artigo" style="width:80px"></td><td><input name="novo_art_estr" placeholder="CM" style="width:50px"></td><td><input name="novo_tam" placeholder="m"></td></tr></table></div>
+</div>
+<p><button class="btn btn-primary" type="submit" style="margin-top:16px">Salvar</button></p>
+</form></div>
+{% endblock %}

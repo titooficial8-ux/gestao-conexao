@@ -309,8 +309,13 @@ def _seguro(fonte, fn, avisos: list, *args):
         return {}
 
 
-def _media(serie: dict, ate: str) -> float:
-    v = [x['total']['metros'] for d, x in serie.items() if d[:7] == ate[:7] and d <= ate and x['total']['metros'] > 0]
+MEDIA_DESDE = os.getenv('INDICADORES_MEDIA_DESDE', DESDE)        # a "Media Bruta" da planilha e corrida desde o inicio da base (01/09/2026), nao so do mes
+
+
+def _media(serie: dict, ate: str, minimo: float = 0.0) -> float:
+    """Media Bruta como na planilha (aba BASE DIA): media dos metros por dia desde o inicio da base ate o dia escolhido, so dos dias COM producao
+    (domingo/feriado sem producao nao entra). `minimo` tira do calculo o dia de partida incompleto."""
+    v = [x['total']['metros'] for d, x in serie.items() if MEDIA_DESDE <= d <= ate and x['total']['metros'] > minimo]
     return round(sum(v) / len(v), 1) if v else 0.0
 
 
@@ -326,7 +331,7 @@ def reuniao(dia: date) -> dict:
     return dict(
         data=ch, semana=(dia.timetuple().tm_yday - 1) // 7 + 1,
         malharia=dict(**m, media=_media(mal, ch), **_setups_resumo(_seguro('Setups', setups_do_dia, avisos, dia))),
-        acabamento=dict(**a, media=_media(aca, ch)),
+        acabamento=dict(**a, media=_media(aca, ch, 2000)),
         faturamento=dict(metros=f['metros'], ticket_dia=f['ticket'], ticket_mes=round(tv / tm, 3) if tm else 0,
                          pct_prod=round(f['metros'] / m['total']['metros'] - 1, 4) if m['total']['metros'] else None,
                          pct_aca=round(f['metros'] / a['total']['metros'] - 1, 4) if a['total']['metros'] else None),
@@ -759,3 +764,61 @@ def diagnostico_dia(dia: date) -> dict:
                 malharia=dict(pecas=len(mal), metros_reais=soma(mal, 'metros_reais'), metros_padrao=soma(mal, 'metro_padrao'), kg=soma(mal, 'kg'), pecas_sem_metros=sum(1 for x in mal if not (x.get('metros_reais') or x.get('metro_padrao'))), pecas_sem_op=sum(1 for x in mal if not x.get('op')), pecas_sem_kg=sum(1 for x in mal if not x.get('kg')), primeiras=mal[:8], sem_metros_exemplos=[x for x in mal if not (x.get('metros_reais') or x.get('metro_padrao'))][:6]),
                 acabamento=dict(pecas=len(aca), metros=soma(aca, 'metros'), kg=soma(aca, 'kg'), por_operacao={str(o): sum(1 for x in aca if x['operacao'] == o) for o in {x['operacao'] for x in aca}}, sem_gramatura_ou_largura=sum(1 for x in aca if not x['kg']), primeiras=aca[:8]),
                 faturamento_hoje_nfs={k: v for k, v in __import__('app.totvs.expedicao', fromlist=['x']).vendas_por_dia(dia.year, dia.month).items() if k == ch})
+
+
+def comparar_planilha(dia: date) -> dict:
+    """Compara, maquina a maquina e turno a turno, o que o Gestao calcula com a planilha INDICADORES (abas MALHARIA e ACABAMENTO) para o dia."""
+    import openpyxl
+    from app.indicadores import scrap
+    from app.models import BaixaFio
+    arq = scrap.caminho()
+    if not arq or not arq.exists():
+        return dict(erro='Planilha INDICADORES nao encontrada no servidor (use "enviar planilha atualizada" na aba Indicadores).')
+    plan, aca_plan = {}, None
+    wb = openpyxl.load_workbook(arq, read_only=True, data_only=True)
+    for r in wb['MALHARIA'].iter_rows(min_row=2, max_col=40, values_only=True):
+        d = r[1].date() if isinstance(r[1], datetime) else None
+        if d == dia and r[0] is not None:
+            plan[int(r[0])] = dict(metros=[r[17] or 0, r[18] or 0, r[19] or 0], pecas=[r[33] or 0, r[34] or 0, r[35] or 0], kg=[round(r[37] or 0, 1), round(r[38] or 0, 1), round(r[39] or 0, 1)])
+    for r in wb['ACABAMENTO'].iter_rows(min_row=2, max_col=13, values_only=True):
+        if isinstance(r[0], datetime) and r[0].date() == dia:
+            aca_plan = dict(pecas=[r[2], r[3], r[4]], metros=[round(r[6] or 0, 1), round(r[7] or 0, 1), round(r[8] or 0, 1)], kg=[round(r[10] or 0, 1), round(r[11] or 0, 1), round(r[12] or 0, 1)])
+    wb.close()
+    nos, pecas_por_maq = {}, {}
+    for b in BaixaFio.query.order_by(BaixaFio.mudou).all():
+        if not b.mudou or dia_producao(b.mudou) != dia or (b.artigo_desc and 'amostra' in b.artigo_desc.lower()):
+            continue
+        t = turno(b.mudou)
+        m = int(b.maquina) if b.maquina is not None else -1
+        x = nos.setdefault(m, dict(metros=[0.0] * 3, pecas=[0] * 3, kg=[0.0] * 3))
+        padrao = b.metro_padrao or b.metros or 0
+        x['pecas'][t] += 1
+        x['metros'][t] += padrao
+        x['kg'][t] += _peso_ind(b, padrao)
+        pecas_por_maq.setdefault(m, []).append(dict(op=b.op, artigo=(b.artigo_desc or '')[:40], hora=b.mudou.strftime('%H:%M'), turno=t + 1, metro_padrao=b.metro_padrao, metros_reais=b.metros, kg_baixa_fio=b.kg, gramatura=b.gramatura, largura=b.largura))
+    difere = []
+    for m in sorted(set(plan) | set(nos)):
+        p_, n_ = plan.get(m), nos.get(m)
+        pm = p_['metros'] if p_ else [0, 0, 0]
+        nm = [round(v, 1) for v in n_['metros']] if n_ else [0, 0, 0]
+        pk = p_['kg'] if p_ else [0, 0, 0]
+        nk = [round(v, 1) for v in n_['kg']] if n_ else [0, 0, 0]
+        pp = p_['pecas'] if p_ else [0, 0, 0]
+        npp = n_['pecas'] if n_ else [0, 0, 0]
+        if any(abs(a - b) > 0.5 for a, b in zip(pm, nm)) or any(abs(a - b) > 1 for a, b in zip(pk, nk)) or pp != npp:
+            difere.append(dict(maquina=m, planilha=dict(metros=pm, pecas=pp, kg=pk), gestao=dict(metros=nm, pecas=npp, kg=nk), pecas_gestao=pecas_por_maq.get(m, [])[:14]))
+    tot = lambda d, k: round(sum(sum(v[k]) for v in d.values()), 1)
+    return dict(dia=dia.isoformat(), planilha_malharia=dict(metros=tot(plan, 'metros'), pecas=tot(plan, 'pecas'), kg=tot(plan, 'kg')), gestao_malharia=dict(metros=tot(nos, 'metros'), pecas=tot(nos, 'pecas'), kg=tot(nos, 'kg')),
+                maquinas_que_diferem=difere, acabamento_planilha=aca_plan, acabamento_gestao=(acabamento_por_dia().get(dia.isoformat()) or {}).get('t'))
+
+
+def _peso_ind(b, metros: float) -> float:
+    """kg da peca: metros x gramatura x largura / 1000 (campos do produto); senao pelo nome do artigo; senao so o fio da baixa."""
+    import re
+    if b.gramatura and b.largura and metros:
+        return round(metros * b.gramatura * b.largura / 1000, 2)
+    g = re.search(r'(\d{2,3})\s*G\b', b.artigo_desc or '', re.I)
+    l = re.search(r'(\d+[.,]\d+)\s*L\b', b.artigo_desc or '', re.I)
+    if g and l and metros:
+        return round(metros * int(g.group(1)) * float(l.group(1).replace(',', '.')) / 1000, 2)
+    return round(b.kg or 0, 2)
