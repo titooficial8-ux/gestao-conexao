@@ -49,6 +49,7 @@
 .xp-live2{float:right;display:inline-flex;align-items:center;gap:7px;background:#ecfdf5;color:#047857;border-radius:999px;padding:4px 12px;font-size:11px;font-weight:800}.xp-live2 .xp-dot{display:inline-block}
 .xp-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 10px}.xp-strip div{background:var(--gray-100);border-radius:12px;padding:9px 12px}.xp-strip span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500)}.xp-strip b{font-size:19px;color:var(--xp-navy)}
 .xp-fvl{display:grid;grid-template-columns:14px 1fr auto;gap:2px 10px;align-items:center;margin:11px 0;font-size:13px}.xp-fvl i{width:12px;height:12px;border-radius:4px}.xp-fvl b{font-size:16px;color:var(--xp-navy)}.xp-fvl em{grid-column:2/4;font-style:normal;font-size:11px;color:var(--gray-500)}
+.xp-nff{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:0 0 12px}.xp-nff label span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500);margin-bottom:3px}.xp-nff select,.xp-nff input{padding:8px 12px;border:1px solid var(--gray-300);border-radius:10px;font-size:13px;background:#fff;color:var(--text)}
 .xp-nfbar{display:flex;gap:10px;margin:6px 0 14px}.xp-nfbar input{flex:1;padding:12px 16px;border:1px solid var(--gray-300);border-radius:999px;font-size:15px;color:var(--text)}.xp-nfbar .xp-dl{border:0;cursor:pointer;margin:0;font-size:13px}
 .xp-nfs{font-size:15px;font-weight:800;color:var(--xp-navy);margin-right:14px}.xp-nfh .xp-pill{margin-right:8px;font-size:12px;padding:3px 12px}
 .xp-mod>div{max-width:1000px}
@@ -106,7 +107,7 @@
 
 <script>
 (function () {
-  var URL_DADOS = '{{ url_for("expedicao.dados") }}', URL_XLSX = '{{ url_for("expedicao.exportar") }}', URL_PED = '{{ url_for("expedicao.pedidos") }}', URL_NFB = '{{ url_for("expedicao.nf_buscar") }}', URL_NFD = '{{ url_for("expedicao.nf_detalhe") }}', URL_NFP = '{{ url_for("expedicao.nf_pdf") }}', VIEW = 'geral', P = null, ULTIMA = Date.now(), NFAB = false, NFQ = '', NFLISTA = null, NFDET = null, NFERRO = '', PREV = {}, TKT = null, PREVC = {}, PREVG = {}, PREVV = {}, MAPA = false, D = null, METRICA = 'metros';
+  var URL_DADOS = '{{ url_for("expedicao.dados") }}', URL_XLSX = '{{ url_for("expedicao.exportar") }}', URL_PED = '{{ url_for("expedicao.pedidos") }}', URL_NFB = '{{ url_for("expedicao.nf_buscar") }}', URL_NFD = '{{ url_for("expedicao.nf_detalhe") }}', URL_NFP = '{{ url_for("expedicao.nf_pdf") }}', VIEW = 'geral', P = null, ULTIMA = Date.now(), NFAB = false, NFQ = '', NFT = 'todas', NFDE = '', NFATE = '', NFLISTA = null, NFDET = null, NFERRO = '', PREV = {}, TKT = null, PREVC = {}, PREVG = {}, PREVV = {}, MAPA = false, D = null, METRICA = 'metros';
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.textContent = x; return e; }
   function nf(v, d) { return Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
   function brl(v) { v = Number(v || 0); return v >= 1e6 ? 'R$ ' + nf(v / 1e6, 2) + ' mi' : v >= 1e4 ? 'R$ ' + nf(v / 1e3, 0) + ' mil' : 'R$ ' + nf(v, 0); }
@@ -351,14 +352,14 @@
     c.appendChild(el('div', 'xp-nota', 'Como é calculado: os pedidos em aberto vêm do Relatório Pedidos (38). O artigo do pedido é ligado ao saldo da expedição pelo código do produto, e o saldo é distribuído entre os pedidos do mais antigo para o mais novo. O valor é o preço unitário líquido do pedido × metros prontos. O tempo na expedição conta desde a última entrada do artigo (kardex do TOTVS, limite de 180 dias).'));
   }
   function nfBuscar(q) {
-    NFQ = q; fetch(URL_NFB + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { NFLISTA = d.notas || []; nfLista(); });
+    NFQ = q; fetch(URL_NFB + '?q=' + encodeURIComponent(q) + '&tipo=' + NFT + '&de=' + NFDE + '&ate=' + NFATE, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { NFLISTA = d.notas || []; nfLista(); });
   }
   function nfLista() {
     var box = document.getElementById('xpNfLista'); if (!box) return; box.textContent = '';
     if (!NFLISTA) { box.appendChild(el('div', 'xp-vazio', 'Carregando…')); return; }
-    if (!NFLISTA.length) { box.appendChild(el('div', 'xp-vazio', 'Nenhuma NF encontrada nos últimos 90 dias para essa busca.')); return; }
-    var t = el('table', 'xp-tb'), h = el('tr'); ['Data', 'NF', 'Situação', 'Cliente', 'Metros', 'Valor', ''].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th);
-    var tb = el('tbody'); NFLISTA.forEach(function (n) { var r = el('tr', 'xp-fx'); r.appendChild(el('td', null, dia(n.dia) + ' ' + n.hora)); r.appendChild(el('td', null, String(n.nf))); var td = el('td'), pl = el('span', 'xp-pill', n.situacao); pl.style.background = corSit(n.situacao); td.appendChild(pl); r.appendChild(td);
+    if (!NFLISTA.length) { box.appendChild(el('div', 'xp-vazio', 'Nenhuma NF encontrada nos últimos 12 meses para essa busca.')); return; }
+    var t = el('table', 'xp-tb'), h = el('tr'); ['Data', 'NF', 'Tipo', 'Situação', 'Cliente', 'Metros', 'Valor', ''].forEach(function (x) { h.appendChild(el('th', null, x)); }); var th = el('thead'); th.appendChild(h); t.appendChild(th);
+    var tb = el('tbody'); NFLISTA.forEach(function (n) { var r = el('tr', 'xp-fx'); r.appendChild(el('td', null, dia(n.dia) + ' ' + n.hora)); r.appendChild(el('td', null, String(n.nf))); r.appendChild(el('td', null, n.tipo)); var td = el('td'), pl = el('span', 'xp-pill', n.situacao); pl.style.background = corSit(n.situacao); td.appendChild(pl); r.appendChild(td);
       r.appendChild(el('td', null, n.cliente)); r.appendChild(el('td', null, mt(n.metros))); r.appendChild(el('td', null, brl(n.valor))); r.appendChild(el('td', 'seta', '›')); r.addEventListener('click', function () { nfAbrir(n); }); tb.appendChild(r); }); t.appendChild(tb);
     var w = el('div'); w.style.overflowX = 'auto'; w.appendChild(t); box.appendChild(w);
   }
@@ -396,7 +397,12 @@
     var box = el('div', 'xp-card', ''), bar = el('div', 'xp-nfbar'), inp = el('input'); inp.type = 'search'; inp.id = 'xpNf'; inp.placeholder = 'Digite o número da NF ou o nome do cliente…'; inp.value = NFQ; inp.autocomplete = 'off';
     var bt = el('button', 'xp-dl', 'Consultar'); bt.type = 'button'; var tm = null;
     inp.addEventListener('input', function () { clearTimeout(tm); tm = setTimeout(function () { nfBuscar(inp.value.trim()); }, 350); }); inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { clearTimeout(tm); nfBuscar(inp.value.trim()); } }); bt.addEventListener('click', function () { nfBuscar(inp.value.trim()); });
-    bar.appendChild(inp); bar.appendChild(bt); box.appendChild(el('h3', null, 'Consultar nota fiscal')); box.appendChild(el('div', 'sub', 'busque pelo número da NF ou pelo cliente (NFs dos últimos 90 dias) · clique na NF para ver todos os detalhes e baixar o PDF')); box.appendChild(bar);
+    bar.appendChild(inp); bar.appendChild(bt); box.appendChild(el('h3', null, 'Consultar nota fiscal')); box.appendChild(el('div', 'sub', 'busque pelo número da NF ou pelo cliente (NFs de saída e de entrada dos últimos 12 meses) · clique na NF para ver todos os detalhes e baixar o PDF')); box.appendChild(bar);
+    var fl = el('div', 'xp-nff'); function campo(rot, ctl) { var l = el('label'); l.appendChild(el('span', null, rot)); l.appendChild(ctl); fl.appendChild(l); }
+    var st = el('select'); [['todas', 'Saídas e entradas'], ['saida', 'Só saídas (vendas)'], ['entrada', 'Só entradas (devoluções)']].forEach(function (o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === NFT) op.selected = true; st.appendChild(op); }); st.addEventListener('change', function () { NFT = st.value; nfBuscar(inp.value.trim()); }); campo('Tipo', st);
+    var d1 = el('input'); d1.type = 'date'; d1.value = NFDE; d1.addEventListener('change', function () { NFDE = d1.value; nfBuscar(inp.value.trim()); }); campo('De', d1);
+    var d2 = el('input'); d2.type = 'date'; d2.value = NFATE; d2.addEventListener('change', function () { NFATE = d2.value; nfBuscar(inp.value.trim()); }); campo('Até', d2);
+    var lp = el('button', 'xp-tg', 'Limpar filtros'); lp.type = 'button'; lp.style.float = 'none'; lp.addEventListener('click', function () { NFT = 'todas'; NFDE = ''; NFATE = ''; NFQ = ''; NFLISTA = null; desenhar(); }); fl.appendChild(lp); box.appendChild(fl);
     var lista = el('div'); lista.id = 'xpNfLista'; box.appendChild(lista); c.appendChild(box);
         if (NFLISTA === null) nfBuscar(NFQ); else nfLista();
   }

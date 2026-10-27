@@ -23,7 +23,8 @@ SALDO_INSPECAO = os.getenv('EXPEDICAO_SALDO_INSPECAO', '').strip()     # codigo 
 UNIDADE_INSPECAO = os.getenv('EXPEDICAO_UNIDADE_INSPECAO', 'MT').strip().upper()
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
 SALDO = int(os.getenv('EXPEDICAO_SALDO', '1'))
-NF_DIAS = int(os.getenv('EXPEDICAO_NF_DIAS', '90'))
+NF_DIAS = int(os.getenv('EXPEDICAO_NF_DIAS', '365'))          # historico de NFs guardado (consulta de NF)
+NF_RECENTE_DIAS = 90                                             # a cada rodada completa refaz so os ultimos 90 dias
 INTERVALO_SEG = max(30, int(os.getenv('EXPEDICAO_INTERVALO_SEG', '120')))        # a cada 2 min
 COMPLETA_MIN = 20
 ARQUIVO = api.OUT_DIR / 'expedicao.json'
@@ -214,22 +215,20 @@ def _e_saida(n: dict) -> bool:
 def atualizar_notas(cli, dados: dict, completa: bool) -> None:
     hoje = date.today()
     notas = dados.get('notas', {})
-    ini = hoje - timedelta(days=NF_DIAS if (completa or not notas) else 7)
+    ini = hoje - timedelta(days=NF_DIAS if (not notas or not dados.get('notas_hist')) else NF_RECENTE_DIAS if completa else 7)      # 1a vez: busca todo o historico
     novos = _buscar_notas(cli, ini, hoje)
     for k in [k for k, v in notas.items() if v[0] >= ini.isoformat()]:
         notas.pop(k)
     for n in novos:
-        if not _e_saida(n):
-            continue
         e = n.get('eletronic') or {}
         notas[f"{n.get('branchCode')}-{n.get('invoiceSequence')}"] = [
             _dia(n.get('issueDate')) or _dia(n.get('invoiceDate')) or '', n.get('invoiceCode'), n.get('serialCode'), str(n.get('invoiceStatus') or ''),
             str(e.get('electronicInvoiceStatus') or ''), n.get('personCode'), str(n.get('personName') or '')[:60], round(_num(n.get('quantity')), 2),
-            round(_num(n.get('totalValue')), 2), str(n.get('operatioName') or n.get('operationName') or '')[:50], str(n.get('issueDate') or '')[:19]]
+            round(_num(n.get('totalValue')), 2), str(n.get('operatioName') or n.get('operationName') or '')[:50], str(n.get('issueDate') or '')[:19], 'E' if not _e_saida(n) else 'S']      # [11] = S saida / E entrada (devolucao)
     corte = (hoje - timedelta(days=NF_DIAS + 5)).isoformat()
     for k in [k for k, v in notas.items() if v[0] < corte]:
         notas.pop(k)
-    dados.update(notas=notas, notas_em=datetime.now().isoformat(timespec='seconds'))
+    dados.update(notas=notas, notas_hist=True, notas_em=datetime.now().isoformat(timespec='seconds'))
     if novos and 'amostra_nf' not in dados:
         dados['amostra_nf'] = {k: v for k, v in novos[0].items() if not isinstance(v, (list, dict))} | dict(eletronic=novos[0].get('eletronic'))
 
@@ -399,7 +398,7 @@ def painel(dias: int = 0) -> dict:
     fim_ant = fim_mes_ant.replace(day=min(hoje.day, fim_mes_ant.day)).isoformat()
     periodo = f'1 a {hoje.day} de {MESES[hoje.month - 1]}'
 
-    todas = (d.get('notas') or {}).values()
+    todas = [n for n in (d.get('notas') or {}).values() if len(n) < 12 or n[11] != 'E']          # o painel conta so saidas; as entradas aparecem na consulta de NF
     notas = [n for n in todas if n[0] >= ini]
     anteriores = [n for n in todas if ini_ant <= n[0] <= fim_ant and _situacao(n) == 'Autorizada']
     por_sit, por_dia, por_cli = {}, {}, {}
@@ -606,17 +605,22 @@ def _sem_acento(t: str) -> str:
     return ''.join(c for c in unicodedata.normalize('NFD', str(t or '')) if unicodedata.category(c) != 'Mn').upper()
 
 
-def buscar_nfs(q: str) -> list:
-    """NFs do cache (ultimos 90 dias) por numero da NF ou nome do cliente; sem busca devolve as mais recentes."""
+def buscar_nfs(q: str, tipo: str = 'todas', de: str = '', ate: str = '') -> list:
+    """NFs guardadas (ate 12 meses, saidas e entradas) por numero da NF ou nome do cliente, com filtros de tipo e periodo; sem busca devolve as mais recentes."""
     q = (q or '').strip()
     notas = ler().get('notas') or {}
     achadas = []
     for chave, n in notas.items():
+        t = n[11] if len(n) > 11 else 'S'
+        if tipo == 'saida' and t == 'E' or tipo == 'entrada' and t != 'E':
+            continue
+        if (de and n[0] < de) or (ate and n[0] > ate):
+            continue
         if q and not (q.isdigit() and str(n[1] or '').lstrip('0').endswith(q.lstrip('0') or q)) and _sem_acento(q) not in _sem_acento(n[6]):
             continue
-        achadas.append(dict(seq=chave.split('-', 1)[1], dia=n[0], nf=n[1], serie=n[2], situacao=_situacao(n), cliente=n[6], metros=n[7], valor=n[8], operacao=n[9], hora=n[10][11:16], data=n[0]))
+        achadas.append(dict(seq=chave.split('-', 1)[1], dia=n[0], nf=n[1], serie=n[2], situacao=_situacao(n), cliente=n[6], metros=n[7], valor=n[8], operacao=n[9], hora=n[10][11:16], data=n[0], tipo='Entrada' if t == 'E' else 'Saída'))
     achadas.sort(key=lambda x: (x['dia'], x['hora'], x['nf'] or 0), reverse=True)
-    return achadas[:40]
+    return achadas[:60]
 
 
 def _g(v):
