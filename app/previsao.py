@@ -252,7 +252,7 @@ def calcular(agora=None) -> int:
                 ref, fonte = referencia(idx, m.number, s.op, s.artigo)
                 if not ref:
                     s.termino_calculado = False
-                    s.pecas_dia = s.prev_fonte = s.prev_rpm = s.prev_voltas = None
+                    s.pecas_dia = s.prev_fonte = s.prev_rpm = s.prev_voltas = s.prev_termino_em = None
                     if s.termino_malharia:                              # sem base: a fila segue pelo termino que o PCP Hub informou
                         cursor = max(cursor, datetime.combine(s.termino_malharia, datetime.min.time()))
                     continue
@@ -263,7 +263,7 @@ def calcular(agora=None) -> int:
                 restam = max((s.total_pcs or 0) - (s.pecas_produzidas or 0), 0)
                 fim = _pular_dias(cursor, restam / pecas_dia, parados)
                 s.pecas_dia, s.prev_fonte, s.prev_rpm, s.prev_voltas = round(pecas_dia, 2), fonte, ref.rpm, ref.voltas
-                s.termino_malharia, s.termino_calculado = fim.date(), True
+                s.termino_malharia, s.termino_calculado, s.prev_termino_em = fim.date(), True, fim
                 cursor = fim
                 n += 1
         db.session.commit()

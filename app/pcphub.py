@@ -50,6 +50,37 @@ def buscar_linhas() -> list:
         ini += 1000
 
 
+def buscar_paises() -> list:
+    """client_country_mapping do PCP Hub: {nome_cliente, nome_normalizado, country}."""
+    token = _login()
+    r = requests.get(f'{URL}/rest/v1/client_country_mapping', params=dict(select='nome_cliente,nome_normalizado,country'),
+                     headers=dict(apikey=CHAVE, Authorization=f'Bearer {token}'), timeout=60)
+    if r.status_code != 200:
+        raise RuntimeError(f'Leitura dos paises falhou (HTTP {r.status_code}): {r.text[:160]}')
+    return r.json()
+
+
+def gravar_paises(linhas: list) -> int:
+    from app import db
+    from app.models import ClientePais
+    from app.paises import normalizar
+    if not linhas:
+        return 0
+    try:
+        ClientePais.query.delete()
+        vistos = {}
+        for x in linhas:
+            chave = normalizar(x.get('nome_normalizado') or x.get('nome_cliente'))
+            if chave and x.get('country'):
+                vistos[chave] = ClientePais(nome_normalizado=chave, nome=(x.get('nome_cliente') or '')[:200], pais=str(x['country'])[:40])
+        db.session.bulk_save_objects(list(vistos.values()))
+        db.session.commit()
+        return len(vistos)
+    except Exception:
+        db.session.rollback()
+        raise
+
+
 def _data(v):
     if not v:
         return None
@@ -127,6 +158,10 @@ def atualizar(app) -> bool:
         linhas = buscar_linhas()
         with app.app_context():
             res = aplicar(linhas)
+            try:                                              # pais dos clientes de exportacao (bandeira no cartao da maquina)
+                ESTADO['paises'] = gravar_paises(buscar_paises())
+            except Exception as e_pais:  # noqa: BLE001
+                ESTADO['paises_erro'] = str(e_pais)[:200]
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), n=len(linhas), msg=f'{len(linhas)} sequências · {res["criadas"]} novas, {res["removidas"]} removidas')
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()

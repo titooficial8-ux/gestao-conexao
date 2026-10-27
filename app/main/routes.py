@@ -109,6 +109,28 @@ def estrutura_curta(texto):
     return _ESTRUTURA_CURTA.get(t, t) or None
 
 
+def indicadores_maquinas(machines):
+    """{id da maquina: dict(tipo, codigo, titulo)} do cliente que esta rodando (OP PRODUZINDO):
+    ORTOBOM -> logo; COLCHAO ME (exportacao) -> bandeira do pais do cliente; demais (nacional) -> bandeira do Brasil."""
+    from app.models import ClientePais
+    from app.paises import PAISES, pais_do_cliente
+    tabela = {c.nome_normalizado: c.pais for c in ClientePais.query.all()}
+    saida = {}
+    for m in machines:
+        prod = next((s for s in m.sequencias if (s.status or '') == 'PRODUZINDO'), None)
+        if not prod:
+            continue
+        cliente = prod.cliente or ''
+        if 'ORTOBOM' in _strip_accents(cliente.upper()):
+            saida[m.id] = dict(tipo='ortobom', titulo=f'Ortobom · {cliente}')
+        elif (prod.cod_segmento or '').strip().upper() == 'COLCHAO ME':
+            cod = pais_do_cliente(cliente, tabela)
+            saida[m.id] = dict(tipo='flag', codigo=cod or 'globo', titulo=f'Exportação · {PAISES[cod][0]} · {cliente}' if cod else f'Exportação · país não cadastrado · {cliente}')
+        else:
+            saida[m.id] = dict(tipo='flag', codigo='br', titulo=f'Nacional · {cliente}')
+    return saida
+
+
 def estruturas_rodando(machines):
     """{id da maquina: nome curto da estrutura que esta rodando (OP PRODUZINDO)}; sem OP produzindo, nao aparece."""
     saida = {}
@@ -798,14 +820,14 @@ def view_tab(slug):
             return render_template(
                 'main/_programacao_maquinas.html',
                 machines=machines, busca=busca, filtro_cliente=filtro_cliente, filtro_mes=filtro_mes,
-                est_rodando=estruturas_rodando(machines),
+                est_rodando=estruturas_rodando(machines), ind_maquinas=indicadores_maquinas(machines),
             )
 
         return render_template(
             'main/programacao.html',
             tab=tab,
             machines=machines,
-            est_rodando=estruturas_rodando(machines),
+            est_rodando=estruturas_rodando(machines), ind_maquinas=indicadores_maquinas(machines),
             total_maquinas_cadastradas=total_maquinas_cadastradas,
             maquinas_ativas=maquinas_ativas,
             total_sequencias=total_sequencias,
