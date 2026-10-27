@@ -54,7 +54,8 @@ def pedidos():
 def nf_buscar():
     _autorizar()
     from app.totvs import expedicao
-    return jsonify(ok=True, notas=expedicao.buscar_nfs(request.args.get('q', ''), request.args.get('tipo', 'todas'), request.args.get('de', ''), request.args.get('ate', '')))
+    lista, cont, total = expedicao.buscar_nfs(request.args.get('q', ''), request.args.get('tipo', 'todas'), request.args.get('de', ''), request.args.get('ate', ''), request.args.get('sit', ''))
+    return jsonify(ok=True, notas=lista, contagem=cont, total=total)
 
 
 @exp_bp.route('/nf/detalhe')

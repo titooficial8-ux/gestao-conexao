@@ -605,11 +605,11 @@ def _sem_acento(t: str) -> str:
     return ''.join(c for c in unicodedata.normalize('NFD', str(t or '')) if unicodedata.category(c) != 'Mn').upper()
 
 
-def buscar_nfs(q: str, tipo: str = 'todas', de: str = '', ate: str = '') -> list:
+def buscar_nfs(q: str, tipo: str = 'todas', de: str = '', ate: str = '', sit: str = '') -> tuple:
     """NFs guardadas (ate 12 meses, saidas e entradas) por numero da NF ou nome do cliente, com filtros de tipo e periodo; sem busca devolve as mais recentes."""
     q = (q or '').strip()
     notas = ler().get('notas') or {}
-    achadas = []
+    achadas, cont = [], {}
     for chave, n in notas.items():
         t = n[11] if len(n) > 11 else 'S'
         if tipo == 'saida' and t == 'E' or tipo == 'entrada' and t != 'E':
@@ -618,9 +618,13 @@ def buscar_nfs(q: str, tipo: str = 'todas', de: str = '', ate: str = '') -> list
             continue
         if q and not (q.isdigit() and str(n[1] or '').lstrip('0').endswith(q.lstrip('0') or q)) and _sem_acento(q) not in _sem_acento(n[6]):
             continue
-        achadas.append(dict(seq=chave.split('-', 1)[1], dia=n[0], nf=n[1], serie=n[2], situacao=_situacao(n), cliente=n[6], metros=n[7], valor=n[8], operacao=n[9], hora=n[10][11:16], data=n[0], tipo='Entrada' if t == 'E' else 'Saída'))
+        sn = _situacao(n)
+        cont[sn] = cont.get(sn, 0) + 1
+        if sit and sn != sit:
+            continue
+        achadas.append(dict(seq=chave.split('-', 1)[1], dia=n[0], nf=n[1], serie=n[2], situacao=sn, cliente=n[6], metros=n[7], valor=n[8], operacao=n[9], hora=n[10][11:16], data=n[0], tipo='Entrada' if t == 'E' else 'Saída'))
     achadas.sort(key=lambda x: (x['dia'], x['hora'], x['nf'] or 0), reverse=True)
-    return achadas[:60]
+    return achadas[:80], dict(sorted(cont.items(), key=lambda kv: -kv[1])), len(achadas)
 
 
 def _g(v):
