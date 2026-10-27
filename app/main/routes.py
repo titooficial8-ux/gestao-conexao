@@ -1,3 +1,4 @@
+import os
 import time
 import json
 import hashlib
@@ -853,6 +854,8 @@ def view_tab(slug):
         filtro_mes = request.args.get('mes', '').strip()
 
         todas_sequencias = Sequencia.query.filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).all()
+        hoje_ = date.today()
+        maquinas_gargalo = {q.machine.number for q in todas_sequencias if q.machine and sequencia_atrasada(q, hoje_)}      # maquina com OP passando da data do cliente
         clientes_disponiveis = sorted({s.cliente for s in todas_sequencias if s.cliente})
         meses_disponiveis = sorted({mes_label(s) for s in todas_sequencias if mes_label(s)})
 
@@ -893,14 +896,14 @@ def view_tab(slug):
             return render_template(
                 'main/_programacao_maquinas.html',
                 machines=machines, busca=busca, filtro_cliente=filtro_cliente, filtro_mes=filtro_mes,
-                est_rodando=estruturas_rodando(machines), ind_maquinas=indicadores_maquinas(machines),
+                est_rodando=estruturas_rodando(machines), ind_maquinas=indicadores_maquinas(machines), maquinas_gargalo=maquinas_gargalo,
             )
 
         return render_template(
             'main/programacao.html',
             tab=tab,
             machines=machines,
-            est_rodando=estruturas_rodando(machines), ind_maquinas=indicadores_maquinas(machines),
+            est_rodando=estruturas_rodando(machines), ind_maquinas=indicadores_maquinas(machines), maquinas_gargalo=maquinas_gargalo,
             total_maquinas_cadastradas=total_maquinas_cadastradas,
             maquinas_ativas=maquinas_ativas,
             total_sequencias=total_sequencias,
@@ -2405,6 +2408,19 @@ def maquina_historico_producao(numero):
     return jsonify(ok=True, maquina=numero, de=de.isoformat(), ate=ate.isoformat(), dias=dias_lista[::-1], resumo=resumo)
 
 
+ATRASO_MARGEM_DIAS = int(os.getenv('ATRASO_MARGEM_DIAS', '0'))        # folga entre o termino da malharia e a data do cliente (0 = atrasa quando o termino passa da dt.cliente)
+
+
+def sequencia_atrasada(q, hoje=None) -> bool:
+    """OP atrasada: termino previsto da malharia depois da data do cliente (menos a folga), ou data do cliente ja vencida com a OP ainda aberta."""
+    if (q.status or '') in ('FINALIZADO', 'CANCELADO') or not q.dt_cliente:
+        return False
+    hoje = hoje or date.today()
+    if q.termino_malharia and q.termino_malharia > q.dt_cliente - timedelta(days=ATRASO_MARGEM_DIAS):
+        return True
+    return q.dt_cliente < hoje
+
+
 def _assinatura_programacao(maquina=None) -> str:
     """Impressao digital do que aparece na Programacao (situacao, quantidades, ordem, termino...): a tela compara e se recarrega sozinha quando muda."""
     import hashlib
@@ -2569,7 +2585,7 @@ def maquina_detalhe(numero):
                           op_produzindo=produzindo.op if produzindo else None)
     return render_template(
         'main/maquina_detalhe.html',
-        aud_sessao=sessao_aberta(machine.number), impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
+        atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
         artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, avulsa_cli=avulsa_cli, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
         tab=tab,
         machine=machine,
