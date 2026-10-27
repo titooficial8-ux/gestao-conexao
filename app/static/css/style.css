@@ -2746,8 +2746,7 @@ textarea.ticket-input { resize: vertical; }
 .seq-table .seq-cliente, .seq-table .seq-artigo { font-weight: 600; color: #17325c; }
 .seq-table .seq-cliente { white-space: normal; min-width: 120px; }
 .seq-num { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 6px; border-radius: 15px; background: #e8f0fc; color: #0b4a9e; font-weight: 700; }
-.seq-produzindo td { background: #f0faf3 !important; }
-.seq-produzindo td:first-child { box-shadow: inset 4px 0 0 #2aa55a; }
+.seq-produzindo td { background: #fff !important; }
 .seq-produzindo .seq-num { background: #2aa55a; color: #fff; }
 /* cor das LETRAS da linha pela situacao da OP no TOTVS: PCP fase 1 (aguardando liberacao) amarelo, PCP fase 2 azul claro, estoque (local 34) verde claro, malharia (local 23) verde escuro */
 .seq-table tr.sit-fase1 td, .seq-table tr.sit-fase1 .seq-cliente, .seq-table tr.sit-fase1 .seq-artigo, .seq-table tr.sit-fase1 .seq-falta, .seq-table tr.sit-fase1 .seq-pct { color: #d19a00 !important; }
