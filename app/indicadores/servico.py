@@ -562,11 +562,20 @@ def _setups_calc(ch: str) -> dict:
     """Setups do dia de producao `ch`. A API (/api/v1/setups) ja filtra de/ate pelo dia de producao (06h20 -> 06h19) e traz
     `diaProducao` e `turnoInicio` ("1º turno 20/10") de cada setup; sem esses campos o turno sai da hora de `inicio`."""
     import re
-    r = _get_setups('/setups', {'de': ch, 'ate': ch, 'tipo': 'SETUP'})
-    if r.status_code != 200:
-        raise RuntimeError(f'HTTP {r.status_code} {r.text[:120]}')
+    dados = None
+    for tentativa in range(3):                          # a API as vezes responde vazia/HTML por um instante: tenta de novo antes de desistir
+        r = _get_setups('/setups', {'de': ch, 'ate': ch, 'tipo': 'SETUP'})
+        if r.status_code != 200:
+            raise RuntimeError(f'HTTP {r.status_code} {r.text[:120]}')
+        try:
+            dados = r.json()
+            break
+        except ValueError:
+            time.sleep(1.5)
+    if dados is None:
+        raise RuntimeError(f'a API de setups respondeu fora do formato JSON (HTTP 200): {r.text[:100]!r}')
     n, maqs, turnos, sem_turno = 0, set(), [0, 0, 0], 0
-    for it in _lista(r.json()):
+    for it in _lista(dados):
         tipo = str(it.get('tipo') or it.get('type') or 'SETUP').strip().upper()
         if tipo not in ('SETUP', ''):
             continue

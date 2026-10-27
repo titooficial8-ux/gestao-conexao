@@ -95,7 +95,7 @@
         {% for s in sequencias %}
         <tr class="{{ 'seq-produzindo' if s.status == 'PRODUZINDO' else '' }}">
           <td><span class="seq-num">{{ loop.index }}º</span>
-            <button type="button" class="au-gear {{ 'ok' if s.aud_ok else 'no' }}" data-seq="{{ s.id }}" {{ '' if aud_sessao else 'disabled' }} title="{{ 'Verificado na máquina pelo mecanico e PCP' if s.aud_ok else 'Ainda não verificado' }}">&#9881;</button>
+            <button type="button" class="au-gear {{ 'ok' if s.aud_ok else 'no' }}" data-seq="{{ s.id }}" title="{{ 'Verificado na máquina pelo mecânico e PCP (clique para desmarcar)' if s.aud_ok else ('Ainda não verificado (clique para marcar)' if aud_sessao else 'Clique para iniciar a auditoria desta máquina') }}"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
             {% if impedidos.get(s.id) %}<span class="au-bloq" title="{{ impedidos[s.id] }}">&#9940;</span>{% endif %}</td>
           {% set pct = ((s.pecas_produzidas or 0) / s.total_pcs * 100) | round | int if s.total_pcs else 0 %}
           <td class="seq-prog">
@@ -395,8 +395,8 @@
 <style>
 .au-btn{border:0;background:#0f2a4a;color:#fff;font-weight:700;font-size:12px;border-radius:8px;padding:5px 12px;cursor:pointer}.au-btn-fim{background:#b91c1c;margin-left:6px}
 .au-em-curso{font-weight:700;color:#166534;background:#dcfce7;border-radius:8px;padding:3px 10px}
-.au-gear{border:0;background:transparent;font-size:24px;line-height:1;cursor:pointer;margin-left:6px;vertical-align:middle;transition:transform .25s}.au-gear.no{color:#dc2626}.au-gear.ok{color:#16a34a}
-.au-gear:not([disabled]):hover{transform:rotate(60deg) scale(1.15)}.au-gear[disabled]{cursor:default;opacity:.75}.au-bloq{font-size:20px;margin-left:4px;cursor:help}
+.au-gear{border:0;background:transparent;padding:0;line-height:0;cursor:pointer;margin-left:6px;vertical-align:middle;transition:transform .25s}.au-gear.no{color:#dc2626 !important}.au-gear.ok{color:#16a34a !important}.au-gear svg{pointer-events:none}
+.au-gear:hover{transform:rotate(60deg) scale(1.15)}.au-bloq{font-size:20px;margin-left:4px;cursor:help}
 .au-lista{display:flex;flex-direction:column;gap:6px;margin:12px 0}.au-lista button{padding:9px 12px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;font-size:14px;cursor:pointer;text-align:left}.au-lista button:hover{background:#eff6ff}
 </style>
 <div class="modal-backdrop" id="modalMecanico" hidden>
@@ -423,13 +423,16 @@
     document.getElementById('auOk').addEventListener('click', function () { var n = document.getElementById('auNome').value.trim(); if (n) iniciar(n); });
   }
   if (fim) fim.addEventListener('click', function () { if (confirm('Encerrar a auditoria desta máquina?')) post('{{ url_for("auditoria.encerrar") }}', {maquina: MAQ}).then(function () { location.reload(); }); });
-  document.querySelectorAll('.au-gear:not([disabled])').forEach(function (g) {
+  var ATIVA = {{ 'true' if aud_sessao else 'false' }};
+  document.querySelectorAll('.au-gear').forEach(function (g) {
     g.addEventListener('click', function (e) {
       e.stopPropagation();
+      if (!ATIVA) { if (modal) modal.hidden = false; return; }          // sem auditoria em andamento: pede o mecanico primeiro
+      var vai = !g.classList.contains('ok');
+      g.classList.toggle('ok', vai); g.classList.toggle('no', !vai);      // muda a cor na hora; volta se o servidor recusar
       post('{{ url_for("auditoria.verificar") }}', {sequencia: g.dataset.seq}).then(function (d) {
         g.classList.toggle('ok', d.verificado); g.classList.toggle('no', !d.verificado);
-        g.title = d.verificado ? 'Verificado na máquina pelo mecanico e PCP' : 'Ainda não verificado';
-      }).catch(function (er) { alert(er.message); });
+      }).catch(function (er) { g.classList.toggle('ok', !vai); g.classList.toggle('no', vai); alert(er.message); });
     });
   });
 })();
