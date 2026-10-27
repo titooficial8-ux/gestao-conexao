@@ -20,7 +20,7 @@ BATCH_URL = f'{BASE}/api/totvsmoda/product/v2/batch/search'
 BALANCES_URL = f'{BASE}/api/totvsmoda/product/v2/balances/search'
 PRODUCTS_URL = f'{BASE}/api/totvsmoda/product/v2/products/search'
 SALDO_INSPECAO = os.getenv('EXPEDICAO_SALDO_INSPECAO', '').strip()     # codigo do saldo 'aguardando inspecao'; vazio = acha pelo nome (INSPE)
-UNIDADE_INSPECAO = os.getenv('EXPEDICAO_UNIDADE_INSPECAO', 'MT').strip().upper()
+UNIDADE_INSPECAO = os.getenv('EXPEDICAO_UNIDADE_INSPECAO', 'KG').strip().upper()
 EMPRESA = int(os.getenv('PEDIDOS_EMPRESA', '1'))
 SALDO = int(os.getenv('EXPEDICAO_SALDO', '1'))
 NF_DIAS = int(os.getenv('EXPEDICAO_NF_DIAS', '90'))
