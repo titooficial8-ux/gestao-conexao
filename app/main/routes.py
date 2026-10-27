@@ -962,8 +962,9 @@ def view_tab(slug):
 
         por_estrutura = {}
         for s in todas_sequencias:
-            if s.status == 'PRODUZINDO' and s.estrutura:
-                por_estrutura.setdefault(s.estrutura, []).append(s)
+            est_curta = estrutura_curta(s.estrutura or resolve_estrutura_from_article(s.artigo))     # 'ESTRUTURA NOVA' e 'NOVA' sao a mesma estrutura
+            if s.status == 'PRODUZINDO' and est_curta:
+                por_estrutura.setdefault(est_curta, []).append(s)
         ranking_estruturas = []
         for estrutura, seqs in por_estrutura.items():
             por_maquina_e = {}
@@ -1077,12 +1078,12 @@ def view_tab(slug):
                     if s.status in ('EM_SEQUENCIA', 'PCP') and s.estrutura:
                         seq_ativa = s
                         break
-            estrutura_atual = seq_ativa.estrutura if seq_ativa else None
+            estrutura_atual = estrutura_curta(seq_ativa.estrutura) if seq_ativa else None
             estrutura_por_maquina.append({'maquina': m.number, 'estrutura': estrutura_atual})
 
             if estrutura_atual and m.esta_ativa:
                 ops_na_estrutura = sum(
-                    1 for s in m.sequencias if s.status in ATIVAS_STATUS and s.estrutura == estrutura_atual
+                    1 for s in m.sequencias if s.status in ATIVAS_STATUS and estrutura_curta(s.estrutura) == estrutura_atual
                 )
                 maquinas_por_estrutura.setdefault(estrutura_atual, []).append(
                     {'maquina': m.number, 'ops': ops_na_estrutura}
@@ -1093,7 +1094,7 @@ def view_tab(slug):
         analisar_itens = [
             {
                 'item': item,
-                'estrutura': (estrutura := resolve_estrutura_from_article(item.artigo)),
+                'estrutura': (estrutura := estrutura_curta(resolve_estrutura_from_article(item.artigo))),
                 'dt_prevfaturamento': resolve_dt_cliente_from_pedidos(item.op, item.artigo),
                 'sugeridas': maquinas_por_estrutura.get(estrutura, [])[:6],
             }
@@ -2213,28 +2214,6 @@ def novo_registro_programacao():
     db.session.commit()
     flash('novo_registro_sucesso', 'success')
     return redirect(url_for('main.maquina_detalhe', numero=machine.number))
-
-
-@main_bp.route('/aba/programacao/base-voltas', methods=['POST'])
-@login_required
-def programacao_base_voltas():
-    """Administrador envia a planilha producaoDIARIA (voltas e RPM); importa e recalcula as previsoes de termino."""
-    if not current_user.is_admin:
-        abort(403)
-    from app import previsao
-    arq = request.files.get('arquivo')
-    if not arq or not arq.filename.lower().endswith(('.xlsx', '.xlsm')):
-        return jsonify(ok=False, erro='Envie a planilha producaoDIARIA em .xlsx.'), 400
-    destino = previsao.caminho_base()
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    arq.save(destino)
-    try:
-        n = previsao.importar(destino)
-        previsao._arquivo_lido['mtime'] = destino.stat().st_mtime
-        calculadas = previsao.calcular()
-    except Exception as e:  # noqa: BLE001
-        return jsonify(ok=False, erro=str(e)[:300]), 400
-    return jsonify(ok=True, linhas=n, ops_calculadas=calculadas)
 
 
 @main_bp.route('/aba/programacao/maquina/<int:numero>/historico-producao/dia')
