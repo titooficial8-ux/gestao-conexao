@@ -2662,7 +2662,7 @@ def maquina_detalhe(numero):
     metros_24h = round(pecas_24h * metro_ref) if pecas_24h and metro_ref else None
     origem_24h = None
     if ref24:
-        origem_24h = dict(op=ref24.op, artigo=ref24.artigo, voltas=int(ref24.prev_voltas or 0), rpm=ref24.prev_rpm, fonte=ref24.prev_fonte,
+        origem_24h = dict(op=ref24.op, artigo=ref24.artigo, voltas=int(ref24.prev_voltas or 0), rpm=ref24.prev_rpm, fonte=ref24.prev_fonte, raport=ref24.prev_raport,
                           da_producao=bool(produzindo and ref24.id == produzindo.id), sem_base_producao=bool(produzindo and not produzindo.pecas_dia),
                           op_produzindo=produzindo.op if produzindo else None)
     return render_template(
