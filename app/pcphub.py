@@ -183,6 +183,9 @@ def aplicar(linhas: list, agora=None) -> dict:
         if s:
             if s.termino_calculado:                      # o termino vem da previsao por voltas/RPM, nao do PCP Hub
                 campos.pop('termino_malharia', None)
+            if s.dt_cliente_manual:                      # DT.CLIENTE digitada pelo PCP vale mais que a do Hub
+                campos.pop('dt_cliente', None)
+                campos.pop('production_month', None)
             for k in ('total_pcs', 'qt_solicitada', 'qt_avulsa', 'estrutura', 'sequence_order'):     # a ordem da fila agora e do Gestao (arrastar na maquina);      # quantidade, avulsa e estrutura vem do TOTVS (quantidade da OP, cliente Conexao, classificacao 505); o PCP Hub so cria a linha
                 campos.pop(k, None)
             for k, v in campos.items():

@@ -2495,6 +2495,38 @@ def programacao_assinatura():
     return jsonify(sig=_assinatura_programacao(request.args.get('maquina', type=int)))
 
 
+@main_bp.route('/aba/programacao/sequencia/<int:seq_id>/dt-cliente', methods=['POST'])
+@login_required
+def sequencia_dt_cliente(seq_id):
+    """PCP digita a DT.CLIENTE (ORTOBOM e OP avulsa): ate 10 caracteres; uma data (dd/mm/aaaa ou dd/mm) vira data, qualquer outro texto fica como descricao. Vazio volta ao automatico."""
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
+    if not tab.visible_to(current_user) or not _pode_dias_sem_producao():
+        abort(403)
+    q = db.session.get(Sequencia, seq_id) or abort(404)
+    avulsa = bool(q.qt_avulsa) or not PedidoRelatorio.query.filter(PedidoRelatorio.nr_op == str(q.op)).first()
+    if normalize_client_name(q.cliente or '') != 'ORTOBOM' and not avulsa:
+        return jsonify(erro='A DT.CLIENTE só pode ser editada em OP da ORTOBOM ou OP avulsa.'), 400
+    txt = re.sub(r'\s+', ' ', str((request.get_json(silent=True) or {}).get('texto') or '')).strip()
+    if len(txt) > 10:
+        return jsonify(erro='Use no máximo 10 caracteres.'), 400
+    if not txt:
+        q.dt_cliente_manual, q.dt_cliente, q.production_month = False, None, None
+    else:
+        data = None
+        m = re.fullmatch(r'(\d{1,2})/(\d{1,2})(?:/(\d{2}|\d{4}))?', txt)
+        if m:
+            ano = int(m.group(3)) if m.group(3) else date.today().year
+            ano += 2000 if ano < 100 else 0
+            try:
+                data = date(ano, int(m.group(2)), int(m.group(1)))
+            except ValueError:
+                return jsonify(erro='Data inválida.'), 400
+        q.dt_cliente, q.production_month, q.dt_cliente_manual = data, (None if data else txt), True
+    db.session.commit()
+    exibe = q.dt_cliente.strftime('%d/%m/%Y') if q.dt_cliente else (q.production_month.title() if q.production_month else 'A DEFINIR')
+    return jsonify(ok=True, exibe=exibe, edita=(q.dt_cliente.strftime('%d/%m/%Y') if q.dt_cliente else (q.production_month or '')))
+
+
 @main_bp.route('/aba/programacao/maquina/<int:numero>/reordenar', methods=['POST'])
 @login_required
 def maquina_reordenar(numero):
@@ -2667,7 +2699,7 @@ def maquina_detalhe(numero):
                           op_produzindo=produzindo.op if produzindo else None)
     return render_template(
         'main/maquina_detalhe.html',
-        atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
+        pode_editar_dt=_pode_dias_sem_producao(), dt_editavel={q.id for q in sequencias if q.qt_avulsa or q.id in avulsa_cli or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper()}, atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
         artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, avulsa_cli=avulsa_cli, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
         tab=tab,
         machine=machine,
