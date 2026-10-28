@@ -379,10 +379,13 @@ def referencia(idx, maquina: int, op, artigo):
 
 
 def _pular_dias(inicio: datetime, dias: float, parados: set) -> datetime:
+    """Termina `dias` de producao depois de `inicio`, pulando os dias sem producao. O dia de producao vai das 06:00 as 06:00 (a fabrica para no domingo 06:00 e volta na
+    segunda 06:00), por isso as datas sao contadas com 6 h de deslocamento: um domingo sem producao cobre de domingo 06:00 a segunda 06:00."""
+    desloc = timedelta(hours=6)
     fim = inicio + timedelta(days=dias)
     contados = set()
     while True:
-        novos = {d for d in parados if inicio.date() <= d <= fim.date()} - contados
+        novos = {d for d in parados if (inicio - desloc).date() <= d <= (fim - desloc).date()} - contados
         if not novos:
             return fim
         contados |= novos

@@ -212,14 +212,7 @@ def buscar() -> list[dict]:
         ESTADO['amostra_pedido'] = {k: v for k, v in itens[0][0].items() if not isinstance(v, (list, dict))}      # campos do item do pedido (para conferir o preco)
     linhas = []
     ordenados = sorted(itens, key=lambda t: (str(t[0].get('orderDate')), t[0].get('orderCode') or 0))
-    fixos = {}
-    try:                                                       # ligacao real pedido <-> OP (relatorio de pedidos do TOTVS, importado no PCP Hub); sem ela, vale a regra por ordem de criacao
-        from app import pcphub
-        if os.getenv('PEDIDOS_VINCULO_HUB', '0') == '1' and pcphub.configurado():      # desligado por padrao: o Gestao usa so o TOTVS (a regra por ordem de criacao acerta ~65%)
-            fixos = pcphub.buscar_vinculos_pedidos()
-            ESTADO['vinculos_reais'] = len(fixos)
-    except Exception as e:  # noqa: BLE001
-        ESTADO['vinculos_erro'] = str(e)[:200]
+    fixos = {}                                                 # vinculo pedido <-> OP: so pelo TOTVS (regra por ordem de criacao); o PCP Hub nao entra mais aqui
     aloc = vincular_ops(ordenados, ops, fixos)
     for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
         pid = it.get('productCode')
