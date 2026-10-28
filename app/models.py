@@ -775,3 +775,18 @@ class ArtigoImpedimento(db.Model):
     desativado_em = db.Column(db.DateTime)
     motivo_desativacao = db.Column(db.Text)
     origem_registro = db.Column(db.String(10), default='gestao')   # 'hub' = importado do PCP Hub uma unica vez; 'gestao' = registrado aqui
+
+
+class FichaArtigo(db.Model):
+    """Ficha tecnica do artigo (lista basedeficha do SharePoint): RPM e voltas por peca do REGISTRO MAIS RECENTE de cada artigo. Base da previsao de termino da malharia."""
+    __tablename__ = 'ficha_artigo'
+
+    artigo = db.Column(db.String(40), primary_key=True)     # codigo exato da ficha (ex.: 310038 ou 630031-A)
+    base = db.Column(db.String(40), index=True)             # codigo sem o sufixo depois do '-' (para casar com o artigo da Programacao)
+    totvs = db.Column(db.String(30))
+    cliente = db.Column(db.String(120))
+    rpm = db.Column(db.Float)
+    voltas = db.Column(db.Float)
+    status = db.Column(db.String(30))
+    data = db.Column(db.Date)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)

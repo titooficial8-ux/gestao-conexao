@@ -2527,6 +2527,34 @@ def maquina_reordenar(numero):
     return jsonify(ok=True, recalculadas=n)
 
 
+@main_bp.route('/aba/programacao/ficha-diagnostico')
+@login_required
+def ficha_diagnostico():
+    """So administrador: confere a ficha (basedeficha do SharePoint) contra as OPs da fila: de onde vem o RPM e as voltas de cada uma."""
+    if not current_user.is_admin:
+        abort(403)
+    from markupsafe import escape
+    from app import previsao
+    if request.args.get('atualizar'):
+        previsao._ult_ficha[0] = 0.0
+        previsao.verificar_ficha()
+    idx = previsao._indices()
+    linhas = []
+    for q in Sequencia.query.join(Machine).filter(Sequencia.status.in_(['PRODUZINDO', 'EM_SEQUENCIA', 'PCP'])).order_by(Machine.number, Sequencia.sequence_order).all():
+        art = previsao._codigo(q.artigo)
+        f = idx[3].get(art.upper()) or idx[3].get(art.upper().split('-')[0])
+        antiga = idx[2].get(art)
+        linhas.append(f'<tr class="{"" if f else "bad"}"><td>{q.machine.number}</td><td>{escape(q.op or "")}</td><td>{escape(art)}</td><td>{escape(q.cliente or "")}</td>'
+                      f'<td>{f.rpm if f else "—"}</td><td>{f.voltas if f else "—"}</td><td>{f.data.strftime("%d/%m/%Y") if f and f.data else ""}</td><td>{escape(f.status) if f else ""}</td>'
+                      f'<td>{antiga.rpm if antiga else "—"}</td><td>{antiga.voltas if antiga else "—"}</td><td>{escape(q.prev_fonte or "")}</td><td>{q.prev_rpm or ""}</td><td>{q.prev_voltas or ""}</td></tr>')
+    e = previsao.ESTADO_FICHA
+    return ('<meta charset="utf-8"><style>body{font:13px Arial;margin:18px}td,th{border:1px solid #ccc;padding:3px 7px;text-align:left}table{border-collapse:collapse}tr.bad td{background:#fff1f0}</style>'
+            f'<h2>Ficha técnica (basedeficha) × OPs da fila</h2><p>Artigos na ficha: <b>{len(set(f.artigo for f in idx[3].values()))}</b> ({e["registros"]} registros válidos lidos) · última leitura: {e["ultima"] or "ainda não"} · erro: {escape(e["erro"] or "nenhum")} · '
+            '<a href="?atualizar=1">ler de novo agora</a></p><p>Linhas vermelhas = artigo sem ficha com RPM e voltas (a previsão usa o histórico da producaoDIARIA ou o Raport).</p>'
+            '<table><tr><th>Máq.</th><th>OP</th><th>Artigo</th><th>Cliente</th><th>RPM (ficha)</th><th>Voltas/peça (ficha)</th><th>Data da ficha</th><th>Status</th><th>RPM (producaoDIARIA)</th><th>Voltas (producaoDIARIA)</th><th>Fonte usada</th><th>RPM usado</th><th>Voltas usadas</th></tr>'
+            + ''.join(linhas) + '</table>')
+
+
 @main_bp.route('/aba/programacao/auditoria-quantidades')
 @login_required
 def auditoria_quantidades():
