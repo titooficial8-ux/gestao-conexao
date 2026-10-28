@@ -64,25 +64,6 @@ def gravar_impedimentos_hub(linhas: list) -> int:
     return gravar_impedimentos(linhas)
 
 
-def buscar_vinculos_pedidos() -> dict:
-    """{(pedido, produto): [(ciclo, op)]} do relatorio de pedidos do TOTVS (report_orders_month do PCP Hub): a ligacao REAL entre o pedido e a OP."""
-    token = _login()
-    cab = dict(apikey=CHAVE, Authorization=f'Bearer {token}')
-    out, ini = {}, 0
-    while True:
-        r = requests.get(f'{URL}/rest/v1/report_orders_month', params=dict(select='cod_pedido,cod_produto,nr_cicloop,nr_op', region=f'eq.{REGIAO}', nr_op='neq.', order='cod_pedido.asc'),
-                         headers=dict(cab, Range=f'{ini}-{ini + 999}', **{'Range-Unit': 'items'}), timeout=60)
-        if r.status_code not in (200, 206):
-            raise RuntimeError(f'Leitura dos vinculos pedido/OP falhou (HTTP {r.status_code}): {r.text[:160]}')
-        bloco = r.json()
-        for x in bloco:
-            if x.get('nr_op') and x.get('nr_cicloop'):
-                out.setdefault((str(x['cod_pedido']), str(x['cod_produto'])), []).append((str(x['nr_cicloop']), str(x['nr_op'])))
-        if len(bloco) < 1000:
-            return out
-        ini += 1000
-
-
 def buscar_dias_sem_producao() -> list:
     """Datas de production_non_working_days do PCP Hub (importacao unica: depois os dias sem producao sao do Gestao)."""
     token = _login()
@@ -216,6 +197,34 @@ def aplicar(linhas: list, agora=None) -> dict:
     return dict(criadas=criadas, atualizadas=atualizadas, removidas=removidas)
 
 
+def importar_base_inicial() -> None:
+    """O Gestao monta a PROPRIA base: impedimentos de artigo, dias sem producao e paises dos clientes sao trazidos do PCP Hub UMA unica vez (so quando a tabela do Gestao ainda esta vazia)
+    e dali em diante sao do Gestao (editados aqui). Do Hub continua vindo, sempre, so a programacao (sequencias). O vinculo pedido <-> OP vem do TOTVS."""
+    from app import db
+    from app.models import ArtigoImpedimento, ClientePais, NonWorkingDay
+    if not NonWorkingDay.query.first():
+        try:
+            for x in buscar_dias_sem_producao():
+                if _data(x.get('date')):
+                    db.session.add(NonWorkingDay(date=_data(x.get('date')), machine_id=None, comment=x.get('note')))
+            db.session.commit()
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            ESTADO['dias_erro'] = str(e)[:200]
+    if not ArtigoImpedimento.query.first():
+        try:
+            ESTADO['impedimentos'] = gravar_impedimentos_hub(buscar_impedimentos())
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            ESTADO['impedimentos_erro'] = str(e)[:200]
+    if not ClientePais.query.first():
+        try:
+            ESTADO['paises'] = gravar_paises(buscar_paises())
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            ESTADO['paises_erro'] = str(e)[:200]
+
+
 def atualizar(app) -> bool:
     if not _trava.acquire(blocking=False):
         return False
@@ -224,25 +233,7 @@ def atualizar(app) -> bool:
         linhas = buscar_linhas()
         with app.app_context():
             res = aplicar(linhas)
-            from app.models import ArtigoImpedimento, NonWorkingDay
-            if not NonWorkingDay.query.first():              # dias sem producao: importa do Hub so uma vez
-                try:
-                    for x in buscar_dias_sem_producao():
-                        if _data(x.get('date')):
-                            db.session.add(NonWorkingDay(date=_data(x.get('date')), machine_id=None, comment=x.get('note')))
-                    db.session.commit()
-                except Exception as e_dias:  # noqa: BLE001
-                    db.session.rollback()
-                    ESTADO['dias_erro'] = str(e_dias)[:200]
-            if not ArtigoImpedimento.query.first():          # Controle de Artigos e do Gestao; do PCP Hub so a importacao inicial, uma unica vez
-                try:
-                    ESTADO['impedimentos'] = gravar_impedimentos_hub(buscar_impedimentos())
-                except Exception as e_imp:  # noqa: BLE001
-                    ESTADO['impedimentos_erro'] = str(e_imp)[:200]
-            try:                                              # pais dos clientes de exportacao (bandeira no cartao da maquina)
-                ESTADO['paises'] = gravar_paises(buscar_paises())
-            except Exception as e_pais:  # noqa: BLE001
-                ESTADO['paises_erro'] = str(e_pais)[:200]
+            importar_base_inicial()
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), n=len(linhas), msg=f'{len(linhas)} sequências · {res["criadas"]} novas, {res["removidas"]} removidas')
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
