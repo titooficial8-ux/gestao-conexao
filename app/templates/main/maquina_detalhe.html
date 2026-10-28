@@ -251,7 +251,7 @@
       corpo.appendChild(inf);
       if (infoAtual.pecasdia) {
         var pv = el('div', 'op-kpis');
-        pv.appendChild(kpi('Voltas / RPM', infoAtual.voltas + ' / ' + String(infoAtual.rpm).replace('.', ','), infoAtual.fonte === 'raport' ? 'raport ' + String(infoAtual.raport).replace('.', ',') + ' cm × RPM instalado 85%' : (infoAtual.fonte ? 'base: ' + infoAtual.fonte : '')));
+        pv.appendChild(kpi('Voltas / RPM', infoAtual.voltas + ' / ' + String(Math.round(parseFloat(infoAtual.rpm) * 100) / 100).replace('.', ','), infoAtual.fonte === 'raport' ? 'raport ' + String(infoAtual.raport).replace('.', ',') + ' cm · RPM instalado ' + String(Math.round(parseFloat(infoAtual.rpm) / 0.85 * 10) / 10).replace('.', ',') + ' → 85%' : (infoAtual.fonte ? 'base: ' + infoAtual.fonte : '')));
         pv.appendChild(kpi('Peças em 24 h', String(infoAtual.pecasdia).replace('.', ','), 'com 15% de ineficiência', 'pç'));
         pv.appendChild(kpi('Previsão de término', (infoAtual.termino || '–') + (infoAtual.terminohora ? ' · ~' + infoAtual.terminohora : ''), infoAtual.calculado ? 'hora aproximada · pelas voltas/RPM e a fila da máquina' : ''));
         corpo.appendChild(pv);
@@ -402,7 +402,7 @@
 <style>
 .au-btn{border:0;background:#0f2a4a;color:#fff;font-weight:700;font-size:12px;border-radius:8px;padding:5px 12px;cursor:pointer}.au-btn-fim{background:#b91c1c;margin-left:6px}
 .au-em-curso{font-weight:700;color:#166534;background:#dcfce7;border-radius:8px;padding:3px 10px}
-.au-gear{border:0;background:transparent;padding:0;line-height:0;cursor:pointer;margin-left:6px;vertical-align:middle;transition:transform .25s}.au-gear.no{color:#dc2626 !important}.au-gear.ok{color:#16a34a !important}.au-gear svg{pointer-events:none}.au-gear[disabled]{cursor:not-allowed;opacity:.4;filter:grayscale(.4)}.au-gear[disabled]:hover{transform:none}
+.au-gear{border:0;background:transparent;padding:0;line-height:0;cursor:pointer;margin-left:6px;vertical-align:middle;transition:transform .25s}.au-gear.no{color:#dc2626 !important}.au-gear.ok{color:#16a34a !important}.au-gear svg{pointer-events:none}.au-gear[disabled]{cursor:not-allowed;opacity:1 !important;filter:none !important}.au-gear[disabled]:hover{transform:none}
 .au-gear:hover{transform:rotate(60deg) scale(1.15)}.au-bloq{font-size:20px;margin-left:4px;cursor:help}
 .au-lista{display:flex;flex-direction:column;gap:6px;margin:12px 0}.au-lista button{padding:9px 12px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;font-size:14px;cursor:pointer;text-align:left}.au-lista button:hover{background:#eff6ff}
 </style>

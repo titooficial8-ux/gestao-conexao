@@ -148,6 +148,7 @@ def sincronizar_sharepoint() -> int:
 
 
 # ---- ficha tecnica do artigo (lista basedeficha, site Conexopreo): RPM e voltas por peca do registro mais recente de cada artigo -------------------------------
+FONTE = os.getenv('VOLTAS_RPM_FONTE', 'raport')              # 'raport' (padrao): so RPM instalado/85 % + Raport da planilha; 'ficha': ficha do SharePoint, producaoDIARIA e, por ultimo, o Raport
 FICHA_MIN = float(os.getenv('FICHA_MIN', '30'))
 FICHA_SITE_ID = os.getenv('FICHA_SITE_ID', 'conexaomalhasedes.sharepoint.com,755eaebb-3bfb-4682-8e31-d394a0dbbf23,fb853ab7-5f02-463c-a857-841348a3b2a9')
 FICHA_LISTA_ID = os.getenv('FICHA_LISTA_ID', 'be6ae3ff-f4ce-42da-b316-9efd0459a14a')
@@ -202,7 +203,7 @@ def sincronizar_ficha() -> int:
 
 def verificar_ficha() -> None:
     from app.indicadores import sharepoint as sp
-    if not sp.configurado() or time.time() - _ult_ficha[0] < FICHA_MIN * 60:
+    if FONTE != 'ficha' or not sp.configurado() or time.time() - _ult_ficha[0] < FICHA_MIN * 60:
         return
     _ult_ficha[0] = time.time()
     try:
@@ -216,6 +217,8 @@ def verificar_ficha() -> None:
 def verificar_fontes() -> None:
     """A base de voltas/RPM vem do SharePoint (automatico, a cada PRODUCAODIARIA_MIN min). Se o SharePoint nao responder, usa a planilha da pasta do projeto."""
     from app.indicadores import sharepoint as sp
+    if FONTE == 'raport':                                      # so Raport e RPM da planilha: nada do SharePoint/PowerApps entra na previsao
+        return
     verificar_ficha()
     if sp.configurado() and time.time() - _ult_sp[0] >= SP_MIN * 60:
         _ult_sp[0] = time.time()
@@ -324,6 +327,16 @@ def _cfg_raport():
             {r.artigo: r for r in ArtigoTamanho.query.all()})
 
 
+def _ds_metros(s):
+    """DS.METROS (metragem padrao) da OP, em metros."""
+    try:
+        from app.main.routes import resolve_metros_from_article
+        v = resolve_metros_from_article(s.artigo)
+        return float(str(v).replace(',', '.')) if v else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def previsao_raport(cfg, maquina: int, s, idx_art):
     """(voltas, rpm85, raport) da OP pelo raport da estrutura e RPM instalado da maquina, ou None se faltar algum dado."""
     por_estr, por_maq, rpms, artigos = cfg
@@ -332,10 +345,10 @@ def previsao_raport(cfg, maquina: int, s, idx_art):
     estr = codigo_estrutura(s.estrutura) or (tam.estrutura if tam else None)
     rpm = rpms.get(maquina)
     raport = por_maq.get((maquina, estr)) or por_estr.get(estr)
-    metros = (idx_art.get(art).metros_peca if idx_art.get(art) and idx_art[art].metros_peca else None) or (tam.metros_peca if tam else None)
+    metros = _ds_metros(s) or (tam.metros_peca if tam else None)       # DS.METROS da OP (METRO IDEAL LOTE do TOTVS); a medida da planilha so entra se o TOTVS nao informar
     if not (estr and rpm and raport and metros):
         return None
-    return metros * 100 / raport, rpm * 0.85, raport
+    return metros * 100 / raport, rpm * 0.85, raport                    # voltas = metragem padrao (m) x 100 / raport (cm); RPM = RPM instalado da maquina x 85 %
 
 
 class _RefFicha:
@@ -347,7 +360,9 @@ class _RefFicha:
 def referencia(idx, maquina: int, op, artigo):
     por_op, por_maq_art, por_art, ficha = idx
     art = _codigo(artigo)
-    if os.getenv('VOLTAS_RPM_FONTE', 'ficha') == 'ficha':              # padrao: o registro mais recente do artigo na ficha (basedeficha) manda
+    if FONTE == 'raport':
+        return None, None                                              # a conta sai do Raport (previsao_raport)
+    if FONTE == 'ficha':              # padrao: o registro mais recente do artigo na ficha (basedeficha) manda
         f = ficha.get(art.upper()) or ficha.get(art.upper().split('-')[0])
         if f:
             return _RefFicha(f), 'ficha'
