@@ -22,7 +22,7 @@ from pathlib import Path
 from flask import current_app
 
 from app import db
-from app.models import (ArtigoTamanho, Machine, MaquinaRpm, NonWorkingDay, ProducaoRef, RaportMaquinaEstrutura, RaportEstrutura, Sequencia)
+from app.models import (ArtigoTamanho, FichaArtigo, Machine, MaquinaRpm, NonWorkingDay, ProducaoRef, RaportMaquinaEstrutura, RaportEstrutura, Sequencia)
 
 INEFICIENCIA = float(os.getenv('INEFICIENCIA_MAQUINA', '0.15'))
 MIN_DIA = 1440 * (1 - INEFICIENCIA)
@@ -147,9 +147,76 @@ def sincronizar_sharepoint() -> int:
     return _substituir_base(novas)
 
 
+# ---- ficha tecnica do artigo (lista basedeficha, site Conexopreo): RPM e voltas por peca do registro mais recente de cada artigo -------------------------------
+FICHA_MIN = float(os.getenv('FICHA_MIN', '30'))
+FICHA_SITE_ID = os.getenv('FICHA_SITE_ID', 'conexaomalhasedes.sharepoint.com,755eaebb-3bfb-4682-8e31-d394a0dbbf23,fb853ab7-5f02-463c-a857-841348a3b2a9')
+FICHA_LISTA_ID = os.getenv('FICHA_LISTA_ID', 'be6ae3ff-f4ce-42da-b316-9efd0459a14a')
+ESTADO_FICHA = dict(ultima=None, erro=None, artigos=0, registros=0)
+_ult_ficha = [0.0]
+
+
+def _flt(v):
+    try:
+        x = float(str(v).replace(',', '.').strip())
+        return x if x > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def sincronizar_ficha() -> int:
+    """GET /sites/{site}/lists/{basedeficha}/items?$expand=fields($select=Artigo,Totvs,Cliente,RPM,Voltasporpe_x00e7_a,STATUS,DATA) (so leitura).
+    Para cada artigo fica o registro mais recente (por DATA) com RPM e voltas validos; registros 'Desatualizado' so entram se nao houver outro."""
+    from app.indicadores import sharepoint as sp
+    url, params, linhas = f'{sp.GRAPH}/sites/{FICHA_SITE_ID}/lists/{FICHA_LISTA_ID}/items', {'$expand': 'fields($select=Artigo,Totvs,Cliente,RPM,Voltasporpe_x00e7_a,STATUS,DATA)', '$top': 999}, []
+    while url:
+        j = sp._get(url, params)
+        for it in j.get('value') or []:
+            f = it.get('fields') or {}
+            artigo = str(f.get('Artigo') or '').strip()
+            rpm, voltas = _flt(f.get('RPM')), _flt(f.get('Voltasporpe_x00e7_a'))
+            if not artigo or not rpm or not voltas:
+                continue
+            try:
+                data = datetime.fromisoformat(str(f.get('DATA') or '').replace('Z', '+00:00')).date()
+            except ValueError:
+                data = None
+            linhas.append(dict(artigo=artigo, totvs=str(f.get('Totvs') or '') or None, cliente=f.get('Cliente'), rpm=rpm, voltas=voltas, status=str(f.get('STATUS') or ''),
+                               data=data, criado=str(it.get('createdDateTime') or '')))
+        url, params = j.get('@odata.nextLink'), None
+    melhor = {}
+    for l in linhas:
+        k = l['artigo'].upper()
+        chave = (l['status'] != 'Desatualizado', str(l['data'] or ''), l['criado'])          # o mais recente; 'Desatualizado' so se nao houver outro
+        if k not in melhor or chave > melhor[k][0]:
+            melhor[k] = (chave, l)
+    if not melhor:
+        raise ValueError('A lista basedeficha nao trouxe nenhum artigo com RPM e voltas.')
+    FichaArtigo.query.delete()
+    agora = datetime.utcnow()
+    for k, (_, l) in melhor.items():
+        db.session.add(FichaArtigo(artigo=k, base=k.split('-')[0], totvs=l['totvs'], cliente=l['cliente'], rpm=l['rpm'], voltas=l['voltas'], status=l['status'], data=l['data'], atualizado_em=agora))
+    db.session.commit()
+    ESTADO_FICHA.update(artigos=len(melhor), registros=len(linhas))
+    return len(melhor)
+
+
+def verificar_ficha() -> None:
+    from app.indicadores import sharepoint as sp
+    if not sp.configurado() or time.time() - _ult_ficha[0] < FICHA_MIN * 60:
+        return
+    _ult_ficha[0] = time.time()
+    try:
+        sincronizar_ficha()
+        ESTADO_FICHA.update(ultima=datetime.now().isoformat(timespec='seconds'), erro=None)
+    except Exception as e:  # noqa: BLE001
+        db.session.rollback()
+        ESTADO_FICHA.update(erro=str(e)[:300])
+
+
 def verificar_fontes() -> None:
     """A base de voltas/RPM vem do SharePoint (automatico, a cada PRODUCAODIARIA_MIN min). Se o SharePoint nao responder, usa a planilha da pasta do projeto."""
     from app.indicadores import sharepoint as sp
+    verificar_ficha()
     if sp.configurado() and time.time() - _ult_sp[0] >= SP_MIN * 60:
         _ult_sp[0] = time.time()
         try:
@@ -202,7 +269,11 @@ def _indices():
             por_op[(r.op, r.maquina)] = r
         por_maq_art[(r.maquina, r.artigo)] = r
         por_art[r.artigo] = r
-    return por_op, por_maq_art, por_art
+    ficha = {}
+    for f in FichaArtigo.query.all():
+        ficha[f.artigo] = f
+        ficha.setdefault(f.base, f)
+    return por_op, por_maq_art, por_art, ficha
 
 
 def _codigo(artigo) -> str:
@@ -267,15 +338,28 @@ def previsao_raport(cfg, maquina: int, s, idx_art):
     return metros * 100 / raport, rpm * 0.85, raport
 
 
+class _RefFicha:
+    """Voltas e RPM da ficha tecnica (basedeficha), no mesmo formato de ProducaoRef."""
+    def __init__(self, f):
+        self.voltas, self.rpm, self.metros_peca, self.op, self.data, self.status = f.voltas, f.rpm, None, None, f.data, f.status
+
+
 def referencia(idx, maquina: int, op, artigo):
-    por_op, por_maq_art, por_art = idx
+    por_op, por_maq_art, por_art, ficha = idx
     art = _codigo(artigo)
+    if os.getenv('VOLTAS_RPM_FONTE', 'ficha') == 'ficha':              # padrao: o registro mais recente do artigo na ficha (basedeficha) manda
+        f = ficha.get(art.upper()) or ficha.get(art.upper().split('-')[0])
+        if f:
+            return _RefFicha(f), 'ficha'
     if op and (str(op), maquina) in por_op:
         return por_op[(str(op), maquina)], 'OP'
     if (maquina, art) in por_maq_art:
         return por_maq_art[(maquina, art)], 'maquina+artigo'
     if art in por_art:
         return por_art[art], 'artigo'
+    f = ficha.get(art.upper()) or ficha.get(art.upper().split('-')[0])
+    if f:
+        return _RefFicha(f), 'ficha'
     return None, None
 
 
