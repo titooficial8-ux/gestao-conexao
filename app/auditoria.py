@@ -63,10 +63,7 @@ def iniciar():
     sessao = AuditoriaSessao(maquina=maquina, mecanico=mecanico, iniciado_por=_usuario())
     db.session.add(sessao)
     db.session.flush()
-    from app.models import Machine
-    m = Machine.query.filter_by(number=maquina).first_or_404()
-    for s in Sequencia.query.filter_by(machine_id=m.id).all():      # auditoria nova: todas voltam para vermelho
-        s.aud_ok, s.aud_em = False, None
+    # as engrenagens ja verificadas continuam verdes: iniciar a auditoria NAO zera nada
     _log(sessao, 'INICIO', maquina)
     db.session.commit()
     return jsonify(ok=True, sessao=sessao.id)
