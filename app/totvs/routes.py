@@ -1633,3 +1633,38 @@ def pedido_detalhe():
     except Exception as e:  # noqa: BLE001
         saida['notas_do_pedido'] = str(e)[:200]
     return _json(saida)
+
+
+@pedidos_bp.route('/uso-operacao')
+@login_required
+def uso_operacao():
+    """So administrador: uso de uma operacao (?operacao=529) mes a mes nas transacoes dos ultimos ?meses=12 + as 5 mais recentes. Mostra se a remessa por conta e ordem ja funcionou e quando foi a ultima vez."""
+    if not current_user.is_admin:
+        abort(403)
+    from collections import Counter
+    from datetime import date, timedelta
+    from app.totvs import api, movimentos
+    op = int(request.args.get('operacao', 529))
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    hoje = date.today()
+    por_mes, recentes, erros = Counter(), [], []
+    for i in range(int(request.args.get('meses', 12))):
+        fim = hoje - timedelta(days=30 * i)
+        ini = fim - timedelta(days=30)
+        pg = 1
+        while pg <= 20:
+            r = cli.post(movimentos.TRX_URL, dict(branchCodeList=[movimentos.EMPRESA], operationCodeList=[op], startChangeDate=f'{ini.isoformat()}T00:00:00', endChangeDate=f'{fim.isoformat()}T23:59:59', page=pg, pageSize=500))
+            if r.status_code != 200:
+                erros.append(f'{ini}..{fim}: HTTP {r.status_code} {r.text[:120]}')
+                break
+            j = r.json()
+            for t in j.get('items') or []:
+                d = str(t.get('transactionDate') or t.get('changeDate') or '')[:10]
+                por_mes[d[:7]] += 1
+                recentes.append(t)
+            if not j.get('hasNext'):
+                break
+            pg += 1
+    recentes.sort(key=lambda t: str(t.get('transactionDate') or t.get('changeDate') or ''), reverse=True)
+    return _json(dict(operacao=op, total=sum(por_mes.values()), por_mes=dict(sorted(por_mes.items())), mais_recentes=recentes[:5], erros=erros[:5]))
