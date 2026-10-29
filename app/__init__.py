@@ -105,6 +105,8 @@ def create_app():
     app.register_blueprint(exp_bp)
     from app.auditoria import aud_bp
     app.register_blueprint(aud_bp)
+    from app.malharia_info import info_bp
+    app.register_blueprint(info_bp)
     from app.financeiro import fin_bp
     app.register_blueprint(fin_bp)
     from app.perfil import perfil_bp
