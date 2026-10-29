@@ -212,6 +212,28 @@ def _ocorrencias(artigo, maquina, num):
     return [dict(quando=e[0].strftime('%d/%m %H:%M'), tipo=e[1], texto=e[2]) for e in ev[:20]]
 
 
+@info_bp.route('/maquina/<int:numero>/alertas')
+@login_required
+def info_alertas_maquina(numero):
+    """Sequencias da maquina com ocorrencia de defeito/reprova (NC da revisao do cru da mesma OP ou do mesmo artigo na maquina nas ultimas 72 h, ou etapa de liberacao reprovada): o i delas pisca."""
+    _tab_ok()
+    maq = Machine.query.filter_by(number=numero).first_or_404()
+    m2 = f'{numero:02d}'
+    recente = datetime.now() - timedelta(hours=72)
+    ncs = [n for n in _ncs() if n['maquina'] == m2 and n['criado']]
+    lib = [x for x in _liberacoes() if _maq2(x.get('field_3')) == m2]
+    ids = []
+    for sq in maq.sequencias:
+        if sq.status in ('FINALIZADO', 'CANCELADO'):
+            continue
+        cod = (sq.artigo or '').split(' ')[0]
+        nc = any(n['artigo'] == cod and (n['op'] == str(sq.op) or n['criado'] >= recente) for n in ncs)
+        rep = any(str(x.get('field_4')) == str(sq.op) and 'reprov' in ' '.join(str(x.get(k) or '') for k in ('field_5', 'field_37', 'field_53')).lower() for x in lib)
+        if nc or rep:
+            ids.append(sq.id)
+    return jsonify(ids=ids)
+
+
 @info_bp.route('/maquina/<int:numero>')
 @login_required
 def info_maquina(numero):

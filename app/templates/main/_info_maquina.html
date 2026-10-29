@@ -1,5 +1,6 @@
 <style>
 .info-i{border:1.5px solid #2f7fe0;color:#2f7fe0;background:#fff;border-radius:50%;width:20px;height:20px;font:800 12px/1 Georgia,serif;cursor:pointer;padding:0;margin-left:4px;vertical-align:middle}
+.info-i.pisca{background:#dc2626;border-color:#dc2626;color:#fff;animation:infoPisca 1s infinite}@keyframes infoPisca{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.7);opacity:1}50%{box-shadow:0 0 0 6px rgba(220,38,38,0);opacity:.45}}
 .info-i:hover{background:#2f7fe0;color:#fff}
 #infoMaq{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:3500;display:none;align-items:flex-start;justify-content:center;padding:30px 12px;overflow:auto}
 #infoMaq.on{display:flex}
@@ -42,6 +43,15 @@
     h += '<h4>Últimas ocorrências (apontadas na revisão do cru · este artigo nesta máquina)</h4>' + (d.ocorrencias.length ? d.ocorrencias.map(function (o) { return '<div class="info-oc"><span class="info-tag ' + o.tipo + '">' + o.tipo + '</span><b>' + esc(o.quando) + '</b> · ' + esc(o.texto) + '</div>'; }).join('') : '<p class="info-vazio">Nenhum apontamento da revisão do cru para este artigo nesta máquina.</p>');
     corpo.innerHTML = h;
   }
+  var mq = document.querySelector('.info-i[data-maq]');
+  function piscar() {                      /* i vermelho piscando = a sequencia tem defeito/reprova apontado na revisao do cru */
+    if (!mq) return;
+    fetch('/info/maquina/' + mq.dataset.maq + '/alertas', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d) return;
+      document.querySelectorAll('.info-i[data-seq]').forEach(function (b) { b.classList.toggle('pisca', d.ids.indexOf(parseInt(b.dataset.seq, 10)) >= 0); });
+    }).catch(function () {});
+  }
+  piscar(); setInterval(piscar, 30000);
   document.addEventListener('click', function (ev) {
     var et = ev.target.closest('.info-step');
     if (et) {

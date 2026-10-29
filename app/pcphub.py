@@ -16,7 +16,7 @@ import requests
 
 URL = os.getenv('PCPHUB_URL', 'https://zygrpemxeyweeuowlhgx.supabase.co').rstrip('/')
 CHAVE = os.getenv('PCPHUB_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5Z3JwZW14ZXl3ZWV1b3dsaGd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NjcyOTQsImV4cCI6MjA5MTU0MzI5NH0.qAUo4isjHYZA8ons3770ETBH89FoTM5nssqpAn9L9bk')
-INTERVALO_MIN = max(1, int(os.getenv('PCPHUB_INTERVALO_MIN', '5')))
+INTERVALO_MIN = max(1, int(os.getenv('PCPHUB_INTERVALO_MIN', '2')))
 REGIAO = os.getenv('PCPHUB_REGIAO', 'BR')
 ESTADO = dict(rodando=False, ultima=None, erro=None, n=0, msg='')
 _trava = threading.Lock()
@@ -142,7 +142,19 @@ def aplicar(linhas: list, agora=None) -> dict:
         atuais[(s.machine_id, s.op or f'#{s.sequence_order}')] = s
     from app.models import PesagemResumo
     no_totvs = {r.op for r in PesagemResumo.query.filter(PesagemResumo.encontrada.is_(True), PesagemResumo.quantidade_op > 0)}   # OPs cuja quantidade o TOTVS ja informa
-    vistos, criadas, atualizadas, novas_seqs, prox_ordem = set(), 0, 0, [], {}
+    vistos, criadas, atualizadas, novas_seqs, prox_ordem, movidas = set(), 0, 0, [], {}, {}
+    presentes = set()                                   # (maquina, op) que o Hub trouxe: uma OP que sumiu de uma maquina e apareceu em outra foi MOVIDA
+    for r in linhas:
+        try:
+            mm = maquinas.get(int(str(r.get('machine')).strip()))
+        except (TypeError, ValueError):
+            mm = None
+        if mm and r.get('op'):
+            presentes.add((mm.id, str(r.get('op'))))
+    por_op = {}
+    for (mid, op), x in atuais.items():
+        if x.op and (mid, op) not in presentes:
+            por_op.setdefault(op, x)
     for r in linhas:
         try:
             numero = int(str(r.get('machine')).strip())
@@ -161,6 +173,16 @@ def aplicar(linhas: list, agora=None) -> dict:
                       production_month=r.get('production_month'), termino_malharia=_data(r.get('estimated_end_date')), estrutura=resolve_estrutura_from_article(r.get('article')),
                       region=r.get('region') or 'BR', synced_at=agora)
         s = atuais.get(chave)
+        if not s and r.get('op') and str(r.get('op')) in por_op:      # mudou de maquina no Hub: leva a mesma sequencia (mantem tudo do Gestao) em vez de apagar e recriar
+            s = por_op.pop(str(r.get('op')))
+            movidas[str(r.get('op'))] = (s, s.machine.number if s.machine else None)
+            vistos.add((s.machine_id, str(s.op)))
+            if m.id not in prox_ordem:
+                prox_ordem[m.id] = max([x.sequence_order or 0 for (mid, _), x in atuais.items() if mid == m.id] or [0])
+            prox_ordem[m.id] += 1
+            s.machine_id, s.sequence_order, s.aud_ok, s.aud_em = m.id, prox_ordem[m.id], False, None       # entra no fim da fila da nova maquina e precisa ser verificada la
+            s.termino_calculado, s.prev_termino_em = False, None
+            movidas[str(r.get('op'))] = (movidas[str(r.get('op'))][0], movidas[str(r.get('op'))][1], m.number)
         if s:
             if s.termino_calculado:                      # o termino vem da previsao por voltas/RPM, nao do PCP Hub
                 campos.pop('termino_malharia', None)
@@ -189,12 +211,14 @@ def aplicar(linhas: list, agora=None) -> dict:
                 saiu[str(s.op)] = (s, s.machine.number if s.machine else None)
                 db.session.delete(s)
                 removidas += 1
-        if saiu:                                        # OP que mudou de maquina durante uma auditoria vai para o log (origem -> destino)
+        if saiu or movidas:                             # OP que mudou de maquina durante uma auditoria vai para o log (origem -> destino)
             from app.auditoria import registrar_movimentacoes
             novas = {str(n.op): (n, num) for n, num in novas_seqs if n.op}
+            for op, (sq, de, para) in movidas.items():
+                saiu[op], novas[op] = (sq, de), (sq, para)
             registrar_movimentacoes(saiu, novas, {})
     db.session.commit()
-    return dict(criadas=criadas, atualizadas=atualizadas, removidas=removidas)
+    return dict(criadas=criadas, atualizadas=atualizadas, removidas=removidas, movidas=len(movidas))
 
 
 def importar_base_inicial() -> None:
