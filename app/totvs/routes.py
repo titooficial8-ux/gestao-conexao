@@ -1592,3 +1592,44 @@ def transacoes_lote():
             break
         pg += 1
     return _json(dict(consultadas=total, achadas=len(achadas), parou_por_tempo=_t.time() >= limite, ultima_pagina=pg, transacoes=achadas[:8], erros=erros))
+
+
+@pedidos_bp.route('/pedido-detalhe')
+@login_required
+def pedido_detalhe():
+    """So administrador: le o pedido de venda ?pedido=11651 inteiro (cabecalho + itens) e as transacoes/notas que citam o pedido, para conferir operacao, cliente, destinatario e quantidades."""
+    if not current_user.is_admin:
+        abort(403)
+    import json as _j
+    from datetime import date, timedelta
+    from app.totvs import api, entrada, movimentos
+    ped = int(request.args.get('pedido', 11651))
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    saida = dict(pedido=ped)
+    r = cli.post(entrada.ORDERS_URL, dict(filter=dict(branchCodeList=[entrada.EMPRESA], orderCodeList=[ped]), expand='items', pageSize=5, page=1))
+    achado = [o for o in (r.json().get('items') or []) if int(o.get('orderCode') or 0) == ped] if r.status_code == 200 else []
+    saida['via_orderCodeList'] = dict(http=r.status_code, achados=len(achado), erro=None if r.status_code == 200 else r.text[:200])
+    hoje = date.today()
+    if not achado:
+        for k in range(6):
+            fim = hoje - timedelta(days=60 * k)
+            ini = fim - timedelta(days=60)
+            for pg in range(1, 15):
+                r = cli.post(entrada.ORDERS_URL, dict(filter=dict(branchCodeList=[entrada.EMPRESA], startOrderDate=f'{ini}T00:00:00', endOrderDate=f'{fim}T23:59:59'), expand='items', pageSize=200, page=pg))
+                if r.status_code != 200:
+                    break
+                j = r.json()
+                achado += [o for o in (j.get('items') or []) if int(o.get('orderCode') or 0) == ped]
+                if achado or not j.get('hasNext'):
+                    break
+            if achado:
+                break
+    saida['pedido_dados'] = achado[:1]
+    try:
+        notas = api.buscar_notas(cli, hoje - timedelta(days=60), hoje, [1])
+        saida['notas_do_pedido'] = [dict(nota=n.get('invoiceCode'), data=str(n.get('invoiceDate'))[:10], operacao=n.get('operationCode'), tipo=n.get('operationType'), cliente=n.get('personName'), qtd=n.get('quantity'), status=n.get('invoiceStatus'))
+                                    for n in notas if any(int(s.get('orderCode') or 0) == ped for s in (n.get('salesOrder') or []))]
+    except Exception as e:  # noqa: BLE001
+        saida['notas_do_pedido'] = str(e)[:200]
+    return _json(saida)
