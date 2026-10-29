@@ -92,6 +92,14 @@ def _ncs() -> list:
                 peca=str(x.get('field_9') or ''), emitente=x.get('field_2') or '', origem=x.get('field_4') or '', setor=x.get('field_13') or '', turno=x.get('TURNO') or '',
                 metros=float(x.get('Metros2') or 0), quilos=float(x.get('Quilos2') or 0), cliente=x.get('field_8') or '', obs=x.get('field_49') or '',
                 defeitos=[f'{c} {DEFEITOS.get(c, "")}'.strip() for c in cods], criado=_utc_local(x.get('_criado') or x.get('Created'))))
+        try:                                                  # artigo digitado errado pelo revisor: vale o artigo da OP
+            real = info_das_ops([(n['op'], n['artigo'], n['cliente']) for n in saida if n['op']])
+            for n in saida:
+                v = real.get(n['op'])
+                if v and v['artigo'] and v['artigo'] != n['artigo']:
+                    n['artigo_digitado'], n['artigo'] = n['artigo'], v['artigo']
+        except Exception:  # noqa: BLE001
+            pass
         return saida
     return _cacheado('ncs', 20, ler)
 
@@ -115,59 +123,73 @@ def resolvidas() -> set:
     return {e.nc_id for e in NcEstado.query.filter_by(estado='LIBERADO').all()} | set(_hub_cientes())
 
 
-_CLI_OP = {}                                         # op -> (quando, cliente): o cliente de uma OP nao muda; guarda por 12 h
+_INFO_OP = {}                                        # op -> (quando, cliente, artigo): cliente e artigo de uma OP nao mudam; guarda por 12 h
 
 
-def clientes_das_ops(pares) -> dict:
-    """{op: cliente real}. O cliente digitado na NC (campo CLIENTE) pode estar errado; aqui vem da OP: Programacao/Pre-Programacao do Gestao, pedido ligado a OP e, se a OP ja saiu
-    da programacao, direto do TOTVS (customerName da OP). OP avulsa da Conexao: o cliente do pedido em aberto do artigo. `pares` = [(op, artigo, informado)]."""
+def info_das_ops(pares) -> dict:
+    """{op: {'cliente', 'artigo'}} REAIS. O cliente e o artigo digitados na NC pelo revisor podem estar errados (ex.: 35400018 em vez de 3540018): aqui vem da OP -
+    Programacao/Pre-Programacao do Gestao, pedido ligado a OP e, se a OP ja saiu da programacao, direto do TOTVS (cliente e produto da OP).
+    OP avulsa da Conexao: o cliente e o do pedido em aberto do artigo. `pares` = [(op, artigo_digitado, cliente_digitado)]."""
     from app.main.routes import _cliente_pelo_artigo, normalize_client_name
     from app.models import FilaPreProgramacao, PedidoRelatorio
     agora = time.time()
-    out, faltam = {}, []
+    out, faltam, nomes, arts = {}, [], {}, {}
     for op, artigo, informado in pares:
         op = str(op or '')
-        if not op:
+        if not op or op in out:
             continue
-        v = _CLI_OP.get(op)
+        v = _INFO_OP.get(op)
         if v and agora - v[0] < 43200:
-            out[op] = v[1]
+            out[op] = dict(cliente=v[1], artigo=v[2])
             continue
-        nome = None
+        cli_op = art_op = None
         sq = Sequencia.query.filter_by(op=op).first()
-        if sq and sq.cliente:
-            nome = sq.cliente
-        if not nome:
+        if sq:
+            cli_op, art_op = sq.cliente, (sq.artigo or '').split(' ')[0] or None
+        if not cli_op or not art_op:
             p = PedidoRelatorio.query.filter_by(nr_op=op).first()
-            nome = p.nome_cliente if p else None
-        if not nome:
+            if p:
+                cli_op, art_op = cli_op or p.nome_cliente, art_op or p.cod_produto
+        if not cli_op or not art_op:
             f = FilaPreProgramacao.query.filter_by(op=op).first()
-            nome = f.cliente if f else None
-        if nome:
-            out[op] = nome
-        else:
+            if f:
+                cli_op, art_op = cli_op or f.cliente, art_op or (f.artigo or '').split(' ')[0]
+        nomes[op], arts[op] = cli_op, art_op
+        if not (cli_op and art_op):
             faltam.append(op)
+        out[op] = None
     if faltam:
         try:
             from app.totvs import api, artigos
             cli = api.TotvsModaClient()
             cli.autenticar()
+            achadas = []
             for lote in [faltam[i:i + 50] for i in range(0, len(faltam), 50)]:
-                for o in artigos._ops(cli, [int(x) for x in lote if x.isdigit()]):
-                    if o.get('customerName'):
-                        out[str(o.get('orderCode'))] = o['customerName']
+                achadas += artigos._ops(cli, [int(x) for x in lote if x.isdigit()])
+            cods = artigos.codigos_de_artigo(cli, [(o.get('items') or [{}])[0].get('productCode') for o in achadas])
+            for o in achadas:
+                op = str(o.get('orderCode'))
+                it = (o.get('items') or [{}])[0]
+                nomes[op] = nomes.get(op) or o.get('customerName')
+                arts[op] = arts.get(op) or cods.get(str(it.get('productCode')))
         except Exception:  # noqa: BLE001
             pass
-    art = {str(op): (a, inf) for op, a, inf in pares if op}
-    for op, (a, inf) in art.items():
-        nome = out.get(op)
+    dig = {str(op): (a, inf) for op, a, inf in pares if op}
+    for op, (a, inf) in dig.items():
+        if out.get(op):
+            continue
+        nome, art = nomes.get(op), arts.get(op)
         if nome and 'CONEXAO MALHAS' in nome.upper():             # OP avulsa: o cliente de verdade vem do artigo
-            nome = _cliente_pelo_artigo(a) or nome
-        nome = normalize_client_name(nome) if nome else None
-        if nome:
-            _CLI_OP[op] = (agora, nome)
-        out[op] = nome or inf or ''
+            nome = _cliente_pelo_artigo(art or a) or nome
+        nome = normalize_client_name(nome.strip()) if nome else None
+        if nome and art:
+            _INFO_OP[op] = (agora, nome, art)
+        out[op] = dict(cliente=nome or inf or '', artigo=art or a or '')
     return out
+
+
+def clientes_das_ops(pares) -> dict:
+    return {op: v['cliente'] for op, v in info_das_ops(pares).items() if v}
 
 
 def pode_liberar(u=None) -> bool:
