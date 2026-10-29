@@ -30,7 +30,7 @@
       el.className = 'on tem' + (fechado ? ' fechado' : '');
       el.innerHTML = '<div class="ad-t"><span class="ad-seta">▼</span>🔔 PEÇA APRESENTANDO DEFEITO · LÍDER DO TURNO · ' + d.itens.length + (d.itens.length > 1 ? ' pendentes' : ' pendente') + '</div><div class="ad-corpo">' + d.itens.map(function (n) {
         return '<div class="ad-i"><div><b>MQ ' + esc(n.maquina) + '</b> · OP ' + esc(n.op || '–') + ' · peça ' + esc(n.peca) + ' · artigo ' + esc(n.artigo) + (n.parcial ? ' · <span class="ad-m">PARCIAL</span>' : '') + (n.metros_cru != null ? ' · ' + n.metros_cru + ' m no cru' : '') + ' · <b>' + n.metros + ' m</b> reprovados' + (n.metros_passou != null ? ' · passou ' + n.metros_passou + ' m' : '') +
-          '<small>' + esc(n.defeitos.join(' · ')) + ' · ' + esc(n.origem) + ' · ' + esc(n.emitente) + ' · ' + esc(n.criado) + (n.obs ? ' · ' + esc(n.obs) : '') + '</small></div>' +
+          (n.invalida ? '<small style="color:#b91c1c;font-weight:800">⚠ Peça ' + esc(n.peca) + ' NÃO existe: a OP tem só ' + n.total_pecas + ' peças. Não liberar sem conferir.</small>' : '') + '<small>' + esc(n.defeitos.join(' · ')) + ' · ' + esc(n.origem) + ' · ' + esc(n.emitente) + ' · ' + esc(n.criado) + (n.obs ? ' · ' + esc(n.obs) : '') + '</small></div>' +
           '<div class="ad-bt"><span class="ad-est ' + n.estado + '">' + (n.estado === 'ANALISANDO' ? 'ANALISANDO · ' + esc(n.por || '') + ' ' + esc(n.em || '') : 'AGUARDANDO LÍDER') + '</span>' +
           (d.pode ? '<button data-id="' + esc(n.id) + '" data-e="ANALISANDO">ANALISANDO</button><button class="lib" data-id="' + esc(n.id) + '" data-e="LIBERADO">LIBERADO</button>' : '') + '</div></div>';
       }).join('') + '</div>';

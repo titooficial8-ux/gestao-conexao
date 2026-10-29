@@ -98,7 +98,7 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
     });
     h += secao('RL', 'RL.PRODUÇÃO · apontamentos do revisor cru (este artigo nesta máquina)', rls, 'Nenhum apontamento de RL.PRODUÇÃO para este artigo nesta máquina.', function (o) {
       return '<div class="info-oc"><span class="info-tag RL">RL</span><b>' + esc(o.quando) + '</b> · artigo <b>' + esc(o.artigo) + '</b> · OP <b>' + esc(o.op) + '</b> · peça ' + esc(o.peca) +
-        '<br><small style="color:#64748b">' + esc(o.defeitos) + ' · ' + o.metros + ' m reprovados · revisor ' + esc(o.emitente) + (o.obs ? ' · ' + esc(o.obs) : '') + (o.resolvida ? ' · ✔' : '') + '</small></div>';
+        (o.invalida ? '<br><small style="color:#b91c1c;font-weight:800">⚠ peça inexistente: a OP tem só ' + o.total_pecas + ' peças</small>' : '') + '<br><small style="color:#64748b">' + esc(o.defeitos) + ' · ' + o.metros + ' m reprovados · revisor ' + esc(o.emitente) + (o.obs ? ' · ' + esc(o.obs) : '') + (o.resolvida ? ' · ✔' : '') + '</small></div>';
     });
     corpo.innerHTML = h;
   }

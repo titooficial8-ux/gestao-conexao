@@ -134,3 +134,17 @@ def rl_producao(maquina: int, de: str) -> dict:
     def ler():
         return [_rl_item(x) for x in _lista(chamar('/rlproducao', {'maquina': maquina, 'de': de}))]
     return _cached(f'rl_{maquina}_{de}', 30, ler)
+
+
+def avisar_lider(mensagem: str, maquina=None, ref_id: str = None, titulo: str = 'Conferir peça', prioridade: str = 'alta') -> bool:
+    """POST /notificacoes: o PCP avisa o lider no painel dele (so escreve essa notificacao; o resto da API e leitura)."""
+    corpo = dict(mensagem=mensagem, titulo=titulo, prioridade=prioridade)
+    if maquina:
+        try:
+            corpo['maquina'] = int(maquina)
+        except (TypeError, ValueError):
+            pass
+    if ref_id:
+        corpo['refId'] = ref_id
+    r = requests.post(f'{_url()}/notificacoes', json=corpo, headers={'Accept': 'application/json', 'Authorization': f'Bearer {_token()}'}, timeout=(5, 20))
+    return r.status_code in (200, 201)
