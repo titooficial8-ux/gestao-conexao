@@ -1193,7 +1193,9 @@ def view_tab(slug):
             {
                 'item': item,
                 'estrutura': (estrutura := estrutura_curta(resolve_estrutura_from_article(item.artigo))),
-                'dt_prevfaturamento': resolve_dt_cliente_from_pedidos(item.op, item.artigo),
+                'dt_prevfaturamento': _fila_dt_prev(item),
+                'avulsa': normalize_client_name(item.cliente or '') in ('CONEXAO MALHAS E DESENVOLVIMENTO LTDA', 'CONEXAO') or 'CONEXAO MALHAS' in (item.cliente or '').upper() or bool(item.is_avulsa),
+                'ortobom': normalize_client_name(item.cliente or '') == 'ORTOBOM',
                 'sugeridas': maquinas_por_estrutura.get(estrutura, [])[:6],
             }
             for item in FilaPreProgramacao.query.filter_by(status='WAITING')
@@ -1771,6 +1773,47 @@ def programacao_dias_sem_producao_recalcular():
     return redirect(url_for('main.view_tab', slug='programacao'))
 
 
+def _parse_dt_texto(txt):
+    """'dd/mm[/aaaa]' vira data; qualquer outro texto (ate 10 caracteres) fica como descricao. Devolve (data, texto)."""
+    m = re.fullmatch(r'(\d{1,2})/(\d{1,2})(?:/(\d{2}|\d{4}))?', txt)
+    if not m:
+        return None, txt
+    ano = int(m.group(3)) if m.group(3) else date.today().year
+    ano += 2000 if ano < 100 else 0
+    return date(ano, int(m.group(2)), int(m.group(1))), None
+
+
+def _fila_dt_prev(item):
+    """DT.PREV.FAT do item da Pre-Programacao: o que o PCP digitou; senao a menor Prev. Faturamento do pedido ligado a OP; senao dos pedidos em aberto do mesmo cliente+artigo."""
+    if item.dt_prevfaturamento:
+        return item.dt_prevfaturamento
+    d = resolve_dt_cliente_from_pedidos(item.op, item.artigo)
+    if not d and item.artigo:
+        cod = item.artigo.split()[0]
+        cli = normalize_client_name(item.cliente or '')
+        datas = [p.dt_prevfaturamento for p in PedidoRelatorio.query.filter(PedidoRelatorio.cod_produto == cod, PedidoRelatorio.qt_pendente > 0).all()
+                 if p.dt_prevfaturamento and normalize_client_name(p.nome_cliente or '') == cli]
+        d = min(datas) if datas else None
+    return d.strftime('%d/%m/%Y') if d else None
+
+
+@main_bp.route('/aba/pre-programacao/<int:item_id>/dt-prev', methods=['POST'])
+@login_required
+def pre_programacao_dt(item_id):
+    item = FilaPreProgramacao.query.get_or_404(item_id)
+    txt = re.sub(r'\s+', ' ', str((request.get_json(silent=True) or {}).get('texto') or '')).strip()
+    if len(txt) > 10:
+        return jsonify(erro='Use no máximo 10 caracteres.'), 400
+    if txt:
+        try:
+            _parse_dt_texto(txt)
+        except ValueError:
+            return jsonify(erro='Data inválida.'), 400
+    item.dt_prevfaturamento = txt or None
+    db.session.commit()
+    return jsonify(ok=True, exibe=txt or 'A DEFINIR')
+
+
 @main_bp.route('/aba/pre-programacao/mover', methods=['POST'])
 @login_required
 def mover_pre_programacao():
@@ -1789,7 +1832,9 @@ def mover_pre_programacao():
         return redirect(url_for('main.view_tab', slug='pre-programacao', aba='analisar'))
     estrutura = resolve_estrutura_from_article(item.artigo)
     cliente = normalize_client_name(item.cliente)
-    dt_cliente = resolve_dt_cliente_from_pedidos(item.op, item.artigo)
+    manual = (item.dt_prevfaturamento or '').strip()
+    dt_man, txt_man = _parse_dt_texto(manual) if manual else (None, None)
+    dt_cliente = dt_man or resolve_dt_cliente_from_pedidos(item.op, item.artigo)
     is_ortobom = cliente == 'ORTOBOM'
 
     proxima_ordem = db.session.query(db.func.coalesce(db.func.max(Sequencia.sequence_order), 0)).filter_by(
@@ -1808,8 +1853,9 @@ def mover_pre_programacao():
         qt_solicitada=item.requested_quantity or 0,
         qt_avulsa=0,
         cod_segmento=item.cod_segmento or resolve_cod_segmento_from_article(item.artigo),
-        dt_cliente=None if is_ortobom else dt_cliente,
-        production_month=item.production_month if is_ortobom else None,
+        dt_cliente=dt_man if manual else (None if is_ortobom else dt_cliente),
+        production_month=txt_man if manual else (item.production_month if is_ortobom else None),
+        dt_cliente_manual=bool(manual),
         estrutura=estrutura,
         region='BR',
     ))

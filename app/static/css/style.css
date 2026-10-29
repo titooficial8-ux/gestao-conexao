@@ -1770,14 +1770,15 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .presel-panel {
-  background: linear-gradient(160deg, #0b0f19, #1a1f2e);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: var(--radius);
   padding: 22px;
-  color: #e5e7eb;
+  color: #1e293b;
 }
 .presel-panel-head { margin-bottom: 14px; }
-.presel-panel-title { font-size: 17px; font-weight: 700; color: #fff; margin: 0 0 4px 0; }
-.presel-panel-sub { font-size: 12.5px; color: #9ca3af; margin: 0; }
+.presel-panel-title { font-size: 17px; font-weight: 700; color: #0f172a; margin: 0 0 4px 0; }
+.presel-panel-sub { font-size: 12.5px; color: #64748b; margin: 0; }
 .presel-grid-label { font-size: 11px; letter-spacing: 0.05em; color: #9ca3af; font-weight: 700; margin: 10px 0 8px 0; }
 
 .presel-machine-grid { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1799,9 +1800,9 @@ button { font-family: inherit; cursor: pointer; }
 .presel-est-NOVA { background: #7c3aed; color: #fff; border-color: transparent; }
 .presel-est-COMFORT { background: #059669; color: #fff; border-color: transparent; }
 
-.presel-panel .data-table th { color: #9ca3af; border-bottom-color: rgba(255,255,255,0.1); }
-.presel-panel .data-table td { color: #e5e7eb; border-bottom-color: rgba(255,255,255,0.08); }
-.presel-panel .prod-table-empty { color: #9ca3af; }
+.presel-panel .data-table th { color: #64748b; border-bottom-color: #e2e8f0; }
+.presel-panel .data-table td { color: #1e293b; border-bottom-color: #e2e8f0; }
+.presel-panel .prod-table-empty { color: #64748b; }
 
 .presel-est-badge {
   display: inline-block;
@@ -1817,9 +1818,9 @@ button { font-family: inherit; cursor: pointer; }
   width: 56px;
   padding: 6px 8px;
   border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.2);
-  background: rgba(255,255,255,0.06);
-  color: #fff;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
   font-size: 12.5px;
 }
 .presel-delete-btn {
@@ -1834,18 +1835,23 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ===== Pre-Selecao: sugestoes de maquina ===== */
 .presel-sugeridas { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
-.presel-sugeridas-label { font-size: 10px; color: #9ca3af; font-weight: 700; letter-spacing: 0.04em; }
+.presel-sugeridas-label { font-size: 10px; color: #64748b; font-weight: 700; letter-spacing: 0.04em; }
 .presel-sugerida-chip {
-  background: rgba(59,130,246,0.15);
-  border: 1px solid rgba(59,130,246,0.35);
-  color: #93c5fd;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  color: #1d4ed8;
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 999px;
   cursor: pointer;
 }
-.presel-sugerida-chip:hover { background: rgba(59,130,246,0.28); }
+.presel-sugerida-chip:hover { background: #bfdbfe; }
+.presel-avulsa { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 800; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; white-space: nowrap; }
+.presel-dt-input { width: 110px; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #0f172a; font-size: 12.5px; font-weight: 600; }
+.presel-dt-input::placeholder { color: #b45309; font-weight: 800; }
+.presel-dt-input:focus { outline: 2px solid #bfdbfe; border-color: #2f7fe0; }
+.presel-dt-ok { background: #dcfce7; border-color: #22c55e; }
 
 /* ===== Gestao Comercial (modelo de indicadores) ===== */
 .comercial-btn-integracao {

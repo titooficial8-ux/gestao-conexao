@@ -22,16 +22,7 @@
     <p class="presel-panel-sub">{{ t('analisar_sequencia_subtitulo') }}</p>
   </div>
 
-  <p class="presel-grid-label">{{ t('estrutura_atual_maquinas') }}</p>
-  <div class="presel-machine-grid">
-    {% for m in estrutura_por_maquina %}
-    <span class="presel-machine-chip {{ 'presel-est-' + (m.estrutura|upper|replace('ESTRUTURA ', '')|replace(' ', '')) if m.estrutura else 'presel-est-none' }}">
-      M{{ '%02d' % m.maquina }} &middot; {{ m.estrutura or t('sem_estrutura_ativa') }}
-    </span>
-    {% endfor %}
-  </div>
-
-  <div class="table-scroll" style="margin-top:18px;">
+  <div class="table-scroll" style="margin-top:6px;">
     <table class="data-table prod-table">
       <thead>
         <tr>
@@ -59,8 +50,8 @@
             <span class="presel-est-badge presel-est-none">{{ t('estrutura_nao_cadastrada') }}</span>
             {% endif %}
           </td>
-          <td>{{ row.item.cliente or '–' }}</td>
-          <td>{{ row.dt_prevfaturamento.strftime('%d/%m/%Y') if row.dt_prevfaturamento else '–' }}</td>
+          <td>{{ row.item.cliente or '–' }}{% if row.avulsa %} <span class="presel-avulsa" title="OP criada pela Conexão (PCPFM156), sem pedido de venda">OP AVULSA</span>{% endif %}</td>
+          <td>{% if row.ortobom or row.avulsa %}<input type="text" maxlength="10" class="presel-dt-input js-dt-prev" data-id="{{ row.item.id }}" value="{{ row.dt_prevfaturamento or '' }}" placeholder="A DEFINIR" title="Editável (até 10 caracteres; Enter salva)">{% else %}{{ row.dt_prevfaturamento or '–' }}{% endif %}</td>
           <td>{{ row.item.requested_quantity | int }}</td>
           <td>{{ row.item.total_pcs }}</td>
           <td>{{ (row.item.created_at|local).strftime('%d/%m/%Y, %H:%M:%S') if row.item.created_at else '–' }}</td>
@@ -96,6 +87,17 @@
 
 <script>
 (function () {
+  document.querySelectorAll('.js-dt-prev').forEach(function (inp) {
+    var antes = inp.value;
+    function salvar() {
+      if (inp.value === antes) return;
+      fetch('/aba/pre-programacao/' + inp.dataset.id + '/dt-prev', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({texto: inp.value})})
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j.erro) { alert(j.erro); inp.value = antes; } else { antes = inp.value; inp.classList.add('presel-dt-ok'); setTimeout(function () { inp.classList.remove('presel-dt-ok'); }, 900); } });
+    }
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); salvar(); inp.blur(); } });
+    inp.addEventListener('blur', salvar);
+  });
   document.querySelectorAll('.presel-sugerida-chip').forEach(function (chip) {
     chip.addEventListener('click', function () {
       var input = chip.closest('td').querySelector('.js-input-maquina');
