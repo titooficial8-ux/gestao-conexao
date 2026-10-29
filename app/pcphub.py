@@ -26,11 +26,19 @@ def configurado() -> bool:
     return bool(os.getenv('PCPHUB_EMAIL') and os.getenv('PCPHUB_PASSWORD'))
 
 
+_TOKEN = dict(v=None, ate=0.0)
+
+
 def _login() -> str:
+    """Token do Hub reaproveitado por ~50 min (antes cada leitura fazia um login novo)."""
+    if _TOKEN['v'] and time.time() < _TOKEN['ate']:
+        return _TOKEN['v']
     r = requests.post(f'{URL}/auth/v1/token?grant_type=password', json=dict(email=os.environ['PCPHUB_EMAIL'], password=os.environ['PCPHUB_PASSWORD']), headers=dict(apikey=CHAVE), timeout=30)
     if r.status_code != 200:
         raise RuntimeError(f'Login no PCP Hub recusado (HTTP {r.status_code}): {r.text[:160]}')
-    return r.json()['access_token']
+    j = r.json()
+    _TOKEN.update(v=j['access_token'], ate=time.time() + min(int(j.get('expires_in') or 3600), 3600) - 300)
+    return _TOKEN['v']
 
 
 def buscar_linhas() -> list:
@@ -265,8 +273,17 @@ def atualizar(app) -> bool:
         linhas = buscar_linhas()
         with app.app_context():
             res = aplicar(linhas)
-            importar_base_inicial()
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), n=len(linhas), msg=f'{len(linhas)} sequências · {res["criadas"]} novas, {res["removidas"]} removidas')
+        if not ESTADO.get('base_inicial_ok'):                      # importacoes de uma vez so (dias sem producao, impedimentos, paises, historicos) em segundo plano: nao seguram a programacao
+            ESTADO['base_inicial_ok'] = True
+
+            def base():
+                try:
+                    with app.app_context():
+                        importar_base_inicial()
+                except Exception:  # noqa: BLE001
+                    traceback.print_exc()
+            threading.Thread(target=base, daemon=True, name='pcp-hub-base-inicial').start()
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         ESTADO.update(erro=str(e)[:300], msg='Falha ao ler o PCP Hub — mantive a programação anterior')
@@ -282,7 +299,7 @@ def iniciar_agendador(app) -> None:
         return
 
     def loop():
-        time.sleep(20)
+        time.sleep(3)
         while True:
             try:
                 atualizar(app)

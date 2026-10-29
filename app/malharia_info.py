@@ -148,7 +148,7 @@ def alertas():
         e = estados.get(n['id'])
         if n['id'] in resolv:
             continue
-        itens.append(dict(n, criado=n['criado'].strftime('%d/%m %H:%M'), estado=e.estado if e else 'AGUARDANDO', por=e.por_nome if e else None, em=(e.em - timedelta(hours=3)).strftime('%d/%m, %H:%M') if e and e.em else None,
+        itens.append(dict(n, origem=_origem(n['origem']), criado=n['criado'].strftime('%d/%m %H:%M'), estado=e.estado if e else 'AGUARDANDO', por=e.por_nome if e else None, em=(e.em - timedelta(hours=3)).strftime('%d/%m, %H:%M') if e and e.em else None,
                           ordem=n['criado'].isoformat()))
     itens.sort(key=lambda x: x['ordem'], reverse=True)
     return jsonify(itens=itens, pode=pode_liberar(), erro=_erro('ncs'))
@@ -223,14 +223,23 @@ def _etapas(artigo, op, maquina):
     return resumo, etapas
 
 
+def _origem(o):
+    """Auditoria Interna = a peca reprovou no cru."""
+    return 'Auditoria Interna (Reprova Cru)' if 'auditoria interna' in str(o or '').lower() else (o or '')
+
+
 def _ocorrencias(artigo, maquina, num):
     """Ultimas ocorrencias SO deste artigo nesta maquina e SO as apontadas na revisao do cru (NC da lista ncform)."""
+    from app.models import PedidoRelatorio
     cod = (artigo or '').split(' ')[0]
     resolv = resolvidas()
-    ev = [(n['criado'], 'NC', ('✔ resolvida · ' if n['id'] in resolv else '') + f"OP {n['op'] or '–'} · peça {n['peca']} · {', '.join(n['defeitos'])} · {n['metros']:g} m · {n['origem']}" + (f" · {n['emitente']}" if n['emitente'] else '') + (f" · {n['obs']}" if n['obs'] else ''))
-          for n in _ncs() if n['artigo'] == cod and n['maquina'] == maquina and n['criado']]
-    ev.sort(key=lambda e: e[0], reverse=True)
-    return [dict(quando=e[0].strftime('%d/%m %H:%M'), tipo=e[1], texto=e[2], aberta=not e[2].startswith('✔')) for e in ev[:20]]
+    recente = datetime.now() - timedelta(hours=72)
+    lista = [n for n in _ncs() if n['artigo'] == cod and n['maquina'] == maquina and n['criado']]
+    com_pedido = {str(p.nr_op) for p in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.in_([n['op'] for n in lista if n['op']])).all()} if lista else set()
+    lista.sort(key=lambda n: n['criado'], reverse=True)
+    return [dict(quando=n['criado'].strftime('%d/%m %H:%M'), tipo='NC', resolvida=n['id'] in resolv, aberta=(n['id'] not in resolv and n['criado'] >= recente), artigo=n['artigo'], op=n['op'] or '–',
+                 cliente=n['cliente'] or '–', avulsa=bool(n['op']) and n['op'] not in com_pedido, peca=n['peca'], defeitos=', '.join(n['defeitos']), metros=n['metros'], origem=_origem(n['origem']),
+                 emitente=n['emitente'], obs=n['obs']) for n in lista[:40]]
 
 
 @info_bp.route('/maquina/<int:numero>/alertas')
