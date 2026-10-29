@@ -138,6 +138,19 @@ def _tab_ok():
 @login_required
 def alertas():
     _tab_ok()
+    from app import acompanhamento
+    if acompanhamento.configurado():            # o lider marca ANALISANDO/LIBERADO no sistema do Acompanhamento; aqui o PCP so acompanha
+        pend = acompanhamento.liberacoes('pendente')
+        if not pend['erro'] or pend['itens']:
+            hoje = (datetime.now() - timedelta(hours=6, minutes=20)).strftime('%Y-%m-%d')
+            lib = acompanhamento.liberacoes('liberado', hoje)
+
+            def j(x):
+                return dict(id=x['id'], maquina=x['maquina'], op=x['op'] or '–', peca=x['peca'], artigo=x['artigo'], metros=x['metros_reprovados'], metros_cru=x['metros_reais'], metros_passou=x['metros_passou'], parcial=x['status'] == 'PARCIAL',
+                            defeitos=x['defeitos'], origem='REVISÃO CRU', emitente=x['revisor'], criado=x['pedido_em'] or x['quando'], turno=x['turno'], obs='',
+                            estado=('ANALISANDO' if x['lib_status'] == 'ANALISANDO' else ('LIBERADO' if x['lib_status'] in ('LIBERADO', 'APROVADA') else 'AGUARDANDO')),
+                            por=x['analisando_por'] or x['liberado_por'], em=x['analisando_em'] or x['liberado_em'])
+            return jsonify(itens=[j(x) for x in pend['itens']], liberados=[j(x) for x in lib['itens']], pode=False, fonte='acompanhamento', erro=pend['erro'])
     limite = datetime.utcnow() - timedelta(hours=ALERTA_HORAS + 3)
     estados = {e.nc_id: e for e in NcEstado.query.all()}
     resolv = resolvidas()
@@ -228,6 +241,22 @@ def _origem(o):
     return 'Auditoria Interna (Reprova Cru)' if 'auditoria interna' in str(o or '').lower() else (o or '')
 
 
+def _rl_ocorrencias(cod, maquina, num):
+    """RL.PRODUCAO: pecas que o revisor do cru avaliou com defeito (ou reprovou) neste artigo nesta maquina (API do Acompanhamento), ultimos 30 dias."""
+    from app import acompanhamento
+    if not acompanhamento.configurado():
+        return []
+    de = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    out = []
+    for x in acompanhamento.rl_producao(num, de)['itens']:
+        if x['artigo'].split(' ')[0] != cod or not x['em'] or not (x['defeitos'] or x['resultado'] == 'REPROVADA' or (x['metros_reprovados'] or 0) > 0):
+            continue
+        out.append(dict(quando=x['quando'], tipo='RL', resolvida=x['lib_status'] in ('LIBERADO', 'APROVADA'), aberta=x['lib_status'] in ('PENDENTE', 'ANALISANDO'), artigo=x['artigo'], op=x['op'] or '–', cliente='', avulsa=None,
+                        peca=x['peca'], defeitos=', '.join(x['defeitos']) or x['resultado'], metros=x['metros_reprovados'] or 0, origem='RL.PRODUÇÃO · revisão cru', emitente=x['revisor'], obs=(f"líder: {x['lib_status'].title()}" if x['lib_status'] else ''),
+                        ordem=x['em'].isoformat()))
+    return out
+
+
 def _ocorrencias(artigo, maquina, num):
     """Ultimas ocorrencias SO deste artigo nesta maquina e SO as apontadas na revisao do cru (NC da lista ncform)."""
     from app.models import PedidoRelatorio
@@ -237,9 +266,11 @@ def _ocorrencias(artigo, maquina, num):
     lista = [n for n in _ncs() if n['artigo'] == cod and n['maquina'] == maquina and n['criado']]
     com_pedido = {str(p.nr_op) for p in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.in_([n['op'] for n in lista if n['op']])).all()} if lista else set()
     lista.sort(key=lambda n: n['criado'], reverse=True)
-    return [dict(quando=n['criado'].strftime('%d/%m %H:%M'), tipo='NC', resolvida=n['id'] in resolv, aberta=(n['id'] not in resolv and n['criado'] >= recente), artigo=n['artigo'], op=n['op'] or '–',
+    rl = _rl_ocorrencias(cod, maquina, num)
+    nc = [dict(quando=n['criado'].strftime('%d/%m %H:%M'), tipo='NC', resolvida=n['id'] in resolv, aberta=(n['id'] not in resolv and n['criado'] >= recente), artigo=n['artigo'], op=n['op'] or '–',
                  cliente=n['cliente'] or '–', avulsa=bool(n['op']) and n['op'] not in com_pedido, peca=n['peca'], defeitos=', '.join(n['defeitos']), metros=n['metros'], origem=_origem(n['origem']),
-                 emitente=n['emitente'], obs=n['obs']) for n in lista[:40]]
+                 emitente=n['emitente'], obs=n['obs'], ordem=n['criado'].isoformat()) for n in lista[:40]]
+    return sorted(nc + rl, key=lambda o: o['ordem'], reverse=True)[:50]
 
 
 @info_bp.route('/maquina/<int:numero>/alertas')
@@ -250,16 +281,19 @@ def info_alertas_maquina(numero):
     maq = Machine.query.filter_by(number=numero).first_or_404()
     m2 = f'{numero:02d}'
     recente = datetime.now() - timedelta(hours=72)
+    from app import acompanhamento
+    api_ok = acompanhamento.configurado()
+    pend_api = [x for x in acompanhamento.liberacoes('pendente')['itens'] if x['maquina'] == m2] if api_ok else []
     resolv = resolvidas()
-    ncs = [n for n in _ncs() if n['maquina'] == m2 and n['criado'] and n['id'] not in resolv]      # NC ja resolvida (liberada aqui ou 'ciente' no Hub) nao conta mais
+    ncs = [n for n in _ncs() if n['maquina'] == m2 and n['criado'] and n['id'] not in resolv and not api_ok]      # NC ja resolvida (liberada aqui ou 'ciente' no Hub) nao conta mais
     ids, marca = [], []
     for sq in maq.sequencias:
         if sq.status in ('FINALIZADO', 'CANCELADO'):
             continue
         cod = (sq.artigo or '').split(' ')[0]
-        if any(n['artigo'] == cod and n['op'] == str(sq.op) for n in ncs):            # NC desta mesma OP: i piscando
+        if any(n['artigo'] == cod and n['op'] == str(sq.op) for n in ncs) or any(x['op'] == str(sq.op) for x in pend_api):            # NC/peca com defeito desta mesma OP ainda sem liberacao do lider: i piscando
             ids.append(sq.id)
-        elif any(n['artigo'] == cod and n['criado'] >= recente for n in ncs):          # mesmo artigo reprovado em outra OP nesta maquina: i vermelho fixo (so identifica)
+        elif any(n['artigo'] == cod and n['criado'] >= recente for n in ncs) or any(x['artigo'].split(' ')[0] == cod for x in pend_api):          # mesmo artigo reprovado em outra OP nesta maquina: i vermelho fixo (so identifica)
             marca.append(sq.id)
     return jsonify(ids=ids, marca=marca)
 

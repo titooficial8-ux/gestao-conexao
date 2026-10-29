@@ -85,3 +85,52 @@ def _normalizar(x: dict) -> dict:
     return dict(id=x.get('id'), maquina=str(maq).zfill(2) if str(maq or '').isdigit() and str(maq) != '0' else (str(maq) if maq else ''), tipo=str(x.get('tipo') or '').upper(), motivo=x.get('motivo') or '',
                 inicio=ini.strftime('%H:%M') if ini else '', dia=ini.strftime('%d/%m') if ini else '', minutos=mins, aberta_por=x.get('abertaPor') or '', status=x.get('status') or '',
                 turno=x.get('turnoInicio') or '', revisor=revisor, aguardando_peca=str(x.get('status') or '').upper() == 'AGUARDANDO_1A_PECA')
+
+
+def _hm(v):
+    d = _local(v)
+    return d.strftime('%d/%m, %H:%M') if d else ''
+
+
+def _rl_item(x: dict) -> dict:
+    """Peca avaliada pelo revisor (RL.PRODUCAO) no formato da tela. `liberacao` = o que o lider fez (pedido, analisando, liberado)."""
+    lib = x.get('liberacao') or {}
+    maq = x.get('maquina')
+    em = _local(x.get('em'))
+    return dict(id=x.get('id'), maquina=str(maq).zfill(2) if str(maq or '').isdigit() else str(maq or ''), op=str(x.get('op') or ''), artigo=str(x.get('artigo') or ''), peca=x.get('peca'),
+                resultado=str(x.get('resultado') or '').upper(), status=str(x.get('status') or '').upper(), em=em, quando=em.strftime('%d/%m %H:%M') if em else '', turno=x.get('turno'),
+                revisor=x.get('revisor') or '', setor=x.get('setor') or '', metros_reais=x.get('metrosReais'), metros_reprovados=x.get('metrosReprovados') or 0, metros_passou=x.get('metrosPassou'),
+                diferenca=x.get('diferenca'), padrao=x.get('metragemPadrao'),
+                defeitos=[f"{d.get('codigo', '')} {d.get('nome', '')}".strip() for d in (x.get('defeitos') or []) if isinstance(d, dict)],
+                lib_status=str(lib.get('status') or '').upper(), pedido_em=_hm(lib.get('pedidoEm')), analisando_em=_hm(lib.get('analisandoEm')), analisando_por=lib.get('analisandoPor') or '',
+                liberado_em=_hm(lib.get('liberadoEm')), liberado_por=lib.get('liberadoPor') or '')
+
+
+def _cached(chave, ttl, fn):
+    agora = time.time()
+    v = _cache.get(chave)
+    if v and agora - v['t'] < ttl:
+        return v['r']
+    try:
+        r = dict(itens=fn(), erro=None)
+    except Exception as e:  # noqa: BLE001
+        r = dict(itens=(v['r']['itens'] if v else []), erro=str(e)[:200])
+    _cache[chave] = dict(t=agora, r=r)
+    return r
+
+
+def liberacoes(status: str = 'pendente', de: str = None) -> dict:
+    """Pecas com defeito que chamaram o lider (PEÇA REGISTRADA): pendente (aguardando/analisando), liberado ou todas."""
+    def ler():
+        p = dict(status=status)
+        if de:
+            p['de'] = de
+        return [_rl_item(x) for x in _lista(chamar('/liberacoes', p))]
+    return _cached(f'lib_{status}_{de}', 15, ler)
+
+
+def rl_producao(maquina: int, de: str) -> dict:
+    """Pecas avaliadas pelo revisor na maquina desde `de` (AAAA-MM-DD)."""
+    def ler():
+        return [_rl_item(x) for x in _lista(chamar('/rlproducao', {'maquina': maquina, 'de': de}))]
+    return _cached(f'rl_{maquina}_{de}', 30, ler)
