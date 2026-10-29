@@ -398,7 +398,7 @@ def enviar_teste():
     from app.relatorio_fat import envio_email as envio
     try:
         destinos = envio.validar(request.values.get('para') or current_user.email)
-        enviar(dados(_dia_param()), destinos, teste=True)
+        enviar(dados(_dia_param()), destinos)
         return jsonify(ok=True, para=destinos)
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=str(e)[:300]), 500
