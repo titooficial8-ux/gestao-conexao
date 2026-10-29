@@ -1427,7 +1427,7 @@ def operacao_inativa():
 @login_required
 def investigar_comissao():
     """So administrador: investiga por que o faturamento do pedido (?pedido=11651) chama a operacao de comissao inativa (?operacao=1024, ?representante=63).
-    Mostra: (1) quando a operacao foi usada pela ultima vez (transacoes), (2) se o representante e o pedido guardam dados de comissao/operacao, (3) ultimas transacoes de comissao."""
+    Mostra: (1) quando a operacao foi usada pela ultima vez (transacoes, mes a mes), (2) se o representante e o pedido guardam dados de comissao/operacao, (3) ultimas transacoes de comissao."""
     if not current_user.is_admin:
         abort(403)
     import re
@@ -1439,12 +1439,12 @@ def investigar_comissao():
     cli = api.TotvsModaClient()
     cli.autenticar()
     saida = {}
-    # 1) uso da operacao ao longo do tempo (janelas de 90 dias, ate 2 anos)
+    # 1) uso da operacao ao longo do tempo (janelas de 30 dias, a API nao aceita mais de 31)
     uso = []
     hoje = date.today()
-    for i in range(8):
-        fim = hoje - timedelta(days=90 * i)
-        ini = fim - timedelta(days=90)
+    for i in range(int(request.args.get('meses', 24))):                # a API limita a janela a 31 dias: percorre mes a mes (padrao 24 meses)
+        fim = hoje - timedelta(days=30 * i)
+        ini = fim - timedelta(days=30)
         try:
             r = cli.post(movimentos.TRX_URL, dict(branchCodeList=[movimentos.EMPRESA], operationCodeList=[operacao], startChangeDate=f'{ini.isoformat()}T00:00:00', endChangeDate=f'{fim.isoformat()}T23:59:59', page=1, pageSize=100))
             if r.status_code != 200:
