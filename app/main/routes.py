@@ -1841,6 +1841,16 @@ def _fila_dt_prev(item):
     return d.strftime('%d/%m/%Y') if d else None
 
 
+@main_bp.route('/aba/pre-programacao/assinatura')
+@login_required
+def pre_programacao_assinatura():
+    """Impressao digital da fila da Pre-Programacao: a tela confere a cada 20 s e recarrega sozinha quando entra/sai OP ou muda um dado."""
+    itens = FilaPreProgramacao.query.filter_by(status='WAITING').order_by(FilaPreProgramacao.id).all()
+    base = '|'.join(f'{i.id}:{i.artigo}:{i.cliente}:{i.total_pcs}:{i.dt_prevfaturamento}' for i in itens)
+    pedidos = PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.in_([i.op for i in itens if i.op])).count() if itens else 0
+    return jsonify(sig=hashlib.md5(f'{base}#{pedidos}'.encode()).hexdigest(), n=len(itens))
+
+
 @main_bp.route('/aba/pre-programacao/<int:item_id>/dt-prev', methods=['POST'])
 @login_required
 def pre_programacao_dt(item_id):
