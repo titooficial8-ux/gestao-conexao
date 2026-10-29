@@ -606,5 +606,10 @@ def pecas_dia_diagnostico():
                                   por_maquina=dict(sorted(Counter(str(b.maquina) for b in bx if b.maquina is not None).items(), key=lambda kv: int(kv[0]))), sem_maquina=sum(1 for b in bx if b.maquina is None)))
     pes = [p for p in PesagemMalharia.query.all() if (p.hora_real or p.visto_em) and ini <= (p.hora_real or p.visto_em).replace(tzinfo=None) < fim]
     out['pesagens_local_23'] = dict(total=len(pes), ops=len({p.op for p in pes}), por_turno=dict(Counter(f'{1 if 380 <= (p.hora_real or p.visto_em).hour * 60 + (p.hora_real or p.visto_em).minute < 860 else (2 if 860 <= (p.hora_real or p.visto_em).hour * 60 + (p.hora_real or p.visto_em).minute < 1340 else 3)}º turno' for p in pes)))
+    # comparacao por OP: pesagens do TOTVS com a DATA do dia de producao (a data do movimento, nao a hora em que o Gestao viu) x baixas de fio ligadas a OP
+    peso_op, baixa_op = Counter(p.op for p in PesagemMalharia.query.filter_by(data=dia.date()).all()), Counter(b.op for b in bx if b.op)
+    dif = [dict(op=op, pesagens_totvs_hoje=peso_op.get(op, 0), baixas_de_fio_hoje=baixa_op.get(op, 0)) for op in sorted(set(peso_op) | set(baixa_op)) if peso_op.get(op, 0) != baixa_op.get(op, 0)]
+    out['ops_com_diferenca'] = dict(qtd=len(dif), pesagens_totvs_hoje_total=sum(peso_op.values()), itens=dif[:40])
+    out['baixas_sem_op'] = [dict(codigo=b.codigo, hora=str(b.mudou), kg=b.kg, maquina=b.maquina, fios=b.composicao) for b in bx if not b.op][:10]
     out['leitura'] = 'O Controle de Produção conta as baixas de fio (total acima). Compare com o número real do dia; se o real for maior, as peças que faltam não geraram baixa de fio (ou ainda não foram lidas do TOTVS).'
     return jsonify(out)
