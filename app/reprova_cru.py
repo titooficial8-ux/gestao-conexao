@@ -1,7 +1,7 @@
 """Reprovas no cru: relatorio em PDF (mesmo visual do Relatorio de Faturamento) e envio automatico por e-mail.
 
 Fonte: NCs da revisao do cru (lista ncform do SharePoint: origem Auditoria Interna, setor Producao). Dia de producao = 06h20 -> 06h19 do dia seguinte.
-Envio automatico (todo dia, horario de Brasilia): 07:15 (fecha o dia de producao anterior, 06h20 -> 06h19), 07:30 (06h20 de hoje -> 07:30), 12:15 (07:31 -> 12:15, tudo junto) e 16:15 (12:16 -> 16:15). So envia se houve reprova no periodo.
+Envio automatico (todo dia, horario de Brasilia): 07:15 (fecha o dia de producao anterior, 06h20 -> 06h19), 07:30, 12:15 e 16:15: o relatorio leva o ACUMULADO de hoje (06h20 ate o horario) e so sai se houve reprova NOVA desde o envio anterior (o PDF destaca quantas sao novas). So envia se houve reprova no periodo.
 As 16:30, se NAO houve nenhuma reprova entre 06:20 e 16:30, manda um aviso por e-mail dizendo isso (nao no domingo).
 .env (tudo opcional):
   REPROVA_EMAIL_ENVIO=1                 (0 desliga o envio automatico)
@@ -146,7 +146,7 @@ tr:nth-child(even) td{background:#F4F6F8}.n{text-align:right}.dois{display:flex;
  <div class="cards"><div class="card v"><small>Peças reprovadas</small><b>{{ d.pecas }}</b></div><div class="card v"><small>Metros reprovados</small><b>{{ f(d.metros) }}</b></div><div class="card l"><small>Quilos</small><b>{{ f(d.kg) }}</b></div><div class="card"><small>Artigos afetados</small><b>{{ d.n_artigos }}</b></div><div class="card"><small>Máquinas</small><b>{{ d.n_maquinas }}</b></div></div>
  {% if d.pecas %}<h3>Top artigos reprovados</h3><table><tr><th>Artigo</th><th>Cliente</th><th class="n">Peças</th><th class="n">Metros</th><th>Principais defeitos</th></tr>{% for a in d.por_artigo[:6] %}<tr><td><b>{{ a.artigo }}</b></td><td>{{ a.cliente }}</td><td class="n">{{ a.pecas }}</td><td class="n">{{ f(a.metros) }}</td><td>{{ a.defeitos }}</td></tr>{% endfor %}</table>
  {% else %}<div class="vazio">Nenhuma peça reprovada no cru neste dia de produção.</div>{% endif %}
- <div class="nota" style="position:static;margin-top:.15in">Período: {{ d.janela }} · Origem: Auditoria Interna (Reprova Cru)</div>
+ <div class="nota" style="position:static;margin-top:.15in">Período: {{ d.janela }}{% if d.novas %} · <b style="color:#C62828">{{ d.novas }} nova(s) desde o último envio ({{ d.novas_periodo }})</b>{% endif %} · Origem: Auditoria Interna (Reprova Cru)</div>
 {% elif p.tipo=='artigos' %}
  <table><tr><th>Artigo</th><th>Cliente</th><th>Máquinas</th><th class="n">Peças</th><th class="n">Metros</th><th class="n">Kg</th><th>Principais defeitos</th></tr>{% for a in p.linhas %}<tr><td><b>{{ a.artigo }}</b></td><td>{{ a.cliente }}</td><td>{{ a.maquinas }}</td><td class="n">{{ a.pecas }}</td><td class="n">{{ f(a.metros) }}</td><td class="n">{{ f(a.kg) }}</td><td>{{ a.defeitos }}</td></tr>{% endfor %}</table>
 {% elif p.tipo=='defmaq' %}
@@ -184,9 +184,10 @@ def _nome_arquivo(d) -> str:
 def enviar(d: dict, destinos: list, teste: bool = False) -> dict:
     from app.relatorio_fat import envio_email as envio
     pdf = gerar_pdf(d)
-    assunto = ('[TESTE] ' if teste else '') + f'Reprovas no cru — {d["rotulo"]} ({d["pecas"]} peça{"s" if d["pecas"] != 1 else ""})'
+    novas = f' · {d["novas"]} nova{"s" if d["novas"] != 1 else ""}' if d.get('novas') else ''
+    assunto = ('[TESTE] ' if teste else '') + f'Reprovas no cru — {d["rotulo"]} ({d["pecas"]} peça{"s" if d["pecas"] != 1 else ""}{novas})'
     corpo = (f'Prezados,\n\nSegue em anexo o relatório de reprovas no cru — {d["rotulo"]} ({d["janela"]}).\n\n'
-             f'Peças reprovadas: {d["pecas"]}\nMetros: {_fmt(d["metros"])}\nArtigos afetados: {d["n_artigos"]}\n\nAtenciosamente,\nGestão Conexão\nwww.gestaoconexao.com.br')
+             f'Peças reprovadas: {d["pecas"]}\nMetros: {_fmt(d["metros"])}\nArtigos afetados: {d["n_artigos"]}\n' + (f'Novas desde o último envio ({d["novas_periodo"]}): {d["novas"]}\n' if d.get('novas') else '') + '\nAtenciosamente,\nGestão Conexão\nwww.gestaoconexao.com.br')
     return envio.enviar(destinos, assunto, corpo, [(_nome_arquivo(d), pdf, 'application/pdf')])
 
 
@@ -286,13 +287,18 @@ def _tick(app) -> None:
                     else:
                         ini, fim, rotulo = jan[chave]
                         d = dados_periodo(ini, fim, rotulo)
-                        resumo = f'{chave}: sem reprovas, nada enviado'
-                        if d['pecas']:
+                        novo = d
+                        if chave != cfg['horas'][0] and d['pecas']:        # horarios do dia: o relatorio leva o ACUMULADO de hoje (06h20 ate o horario), mas so sai se houve reprova nova no periodo
+                            ini_dia = agora.replace(hour=6, minute=20, second=0, microsecond=0)
+                            d = dados_periodo(ini_dia, fim, f'HOJE {agora:%d/%m} · das 06:20 às {chave}')
+                            d['novas'], d['novas_periodo'] = novo['pecas'], f'{ini:%H:%M} às {chave}'
+                        resumo = f'{chave}: sem reprovas novas, nada enviado'
+                        if novo['pecas']:
                             if not envio.configurado():
                                 raise RuntimeError('E-mail não configurado: preencha no .env ' + ', '.join(envio.faltando()))
                             destinos = envio.validar(cfg['destinos'])
                             enviar(d, destinos)
-                            resumo = f'{chave}: {d["pecas"]} peças enviadas para {len(destinos)} pessoas'
+                            resumo = f'{chave}: {d["pecas"]} peças no acumulado ({novo["pecas"]} novas) enviadas para {len(destinos)} pessoas'
                 feitos_hoje.append(chave)
                 est.update(ultimo=f'{agora:%d/%m %H:%M} · {resumo}', erro=None, erro_em=None)
                 print(f'[reprovas-cru] {resumo}', flush=True)
