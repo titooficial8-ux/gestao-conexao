@@ -1,0 +1,38 @@
+<style>
+.pa-box{display:none;border:2px solid #b91c1c;background:#fdeeee;border-radius:12px;padding:10px 16px;margin:10px 0}.pa-box.on{display:block}
+.pa-box.maq{border-color:#a8670a;background:#fbf1dc}.pa-t{font-weight:800;font-size:14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.pa-box.fechado .pa-corpo{display:none}.pa-box.fechado .pa-seta{transform:rotate(-90deg)}.pa-seta{display:inline-block;transition:transform .15s;font-size:12px}
+.pa-i{border-top:1px solid rgba(0,0,0,.08);padding:7px 0;margin-top:6px;font-size:13px}.pa-i small{color:#64748b;display:block}.pa-i .mot{color:#b91c1c;font-weight:800}.pa-i .tmp{font-size:17px;font-weight:900}
+</style>
+<div id="paRevisor" class="pa-box"></div>
+<div id="paMaquinas" class="pa-box maq"></div>
+<script>
+(function () {
+  var rev = document.getElementById('paRevisor'), maq = document.getElementById('paMaquinas'); if (!rev) return;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function hm(m) { if (m == null) return ''; m = Math.max(0, Math.round(m)); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); }
+  function chave(k) { try { return localStorage.getItem(k) === '1'; } catch (e) { return false; } }
+  function pintar(el, id, titulo, itens, linha) {
+    if (!itens.length) { el.className = 'pa-box' + (el === maq ? ' maq' : ''); el.innerHTML = ''; return; }
+    el.className = 'pa-box on' + (el === maq ? ' maq' : '') + (chave('pa_' + id) ? ' fechado' : '');
+    el.innerHTML = '<div class="pa-t" data-k="pa_' + id + '"><span class="pa-seta">▼</span>' + titulo + ' · ' + itens.length + '</div><div class="pa-corpo">' + itens.map(linha).join('') + '</div>';
+  }
+  function ler() {
+    fetch('/info/paradas', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d) return;
+      var r = d.itens.filter(function (x) { return x.revisor; }), m = d.itens.filter(function (x) { return !x.revisor; });
+      pintar(rev, 'rev', '⏸ REVISOR EM PARADA', r, function (x) {
+        return '<div class="pa-i"><b>' + esc(x.aberta_por || 'Revisor') + '</b> · REVISÃO CRU · <span class="mot">' + esc(x.motivo || x.tipo) + '</span><small>desde ' + esc(x.inicio) + ' · fora há <span class="tmp">' + hm(x.minutos) + '</span>' + (x.aguardando_peca ? ' · aguardando a 1ª peça revisada' : ' · volta sozinho na 1ª peça revisada') + '</small></div>';
+      });
+      pintar(maq, 'maq', '🛑 OCORRÊNCIAS EM ANDAMENTO (Acompanhamento de Produção)', m, function (x) {
+        return '<div class="pa-i"><b>MQ ' + esc(x.maquina) + '</b> · ' + esc(x.tipo) + ' · <span class="mot">' + esc(x.motivo) + '</span><small>desde ' + esc(x.inicio) + (x.minutos != null ? ' · há ' + hm(x.minutos) : '') + (x.aberta_por ? ' · ' + esc(x.aberta_por) : '') + (x.aguardando_peca ? ' · aguardando a 1ª peça' : '') + '</small></div>';
+      });
+    }).catch(function () {});
+  }
+  [rev, maq].forEach(function (el) { el.addEventListener('click', function (ev) {
+    var t = ev.target.closest('.pa-t'); if (!t) return;
+    var f = el.classList.toggle('fechado'); try { localStorage.setItem(t.dataset.k, f ? '1' : '0'); } catch (e) {}
+  }); });
+  ler(); setInterval(ler, 20000);
+})();
+</script>

@@ -1,20 +1,22 @@
 <script>
 /* Atualiza a Programacao sozinha: a cada 20 s confere se algo mudou (situacao da OP no TOTVS, quantidades, ordem, termino...) e recarrega a pagina quando mudar. */
 (function () {
-  var URL = '{{ url_for("main.programacao_assinatura") }}' + '{{ "?maquina=" ~ auto_maq if auto_maq else "" }}', base = null, arrastando = false;
+  var pend = null, URL = '{{ url_for("main.programacao_assinatura") }}' + '{{ "?maquina=" ~ auto_maq if auto_maq else "" }}', base = null, arrastando = false;
   window.__progArrastando = function (v) { arrastando = v; };
   function ocupado() {
     if (arrastando || document.hidden) return true;
-    if (document.querySelector('.modal-backdrop:not([hidden]), .ca-mod:not([hidden])')) return true;
+    if (document.querySelector('.modal-backdrop:not([hidden]), .ca-mod:not([hidden]), #infoMaq.on, #ajMod.on')) return true;
     var a = document.activeElement; return !!(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT'));
   }
   function conferir() {
     fetch(URL, { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       if (!d) return;
       if (base === null) { base = d.sig; return; }
-      if (d.sig !== base && !ocupado()) location.reload();
+      if (d.sig === base) { pend = null; return; }
+      if (d.sig !== pend) { pend = d.sig; return; }          /* so recarrega quando a mudanca se mantem por duas conferencias seguidas: dado que fica oscilando nao derruba a tela */
+      if (!ocupado()) location.reload();
     }).catch(function () {});
   }
-  conferir(); setInterval(conferir, 20000);
+  conferir(); setInterval(conferir, 15000);
 })();
 </script>

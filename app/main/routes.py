@@ -2575,15 +2575,38 @@ def sequencia_atrasada(q, hoje=None) -> bool:
     return q.dt_cliente < hoje
 
 
+_ASSIN_CAMPOS = ('id', 'maquina_id', 'ordem', 'op', 'status', 'situacao', 'pecas', 'total_pcs', 'qt_solicitada', 'qt_avulsa', 'estrutura', 'termino', 'dt_cliente', 'artigo', 'cliente', 'aud_ok')
+_ASSIN_ULT, _ASSIN_LOG = {}, []
+
+
 def _assinatura_programacao(maquina=None) -> str:
-    """Impressao digital do que aparece na Programacao (situacao, quantidades, ordem, termino...): a tela compara e se recarrega sozinha quando muda."""
+    """Impressao digital do que aparece na Programacao (situacao, quantidades, ordem, termino...): a tela compara e se recarrega sozinha quando muda.
+    Guarda no log (so em memoria) o que mudou entre uma leitura e outra: /aba/programacao/assinatura-log (admin) mostra quem fica oscilando."""
     import hashlib
     q = Sequencia.query.join(Machine).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO']))
     if maquina:
         q = q.filter(Machine.number == maquina)
     partes = [f'{x.id}|{x.machine_id}|{x.sequence_order}|{x.op}|{x.status}|{x.situacao}|{x.pecas_produzidas}|{x.total_pcs}|{x.qt_solicitada}|{x.qt_avulsa}|{x.estrutura}|{x.termino_malharia}|{x.dt_cliente}|{x.artigo}|{x.cliente}|{x.aud_ok}'
               for x in q.order_by(Sequencia.id).all()]
+    antes = _ASSIN_ULT.get(maquina)
+    _ASSIN_ULT[maquina] = partes
+    if antes is not None and antes != partes:
+        velho = {p.split('|')[0]: p.split('|') for p in antes}
+        for p in partes:
+            c = p.split('|')
+            v = velho.get(c[0])
+            if v != c:
+                _ASSIN_LOG.append(dict(quando=datetime.now().strftime('%H:%M:%S'), maquina=maquina, seq=c[0], op=c[3], mudou=[f'{n}: {v[i] if v else "(nova)"} -> {c[i]}' for i, n in enumerate(_ASSIN_CAMPOS) if not v or v[i] != c[i]]))
+        del _ASSIN_LOG[:-80]
     return hashlib.md5('\n'.join(partes).encode()).hexdigest()
+
+
+@main_bp.route('/aba/programacao/assinatura-log')
+@login_required
+def programacao_assinatura_log():
+    if not current_user.is_admin:
+        abort(403)
+    return jsonify(ultimas=list(reversed(_ASSIN_LOG)))
 
 
 @main_bp.route('/aba/programacao/assinatura')
