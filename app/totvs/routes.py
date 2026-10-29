@@ -1314,4 +1314,32 @@ def consultar_lote():
                     saida[nome] = dict(http=r.status_code, resposta=txt)
                 except Exception as e:  # noqa: BLE001
                     saida[nome] = dict(erro=str(e)[:160])
+        op = request.args.get('op', type=int)
+        if op:                                                      # a OP (ex.: 2929) tem algum campo com o numero do lote? procura recursivamente por lot/batch/lote
+            import re as _re
+
+            def achar(x, caminho=''):
+                out = []
+                if isinstance(x, dict):
+                    for k, v in x.items():
+                        if _re.search(r'lot|batch|lote', k, _re.I):
+                            out.append((f'{caminho}.{k}'.strip('.'), v if not isinstance(v, (dict, list)) else '(estrutura)'))
+                        out += achar(v, f'{caminho}.{k}')
+                elif isinstance(x, list):
+                    for i, v in enumerate(x[:3]):
+                        out += achar(v, f'{caminho}[{i}]')
+                return out
+            for exp in ('items', 'items,locations', 'items,materials'):
+                try:
+                    r = cli.post(movimentos.OPS_URL, dict(filter=dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], orderCodeList=[op]), expand=exp, pageSize=1, page=1))
+                    o = (r.json().get('items') or [{}])[0] if r.status_code == 200 else {}
+                    saida[f'op_{op}_campos_de_lote[{exp}]'] = achar(o)[:30]
+                except Exception as e:  # noqa: BLE001
+                    saida[f'op_{op}_campos_de_lote[{exp}]'] = str(e)[:120]
+            try:                                                    # movimentos da OP trazem o lote?
+                r = cli.post(movimentos.MOV_URL, dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], productionOrderCodeList=[str(op)], movementStartDate=(date.today() - timedelta(days=40)).isoformat(),
+                                                      movementEndDate=(date.today() + timedelta(days=1)).isoformat(), listNormalMovement=True, listFinalizationMovement=False, reversalType=2, pageSize=3, page=1))
+                saida['movimento_da_op_exemplo'] = (r.json().get('items') or [])[:2] if r.status_code == 200 else r.text[:200]
+            except Exception as e:  # noqa: BLE001
+                saida['movimento_da_op_exemplo'] = str(e)[:120]
     return _json(saida)
