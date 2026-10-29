@@ -1,12 +1,15 @@
-"""Reprovas no cru do dia de producao anterior: relatorio em PDF (mesmo visual do Relatorio de Faturamento) e envio automatico por e-mail as 07h.
+"""Reprovas no cru: relatorio em PDF (mesmo visual do Relatorio de Faturamento) e envio automatico por e-mail.
 
 Fonte: NCs da revisao do cru (lista ncform do SharePoint: origem Auditoria Interna, setor Producao). Dia de producao = 06h20 -> 06h19 do dia seguinte.
+Envio automatico (todo dia, horario de Brasilia): 07:15 (fecha o dia de producao anterior), 12:15 (07:16 -> 12:15) e 16:15 (12:16 -> 16:15). So envia se houve reprova no periodo.
+As 16:30, se NAO houve nenhuma reprova entre 07:16 e 16:30, manda um aviso por e-mail dizendo isso (nao no domingo).
 .env (tudo opcional):
-  REPROVA_EMAIL_ENVIO=0                 (1 liga o envio automatico; comeca DESLIGADO ate o teste ser aprovado)
-  REPROVA_EMAIL_HORA=07:00              (horario de Brasilia)
-  REPROVA_EMAIL_DESTINOS=luciane.frias@conexaomalhas.com.br
-  REPROVA_EMAIL_SEMPRE=0                (0 = so envia se houve reprova no dia; 1 = envia mesmo sem reprova)
-  REPROVA_EMAIL_JANELA_H=4              (se o Gestao so ligar depois disso, pula o envio do dia)
+  REPROVA_EMAIL_ENVIO=1                 (0 desliga o envio automatico)
+  REPROVA_EMAIL_HORAS=07:15,12:15,16:15
+  REPROVA_EMAIL_ALERTA=16:30
+  REPROVA_EMAIL_DESTINOS=a@x.com,b@y.com   (padrao: Luciane, Ezequiel, Kaio, Amabile, Isabela e Christian)
+  REPROVA_EMAIL_JANELA_H=2              (se o Gestao so ligar mais de 2 h depois do horario, pula aquele envio)
+  REPROVA_EMAIL_USUARIOS=a@x.com        (quem enxerga o botao Reprovas Cru, alem do administrador)
 O SMTP e o mesmo do Relatorio de Faturamento (SMTP_HOST, SMTP_USER, SMTP_PASSWORD).
 """
 import base64
@@ -28,10 +31,26 @@ LINHAS_POR_PAGINA = 22
 _trava = threading.Lock()
 
 
+DESTINOS_PADRAO = ','.join(['luciane.frias@conexaomalhas.com.br', 'ezequiel.silva@conexaomalhas.com.br', 'kaio.batista@conexaomalhas.com.br',
+                            'amabile.moretti@conexaomalhas.com.br', 'isabela.ramos@conexaomalhas.com.br', 'christian.yarzon@conexaomalhas.com.br'])
+
+
+def _horas(txt, padrao):
+    out = []
+    for parte in str(txt or '').split(','):
+        try:
+            h, m = [int(x) for x in parte.strip().split(':')]
+        except ValueError:
+            continue
+        if 0 <= h < 24 and 0 <= m < 60 and f'{h:02d}:{m:02d}' not in out:
+            out.append(f'{h:02d}:{m:02d}')
+    return sorted(out) or padrao
+
+
 def config() -> dict:
-    return dict(ativo=os.getenv('REPROVA_EMAIL_ENVIO', '0') == '1', hora=os.getenv('REPROVA_EMAIL_HORA', '07:00'),
-                destinos=os.getenv('REPROVA_EMAIL_DESTINOS', 'luciane.frias@conexaomalhas.com.br'), sempre=os.getenv('REPROVA_EMAIL_SEMPRE', '0') == '1',
-                janela=float(os.getenv('REPROVA_EMAIL_JANELA_H', '4') or 4))
+    return dict(ativo=os.getenv('REPROVA_EMAIL_ENVIO', '1') == '1', horas=_horas(os.getenv('REPROVA_EMAIL_HORAS'), ['07:15', '12:15', '16:15']),
+                alerta=(_horas(os.getenv('REPROVA_EMAIL_ALERTA'), ['16:30']) or ['16:30'])[0], destinos=os.getenv('REPROVA_EMAIL_DESTINOS', DESTINOS_PADRAO),
+                janela=float(os.getenv('REPROVA_EMAIL_JANELA_H', '2') or 2))
 
 
 def dia_anterior(agora: datetime = None) -> date:
@@ -42,9 +61,14 @@ def dia_anterior(agora: datetime = None) -> date:
 
 
 def dados(dia: date) -> dict:
-    from app.malharia_info import _ncs, _origem
+    """Dia de producao inteiro (06h20 -> 06h19 do dia seguinte)."""
     ini = datetime(dia.year, dia.month, dia.day, 6, 20)
-    fim = ini + timedelta(days=1)
+    return dados_periodo(ini, ini + timedelta(days=1), dia.strftime('%d/%m/%Y'), dia)
+
+
+def dados_periodo(ini: datetime, fim: datetime, rotulo: str, dia: date = None) -> dict:
+    """Reprovas apontadas em [ini, fim). `rotulo` aparece no titulo, no assunto e no nome do arquivo."""
+    from app.malharia_info import _ncs, _origem
     itens = [n for n in _ncs() if n['criado'] and ini <= n['criado'] < fim and n['defeitos'] and (not n['setor'] or 'produ' in n['setor'].lower()) and 'auditoria interna' in str(n['origem']).lower()]
     itens.sort(key=lambda n: n['criado'])
     from app.malharia_info import clientes_das_ops
@@ -70,7 +94,7 @@ def dados(dia: date) -> dict:
     por_artigo = sorted(({'artigo': k, 'cliente': v['cliente'], 'pecas': v['pecas'], 'metros': round(v['metros'], 1), 'kg': round(v['kg'], 1),
                           'defeitos': ', '.join(f'{d} ({c})' for d, c in sorted(v['defeitos'].items(), key=lambda x: -x[1])[:3]), 'maquinas': ', '.join(sorted(v['maquinas']))} for k, v in art.items()),
                         key=lambda x: (-x['pecas'], -x['metros']))
-    return dict(dia=dia, janela=f'{ini:%d/%m/%Y %H:%M} a {fim - timedelta(minutes=1):%d/%m/%Y %H:%M}', itens=[dict(n, origem=_origem(n['origem'])) for n in itens],
+    return dict(dia=dia or ini.date(), rotulo=rotulo, ini=ini, fim=fim, janela=f'{ini:%d/%m/%Y %H:%M} a {fim - timedelta(minutes=1):%d/%m/%Y %H:%M}', itens=[dict(n, origem=_origem(n['origem'])) for n in itens],
                 pecas=len(itens), metros=round(sum(n['metros'] for n in itens), 1), kg=round(sum(n['quilos'] for n in itens), 1), n_artigos=len(art), n_maquinas=len(maqs),
                 por_artigo=por_artigo, por_defeito=sorted(({'defeito': k, 'pecas': v[0], 'metros': round(v[1], 1)} for k, v in dfs.items()), key=lambda x: -x['pecas']),
                 por_maquina=sorted(({'maquina': k, 'pecas': v['pecas'], 'metros': round(v['metros'], 1), 'kg': round(v['kg'], 1)} for k, v in maqs.items()), key=lambda x: (-x['pecas'], x['maquina'])))
@@ -112,13 +136,13 @@ tr:nth-child(even) td{background:#F4F6F8}.n{text-align:right}.dois{display:flex;
 {% set total = paginas|length %}
 {% for p in paginas %}<div class="pg">
 <img class="logo" src="{{ logo }}"><div class="sec">Qualidade · Revisão do cru</div>
-<div class="tit">{% if p.tipo=='resumo' %}Reprovas no cru · {{ d.dia.strftime('%d/%m/%Y') }}{% elif p.tipo=='artigos' %}Reprovas por artigo{{ ' (cont.)' if p.parte>1 }}{% elif p.tipo=='defmaq' %}Por defeito e por máquina{% else %}Peças reprovadas, uma a uma{{ ' (cont.)' if p.parte>1 }}{% endif %}</div>
+<div class="tit">{% if p.tipo=='resumo' %}Reprovas no cru · {{ d.rotulo }}{% elif p.tipo=='artigos' %}Reprovas por artigo{{ ' (cont.)' if p.parte>1 }}{% elif p.tipo=='defmaq' %}Por defeito e por máquina{% else %}Peças reprovadas, uma a uma{{ ' (cont.)' if p.parte>1 }}{% endif %}</div>
 <div class="cont">
 {% if p.tipo=='resumo' %}
  <div class="cards"><div class="card v"><small>Peças reprovadas</small><b>{{ d.pecas }}</b></div><div class="card v"><small>Metros reprovados</small><b>{{ f(d.metros) }}</b></div><div class="card l"><small>Quilos</small><b>{{ f(d.kg) }}</b></div><div class="card"><small>Artigos afetados</small><b>{{ d.n_artigos }}</b></div><div class="card"><small>Máquinas</small><b>{{ d.n_maquinas }}</b></div></div>
  {% if d.pecas %}<h3>Top artigos reprovados</h3><table><tr><th>Artigo</th><th>Cliente</th><th class="n">Peças</th><th class="n">Metros</th><th>Principais defeitos</th></tr>{% for a in d.por_artigo[:6] %}<tr><td><b>{{ a.artigo }}</b></td><td>{{ a.cliente }}</td><td class="n">{{ a.pecas }}</td><td class="n">{{ f(a.metros) }}</td><td>{{ a.defeitos }}</td></tr>{% endfor %}</table>
  {% else %}<div class="vazio">Nenhuma peça reprovada no cru neste dia de produção.</div>{% endif %}
- <div class="nota" style="position:static;margin-top:.15in">Dia de produção: {{ d.janela }} · Origem: Auditoria Interna (Reprova Cru)</div>
+ <div class="nota" style="position:static;margin-top:.15in">Período: {{ d.janela }} · Origem: Auditoria Interna (Reprova Cru)</div>
 {% elif p.tipo=='artigos' %}
  <table><tr><th>Artigo</th><th>Cliente</th><th>Máquinas</th><th class="n">Peças</th><th class="n">Metros</th><th class="n">Kg</th><th>Principais defeitos</th></tr>{% for a in p.linhas %}<tr><td><b>{{ a.artigo }}</b></td><td>{{ a.cliente }}</td><td>{{ a.maquinas }}</td><td class="n">{{ a.pecas }}</td><td class="n">{{ f(a.metros) }}</td><td class="n">{{ f(a.kg) }}</td><td>{{ a.defeitos }}</td></tr>{% endfor %}</table>
 {% elif p.tipo=='defmaq' %}
@@ -149,14 +173,24 @@ def gerar_pdf(d: dict) -> bytes:
             nav.close()
 
 
+def _nome_arquivo(d) -> str:
+    return 'reprovas_cru_' + ''.join(c if c.isalnum() else '_' for c in d['rotulo']).strip('_') + '.pdf'
+
+
 def enviar(d: dict, destinos: list, teste: bool = False) -> dict:
     from app.relatorio_fat import envio_email as envio
     pdf = gerar_pdf(d)
-    dia = d['dia'].strftime('%d/%m/%Y')
-    assunto = ('[TESTE] ' if teste else '') + f'Reprovas no cru — {dia} ({d["pecas"]} peça{"s" if d["pecas"] != 1 else ""})'
-    corpo = (f'Prezados,\n\nSegue em anexo o relatório de reprovas no cru do dia de produção {dia} ({d["janela"]}).\n\n'
+    assunto = ('[TESTE] ' if teste else '') + f'Reprovas no cru — {d["rotulo"]} ({d["pecas"]} peça{"s" if d["pecas"] != 1 else ""})'
+    corpo = (f'Prezados,\n\nSegue em anexo o relatório de reprovas no cru — {d["rotulo"]} ({d["janela"]}).\n\n'
              f'Peças reprovadas: {d["pecas"]}\nMetros: {_fmt(d["metros"])}\nArtigos afetados: {d["n_artigos"]}\n\nAtenciosamente,\nGestão Conexão\nwww.gestaoconexao.com.br')
-    return envio.enviar(destinos, assunto, corpo, [(f'reprovas_cru_{d["dia"].isoformat()}.pdf', pdf, 'application/pdf')])
+    return envio.enviar(destinos, assunto, corpo, [(_nome_arquivo(d), pdf, 'application/pdf')])
+
+
+def enviar_sem_reprovas(ini: datetime, fim: datetime, destinos: list) -> dict:
+    from app.relatorio_fat import envio_email as envio
+    per = f'{ini:%d/%m/%Y %H:%M} às {fim:%H:%M}'
+    corpo = (f'Prezados,\n\nNão houve reprovas no cru entre {per}.\n\nAtenciosamente,\nGestão Conexão\nwww.gestaoconexao.com.br')
+    return envio.enviar(destinos, f'Reprovas no cru — sem reprovas entre {ini:%d/%m %H:%M} e {fim:%H:%M}', corpo, [])
 
 
 # ------------------------------------------------------------------ envio automatico
@@ -179,48 +213,91 @@ def _gravar(app, est: dict) -> None:
         pass
 
 
+def _janelas(cfg, agora: datetime) -> dict:
+    """{'HH:MM': (ini, fim, rotulo)} dos envios do dia. O 1o horario fecha o dia de producao anterior (06h20 -> ate o proprio horario, para nao perder o que entrou depois das 06h19);
+    os demais pegam do minuto seguinte ao envio anterior ate o proprio horario."""
+    hoje = agora.replace(hour=0, minute=0, second=0, microsecond=0)
+    horas = cfg['horas']
+
+    def em(hm):
+        return hoje.replace(hour=int(hm[:2]), minute=int(hm[3:]))
+    out = {}
+    prev = None
+    for hm in horas:
+        fim = em(hm) + timedelta(minutes=1)
+        if prev is None:
+            ini = datetime.combine(dia_anterior(agora), datetime.min.time()).replace(hour=6, minute=20)
+            out[hm] = (ini, fim, f'dia de produção {ini:%d/%m} (até {hm})')
+        else:
+            ini = em(prev) + timedelta(minutes=1)
+            out[hm] = (ini, fim, f'{ini:%d/%m} {ini:%H:%M} às {hm}')
+        prev = hm
+    return out
+
+
 def _tick(app) -> None:
     from app.relatorio_fat import envio_email as envio
-    from app.relatorio_fat.agenda import _hm, _reivindicar, agora_brasilia
+    from app.relatorio_fat.agenda import _reivindicar, agora_brasilia
     cfg = config()
     if not cfg['ativo']:
         return
     agora = agora_brasilia()
-    h, m = _hm(cfg['hora'], (7, 0))
-    alvo = agora.replace(hour=h, minute=m, second=0, microsecond=0)
     est = _ler(app)
-    if agora < alvo or agora > alvo + timedelta(hours=cfg['janela']) or est.get('enviado') == agora.date().isoformat():
-        return
+    hoje = agora.date().isoformat()
+    feitos = est.setdefault('feitos', {})
+    feitos_hoje = feitos.setdefault(hoje, [])
+    for velho in [k for k in feitos if k != hoje]:
+        feitos.pop(velho)
     if est.get('erro_em') and (agora - datetime.fromisoformat(est['erro_em'])) < timedelta(minutes=30):
         return
-    if not _trava.acquire(blocking=False):
+    jan = _janelas(cfg, agora)
+    fila = [hm for hm in cfg['horas'] if hm not in feitos_hoje and agora >= agora.replace(hour=int(hm[:2]), minute=int(hm[3:]), second=0, microsecond=0)
+            and agora <= agora.replace(hour=int(hm[:2]), minute=int(hm[3:]), second=0, microsecond=0) + timedelta(hours=cfg['janela'])]
+    alerta = cfg['alerta']
+    a_dt = agora.replace(hour=int(alerta[:2]), minute=int(alerta[3:]), second=0, microsecond=0)
+    if 'alerta' not in feitos_hoje and a_dt <= agora <= a_dt + timedelta(hours=cfg['janela']) and agora.weekday() != 6:       # domingo nao tem producao: sem alerta
+        fila.append('alerta')
+    if not fila or not _trava.acquire(blocking=False):
         return
-    lock = None
     try:
-        lock = _reivindicar(agora.date(), 'reprova' + cfg['hora'])
-        if lock is None:
-            return
-        dia = dia_anterior(agora)
-        with app.app_context():
-            d = dados(dia)
-            if not d['pecas'] and not cfg['sempre']:
-                est.update(enviado=agora.date().isoformat(), ultimo=f'{dia}: sem reprovas, nada enviado', erro=None)
-                _gravar(app, est)
-                return
-            if not envio.configurado():
-                raise RuntimeError('E-mail não configurado: preencha no .env ' + ', '.join(envio.faltando()))
-            destinos = envio.validar(cfg['destinos'])
-            enviar(d, destinos)
-        est.update(enviado=agora.date().isoformat(), ultimo=f'{dia}: {d["pecas"]} peças enviadas para {", ".join(destinos)}', erro=None, erro_em=None)
-        print(f'[reprovas-cru] enviado para {", ".join(destinos)} ({d["pecas"]} peças)', flush=True)
-    except Exception as e:  # noqa: BLE001
-        traceback.print_exc()
-        est.update(erro=str(e)[:300], erro_em=agora.isoformat(timespec='seconds'))
-        if lock:
+        for chave in fila:
+            lock = _reivindicar(agora.date(), 'reprova' + chave)
+            if lock is None:
+                continue
             try:
-                lock.unlink()
-            except OSError:
-                pass
+                with app.app_context():
+                    if chave == 'alerta':
+                        ini = agora.replace(hour=int(cfg['horas'][0][:2]), minute=int(cfg['horas'][0][3:]), second=0, microsecond=0) + timedelta(minutes=1)
+                        fim = a_dt + timedelta(minutes=1)
+                        total = dados_periodo(ini, fim, 'alerta')['pecas']
+                        resumo = f'alerta: {total} reprova(s) entre {ini:%H:%M} e {alerta}'
+                        if total == 0:
+                            if not envio.configurado():
+                                raise RuntimeError('E-mail não configurado: preencha no .env ' + ', '.join(envio.faltando()))
+                            destinos = envio.validar(cfg['destinos'])
+                            enviar_sem_reprovas(ini, a_dt, destinos)
+                            resumo = f'alerta enviado: sem reprovas entre {ini:%H:%M} e {alerta}'
+                    else:
+                        ini, fim, rotulo = jan[chave]
+                        d = dados_periodo(ini, fim, rotulo)
+                        resumo = f'{chave}: sem reprovas, nada enviado'
+                        if d['pecas']:
+                            if not envio.configurado():
+                                raise RuntimeError('E-mail não configurado: preencha no .env ' + ', '.join(envio.faltando()))
+                            destinos = envio.validar(cfg['destinos'])
+                            enviar(d, destinos)
+                            resumo = f'{chave}: {d["pecas"]} peças enviadas para {len(destinos)} pessoas'
+                feitos_hoje.append(chave)
+                est.update(ultimo=f'{agora:%d/%m %H:%M} · {resumo}', erro=None, erro_em=None)
+                print(f'[reprovas-cru] {resumo}', flush=True)
+            except Exception as e:  # noqa: BLE001
+                traceback.print_exc()
+                est.update(erro=str(e)[:300], erro_em=agora.isoformat(timespec='seconds'))
+                try:
+                    lock.unlink()
+                except OSError:
+                    pass
+                break
     finally:
         _gravar(app, est)
         _trava.release()
@@ -270,7 +347,7 @@ table{border-collapse:collapse;width:100%;margin-top:8px}th{background:#1F4E79;c
 <div class="bar"><input type="text" id="para" size="42" value="christian.yarzon@conexaomalhas.com.br" placeholder="e-mail de destino (vários: separe por vírgula)"><button type="button" id="teste">Enviar AGORA este dia por e-mail</button><button type="button" class="b2" style="background:#e5e7eb;color:#1e293b" onclick="document.getElementById('para').value='{{ email }}'">usar o meu e-mail</button><span id="msg"></span></div>
 <div class="cards"><div class="c"><small>Peças</small><b>{{ d.pecas }}</b></div><div class="c"><small>Metros</small><b>{{ f(d.metros) }}</b></div><div class="c"><small>Kg</small><b>{{ f(d.kg) }}</b></div><div class="c"><small>Artigos</small><b>{{ d.n_artigos }}</b></div></div>
 <table><tr><th>Artigo</th><th>Cliente</th><th>Máquinas</th><th class="n">Peças</th><th class="n">Metros</th><th>Principais defeitos</th></tr>{% for a in d.por_artigo %}<tr><td><b>{{ a.artigo }}</b></td><td>{{ a.cliente }}</td><td>{{ a.maquinas }}</td><td class="n">{{ a.pecas }}</td><td class="n">{{ f(a.metros) }}</td><td>{{ a.defeitos }}</td></tr>{% else %}<tr><td colspan="6">Nenhuma reprova neste dia de produção.</td></tr>{% endfor %}</table>
-<div class="cfg"><b>Envio automático:</b> {{ 'LIGADO' if cfg.ativo else 'DESLIGADO (REPROVA_EMAIL_ENVIO=1 no .env liga)' }} · todo dia às {{ cfg.hora }} · para {{ cfg.destinos }} · {{ 'envia mesmo sem reprova' if cfg.sempre else 'só envia se houve reprova' }} · e-mail (SMTP): {{ 'configurado' if smtp else 'NÃO configurado' }}{% if ult %}<br>Último: {{ ult.get('ultimo') or '–' }}{% if ult.get('erro') %} · <span style="color:#b91c1c">erro: {{ ult.erro }}</span>{% endif %}{% endif %}</div>
+<div class="cfg"><b>Envio automático:</b> {{ 'LIGADO' if cfg.ativo else 'DESLIGADO (REPROVA_EMAIL_ENVIO=0 no .env)' }} · todo dia às {{ cfg.horas|join(', ') }} (só envia se houve reprova; às {{ cfg.alerta }} avisa se não houve nenhuma desde {{ cfg.horas[0] }}) · para {{ cfg.destinos }} · e-mail (SMTP): {{ 'configurado' if smtp else 'NÃO configurado' }}{% if ult %}<br>Último: {{ ult.get('ultimo') or '–' }}{% if ult.get('erro') %} · <span style="color:#b91c1c">erro: {{ ult.erro }}</span>{% endif %}{% endif %}</div>
 <script>document.getElementById('teste').onclick=function(){var m=document.getElementById('msg');m.textContent='Gerando e enviando…';fetch('/reprovas-cru/enviar-teste?dia={{ d.dia.isoformat() }}&para='+encodeURIComponent(document.getElementById('para').value),{method:'POST',credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){m.textContent=j.ok?'Enviado para '+j.para.join(', '):('Erro: '+j.erro)}).catch(function(){m.textContent='Falha na requisição'})}</script>"""
 
 
@@ -296,7 +373,7 @@ def resumo():
     cfg = config()
     return jsonify(dia=d['dia'].isoformat(), janela=d['janela'], pecas=d['pecas'], metros=d['metros'], kg=d['kg'], artigos=d['n_artigos'], maquinas=d['n_maquinas'],
                    top=[dict(artigo=a['artigo'], cliente=a['cliente'], pecas=a['pecas']) for a in d['por_artigo'][:5]],
-                   auto=dict(ativo=cfg['ativo'], hora=cfg['hora'], destinos=cfg['destinos'], smtp=envio.configurado(), ultimo=_ler(current_app).get('ultimo')))
+                   auto=dict(ativo=cfg['ativo'], hora=', '.join(cfg['horas']), alerta=cfg['alerta'], destinos=cfg['destinos'], smtp=envio.configurado(), ultimo=_ler(current_app).get('ultimo')))
 
 
 @rep_bp.route('/pdf')
