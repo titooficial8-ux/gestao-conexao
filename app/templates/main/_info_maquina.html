@@ -67,8 +67,11 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
   function desenhar(d) {
     if (d.vazio) { corpo.innerHTML = '<h3>Máquina ' + d.maquina + '</h3><p class="info-vazio">Sem sequência programada.</p>'; return; }
     var a = d.acompanhamento, h = '<h3>Máquina ' + String(d.maquina).padStart(2, '0') + ' · OP ' + esc(a.op) + ' · ' + esc(a.artigo) + '</h3><div class="info-vazio">' + esc(a.cliente || '') + ' · ' + esc(a.situacao || a.status) + '</div>';
-    var nOc = d.ocorrencias.length, abertas = d.ocorrencias.filter(function (o) { return o.aberta; }).length;
-    if (nOc) h += '<div style="background:' + (abertas ? '#fee2e2' : '#fff7ed') + ';border:1px solid ' + (abertas ? '#dc2626' : '#fdba74') + ';color:' + (abertas ? '#991b1b' : '#9a3412') + ';border-radius:8px;padding:7px 12px;margin-top:8px;font-weight:800;display:flex;align-items:center;justify-content:space-between;gap:10px"><span>⚠ ' + nOc + (nOc > 1 ? ' ocorrências apontadas' : ' ocorrência apontada') + ' nesta máquina (NC + RL.PRODUÇÃO · reprova no cru)' + (abertas ? ' · ' + abertas + ' em aberto' : '') + '</span><button type="button" class="info-ver" style="border:0;border-radius:6px;padding:4px 14px;font-weight:800;cursor:pointer;background:#fff;color:inherit">VER</button></div>';
+    var ncs = d.ocorrencias.filter(function (o) { return o.tipo === 'NC'; }), rls = d.ocorrencias.filter(function (o) { return o.tipo === 'RL'; });
+    var abertas = d.ocorrencias.filter(function (o) { return o.aberta; }).length;
+    function btnVer(t, n, r) { return '<span style="display:inline-flex;align-items:center;gap:8px">' + n + ' ' + r + '<button type="button" class="info-ver" data-t="' + t + '" style="border:0;border-radius:6px;padding:3px 12px;font-weight:800;cursor:pointer;background:#fff;color:inherit">VER</button></span>'; }
+    if (ncs.length || rls.length) h += '<div style="background:' + (abertas ? '#fee2e2' : '#fff7ed') + ';border:1px solid ' + (abertas ? '#dc2626' : '#fdba74') + ';color:' + (abertas ? '#991b1b' : '#9a3412') + ';border-radius:8px;padding:7px 12px;margin-top:8px;font-weight:800;display:flex;align-items:center;flex-wrap:wrap;gap:6px 22px">' +
+      (ncs.length ? btnVer('NC', '⚠ ' + ncs.length, ncs.length > 1 ? 'NC · peças reprovadas' : 'NC · peça reprovada') : '') + (rls.length ? btnVer('RL', '📋 ' + rls.length, 'RL.PRODUÇÃO · apontamentos do revisor') : '') + (abertas ? '<span>· ' + abertas + ' em aberto</span>' : '') + '</div>';
     h += '<h4>Acompanhamento de produção</h4><div class="info-kv">' + kv('Produzidas / total', a.produzidas + ' / ' + a.total) + kv('Meta por dia (pç)', a.meta_dia) + kv('Meta por turno (pç)', a.meta_turno) + kv('Término previsto (BETA TESTE)', a.termino) + kv('Estrutura', a.estrutura) + kv('RPM', a.rpm) + '</div>';
     h += '<div class="info-turnos">' + [0, 1, 2].map(function (i) { return '<div><small>' + (i + 1) + 'º turno</small><b>' + a.pesadas_turno[i] + '</b>pç pesadas' + (a.meta_turno ? ' / meta ' + Math.round(a.meta_turno) : '') + '</div>'; }).join('') + '</div><div class="info-vazio" style="margin-top:4px">Hoje: dia de produção iniciado em ' + a.inicio_dia + '</div>';
     h += '<div class="info-turnos" style="margin-top:10px">' + [0, 1, 2].map(function (i) { return '<div style="background:#f8fafc"><small>' + (i + 1) + 'º turno · dia anterior</small><b>' + a.pesadas_ontem[i] + '</b>pç pesadas' + (a.meta_turno ? ' / meta ' + Math.round(a.meta_turno) : '') + '</div>'; }).join('') + '</div><div class="info-vazio" style="margin-top:4px">Dia anterior (desta OP): iniciado em ' + a.inicio_ontem + '</div>';
@@ -84,10 +87,19 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
       var reg = Object.keys(L.regulagem || {});
       if (reg.length) h += '<div class="info-et"><b>Regulagem registrada</b><dl>' + reg.map(function (k) { return '<dt>' + esc(k) + '</dt><dd>' + esc(L.regulagem[k]) + '</dd>'; }).join('') + '</dl></div>';
     }
-    var colapsa = d.ocorrencias.length > 5;
-    h += '<h4 class="info-oc-t" style="cursor:pointer;user-select:none"><span class="info-oc-seta">' + (colapsa ? '▶' : '▼') + '</span> Últimas ocorrências (apontadas na revisão do cru · este artigo nesta máquina) · ' + d.ocorrencias.length + '</h4><div class="info-oc-corpo"' + (colapsa ? ' hidden' : '') + '>' + (d.ocorrencias.length ? d.ocorrencias.map(function (o) {
-      return '<div class="info-oc"><span class="info-tag NC">NC</span><b>' + esc(o.quando) + '</b> · ' + (o.resolvida ? '✔ resolvida · ' : '') + 'artigo <b>' + esc(o.artigo) + '</b> · OP <b>' + esc(o.op) + '</b> · ' + esc(o.cliente) + ' · ' + (o.avulsa ? '<b>OP AVULSA</b>' : 'com pedido') + '<br><small style="color:#64748b">peça ' + esc(o.peca) + ' · ' + esc(o.defeitos) + ' · ' + o.metros + ' m · ' + esc(o.origem) + (o.emitente ? ' · ' + esc(o.emitente) : '') + (o.obs ? ' · ' + esc(o.obs) : '') + '</small></div>';
-    }).join('') : '<p class="info-vazio">Nenhum apontamento da revisão do cru para este artigo nesta máquina.</p>') + '</div>';
+    function secao(t, titulo, lista, vazio, linha) {
+      var colapsa = lista.length > 5;
+      return '<h4 class="info-oc-t" data-t="' + t + '" style="cursor:pointer;user-select:none"><span class="info-oc-seta">' + (colapsa ? '▶' : '▼') + '</span> ' + titulo + ' · ' + lista.length + '</h4><div class="info-oc-corpo" data-t="' + t + '"' + (colapsa ? ' hidden' : '') + '>' +
+        (lista.length ? lista.map(linha).join('') : '<p class="info-vazio">' + vazio + '</p>') + '</div>';
+    }
+    h += secao('NC', 'NC · peças reprovadas na revisão do cru (este artigo nesta máquina)', ncs, 'Nenhuma peça reprovada (NC) para este artigo nesta máquina.', function (o) {
+      return '<div class="info-oc"><span class="info-tag NC">NC</span><b>' + esc(o.quando) + '</b> · ' + (o.resolvida ? '✔ resolvida · ' : '') + 'artigo <b>' + esc(o.artigo) + '</b> · OP <b>' + esc(o.op) + '</b>' + (o.cliente ? ' · ' + esc(o.cliente) : '') + ' · ' + (o.avulsa ? '<b>OP AVULSA</b>' : 'com pedido') +
+        '<br><small style="color:#64748b">peça ' + esc(o.peca) + ' · ' + esc(o.defeitos) + ' · ' + o.metros + ' m · ' + esc(o.origem) + (o.emitente ? ' · ' + esc(o.emitente) : '') + (o.obs ? ' · ' + esc(o.obs) : '') + '</small></div>';
+    });
+    h += secao('RL', 'RL.PRODUÇÃO · apontamentos do revisor cru (este artigo nesta máquina)', rls, 'Nenhum apontamento de RL.PRODUÇÃO para este artigo nesta máquina.', function (o) {
+      return '<div class="info-oc"><span class="info-tag RL">RL</span><b>' + esc(o.quando) + '</b> · artigo <b>' + esc(o.artigo) + '</b> · OP <b>' + esc(o.op) + '</b> · peça ' + esc(o.peca) +
+        '<br><small style="color:#64748b">' + esc(o.defeitos) + ' · ' + o.metros + ' m reprovados · revisor ' + esc(o.emitente) + (o.obs ? ' · ' + esc(o.obs) : '') + (o.resolvida ? ' · ✔' : '') + '</small></div>';
+    });
     corpo.innerHTML = h;
   }
   var mq = document.querySelector('.info-i[data-maq]');
@@ -102,10 +114,10 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
   document.addEventListener('click', function (ev) {
     var ver = ev.target.closest('.info-ver'), tit = ev.target.closest('.info-oc-t');
     if (ver || tit) {
-      var cp = corpo.querySelector('.info-oc-corpo'), st = corpo.querySelector('.info-oc-seta');
+      var t = (ver || tit).dataset.t, cp = corpo.querySelector('.info-oc-corpo[data-t="' + t + '"]'), st = corpo.querySelector('.info-oc-t[data-t="' + t + '"] .info-oc-seta');
       if (ver) { cp.hidden = false; } else { cp.hidden = !cp.hidden; }
       st.textContent = cp.hidden ? '▶' : '▼';
-      if (ver) corpo.querySelector('.info-oc-t').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (ver) corpo.querySelector('.info-oc-t[data-t="' + t + '"]').scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
     var et = ev.target.closest('.info-step');
