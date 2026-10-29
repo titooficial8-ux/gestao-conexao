@@ -1481,3 +1481,54 @@ def investigar_comissao():
     except Exception as e:  # noqa: BLE001
         saida['4_transacoes_recentes_por_operacao'] = str(e)[:150]
     return _json(saida)
+
+
+@pedidos_bp.route('/inativas-usadas')
+@login_required
+def inativas_usadas():
+    """So administrador: para cada operacao INATIVA do cadastro, quando foi usada pela ultima vez em transacoes (mes a mes, ?meses=12). Uma operacao inativada recentemente ainda aparece com uso ate pouco antes
+    da inativacao: mostra quais operacoes foram desligadas 'de ontem para hoje' e podem explicar o GEN0001 no faturamento."""
+    if not current_user.is_admin:
+        abort(403)
+    from collections import defaultdict
+    from datetime import date, timedelta
+    from app.totvs import api, movimentos
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    inativas, pag = {}, 1
+    while pag <= 20:
+        r0 = cli.get(api.OPERATIONS_URL, {'StartChangeDate': '2000-01-01T00:00:00', 'EndChangeDate': f'{date.today().isoformat()}T23:59:59', 'PageSize': 1000, 'Page': pag})
+        if r0.status_code != 200:
+            return _json(dict(erro=f'HTTP {r0.status_code} {r0.text[:300]}')), 502
+        j0 = r0.json()
+        for o in j0.get('items') or []:
+            if o.get('isInactive'):
+                inativas[o.get('operationCode')] = o.get('description')
+        if not j0.get('hasNext'):
+            break
+        pag += 1
+    uso = defaultdict(lambda: dict(transacoes=0, primeira=None, ultima=None))
+    erros = []
+    hoje = date.today()
+    for i in range(int(request.args.get('meses', 12))):
+        fim = hoje - timedelta(days=30 * i)
+        ini = fim - timedelta(days=30)
+        pg = 1
+        while pg <= 20:
+            r = cli.post(movimentos.TRX_URL, dict(branchCodeList=[movimentos.EMPRESA], operationCodeList=sorted(inativas), startChangeDate=f'{ini.isoformat()}T00:00:00', endChangeDate=f'{fim.isoformat()}T23:59:59', page=pg, pageSize=500))
+            if r.status_code != 200:
+                erros.append(f'{ini}..{fim}: HTTP {r.status_code} {r.text[:120]}')
+                break
+            j = r.json()
+            for t in j.get('items') or []:
+                op = t.get('operationCode')
+                d = str(t.get('transactionDate') or t.get('changeDate') or '')[:10]
+                u = uso[op]
+                u['transacoes'] += 1
+                u['primeira'] = d if not u['primeira'] or d < u['primeira'] else u['primeira']
+                u['ultima'] = d if not u['ultima'] or d > u['ultima'] else u['ultima']
+            if not j.get('hasNext'):
+                break
+            pg += 1
+    out = [dict(operacao=op, descricao=inativas.get(op), **v) for op, v in sorted(uso.items(), key=lambda kv: kv[1]['ultima'] or '', reverse=True)]
+    return _json(dict(operacoes_inativas=len(inativas), com_uso_no_periodo=out, sem_uso_no_periodo=[dict(operacao=c, descricao=d) for c, d in inativas.items() if c not in uso], erros=erros[:5]))
