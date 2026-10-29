@@ -568,6 +568,6 @@ def pecas_extra(seq_id):
                                         pecas_antes=antes, pecas_depois=antes + n, detectado_em=agora, justificativa=motivo[:500], justificado_por=current_user.name, justificado_em=agora, origem='manual'))
         db.session.commit()
         return jsonify(ok=True, total=sq.total_pcs, extra=sq.pecas_extra)
-    hist = AjusteQuantidade.query.filter_by(sequencia_id=sq.id, origem='manual').order_by(AjusteQuantidade.id.desc()).limit(20).all()
+    hist = AjusteQuantidade.query.filter_by(sequencia_id=sq.id, origem='manual').order_by(AjusteQuantidade.id.desc()).limit(1).all()      # o quadro mostra so a ultima reposicao (todas ficam gravadas)
     return jsonify(op=sq.op, artigo=sq.artigo, total=sq.total_pcs or 0, extra=sq.pecas_extra or 0, produzidas=sq.pecas_produzidas or 0,
                    historico=[dict(quando=(a.detectado_em - timedelta(hours=3)).strftime('%d/%m %H:%M'), pecas=(a.pecas_depois or 0) - (a.pecas_antes or 0), motivo=a.justificativa, por=a.justificado_por) for a in hist])
