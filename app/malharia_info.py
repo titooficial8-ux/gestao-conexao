@@ -333,3 +333,31 @@ def ajuste_confirmar(ajuste_id):
     a.justificativa, a.justificado_por, a.justificado_em = motivo[:500], current_user.name, datetime.utcnow()
     db.session.commit()
     return jsonify(ok=True)
+
+
+# ------------------------------------------------------------------ ocorrencias do Acompanhamento de Producao (revisor em parada, paradas de maquina...)
+@info_bp.route('/paradas')
+@login_required
+def paradas():
+    _tab_ok()
+    from app import acompanhamento
+    if not acompanhamento.configurado():
+        return jsonify(itens=[], erro='Token da API do Acompanhamento não configurado (ACOMP_TOKEN ou SETUPS_TOKEN no .env).')
+    return jsonify(**acompanhamento.abertas())
+
+
+@info_bp.route('/acompanhamento-diagnostico')
+@login_required
+def acompanhamento_diagnostico():
+    """So administrador: lista as rotas da API do Acompanhamento e um exemplo das ocorrencias em andamento."""
+    if not current_user.is_admin:
+        abort(403)
+    from app import acompanhamento
+    out = dict(url=acompanhamento._url(), token_configurado=acompanhamento.configurado())
+    for nome, caminho, params in (('rotas', '', None), ('ocorrencias_andamento', '/ocorrencias', {'status': 'andamento'})):
+        try:
+            j = acompanhamento.chamar(caminho, params)
+            out[nome] = j if nome == 'rotas' else acompanhamento._lista(j)[:8]
+        except Exception as e:  # noqa: BLE001
+            out[nome] = f'erro: {e}'
+    return jsonify(out)

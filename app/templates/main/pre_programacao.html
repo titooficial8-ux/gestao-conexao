@@ -89,12 +89,14 @@
 
 <script>
 (function () {                               /* atualiza sozinha: confere a fila a cada 20 s e recarrega se mudou (para todos os usuarios) */
-  var base = null;
+  var base = null, pend = null;
   function ocupado() { var a = document.activeElement; return document.hidden || !!(a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA')); }
   function conferir() {
     fetch('/aba/pre-programacao/assinatura', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       if (!d) return; if (base === null) { base = d.sig; return; }
-      if (d.sig !== base && !ocupado()) location.reload();
+      if (d.sig === base) { pend = null; return; }
+      if (d.sig !== pend) { pend = d.sig; return; }          /* so recarrega se a mudanca se mantem por duas conferencias seguidas */
+      if (!ocupado()) location.reload();
     }).catch(function () {});
   }
   conferir(); setInterval(conferir, 20000);
