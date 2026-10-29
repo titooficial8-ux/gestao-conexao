@@ -1205,6 +1205,11 @@ def view_tab(slug):
         for lista in maquinas_por_estrutura.values():
             lista.sort(key=lambda x: x['ops'], reverse=True)
 
+        pedidos_da_op = {}                         # pedido(s) ligados a cada OP (calculo do TOTVS); OP avulsa nao tem pedido e fica em branco
+        for r in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.isnot(None), PedidoRelatorio.nr_op != '').all():
+            lista = pedidos_da_op.setdefault(str(r.nr_op), [])
+            if r.cod_pedido and r.cod_pedido not in lista:
+                lista.append(r.cod_pedido)
         analisar_itens = [
             {
                 'item': item,
@@ -1213,6 +1218,7 @@ def view_tab(slug):
                 'avulsa': (avulsa := 'CONEXAO MALHAS' in (item.cliente or '').upper() or bool(item.is_avulsa)),
                 'cliente': (cli := ((_cliente_pelo_artigo(item.artigo) if avulsa else None) or normalize_client_name(item.cliente or ''))),
                 'ortobom': cli == 'ORTOBOM',
+                'pedidos': pedidos_da_op.get(str(item.op), []),
                 'sugeridas': maquinas_por_estrutura.get(estrutura, [])[:6],
             }
             for item in FilaPreProgramacao.query.filter_by(status='WAITING')
