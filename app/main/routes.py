@@ -1494,177 +1494,107 @@ def _sorted_sequencias_for_download():
 @main_bp.route('/aba/programacao/download')
 @login_required
 def programacao_download():
-    """Excel 'layout profissional' com abas Produção / Resumo Completo /
-    Finalizados / Interrompidos / Cancelados — mesma logica do botao
-    Download do PCP Hub (3 modos: total / cliente / programadas)."""
+    """Excel so com a programacao ATUAL de cada maquina (as OPs na sequencia, na ordem do Hub) + aba Resumo com Qt Solicitada e OPs por maquina.
+    mode=programadas (todas as maquinas) ou mode=cliente&cliente=X (so as OPs do cliente)."""
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
     from io import BytesIO
 
-    modo = request.args.get('mode', 'total')
+    modo = request.args.get('mode', 'programadas')
     cliente = (request.args.get('cliente') or '').strip()
+    STATUS_LABEL = {'PCP': 'PCP', 'EM_SEQUENCIA': 'Em Sequência', 'PRODUZINDO': 'Produzindo'}
 
-    STATUS_LABEL = {
-        'PCP': 'PCP', 'EM_SEQUENCIA': 'Em Sequência', 'PRODUZINDO': 'Produzindo',
-        'FINALIZADO': 'Finalizado', 'INTERROMPIDO': 'Interrompido', 'CANCELADO': 'Cancelado',
-    }
-
-    class Row:
-        """Formato comum pra linhas vindas da Sequencia (ativas) ou do
-        Historico (finalizadas/interrompidas/canceladas), igual ao
-        'MachineRow' do PCP Hub."""
-        def __init__(self, machine, op, artigo, cliente, status, total_pcs, pecas_produzidas,
-                     qt_solicitada, qt_avulsa, is_avulsa, sequence_order, dt_cliente,
-                     termino_malharia, pieces_per_day, reason, created_at):
-            self.machine = machine
-            self.op = op
-            self.artigo = artigo
-            self.cliente = cliente
-            self.status = status
-            self.total_pcs = total_pcs or 0
-            self.pecas_produzidas = pecas_produzidas or 0
-            self.qt_solicitada = qt_solicitada or 0
-            self.qt_avulsa = qt_avulsa or 0
-            self.is_avulsa = is_avulsa
-            self.sequence_order = sequence_order
-            self.dt_cliente = dt_cliente
-            self.termino_malharia = termino_malharia
-            self.pieces_per_day = pieces_per_day
-            self.reason = reason
-            self.created_at = created_at
-
-    ativos = [
-        Row(s.machine.number, s.op, s.artigo, s.cliente, s.status, s.total_pcs, s.pecas_produzidas,
-            s.qt_solicitada, s.qt_avulsa, bool(s.qt_avulsa), s.sequence_order, s.dt_cliente,
-            s.termino_malharia, None, None, s.synced_at)
-        for s in Sequencia.query.join(Machine).all() if s.machine
-    ]
-
-    fin_hist, inter_hist, canc_hist = [], [], []
-    if modo in ('total', 'cliente'):
-        fin_hist = HistoricoProducao.query.filter_by(new_status='FINALIZADO').all()
-        inter_hist = HistoricoProducao.query.filter_by(new_status='INTERROMPIDO').all()
-        canc_hist = HistoricoProducao.query.filter_by(new_status='CANCELADO').all()
-
-        def dedup_by_op(rows):
-            seen, out = set(), []
-            for r in rows:
-                key = r.op or f'{r.machine}-{r.artigo}-{r.changed_at}'
-                if key in seen or not r.machine:
-                    continue
-                seen.add(key)
-                out.append(r)
-            return out
-
-        def hist_to_row(h, status):
-            return Row(h.machine, h.op, h.artigo, h.cliente, status, 0, h.quantity_pieces,
-                       h.requested_quantity, None, False, 9999, h.client_date, h.estimated_end_date,
-                       h.pieces_per_day, h.reason, h.changed_at)
-
-        todos = ativos + [hist_to_row(h, 'FINALIZADO') for h in dedup_by_op(fin_hist)] \
-            + [hist_to_row(h, 'INTERROMPIDO') for h in dedup_by_op(inter_hist)] \
-            + [hist_to_row(h, 'CANCELADO') for h in dedup_by_op(canc_hist)]
-    elif modo == 'programadas':
-        todos = [r for r in ativos if r.status in ('PCP', 'EM_SEQUENCIA', 'PRODUZINDO')]
-    else:
-        todos = ativos
-
+    seqs = [x for x in Sequencia.query.join(Machine).all() if x.machine and x.status in STATUS_LABEL]
     if modo == 'cliente' and cliente:
-        alvo = cliente.strip().upper()
-        todos = [r for r in todos if (r.cliente or '').strip().upper() == alvo]
-
-    todos.sort(key=lambda r: (r.machine or 0, r.sequence_order or 0))
-
-    if not todos:
+        alvo = cliente.upper()
+        seqs = [x for x in seqs if (x.cliente or '').strip().upper() == alvo]
+    seqs.sort(key=lambda x: (x.machine.number, x.sequence_order or 0))
+    if not seqs:
         flash('nada_para_exportar', 'error')
         return redirect(url_for('main.view_tab', slug='programacao'))
 
+    por_maquina = {}
+    for x in seqs:
+        por_maquina.setdefault(x.machine.number, []).append(x)
+    todas = [m.number for m in Machine.query.order_by(Machine.number).all()]
+    if modo == 'cliente' and cliente:
+        todas = sorted(por_maquina)
+
+    def _fmt(d):
+        return d.strftime('%d/%m/%Y') if d else ''
+
+    def _cabecalho(ws, cor):
+        for cell in ws[1]:
+            cell.font = Font(bold=True, color='FFFFFF')
+            cell.fill = PatternFill('solid', fgColor=cor)
+            cell.alignment = Alignment(horizontal='center', wrap_text=True)
+        ws.freeze_panes = 'A2'
+
+    def _larguras(ws):
+        for col in ws.columns:
+            n = max((len(str(c.value)) for c in col if c.value is not None), default=10)
+            ws.column_dimensions[col[0].column_letter].width = min(max(n + 2, 11), 45)
+
     wb = Workbook()
     ws = wb.active
-    ws.title = 'Produção'
-    ws.freeze_panes = 'A2'
-    headers = [
-        'Máquina', 'Seq.', 'Status', 'OP', 'Artigo', 'Cliente', 'Estrutura', 'DS.Metros',
-        'Total Peças', 'Peças Produzidas', 'PÇ.PRODUZIR', 'Qt Solicitada', 'Pçs/24h',
-        'Término Malharia', 'Prazo Cliente', 'Em Atraso', 'Qt Avulsa', 'Motivo', 'Atualizado em',
-    ]
-    ws.append(headers)
-    for cell in ws[1]:
-        cell.font = Font(bold=True, color='FFFFFF')
-        cell.fill = PatternFill('solid', fgColor='1E40AF')
-        cell.alignment = Alignment(horizontal='center', wrap_text=True)
+    ws.title = 'Resumo'
+    ws.append(['Máquina', 'OPs na programação', 'Qt Solicitada', 'Total Peças', 'Peças Produzidas', 'PÇ.PRODUZIR'])
+    _cabecalho(ws, '1E40AF')
+    tot = dict(ops=0, sol=0, pcs=0, prod=0, falta=0)
+    com_ops = 0
+    for n in todas:
+        lista = por_maquina.get(n, [])
+        sol = sum(x.qt_solicitada or 0 for x in lista)
+        pcs = sum(x.total_pcs or 0 for x in lista)
+        prod = sum(x.pecas_produzidas or 0 for x in lista)
+        falta = sum(max(0, (x.total_pcs or 0) - (x.pecas_produzidas or 0)) for x in lista)
+        ws.append([f'MÁQ {n}', len(lista), sol, pcs, prod, falta])
+        if not lista:
+            for c in ws[ws.max_row]:
+                c.font = Font(color='94A3B8')
+        else:
+            com_ops += 1
+        for k, v in (('ops', len(lista)), ('sol', sol), ('pcs', pcs), ('prod', prod), ('falta', falta)):
+            tot[k] += v
+    ws.append(['TOTAL', tot['ops'], tot['sol'], tot['pcs'], tot['prod'], tot['falta']])
+    for c in ws[ws.max_row]:
+        c.font = Font(bold=True)
+        c.fill = PatternFill('solid', fgColor='DBEAFE')
+    ws.append([])
+    ws.append(['Máquinas com programação', com_ops, 'de', len(todas)])
+    _larguras(ws)
 
-    for i, r in enumerate(todos):
-        atrasado = bool(r.termino_malharia and r.dt_cliente and r.termino_malharia > r.dt_cliente)
-        row = [
-            f'MÁQ {r.machine}', r.sequence_order if (r.sequence_order or 0) < 9999 else None,
-            STATUS_LABEL.get(r.status, r.status), r.op, r.artigo, r.cliente,
-            resolve_estrutura_from_article(r.artigo), resolve_metros_from_article(r.artigo),
-            r.total_pcs, r.pecas_produzidas, max(0, r.total_pcs - r.pecas_produzidas), r.qt_solicitada,
-            r.pieces_per_day, r.termino_malharia.strftime('%d/%m/%Y') if r.termino_malharia else '',
-            r.dt_cliente.strftime('%d/%m/%Y') if r.dt_cliente else '',
-            'SIM' if atrasado else 'NÃO', r.qt_avulsa, r.reason or '',
-            r.created_at.strftime('%d/%m/%Y %H:%M') if r.created_at else '',
-        ]
-        ws.append(row)
-        fill = PatternFill('solid', fgColor='F8FAFC' if i % 2 == 0 else 'FFFFFF')
-        for cell in ws[ws.max_row]:
-            cell.fill = fill
-        atraso_cell = ws.cell(row=ws.max_row, column=16)
-        atraso_cell.fill = PatternFill('solid', fgColor='DC2626' if atrasado else '16A34A')
-        atraso_cell.font = Font(bold=True, color='FFFFFF')
-
-    for col_cells in ws.columns:
-        length = max((len(str(c.value)) for c in col_cells if c.value is not None), default=10)
-        ws.column_dimensions[col_cells[0].column_letter].width = min(max(length + 2, 12), 50)
-    ws.auto_filter.ref = f'A1:{get_column_letter(len(headers))}{ws.max_row}'
-
-    def add_sheet(name, color, cols, rows):
-        s = wb.create_sheet(name)
-        s.append(cols)
-        for cell in s[1]:
-            cell.font = Font(bold=True, color='FFFFFF')
-            cell.fill = PatternFill('solid', fgColor=color)
-        for row in rows:
-            s.append(row)
-        for col_cells in s.columns:
-            length = max((len(str(c.value)) for c in col_cells if c.value is not None), default=10)
-            s.column_dimensions[col_cells[0].column_letter].width = min(max(length + 2, 10), 40)
-
-    add_sheet('Resumo Completo', '0EA5E9',
-               ['Artigo', 'Cliente', 'OP', 'Estrutura', 'Gramatura', 'Composição', 'DS.Metros', 'Qt Avulsa', 'Peças Produzidas', 'Total Pçs', 'PÇ.PRODUZIR', 'Qt Solicitada', 'Motivo'],
-               [[r.artigo, r.cliente, r.op, resolve_estrutura_from_article(r.artigo),
-                 getattr(dados_do_artigo(r.artigo), 'gramatura', None), getattr(dados_do_artigo(r.artigo), 'composicao', None), resolve_metros_from_article(r.artigo),
-                 r.qt_avulsa, r.pecas_produzidas, r.total_pcs, max(0, r.total_pcs - r.pecas_produzidas), r.qt_solicitada, r.reason or '']
-                for r in todos])
-    add_sheet('Finalizados', '16A34A',
-               ['Data Finalização', 'Máquina', 'OP', 'Artigo', 'Cliente', 'Qt Peças', 'Qt Solicitada', 'Pçs/24h', 'Motivo'],
-               [[h.changed_at.strftime('%d/%m/%Y %H:%M') if h.changed_at else '', h.machine, h.op, h.artigo, h.cliente,
-                 h.quantity_pieces, h.requested_quantity, h.pieces_per_day, h.reason or ''] for h in fin_hist])
-    add_sheet('Interrompidos', 'F59E0B',
-               ['Data', 'Máquina', 'OP', 'Artigo', 'Cliente', 'Qt Peças', 'Qt Solicitada', 'Motivo'],
-               [[h.changed_at.strftime('%d/%m/%Y %H:%M') if h.changed_at else '', h.machine, h.op, h.artigo, h.cliente,
-                 h.quantity_pieces, h.requested_quantity, h.reason or ''] for h in inter_hist])
-    add_sheet('Cancelados', 'DC2626',
-               ['Data', 'Máquina', 'OP', 'Artigo', 'Cliente', 'Qt Peças', 'Qt Solicitada', 'Motivo'],
-               [[h.changed_at.strftime('%d/%m/%Y %H:%M') if h.changed_at else '', h.machine, h.op, h.artigo, h.cliente,
-                 h.quantity_pieces, h.requested_quantity, h.reason or ''] for h in canc_hist])
+    pr = wb.create_sheet('Programação')
+    pr.append(['Máquina', 'Seq.', 'Status', 'OP', 'Artigo', 'Cliente', 'Qt Solicitada', 'Total Peças', 'Peças Produzidas', 'PÇ.PRODUZIR', 'Término Malharia', 'Prazo Cliente', 'Em Atraso'])
+    _cabecalho(pr, '0EA5E9')
+    for n in sorted(por_maquina):
+        lista = por_maquina[n]
+        for x in lista:
+            atrasado = bool(x.termino_malharia and x.dt_cliente and x.termino_malharia > x.dt_cliente)
+            pr.append([f'MÁQ {n}', x.sequence_order, STATUS_LABEL.get(x.status, x.status), x.op, x.artigo, x.cliente, x.qt_solicitada or 0,
+                       x.total_pcs or 0, x.pecas_produzidas or 0, max(0, (x.total_pcs or 0) - (x.pecas_produzidas or 0)), _fmt(x.termino_malharia), _fmt(x.dt_cliente), 'SIM' if atrasado else 'NÃO'])
+            c = pr.cell(row=pr.max_row, column=13)
+            c.fill = PatternFill('solid', fgColor='DC2626' if atrasado else '16A34A')
+            c.font = Font(bold=True, color='FFFFFF')
+        pr.append([f'TOTAL MÁQ {n}', None, None, None, None, None, sum(x.qt_solicitada or 0 for x in lista), sum(x.total_pcs or 0 for x in lista), sum(x.pecas_produzidas or 0 for x in lista),
+                   sum(max(0, (x.total_pcs or 0) - (x.pecas_produzidas or 0)) for x in lista)])
+        for c in pr[pr.max_row]:
+            c.font = Font(bold=True)
+            c.fill = PatternFill('solid', fgColor='E2E8F0')
+    _larguras(pr)
+    pr.auto_filter.ref = f'A1:{get_column_letter(13)}{pr.max_row}'
 
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
-    if modo == 'programadas':
-        nome = f'producao_programadas_{datetime.utcnow().strftime("%Y-%m-%d")}.xlsx'
-    elif modo == 'cliente' and cliente:
-        slug_cliente = re.sub(r'[^a-z0-9_-]', '_', cliente.lower())[:40]
-        nome = f'producao_{slug_cliente}_{datetime.utcnow().strftime("%Y-%m-%d")}.xlsx'
+    hoje = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m-%d')
+    if modo == 'cliente' and cliente:
+        nome = f'programacao_{re.sub(r"[^a-z0-9_-]", "_", cliente.lower())[:40]}_{hoje}.xlsx'
     else:
-        nome = f'producao_maquinas_{datetime.utcnow().strftime("%Y-%m-%d")}.xlsx'
-    return Response(
-        buf.read(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        headers={'Content-Disposition': f'attachment; filename={nome}'},
-    )
+        nome = f'programacao_maquinas_{hoje}.xlsx'
+    return Response(buf.read(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition': f'attachment; filename={nome}'})
 
 
 def _pode_dias_sem_producao() -> bool:

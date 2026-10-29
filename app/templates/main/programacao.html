@@ -143,9 +143,6 @@
       <button type="button" class="modal-close" id="fecharModalDownload">&times;</button>
     </div>
     <div class="dl-opcoes">
-      <a class="dl-opcao" href="{{ url_for('main.programacao_download', mode='total') }}" data-dl>
-        <strong>{{ t('prod_download_total') }}</strong><span>{{ t('prod_download_total_desc') }}</span>
-      </a>
       <a class="dl-opcao" href="{{ url_for('main.programacao_download', mode='programadas') }}" data-dl>
         <strong>{{ t('prod_download_programadas') }}</strong><span>{{ t('prod_download_programadas_desc') }}</span>
       </a>
