@@ -29,7 +29,7 @@
           <th>OP</th>
           <th>{{ t('artigo') }}</th>
           <th>{{ t('estrutura') }}</th>
-          <th>{{ t('cliente') }}</th>
+          <th style="text-align:center">{{ t('cliente') }}</th>
           <th>{{ t('prev_faturamento') }}</th>
           <th>{{ t('qt_solicitada') }}</th>
           <th>{{ t('total_pcs') }}</th>
@@ -50,7 +50,7 @@
             <span class="presel-est-badge presel-est-none">{{ t('estrutura_nao_cadastrada') }}</span>
             {% endif %}
           </td>
-          <td>{{ row.item.cliente or '–' }}{% if row.avulsa %} <span class="presel-avulsa" title="OP criada pela Conexão (PCPFM156), sem pedido de venda">OP AVULSA</span>{% endif %}</td>
+          <td class="presel-cli">{{ row.cliente or '–' }}{% if row.avulsa %}<br><span class="presel-avulsa" title="OP criada pela Conexão (PCPFM156), sem pedido de venda; o cliente vem do pedido em aberto deste artigo">OP AVULSA</span>{% endif %}</td>
           <td>{% if row.ortobom or row.avulsa %}<input type="text" maxlength="10" class="presel-dt-input js-dt-prev" data-id="{{ row.item.id }}" value="{{ row.dt_prevfaturamento or '' }}" placeholder="A DEFINIR" title="Editável (até 10 caracteres; Enter salva)">{% else %}{{ row.dt_prevfaturamento or '–' }}{% endif %}</td>
           <td>{{ row.item.requested_quantity | int }}</td>
           <td>{{ row.item.total_pcs }}</td>

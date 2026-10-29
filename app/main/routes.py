@@ -1194,8 +1194,9 @@ def view_tab(slug):
                 'item': item,
                 'estrutura': (estrutura := estrutura_curta(resolve_estrutura_from_article(item.artigo))),
                 'dt_prevfaturamento': _fila_dt_prev(item),
-                'avulsa': normalize_client_name(item.cliente or '') in ('CONEXAO MALHAS E DESENVOLVIMENTO LTDA', 'CONEXAO') or 'CONEXAO MALHAS' in (item.cliente or '').upper() or bool(item.is_avulsa),
-                'ortobom': normalize_client_name(item.cliente or '') == 'ORTOBOM',
+                'avulsa': (avulsa := 'CONEXAO MALHAS' in (item.cliente or '').upper() or bool(item.is_avulsa)),
+                'cliente': (cli := ((_cliente_pelo_artigo(item.artigo) if avulsa else None) or normalize_client_name(item.cliente or ''))),
+                'ortobom': cli == 'ORTOBOM',
                 'sugeridas': maquinas_por_estrutura.get(estrutura, [])[:6],
             }
             for item in FilaPreProgramacao.query.filter_by(status='WAITING')
@@ -1783,6 +1784,20 @@ def _parse_dt_texto(txt):
     return date(ano, int(m.group(2)), int(m.group(1))), None
 
 
+def _cliente_pelo_artigo(artigo):
+    """OP avulsa criada pela Conexao vem do TOTVS com o cliente 'CONEXAO MALHAS...': o cliente de verdade e quem tem pedido em aberto desse artigo
+    (mesma ideia da Programacao). ORTOBOM (qualquer unidade) vira 'ORTOBOM'; varios clientes: o de maior saldo pendente. Sem pedido: None."""
+    cod = (artigo or '').split(' ')[0]
+    if not cod:
+        return None
+    saldo = {}
+    for p in PedidoRelatorio.query.filter(_pedido_aberto(), PedidoRelatorio.cod_produto == cod, PedidoRelatorio.qt_pendente > 0.5).all():
+        nome = normalize_client_name(p.nome_cliente or '')
+        if nome and 'CONEXAO MALHAS' not in nome.upper():
+            saldo[nome] = saldo.get(nome, 0) + (p.qt_pendente or 0)
+    return max(saldo, key=saldo.get) if saldo else None
+
+
 def _fila_dt_prev(item):
     """DT.PREV.FAT do item da Pre-Programacao: o que o PCP digitou; senao a menor Prev. Faturamento do pedido ligado a OP; senao dos pedidos em aberto do mesmo cliente+artigo."""
     if item.dt_prevfaturamento:
@@ -1831,7 +1846,7 @@ def mover_pre_programacao():
         flash(aviso, 'error')
         return redirect(url_for('main.view_tab', slug='pre-programacao', aba='analisar'))
     estrutura = resolve_estrutura_from_article(item.artigo)
-    cliente = normalize_client_name(item.cliente)
+    cliente = (_cliente_pelo_artigo(item.artigo) if 'CONEXAO MALHAS' in (item.cliente or '').upper() else None) or normalize_client_name(item.cliente)
     manual = (item.dt_prevfaturamento or '').strip()
     dt_man, txt_man = _parse_dt_texto(manual) if manual else (None, None)
     dt_cliente = dt_man or resolve_dt_cliente_from_pedidos(item.op, item.artigo)
@@ -1845,7 +1860,7 @@ def mover_pre_programacao():
         machine_id=machine.id,
         sequence_order=proxima_ordem,
         artigo=item.artigo,
-        cliente=item.cliente,
+        cliente=cliente,
         op=item.op,
         status='PCP',
         total_pcs=item.total_pcs or 0,

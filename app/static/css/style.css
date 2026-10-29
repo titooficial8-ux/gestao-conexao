@@ -1847,7 +1847,8 @@ button { font-family: inherit; cursor: pointer; }
   cursor: pointer;
 }
 .presel-sugerida-chip:hover { background: #bfdbfe; }
-.presel-avulsa { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 800; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; white-space: nowrap; }
+.presel-cli { text-align: center; }
+.presel-avulsa { display: inline-block; margin-top: 4px; font-size: 10px; font-weight: 800; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; white-space: nowrap; }
 .presel-dt-input { width: 110px; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #0f172a; font-size: 12.5px; font-weight: 600; }
 .presel-dt-input::placeholder { color: #b45309; font-weight: 800; }
 .presel-dt-input:focus { outline: 2px solid #bfdbfe; border-color: #2f7fe0; }
