@@ -1421,3 +1421,63 @@ def operacao_inativa():
         saida['operacoes'] = [{k: v for k, v in o.items() if not isinstance(v, (list, dict))} for o in (r2.json().get('items') or [])] if r2.status_code == 200 else f'HTTP {r2.status_code} {r2.text[:200]}'
     saida['dica'] = 'Procure em "operacoes" o campo de situacao/inativa (isInactive, status...). Se a operacao estiver inativa, peca ao TI/fiscal para reativar ou troque a operacao do pedido.'
     return _json(saida)
+
+
+@pedidos_bp.route('/investigar-comissao')
+@login_required
+def investigar_comissao():
+    """So administrador: investiga por que o faturamento do pedido (?pedido=11651) chama a operacao de comissao inativa (?operacao=1024, ?representante=63).
+    Mostra: (1) quando a operacao foi usada pela ultima vez (transacoes), (2) se o representante e o pedido guardam dados de comissao/operacao, (3) ultimas transacoes de comissao."""
+    if not current_user.is_admin:
+        abort(403)
+    import re
+    from datetime import date, timedelta
+    from app.totvs import api, movimentos, pedidos as P
+    operacao = request.args.get('operacao', default=1024, type=int)
+    rep = request.args.get('representante', default=63, type=int)
+    pedido = request.args.get('pedido', default=11651, type=int)
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    saida = {}
+    # 1) uso da operacao ao longo do tempo (janelas de 90 dias, ate 2 anos)
+    uso = []
+    hoje = date.today()
+    for i in range(8):
+        fim = hoje - timedelta(days=90 * i)
+        ini = fim - timedelta(days=90)
+        try:
+            r = cli.post(movimentos.TRX_URL, dict(branchCodeList=[movimentos.EMPRESA], operationCodeList=[operacao], startChangeDate=f'{ini.isoformat()}T00:00:00', endChangeDate=f'{fim.isoformat()}T23:59:59', page=1, pageSize=100))
+            if r.status_code != 200:
+                uso.append(dict(periodo=f'{ini}..{fim}', erro=f'HTTP {r.status_code} {r.text[:120]}'))
+                continue
+            j = r.json()
+            itens = j.get('items') or []
+            datas = sorted(str(x.get('transactionDate') or x.get('changeDate') or '')[:10] for x in itens)
+            uso.append(dict(periodo=f'{ini}..{fim}', transacoes=j.get('totalItems', len(itens)), primeira=datas[0] if datas else None, ultima=datas[-1] if datas else None,
+                            exemplo=[{k: v for k, v in itens[0].items() if not isinstance(v, (list, dict))}] if itens else None))
+        except Exception as e:  # noqa: BLE001
+            uso.append(dict(periodo=f'{ini}..{fim}', erro=str(e)[:120]))
+    saida[f'1_uso_da_operacao_{operacao}_por_periodo'] = uso
+    # 2) representante: algum campo de comissao/operacao?
+    try:
+        r = cli.post(api.REPRESENTATIVE_URL, dict(filter=dict(representativeCodeList=[rep]), pageSize=5, page=1))
+        reps = r.json().get('items') or [] if r.status_code == 200 else r.text[:200]
+        saida['2_representante'] = [{k: v for k, v in x.items() if not isinstance(v, (list,)) } for x in reps][:2] if isinstance(reps, list) else reps
+    except Exception as e:  # noqa: BLE001
+        saida['2_representante'] = str(e)[:150]
+    # 3) pedido: campos de comissao/representante/operacao (ordem e itens)
+    try:
+        r = cli.post(P.ORDERS_URL, dict(filter=dict(branchCodeList=[P.EMPRESA], orderCodeList=[pedido], orderStatusList=P.STATUS_PEDIDO), expand='items', pageSize=1, page=1))
+        p = (r.json().get('items') or [{}])[0] if r.status_code == 200 else {}
+        pick = lambda d: {k: v for k, v in d.items() if re.search(r'commis|comiss|repres|oper|transact|service|servic', k, re.I)}
+        saida['3_pedido_campos'] = dict(pedido=pick(p), itens=[pick(it) for it in (p.get('items') or [])[:3]])
+    except Exception as e:  # noqa: BLE001
+        saida['3_pedido_campos'] = str(e)[:150]
+    # 4) ultimas transacoes de qualquer operacao ligadas a esse pedido/representante nos ultimos dias (para ver o que o faturamento esta gravando)
+    try:
+        r = cli.post(movimentos.TRX_URL, dict(branchCodeList=[movimentos.EMPRESA], startChangeDate=f'{(hoje - timedelta(days=2)).isoformat()}T00:00:00', endChangeDate=f'{hoje.isoformat()}T23:59:59', page=1, pageSize=100))
+        itens = r.json().get('items') or [] if r.status_code == 200 else []
+        saida['4_transacoes_recentes_por_operacao'] = dict(sorted(((str(k), v) for k, v in __import__('collections').Counter(x.get('operationCode') for x in itens).items()), key=lambda kv: -kv[1])[:25])
+    except Exception as e:  # noqa: BLE001
+        saida['4_transacoes_recentes_por_operacao'] = str(e)[:150]
+    return _json(saida)
