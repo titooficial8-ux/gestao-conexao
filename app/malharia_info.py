@@ -218,7 +218,7 @@ def alertas():
     from app import acompanhamento
     if acompanhamento.configurado():            # o lider marca ANALISANDO/LIBERADO no sistema do Acompanhamento; aqui o PCP so acompanha
         pend = acompanhamento.liberacoes('pendente')
-        if not pend['erro'] or pend['itens']:
+        if True:
             hoje = (datetime.now() - timedelta(hours=6, minutes=20)).strftime('%Y-%m-%d')
             lib = acompanhamento.liberacoes('liberado', hoje)
 
@@ -474,4 +474,22 @@ def acompanhamento_diagnostico():
             out[nome] = j if nome == 'rotas' else acompanhamento._lista(j)[:8]
         except Exception as e:  # noqa: BLE001
             out[nome] = f'erro: {e}'
+    return jsonify(out)
+
+
+@info_bp.route('/liberacoes-diagnostico')
+@login_required
+def liberacoes_diagnostico():
+    """So administrador: o que a API do Acompanhamento devolve em /liberacoes (pendentes e liberadas de hoje) e como o Gestao leu."""
+    if not current_user.is_admin:
+        abort(403)
+    from app import acompanhamento
+    out = dict(token_configurado=acompanhamento.configurado(), url=acompanhamento._url())
+    for nome, params in (('bruto_pendente', {'status': 'pendente'}), ('bruto_todas_hoje', {'status': 'todas', 'de': datetime.now().strftime('%Y-%m-%d')})):
+        try:
+            out[nome] = acompanhamento._lista(acompanhamento.chamar('/liberacoes', params))[:5]
+        except Exception as e:  # noqa: BLE001
+            out[nome] = f'erro: {e}'
+    p = acompanhamento.liberacoes('pendente')
+    out['lido_pelo_gestao'] = dict(erro=p['erro'], itens=[{k: (str(v) if k == 'em' else v) for k, v in x.items()} for x in p['itens'][:5]])
     return jsonify(out)
