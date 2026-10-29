@@ -36,7 +36,7 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
         '<label style="font-weight:700;font-size:12px;display:block;margin-top:12px">PEÇAS A ACRESCENTAR</label><input type="number" id="tpN" class="tp-in" min="1" max="999" value="1" style="width:110px"> <span id="tpNovo" style="font-weight:800;margin-left:8px"></span>' +
         '<label style="font-weight:700;font-size:12px;display:block;margin-top:12px">JUSTIFIQUE O MOTIVO</label><textarea id="tpMotivo" placeholder="Por que acrescentar peças a esta OP?"></textarea>' +
         '<div class="aj-bt"><button class="aj-no" type="button" id="tpFecha">Fechar</button><button class="aj-ok" type="button" id="tpConf">Confirmar</button></div>' +
-        (d.historico.length ? '<b style="font-size:12px;text-transform:uppercase;color:#64748b;display:block;margin-top:12px">Acréscimos anteriores</b>' + d.historico.map(function (h) { return '<div style="font-size:13px;border-top:1px solid #f1f5f9;padding:4px 0"><b>+' + h.pecas + '</b> · ' + esc(h.quando) + ' · ' + esc(h.por) + ' · ' + esc(h.motivo) + '</div>'; }).join('') : '');
+        (d.historico.length ? '<b style="font-size:12px;text-transform:uppercase;color:#64748b;display:block;margin-top:12px">Última reposição</b>' + d.historico.map(function (h) { return '<div style="font-size:13px;border-top:1px solid #f1f5f9;padding:4px 0"><b>+' + h.pecas + '</b> · ' + esc(h.quando) + ' · ' + esc(h.por) + ' · ' + esc(h.motivo) + '</div>'; }).join('') : '');
       var n = document.getElementById('tpN'), nv = document.getElementById('tpNovo');
       function calc() { nv.textContent = '→ total ' + (d.total + (parseInt(n.value, 10) || 0)) + ' peças'; }
       n.oninput = calc; calc();
