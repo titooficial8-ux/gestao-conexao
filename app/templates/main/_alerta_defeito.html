@@ -1,10 +1,10 @@
 <style>
 #alertaDefeito{display:none;border:2px solid #2f7fe0;background:#eef5ff;border-radius:12px;padding:12px 16px;margin:10px 0}
 #alertaDefeito.on{display:block}#alertaDefeito.tem{background:#fbe9c8;border-color:#a8670a}
-.ad-t{font-weight:800;font-size:14px}.ad-i{display:flex;gap:12px;align-items:center;justify-content:space-between;border-top:1px solid rgba(0,0,0,.08);padding:8px 0;margin-top:6px}
-.ad-i small{color:#64748b;display:block;font-size:12px}.ad-bt{display:flex;gap:6px;flex-shrink:0}
-.ad-bt button{border-radius:8px;padding:8px 14px;font-weight:800;cursor:pointer;border:2px solid #a8670a;background:#fff;color:#a8670a}.ad-bt .lib{background:#15803d;border-color:#15803d;color:#fff}
-.ad-est{display:inline-block;font-size:11px;font-weight:800;border-radius:6px;padding:2px 8px;border:1px solid #a8670a;color:#a8670a;background:#fff;margin-left:6px}.ad-est.AGUARDANDO{border-color:#1d4ed8;color:#1d4ed8}
+.ad-t{font-weight:800;font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}.ad-seta{display:inline-block;transition:transform .15s;font-size:12px}#alertaDefeito.fechado .ad-seta{transform:rotate(-90deg)}#alertaDefeito.fechado .ad-corpo{display:none}#alertaDefeito{padding:8px 14px}.ad-i{display:flex;gap:12px;align-items:center;justify-content:space-between;border-top:1px solid rgba(0,0,0,.08);padding:6px 0;margin-top:4px;font-size:13px}
+.ad-i small{color:#64748b;display:block;font-size:12px}.ad-bt{display:flex;gap:6px;flex-shrink:0;align-items:center}
+.ad-bt button{border-radius:8px;padding:5px 11px;font-size:12px;font-weight:800;cursor:pointer;border:2px solid #a8670a;background:#fff;color:#a8670a}.ad-bt .lib{background:#15803d;border-color:#15803d;color:#fff}
+.ad-est{display:inline-block;font-size:11px;font-weight:800;border-radius:6px;padding:2px 8px;border:1px solid #a8670a;color:#a8670a;background:#fff;white-space:nowrap}.ad-est.AGUARDANDO{border-color:#1d4ed8;color:#1d4ed8}
 </style>
 <div id="alertaDefeito"></div>
 <script>
@@ -14,16 +14,21 @@
   function ler() {
     fetch('/info/alertas', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       if (!d.itens || !d.itens.length) { el.className = ''; el.innerHTML = ''; return; }
-      el.className = 'on tem';
-      el.innerHTML = '<div class="ad-t">🔔 PEÇA APRESENTANDO DEFEITO · LÍDER DO TURNO · ' + d.itens.length + (d.itens.length > 1 ? ' pendentes' : ' pendente') + '</div>' + d.itens.map(function (n) {
+      var fechado = false; try { fechado = localStorage.getItem('alertaDefeitoFechado') === '1'; } catch (e) {}
+      el.className = 'on tem' + (fechado ? ' fechado' : '');
+      el.innerHTML = '<div class="ad-t"><span class="ad-seta">▼</span>🔔 PEÇA APRESENTANDO DEFEITO · LÍDER DO TURNO · ' + d.itens.length + (d.itens.length > 1 ? ' pendentes' : ' pendente') + '</div><div class="ad-corpo">' + d.itens.map(function (n) {
         return '<div class="ad-i"><div><b>MQ ' + esc(n.maquina) + '</b> · OP ' + esc(n.op || '–') + ' · peça ' + esc(n.peca) + ' · artigo ' + esc(n.artigo) + ' · <b>' + n.metros + ' m</b> reprovados' +
           '<small>' + esc(n.defeitos.join(' · ')) + ' · ' + esc(n.origem) + ' · ' + esc(n.emitente) + ' · ' + esc(n.criado) + (n.obs ? ' · ' + esc(n.obs) : '') + '</small></div>' +
           '<div class="ad-bt"><span class="ad-est ' + n.estado + '">' + (n.estado === 'ANALISANDO' ? 'ANALISANDO · ' + esc(n.por || '') + ' ' + esc(n.em || '') : 'AGUARDANDO LÍDER') + '</span>' +
           (d.pode ? '<button data-id="' + esc(n.id) + '" data-e="ANALISANDO">ANALISANDO</button><button class="lib" data-id="' + esc(n.id) + '" data-e="LIBERADO">LIBERADO</button>' : '') + '</div></div>';
-      }).join('');
+      }).join('') + '</div>';
     }).catch(function () {});
   }
   el.addEventListener('click', function (ev) {
+    if (ev.target.closest('.ad-t')) {
+      var f = el.classList.toggle('fechado'); try { localStorage.setItem('alertaDefeitoFechado', f ? '1' : '0'); } catch (e) {}
+      return;
+    }
     var b = ev.target.closest('button[data-id]'); if (!b) return;
     fetch('/info/alertas/' + b.dataset.id + '/estado', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: b.dataset.e }) })
       .then(function (r) { return r.json(); }).then(function (j) { if (j.erro) alert(j.erro); ler(); });
