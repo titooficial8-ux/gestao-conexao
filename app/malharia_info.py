@@ -115,6 +115,61 @@ def resolvidas() -> set:
     return {e.nc_id for e in NcEstado.query.filter_by(estado='LIBERADO').all()} | set(_hub_cientes())
 
 
+_CLI_OP = {}                                         # op -> (quando, cliente): o cliente de uma OP nao muda; guarda por 12 h
+
+
+def clientes_das_ops(pares) -> dict:
+    """{op: cliente real}. O cliente digitado na NC (campo CLIENTE) pode estar errado; aqui vem da OP: Programacao/Pre-Programacao do Gestao, pedido ligado a OP e, se a OP ja saiu
+    da programacao, direto do TOTVS (customerName da OP). OP avulsa da Conexao: o cliente do pedido em aberto do artigo. `pares` = [(op, artigo, informado)]."""
+    from app.main.routes import _cliente_pelo_artigo, normalize_client_name
+    from app.models import FilaPreProgramacao, PedidoRelatorio
+    agora = time.time()
+    out, faltam = {}, []
+    for op, artigo, informado in pares:
+        op = str(op or '')
+        if not op:
+            continue
+        v = _CLI_OP.get(op)
+        if v and agora - v[0] < 43200:
+            out[op] = v[1]
+            continue
+        nome = None
+        sq = Sequencia.query.filter_by(op=op).first()
+        if sq and sq.cliente:
+            nome = sq.cliente
+        if not nome:
+            p = PedidoRelatorio.query.filter_by(nr_op=op).first()
+            nome = p.nome_cliente if p else None
+        if not nome:
+            f = FilaPreProgramacao.query.filter_by(op=op).first()
+            nome = f.cliente if f else None
+        if nome:
+            out[op] = nome
+        else:
+            faltam.append(op)
+    if faltam:
+        try:
+            from app.totvs import api, artigos
+            cli = api.TotvsModaClient()
+            cli.autenticar()
+            for lote in [faltam[i:i + 50] for i in range(0, len(faltam), 50)]:
+                for o in artigos._ops(cli, [int(x) for x in lote if x.isdigit()]):
+                    if o.get('customerName'):
+                        out[str(o.get('orderCode'))] = o['customerName']
+        except Exception:  # noqa: BLE001
+            pass
+    art = {str(op): (a, inf) for op, a, inf in pares if op}
+    for op, (a, inf) in art.items():
+        nome = out.get(op)
+        if nome and 'CONEXAO MALHAS' in nome.upper():             # OP avulsa: o cliente de verdade vem do artigo
+            nome = _cliente_pelo_artigo(a) or nome
+        nome = normalize_client_name(nome) if nome else None
+        if nome:
+            _CLI_OP[op] = (agora, nome)
+        out[op] = nome or inf or ''
+    return out
+
+
 def pode_liberar(u=None) -> bool:
     """Lider da malharia (ou administrador): usuario do setor Malharia com cargo de lider, ou e-mail em LIDER_MALHARIA_EMAILS."""
     u = u or current_user
@@ -266,6 +321,9 @@ def _ocorrencias(artigo, maquina, num):
     lista = [n for n in _ncs() if n['artigo'] == cod and n['maquina'] == maquina and n['criado']]
     com_pedido = {str(p.nr_op) for p in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.in_([n['op'] for n in lista if n['op']])).all()} if lista else set()
     lista.sort(key=lambda n: n['criado'], reverse=True)
+    real = clientes_das_ops([(n['op'], n['artigo'], n['cliente']) for n in lista[:40]])
+    for n in lista:
+        n['cliente'] = real.get(str(n['op']), n['cliente']) or n['cliente']
     rl = _rl_ocorrencias(cod, maquina, num)
     nc = [dict(quando=n['criado'].strftime('%d/%m %H:%M'), tipo='NC', resolvida=n['id'] in resolv, aberta=(n['id'] not in resolv and n['criado'] >= recente), artigo=n['artigo'], op=n['op'] or '–',
                  cliente=n['cliente'] or '–', avulsa=bool(n['op']) and n['op'] not in com_pedido, peca=n['peca'], defeitos=', '.join(n['defeitos']), metros=n['metros'], origem=_origem(n['origem']),
