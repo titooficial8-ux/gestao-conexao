@@ -34,7 +34,7 @@
     <button type="button" class="prod-btn" disabled>{{ t('acao_lista') }}</button>
     <button type="button" class="prod-btn prod-btn-accent" id="btnAuditoria">&#9881; Auditoria</button>
     <button type="button" class="prod-btn" id="btnHistorico">{{ t('acao_historico') }}</button>
-    {% if pode_reprovas_cru() %}<a class="prod-btn" href="/reprovas-cru/" target="_blank" style="text-decoration:none">Reprovas Cru</a>{% endif %}
+    {% if pode_reprovas_cru() %}<button type="button" class="prod-btn" id="btnReprovasCru">Reprovas Cru</button>{% endif %}
     <button type="button" class="prod-btn" id="btnDownload">{{ t('acao_download') }}</button>
     <button type="button" class="prod-btn prod-btn-warn" id="btnDiasSemProducao">{{ t('acao_dias_sem_producao') }}</button>
     <button type="button" class="prod-btn prod-btn-primary" id="btnNovoRegistro">+ {{ t('novo_registro') }}</button>
@@ -387,6 +387,7 @@ window.initFactoryCorridors = function () {
 window.initFactoryCorridors();
 </script>
 {% include 'main/_auditoria_log.html' %}
+{% if pode_reprovas_cru() %}{% include 'main/_reprovas_modal.html' %}{% endif %}
 {% include 'main/_dias_sem_producao_modal.html' %}
 {% with auto_maq='' %}{% include 'main/_auto_atualizar.html' %}{% endwith %}
 {% endblock %}

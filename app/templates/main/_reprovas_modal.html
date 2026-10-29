@@ -1,0 +1,49 @@
+<div class="modal-backdrop" id="modalReprovas" hidden>
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-head">
+      <h3 class="section-subtitle">Reprovas no cru · PDF e e-mail</h3>
+      <button type="button" class="modal-close" id="fecharReprovas">&times;</button>
+    </div>
+    <div style="padding:4px 4px 10px;font-size:14px">
+      <div style="color:#64748b;margin-bottom:8px">Pega todas as máquinas e todos os turnos do dia de produção (06h20 às 06h19). Padrão: o dia anterior.</div>
+      <label style="font-weight:700;font-size:12px">DIA DE PRODUÇÃO</label>
+      <input type="date" id="rpDia" style="display:block;padding:8px;border:1px solid #94a3b8;border-radius:8px;margin:4px 0 10px">
+      <div id="rpResumo" style="background:#f1f5f9;border-radius:10px;padding:10px 14px;margin-bottom:10px">Carregando…</div>
+      <label style="font-weight:700;font-size:12px">ENVIAR PARA (vários: separe por vírgula)</label>
+      <input type="text" id="rpPara" value="christian.yarzon@conexaomalhas.com.br" style="display:block;width:100%;box-sizing:border-box;padding:8px;border:1px solid #94a3b8;border-radius:8px;margin:4px 0 10px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="prod-btn prod-btn-primary" id="rpEnviar">Enviar AGORA por e-mail</button>
+        <button type="button" class="prod-btn" id="rpPdf">Gerar PDF</button>
+        <span id="rpMsg" style="font-weight:700"></span>
+      </div>
+      <div id="rpAuto" style="margin-top:12px;font-size:12px;color:#64748b"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var bt = document.getElementById('btnReprovasCru'); if (!bt) return;
+  var m = document.getElementById('modalReprovas'), dia = document.getElementById('rpDia'), msg = document.getElementById('rpMsg');
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function f(v) { return String(v).replace('.', ','); }
+  function ler() {
+    document.getElementById('rpResumo').textContent = 'Carregando…';
+    fetch('/reprovas-cru/resumo' + (dia.value ? '?dia=' + dia.value : ''), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!dia.value) dia.value = d.dia;
+      document.getElementById('rpResumo').innerHTML = '<b style="font-size:22px;color:#C62828">' + d.pecas + '</b> peça(s) reprovada(s) · <b>' + f(d.metros) + '</b> m · ' + d.artigos + ' artigo(s) · ' + d.maquinas + ' máquina(s)' +
+        (d.top.length ? '<div style="font-size:12px;margin-top:6px">' + d.top.map(function (a) { return '<b>' + esc(a.artigo) + '</b> ' + esc(a.cliente) + ' (' + a.pecas + ')'; }).join(' · ') + '</div>' : '<div style="font-size:12px;margin-top:6px;color:#15803d">Nenhuma reprova neste dia.</div>');
+      document.getElementById('rpAuto').textContent = 'Envio automático diário às ' + d.auto.hora + ': ' + (d.auto.ativo ? 'LIGADO' : 'desligado') + ' · para ' + d.auto.destinos + ' · e-mail (SMTP) ' + (d.auto.smtp ? 'configurado' : 'NÃO configurado');
+    }).catch(function () { document.getElementById('rpResumo').textContent = 'Não foi possível carregar.'; });
+  }
+  bt.addEventListener('click', function () { msg.textContent = ''; m.hidden = false; ler(); });
+  dia.addEventListener('change', ler);
+  document.getElementById('fecharReprovas').addEventListener('click', function () { m.hidden = true; });
+  document.getElementById('rpPdf').addEventListener('click', function () { window.open('/reprovas-cru/pdf?dia=' + dia.value, '_blank'); });
+  document.getElementById('rpEnviar').addEventListener('click', function () {
+    msg.style.color = '#1e293b'; msg.textContent = 'Gerando e enviando…';
+    fetch('/reprovas-cru/enviar-teste?dia=' + dia.value + '&para=' + encodeURIComponent(document.getElementById('rpPara').value), { method: 'POST', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); }).then(function (j) { msg.style.color = j.ok ? '#15803d' : '#b91c1c'; msg.textContent = j.ok ? 'Enviado para ' + j.para.join(', ') : 'Erro: ' + j.erro; })
+      .catch(function () { msg.style.color = '#b91c1c'; msg.textContent = 'Falha na requisição'; });
+  });
+})();
+</script>
