@@ -88,6 +88,17 @@
 
 
 <script>
+(function () {                               /* atualiza sozinha: confere a fila a cada 20 s e recarrega se mudou (para todos os usuarios) */
+  var base = null;
+  function ocupado() { var a = document.activeElement; return document.hidden || !!(a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA')); }
+  function conferir() {
+    fetch('/aba/pre-programacao/assinatura', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d) return; if (base === null) { base = d.sig; return; }
+      if (d.sig !== base && !ocupado()) location.reload();
+    }).catch(function () {});
+  }
+  conferir(); setInterval(conferir, 20000);
+})();
 (function () {
   document.querySelectorAll('.js-dt-prev').forEach(function (inp) {
     var antes = inp.value;
