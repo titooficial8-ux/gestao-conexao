@@ -1785,17 +1785,24 @@ def _parse_dt_texto(txt):
 
 
 def _cliente_pelo_artigo(artigo):
-    """OP avulsa criada pela Conexao vem do TOTVS com o cliente 'CONEXAO MALHAS...': o cliente de verdade e quem tem pedido em aberto desse artigo
-    (mesma ideia da Programacao). ORTOBOM (qualquer unidade) vira 'ORTOBOM'; varios clientes: o de maior saldo pendente. Sem pedido: None."""
-    cod = (artigo or '').split(' ')[0]
+    """OP avulsa criada pela Conexao vem do TOTVS com o cliente 'CONEXAO MALHAS...': o cliente de verdade e quem pediu esse artigo (mesma ideia da Programacao).
+    Casa pelo codigo do produto OU pelo inicio da descricao; prefere pedidos em aberto (maior saldo pendente), senao o pedido mais recente. ORTOBOM (qualquer unidade) vira 'ORTOBOM'."""
+    cod = (artigo or '').split(' ')[0].strip()
     if not cod:
         return None
-    saldo = {}
-    for p in PedidoRelatorio.query.filter(_pedido_aberto(), PedidoRelatorio.cod_produto == cod, PedidoRelatorio.qt_pendente > 0.5).all():
-        nome = normalize_client_name(p.nome_cliente or '')
-        if nome and 'CONEXAO MALHAS' not in nome.upper():
+    pedidos = [p for p in PedidoRelatorio.query.filter(db.or_(PedidoRelatorio.cod_produto == cod, PedidoRelatorio.ds_produto.like(cod + ' %'), PedidoRelatorio.ds_produto == cod)).all()
+               if p.nome_cliente and 'CONEXAO MALHAS' not in p.nome_cliente.upper() and (p.tp_situacao or '') != 'CANCELADO']
+    if not pedidos:
+        return None
+    abertos = [p for p in pedidos if (p.tp_situacao or '') != 'ATENDIDO' and (p.qt_pendente or 0) > 0.5]
+    if abertos:
+        saldo = {}
+        for p in abertos:
+            nome = normalize_client_name(p.nome_cliente)
             saldo[nome] = saldo.get(nome, 0) + (p.qt_pendente or 0)
-    return max(saldo, key=saldo.get) if saldo else None
+        return max(saldo, key=saldo.get)
+    ultimo = max(pedidos, key=lambda p: (p.dt_pedido or date.min))
+    return normalize_client_name(ultimo.nome_cliente)
 
 
 def _fila_dt_prev(item):
