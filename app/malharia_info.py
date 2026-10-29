@@ -222,12 +222,17 @@ def alertas():
             hoje = (datetime.now() - timedelta(hours=6, minutes=20)).strftime('%Y-%m-%d')
             lib = acompanhamento.liberacoes('liberado', hoje)
 
+            tot = _total_pecas([x['op'] for x in pend['itens'] + lib['itens']])
+
             def j(x):
-                return dict(id=x['id'], maquina=x['maquina'], op=x['op'] or '–', peca=x['peca'], artigo=x['artigo'], metros=x['metros_reprovados'], metros_cru=x['metros_reais'], metros_passou=x['metros_passou'], parcial=x['status'] == 'PARCIAL',
+                t = tot.get(x['op'])
+                return dict(invalida=peca_invalida(x['peca'], t), total_pecas=t, id=x['id'], maquina=x['maquina'], op=x['op'] or '–', peca=x['peca'], artigo=x['artigo'], metros=x['metros_reprovados'], metros_cru=x['metros_reais'], metros_passou=x['metros_passou'], parcial=x['status'] == 'PARCIAL',
                             defeitos=x['defeitos'], origem='REVISÃO CRU', emitente=x['revisor'], criado=x['pedido_em'] or x['quando'], turno=x['turno'], obs='',
                             estado=('ANALISANDO' if x['lib_status'] == 'ANALISANDO' else ('LIBERADO' if x['lib_status'] in ('LIBERADO', 'APROVADA') else 'AGUARDANDO')),
                             por=x['analisando_por'] or x['liberado_por'], em=x['analisando_em'] or x['liberado_em'])
-            return jsonify(itens=[j(x) for x in pend['itens']], liberados=[j(x) for x in lib['itens']], pode=False, fonte='acompanhamento', erro=pend['erro'])
+            itens = [j(x) for x in pend['itens']]
+            _avisar_invalidas(itens)
+            return jsonify(itens=itens, liberados=[j(x) for x in lib['itens']], pode=False, fonte='acompanhamento', erro=pend['erro'])
     limite = datetime.utcnow() - timedelta(hours=ALERTA_HORAS + 3)
     estados = {e.nc_id: e for e in NcEstado.query.all()}
     resolv = resolvidas()
@@ -318,6 +323,42 @@ def _origem(o):
     return 'Auditoria Interna (Reprova Cru)' if 'auditoria interna' in str(o or '').lower() else (o or '')
 
 
+def _total_pecas(ops) -> dict:
+    """{op: total de pecas da OP} (quantidade da OP no TOTVS / metro, ja guardada na sequencia). So OPs que o Gestao conhece."""
+    ops = {str(o) for o in ops if o}
+    if not ops:
+        return {}
+    return {str(q.op): max(q.total_pcs or 0, q.pecas_produzidas or 0) for q in Sequencia.query.filter(Sequencia.op.in_(ops)).all() if (q.total_pcs or 0) > 0}
+
+
+def peca_invalida(peca, total) -> bool:
+    """A peca apontada nao existe na OP: numero maior que a quantidade de pecas da OP (ou numero invalido)."""
+    try:
+        n = int(str(peca).strip())
+    except (TypeError, ValueError):
+        return False
+    return bool(total) and (n < 1 or n > total)
+
+
+def _avisar_invalidas(itens) -> None:
+    """Peca inexistente ainda sem liberacao do lider: avisa o lider no painel dele (uma unica vez por registro) para nao dar OK."""
+    from app import acompanhamento
+    try:
+        for x in itens:
+            if not x.get('invalida') or x.get('estado') == 'LIBERADO':
+                continue
+            chave = f"rl:{x['id']}"
+            if NcEstado.query.filter_by(nc_id=chave).first():
+                continue
+            ok = acompanhamento.avisar_lider(f"MQ {x['maquina']} · OP {x['op']} · peça {x['peca']}: essa peça NÃO existe, a OP tem só {x['total_pecas']} peças. Não libere sem conferir com o revisor ({x.get('emitente') or '–'}).",
+                                             x['maquina'], f"peca-invalida-{x['id']}", 'Peça inexistente na OP')
+            if ok:
+                db.session.add(NcEstado(nc_id=chave, estado='AVISADO', por_nome='Gestão (automático)'))
+                db.session.commit()
+    except Exception:  # noqa: BLE001
+        db.session.rollback()
+
+
 def _rl_ocorrencias(cod, maquina, num):
     """RL.PRODUCAO: pecas que o revisor do cru avaliou com defeito (ou reprovou) neste artigo nesta maquina (API do Acompanhamento), ultimos 30 dias."""
     from app import acompanhamento
@@ -325,12 +366,14 @@ def _rl_ocorrencias(cod, maquina, num):
         return []
     de = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
     out = []
-    for x in acompanhamento.rl_producao(num, de)['itens']:
+    rl_itens = acompanhamento.rl_producao(num, de)['itens']
+    tot = _total_pecas([x['op'] for x in rl_itens])
+    for x in rl_itens:
         if x['artigo'].split(' ')[0] != cod or not x['em'] or not (x['defeitos'] or x['resultado'] == 'REPROVADA' or (x['metros_reprovados'] or 0) > 0):
             continue
         out.append(dict(quando=x['quando'], tipo='RL', resolvida=x['lib_status'] in ('LIBERADO', 'APROVADA'), aberta=x['lib_status'] in ('PENDENTE', 'ANALISANDO'), artigo=x['artigo'], op=x['op'] or '–', cliente='', avulsa=None,
                         peca=x['peca'], defeitos=', '.join(x['defeitos']) or x['resultado'], metros=x['metros_reprovados'] or 0, origem='RL.PRODUÇÃO · revisão cru', emitente=x['revisor'], obs=(f"líder: {x['lib_status'].title()}" if x['lib_status'] else ''),
-                        ordem=x['em'].isoformat()))
+                        ordem=x['em'].isoformat(), invalida=peca_invalida(x['peca'], tot.get(x['op'])), total_pecas=tot.get(x['op'])))
     return out
 
 
