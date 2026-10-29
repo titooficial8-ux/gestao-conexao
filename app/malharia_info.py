@@ -576,3 +576,29 @@ def op_diagnostico():
     except Exception as e:  # noqa: BLE001
         out['totvs_erro'] = f'{type(e).__name__}: {str(e)[:200]}'
     return jsonify(out)
+
+
+@info_bp.route('/pecas-dia-diagnostico')
+@login_required
+def pecas_dia_diagnostico():
+    """So administrador: de onde vem a contagem de pecas do Controle de Producao no dia de producao (?dia=AAAA-MM-DD, padrao hoje): baixas de fio do TOTVS (ligadas ou nao a uma OP) e pesagens do local 23, por maquina e por turno."""
+    if not current_user.is_admin:
+        abort(403)
+    from collections import Counter
+    from app.models import BaixaFio, PesagemMalharia
+    from app.relatorio_fat.agenda import agora_brasilia
+    try:
+        dia = datetime.strptime(request.args.get('dia') or '', '%Y-%m-%d')
+    except ValueError:
+        dia = (agora_brasilia() - timedelta(hours=6, minutes=20)).replace(hour=0, minute=0, second=0, microsecond=0)
+    ini = dia.replace(hour=6, minute=20)
+    fim = ini + timedelta(days=1)
+    bx = BaixaFio.query.filter(BaixaFio.mudou >= ini, BaixaFio.mudou < fim).all()
+    out = dict(dia_producao=dia.strftime('%Y-%m-%d'), janela=f'{ini:%d/%m %H:%M} a {fim - timedelta(minutes=1):%d/%m %H:%M}',
+               baixas_de_fio=dict(total=len(bx), ligadas_a_uma_op=sum(1 for b in bx if b.casada), sem_op=sum(1 for b in bx if not b.casada), kg=round(sum(b.kg or 0 for b in bx), 1),
+                                  por_turno=dict(Counter(f'{1 if 380 <= b.mudou.hour * 60 + b.mudou.minute < 860 else (2 if 860 <= b.mudou.hour * 60 + b.mudou.minute < 1340 else 3)}º turno' for b in bx)),
+                                  por_maquina=dict(sorted(Counter(str(b.maquina) for b in bx if b.maquina is not None).items(), key=lambda kv: int(kv[0]))), sem_maquina=sum(1 for b in bx if b.maquina is None)))
+    pes = [p for p in PesagemMalharia.query.all() if (p.hora_real or p.visto_em) and ini <= (p.hora_real or p.visto_em).replace(tzinfo=None) < fim]
+    out['pesagens_local_23'] = dict(total=len(pes), ops=len({p.op for p in pes}), por_turno=dict(Counter(f'{1 if 380 <= (p.hora_real or p.visto_em).hour * 60 + (p.hora_real or p.visto_em).minute < 860 else (2 if 860 <= (p.hora_real or p.visto_em).hour * 60 + (p.hora_real or p.visto_em).minute < 1340 else 3)}º turno' for p in pes)))
+    out['leitura'] = 'O Controle de Produção conta as baixas de fio (total acima). Compare com o número real do dia; se o real for maior, as peças que faltam não geraram baixa de fio (ou ainda não foram lidas do TOTVS).'
+    return jsonify(out)
