@@ -1532,3 +1532,30 @@ def inativas_usadas():
             pg += 1
     out = [dict(operacao=op, descricao=inativas.get(op), **v) for op, v in sorted(uso.items(), key=lambda kv: kv[1]['ultima'] or '', reverse=True)]
     return _json(dict(operacoes_inativas=len(inativas), com_uso_no_periodo=out, sem_uso_no_periodo=[dict(operacao=c, descricao=d) for c, d in inativas.items() if c not in uso], erros=erros[:5]))
+
+
+@pedidos_bp.route('/faturamento-recente')
+@login_required
+def faturamento_recente():
+    """So administrador: notas fiscais dos ultimos ?dias=10 agrupadas por data de emissao e operacao. Mostra quando o faturamento deixou de gerar notas e quais operacoes ainda funcionam."""
+    if not current_user.is_admin:
+        abort(403)
+    from collections import Counter
+    from datetime import date, timedelta
+    from app.totvs import api
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    hoje = date.today()
+    ini = hoje - timedelta(days=int(request.args.get('dias', 10)))
+    try:
+        notas = api.buscar_notas(cli, ini, hoje, [1])
+    except Exception as e:  # noqa: BLE001
+        return _json(dict(erro=str(e)[:300])), 502
+    por_dia, por_op = Counter(), Counter()
+    for n in notas:
+        d = str(n.get('invoiceDate') or n.get('issueDate') or '')[:10]
+        por_dia[d] += 1
+        por_op[(d, n.get('operationCode'), n.get('operationType'))] += 1
+    return _json(dict(total=len(notas), por_dia=dict(sorted(por_dia.items())),
+                      por_dia_operacao=[dict(data=k[0], operacao=k[1], tipo=k[2], notas=v) for k, v in sorted(por_op.items(), key=lambda kv: kv[0][0], reverse=True)][:60],
+                      campos_exemplo=sorted(notas[0].keys())[:40] if notas else []))
