@@ -2,6 +2,7 @@
 .pa-box{display:none;border:2px solid #b91c1c;background:#fdeeee;border-radius:12px;padding:10px 16px;margin:10px 0}.pa-box.on{display:block}
 .pa-box.maq{border-color:#a8670a;background:#fbf1dc}.pa-t{font-weight:800;font-size:14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
 .pa-box.fechado .pa-corpo{display:none}.pa-box.fechado .pa-seta{transform:rotate(-90deg)}.pa-seta{display:inline-block;transition:transform .15s;font-size:12px}
+.pa-dot{display:inline-block;width:13px;height:13px;border-radius:50%;background:#e11d48;animation:paDot 1s infinite;flex-shrink:0}@keyframes paDot{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(225,29,72,.7)}50%{opacity:.25;box-shadow:0 0 0 7px rgba(225,29,72,0)}}
 .pa-i{border-top:1px solid rgba(0,0,0,.08);padding:7px 0;margin-top:6px;font-size:13px}.pa-i small{color:#64748b;display:block}.pa-i .mot{color:#b91c1c;font-weight:800}.pa-i .tmp{font-size:17px;font-weight:900}
 </style>
 <div id="paRevisor" class="pa-box"></div>
@@ -24,7 +25,7 @@
       pintar(rev, 'rev', '⏸ REVISOR EM PARADA', r, function (x) {
         return '<div class="pa-i"><b>' + esc(x.aberta_por || 'Revisor') + '</b> · REVISÃO CRU · <span class="mot">' + esc(x.motivo || x.tipo) + '</span><small>desde ' + esc(x.inicio) + ' · fora há <span class="tmp">' + hm(x.minutos) + '</span>' + (x.aguardando_peca ? ' · aguardando a 1ª peça revisada' : ' · volta sozinho na 1ª peça revisada') + '</small></div>';
       });
-      pintar(maq, 'maq', '🛑 OCORRÊNCIAS EM ANDAMENTO (Acompanhamento de Produção)', m, function (x) {
+      pintar(maq, 'maq', '<span class="pa-dot"></span>TEMPO REAL MALHARIA · OCORRÊNCIAS EM ANDAMENTO', m, function (x) {
         return '<div class="pa-i"><b>MQ ' + esc(x.maquina) + '</b> · ' + esc(x.tipo) + ' · <span class="mot">' + esc(x.motivo) + '</span><small>desde ' + esc(x.inicio) + (x.minutos != null ? ' · há ' + hm(x.minutos) : '') + (x.aberta_por ? ' · ' + esc(x.aberta_por) : '') + (x.aguardando_peca ? ' · aguardando a 1ª peça' : '') + '</small></div>';
       });
     }).catch(function () {});
