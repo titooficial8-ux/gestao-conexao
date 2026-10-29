@@ -36,7 +36,8 @@ def config() -> dict:
 
 def dia_anterior(agora: datetime = None) -> date:
     """Dia de producao anterior: depois das 06h20 e o dia de ontem; antes disso, o de anteontem (o de ontem ainda nao fechou)."""
-    agora = agora or datetime.now()
+    from app.relatorio_fat.agenda import agora_brasilia
+    agora = agora or agora_brasilia()
     return (agora - timedelta(hours=6, minutes=20)).date() - timedelta(days=1)
 
 
@@ -133,7 +134,7 @@ tr:nth-child(even) td{background:#F4F6F8}.n{text-align:right}.dois{display:flex;
 
 def html(d: dict) -> str:
     return render_template_string(HTML, d=d, paginas=_paginas(d), f=_fmt, logo=_img('logo_colorida.png', 'image/png'), fundo=_img('conteudo_fundo.jpg', 'image/jpeg'),
-                                  gerado=datetime.now().strftime('%d/%m/%Y %H:%M'))
+                                  gerado=__import__('app.relatorio_fat.agenda', fromlist=['x']).agora_brasilia().strftime('%d/%m/%Y %H:%M'))
 
 
 def gerar_pdf(d: dict) -> bytes:
