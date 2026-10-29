@@ -1205,6 +1205,11 @@ def view_tab(slug):
         for lista in maquinas_por_estrutura.values():
             lista.sort(key=lambda x: x['ops'], reverse=True)
 
+        pedidos_da_op = {}                         # pedido(s) ligados a cada OP (calculo do TOTVS); OP avulsa nao tem pedido e fica em branco
+        for r in PedidoRelatorio.query.filter(PedidoRelatorio.nr_op.isnot(None), PedidoRelatorio.nr_op != '').all():
+            lista = pedidos_da_op.setdefault(str(r.nr_op), [])
+            if r.cod_pedido and r.cod_pedido not in lista:
+                lista.append(r.cod_pedido)
         analisar_itens = [
             {
                 'item': item,
@@ -1213,6 +1218,7 @@ def view_tab(slug):
                 'avulsa': (avulsa := 'CONEXAO MALHAS' in (item.cliente or '').upper() or bool(item.is_avulsa)),
                 'cliente': (cli := ((_cliente_pelo_artigo(item.artigo) if avulsa else None) or normalize_client_name(item.cliente or ''))),
                 'ortobom': cli == 'ORTOBOM',
+                'pedidos': pedidos_da_op.get(str(item.op), []),
                 'sugeridas': maquinas_por_estrutura.get(estrutura, [])[:6],
             }
             for item in FilaPreProgramacao.query.filter_by(status='WAITING')
@@ -2641,6 +2647,31 @@ def maquina_reordenar(numero):
     except Exception:  # noqa: BLE001
         n = 0
     return jsonify(ok=True, recalculadas=n)
+
+
+@main_bp.route('/aba/programacao/sharepoint-lista')
+@login_required
+def sharepoint_lista_diagnostico():
+    """So administrador: mostra colunas e os 5 itens mais recentes de uma lista do SharePoint (ex.: ?lista=2026_liberacao_sku_BR_GT ou ?lista=controleMecanico); sem ?lista= lista todas."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.indicadores import sharepoint as sp
+    from app import previsao
+    site = previsao.FICHA_SITE_ID
+    nome = (request.args.get('lista') or '').strip()
+    try:
+        listas = sp._get(f'{sp.GRAPH}/sites/{site}/lists', {'$top': 200})['value']
+        if not nome:
+            return jsonify(listas=[dict(id=x['id'], nome=x.get('name'), titulo=x.get('displayName')) for x in listas])
+        alvo = next((x for x in listas if nome.lower() in (x['id'].lower(), (x.get('name') or '').lower(), (x.get('displayName') or '').lower())), None)
+        if not alvo:
+            return jsonify(erro='lista não encontrada', listas=[x.get('name') for x in listas]), 404
+        cols = sp._get(f"{sp.GRAPH}/sites/{site}/lists/{alvo['id']}/columns", {'$top': 200})['value']
+        itens = sp._get(f"{sp.GRAPH}/sites/{site}/lists/{alvo['id']}/items", {'$expand': 'fields', '$top': 5, '$orderby': 'lastModifiedDateTime desc'})['value']
+        return jsonify(lista=alvo.get('displayName'), id=alvo['id'], colunas=[dict(nome=c.get('name'), titulo=c.get('displayName')) for c in cols if not c.get('readOnly') or c.get('name') in ('Title',)],
+                       exemplos=[x.get('fields') for x in itens])
+    except Exception as e:  # noqa: BLE001
+        return jsonify(erro=f'{type(e).__name__}: {str(e)[:300]}'), 500
 
 
 @main_bp.route('/aba/programacao/ficha-diagnostico')
