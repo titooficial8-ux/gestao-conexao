@@ -342,6 +342,8 @@ def create_app():
         iniciar_pcphub(app)       # Programacao ao vivo a partir do PCP Hub: a cada 5 min (precisa de PCPHUB_EMAIL/PCPHUB_PASSWORD)
         from app.relatorio_fat.agenda import iniciar_agendador as iniciar_envio_relatorio
         iniciar_envio_relatorio(app)   # Relatorio de Faturamento por e-mail, 1x por dia (08:30)
+        from app.relatorio32_hub import iniciar_agendador as iniciar_r32
+        iniciar_r32(app)            # Relatorio 32 (pesagens) vindo do PCP Hub, a cada 60 s: so para a producao
         from app.reprova_cru import iniciar_agendador as iniciar_reprova_email
         iniciar_reprova_email(app)  # e-mail diario das reprovas no cru (07h); so envia com REPROVA_EMAIL_ENVIO=1
 
