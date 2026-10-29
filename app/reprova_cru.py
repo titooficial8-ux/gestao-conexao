@@ -1,8 +1,8 @@
 """Reprovas no cru: relatorio em PDF (mesmo visual do Relatorio de Faturamento) e envio automatico por e-mail.
 
 Fonte: NCs da revisao do cru (lista ncform do SharePoint: origem Auditoria Interna, setor Producao). Dia de producao = 06h20 -> 06h19 do dia seguinte.
-Envio automatico (todo dia, horario de Brasilia): 07:15 (fecha o dia de producao anterior), 12:15 (07:16 -> 12:15) e 16:15 (12:16 -> 16:15). So envia se houve reprova no periodo.
-As 16:30, se NAO houve nenhuma reprova entre 07:16 e 16:30, manda um aviso por e-mail dizendo isso (nao no domingo).
+Envio automatico (todo dia, horario de Brasilia): 07:15 (fecha o dia de producao anterior, 06h20 -> 06h19), 12:15 (06h20 -> 12:15) e 16:15 (12:16 -> 16:15). So envia se houve reprova no periodo.
+As 16:30, se NAO houve nenhuma reprova entre 06:20 e 16:30, manda um aviso por e-mail dizendo isso (nao no domingo).
 .env (tudo opcional):
   REPROVA_EMAIL_ENVIO=1                 (0 desliga o envio automatico)
   REPROVA_EMAIL_HORAS=07:15,12:15,16:15
@@ -214,8 +214,8 @@ def _gravar(app, est: dict) -> None:
 
 
 def _janelas(cfg, agora: datetime) -> dict:
-    """{'HH:MM': (ini, fim, rotulo)} dos envios do dia. O 1o horario fecha o dia de producao anterior (06h20 -> ate o proprio horario, para nao perder o que entrou depois das 06h19);
-    os demais pegam do minuto seguinte ao envio anterior ate o proprio horario."""
+    """{'HH:MM': (ini, fim, rotulo)} dos envios do dia. O 1o horario fecha o dia de producao anterior (06h20 -> 06h19);
+    os demais pegam do envio anterior ate o proprio horario (o 2o comeca as 06h20, quando o dia de producao novo comeca)."""
     hoje = agora.replace(hour=0, minute=0, second=0, microsecond=0)
     horas = cfg['horas']
 
@@ -223,13 +223,15 @@ def _janelas(cfg, agora: datetime) -> dict:
         return hoje.replace(hour=int(hm[:2]), minute=int(hm[3:]))
     out = {}
     prev = None
+    inicio_hoje = hoje.replace(hour=6, minute=20)                    # o dia de producao novo comeca as 06h20
     for hm in horas:
-        fim = em(hm) + timedelta(minutes=1)
         if prev is None:
             ini = datetime.combine(dia_anterior(agora), datetime.min.time()).replace(hour=6, minute=20)
-            out[hm] = (ini, fim, f'dia de produção {ini:%d/%m} (até {hm})')
+            fim = inicio_hoje                                        # fecha o dia de producao anterior (06h20 -> 06h19)
+            out[hm] = (ini, fim, f'dia de produção {ini:%d/%m}')
         else:
-            ini = em(prev) + timedelta(minutes=1)
+            ini = inicio_hoje if prev == horas[0] else em(prev) + timedelta(minutes=1)
+            fim = em(hm) + timedelta(minutes=1)
             out[hm] = (ini, fim, f'{ini:%d/%m} {ini:%H:%M} às {hm}')
         prev = hm
     return out
@@ -267,7 +269,7 @@ def _tick(app) -> None:
             try:
                 with app.app_context():
                     if chave == 'alerta':
-                        ini = agora.replace(hour=int(cfg['horas'][0][:2]), minute=int(cfg['horas'][0][3:]), second=0, microsecond=0) + timedelta(minutes=1)
+                        ini = agora.replace(hour=6, minute=20, second=0, microsecond=0)
                         fim = a_dt + timedelta(minutes=1)
                         total = dados_periodo(ini, fim, 'alerta')['pecas']
                         resumo = f'alerta: {total} reprova(s) entre {ini:%H:%M} e {alerta}'
