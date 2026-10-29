@@ -541,3 +541,38 @@ def liberacoes_diagnostico():
     p = acompanhamento.liberacoes('pendente')
     out['lido_pelo_gestao'] = dict(erro=p['erro'], itens=[{k: (str(v) if k == 'em' else v) for k, v in x.items()} for x in p['itens'][:5]])
     return jsonify(out)
+
+
+@info_bp.route('/op-diagnostico')
+@login_required
+def op_diagnostico():
+    """So administrador: tudo sobre uma OP (?op=2959): o que o Gestao guarda (sequencia, aumentos, pecas pesadas) e o que o TOTVS diz agora (quantidade, pecas pesadas, planejado, materiais empenhados)."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.models import AjusteQuantidade, PesagemMalharia, PesagemResumo
+    op = re.sub(r'\D', '', request.args.get('op') or '')
+    if not op:
+        return jsonify(erro='Informe ?op=NUMERO'), 400
+    out = dict(op=op)
+    out['sequencias'] = [dict(maquina=q.machine.number if q.machine else None, artigo=q.artigo, status=q.status, situacao=q.situacao, total_pcs=q.total_pcs, qt_plan=q.qt_plan, qt_solicitada=q.qt_solicitada,
+                              qt_ult_vista=q.qt_ult, pecas_produzidas=q.pecas_produzidas) for q in Sequencia.query.filter_by(op=op).all()]
+    out['aumentos'] = [dict(origem=a.origem, quando=str(a.detectado_em), qt_antes=a.qt_antes, qt_depois=a.qt_depois, pecas_antes=a.pecas_antes, pecas_depois=a.pecas_depois, justificativa=a.justificativa, por=a.justificado_por)
+                       for a in AjusteQuantidade.query.filter_by(op=op).order_by(AjusteQuantidade.id).all()]
+    pes = PesagemMalharia.query.filter_by(op=op).order_by(PesagemMalharia.item).all()
+    out['pesagens_gestao'] = dict(qtd=len(pes), pecas=[dict(item=p.item, data=str(p.data), hora=str(p.hora_real or p.visto_em), metros=p.metros, acerto=p.acerto) for p in pes])
+    r = PesagemResumo.query.filter_by(op=op).first()
+    out['resumo_gestao'] = dict(pecas=r.pecas, quantidade_op=r.quantidade_op, no_local=r.no_local, saiu=r.saiu, metro_ideal=r.metro_ideal) if r else None
+    try:
+        from app.totvs import movimentos as M, empenho
+        v = M.pecas(op)
+        out['totvs_pecas_pesadas'] = dict(resumo=v.get('resumo'), numeros=[p.get('item') or p.get('numero') for p in v.get('pecas', [])], metros=[p.get('metros') for p in v.get('pecas', [])])
+        cli = M._cliente()
+        rr = cli.post(M.OPS_URL, dict(filter=dict(branchCodeList=[M.EMPRESA], cycleCodeList=[13], orderCodeList=[int(op)]), expand='items,locations', pageSize=5, page=1))
+        o = (rr.json().get('items') or [{}])[0] if rr.status_code == 200 else {}
+        out['totvs_op'] = {k: o.get(k) for k in ('orderCode', 'status', 'quantity', 'pendingQuantity', 'finishedQuantity', 'insertDate', 'machineCode', 'customerName') if k in o}
+        out['totvs_planejado_primeiro_movimento'] = M.qt_planejada(op, o) if o else None
+        mats = empenho.buscar_materiais_op(cli, [int(op)], []).get(op) or {}
+        out['totvs_materiais_empenhados'] = dict(itens=[dict(codigo=c, nome=v[0], qtd=v[1]) for c, v in mats.items()], total=round(sum(v[1] for v in mats.values()), 2))
+    except Exception as e:  # noqa: BLE001
+        out['totvs_erro'] = f'{type(e).__name__}: {str(e)[:200]}'
+    return jsonify(out)
