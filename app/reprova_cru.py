@@ -46,6 +46,10 @@ def dados(dia: date) -> dict:
     fim = ini + timedelta(days=1)
     itens = [n for n in _ncs() if n['criado'] and ini <= n['criado'] < fim and n['defeitos'] and (not n['setor'] or 'produ' in n['setor'].lower()) and 'auditoria interna' in str(n['origem']).lower()]
     itens.sort(key=lambda n: n['criado'])
+    from app.malharia_info import clientes_das_ops
+    real = clientes_das_ops([(n['op'], n['artigo'], n['cliente']) for n in itens])
+    for n in itens:                                              # o CLIENTE digitado na NC pode estar errado: vale o cliente da OP
+        n['cliente'] = real.get(str(n['op']), n['cliente']) or n['cliente']
     art, dfs, maqs = defaultdict(lambda: dict(pecas=0, metros=0.0, kg=0.0, defeitos=defaultdict(int), maquinas=set(), cliente='')), defaultdict(lambda: [0, 0.0]), defaultdict(lambda: dict(pecas=0, metros=0.0, kg=0.0))
     for n in itens:
         a = art[n['artigo']]
