@@ -1282,3 +1282,36 @@ def descobrir_pesagem():
                     campos[nome] = props[:12]
             saida[servico] = dict(todos_os_caminhos=sorted((doc.get('paths') or {}).keys())[:80], caminhos_suspeitos=caminhos, campos_suspeitos=dict(list(campos.items())[:40]))
     return _json(saida)
+
+
+@mov_bp.route('/lote')
+@login_required
+def consultar_lote():
+    """So administrador: consulta no TOTVS um lote (?lote=14866, o nr_lote do Relatorio 32) em product/v2/batch/search e mostra os campos do filtro e da resposta, para saber se
+    cada peca pesada (lote + item) da pra buscar direto na API. Tenta varias formas de filtro e devolve o que cada uma respondeu."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.totvs import movimentos
+    lote = request.args.get('lote', type=int)
+    saida = {}
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        try:
+            doc = cli.session.get(f'{movimentos.BASE_URL}/api/totvsmoda/product/v2/swagger/v1/swagger.json', timeout=90).json()
+            esq = (doc.get('components') or {}).get('schemas') or {}
+            saida['filtro_campos'] = {n: sorted((esq.get(n) or {}).get('properties', {}).keys()) for n in ('BatchProductFilterModel', 'BatchProductModel', 'BatchItemModel', 'BatchProductSearchFilterModel', 'BatchSearchCommand') if n in esq}
+            ped = ((doc.get('paths') or {}).get('/api/totvsmoda/product/v2/batch/search', {}).get('post', {}).get('requestBody', {}).get('content', {}))
+            saida['pedido_schema'] = {k: str(v.get('schema'))[:200] for k, v in ped.items()}
+        except Exception as e:  # noqa: BLE001
+            saida['swagger_erro'] = str(e)[:160]
+        if lote:
+            tentativas = [('batchCode', dict(branchCode=1, batchCode=lote)), ('batchCodeList', dict(branchCode=1, batchCodeList=[lote])), ('batchCode_str', dict(branchCode=1, batchCode=str(lote))),
+                          ('com_saldo_qualquer', dict(branchCode=1, batchCode=lote, hasBalance=False))]
+            for nome, filtro in tentativas:
+                try:
+                    r = cli.post(f'{movimentos.BASE_URL}/api/totvsmoda/product/v2/batch/search', dict(filter=filtro, pageSize=3, page=1))
+                    txt = r.text[:1800]
+                    saida[nome] = dict(http=r.status_code, resposta=txt)
+                except Exception as e:  # noqa: BLE001
+                    saida[nome] = dict(erro=str(e)[:160])
+    return _json(saida)
