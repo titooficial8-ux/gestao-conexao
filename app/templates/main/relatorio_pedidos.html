@@ -82,7 +82,14 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="18" class="prod-table-empty">{{ t('nenhum_pedido_encontrado') }}</td>
+          <td colspan="18" class="prod-table-empty">{{ t('nenhum_pedido_encontrado') }}
+            {% for o in ops_sem_pedido %}
+            <div style="margin-top:10px;padding:10px 14px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;color:#78350f;text-align:left;display:inline-block;max-width:760px">
+              <strong>OP {{ o.op }}</strong> existe ({{ o.onde }} · {{ o.cliente }} · artigo {{ o.artigo }} · {{ o.qt }} m), mas <strong>nenhum pedido está ligado a ela</strong>: este relatório é montado por pedido, então OP avulsa (criada direto no PCPFM156, sem pedido de venda) não tem linha aqui.
+              {% if o.pedidos_abertos %}Há pedido(s) em aberto do mesmo cliente e artigo ({{ o.pedidos_abertos|join(', ') }}), mas o TOTVS já distribuiu as OPs anteriores para eles.{% else %}Não há pedido em aberto deste cliente com este artigo.{% endif %}
+            </div>
+            {% endfor %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
