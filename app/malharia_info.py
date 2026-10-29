@@ -16,7 +16,7 @@ from flask import Blueprint, abort, jsonify, request
 from flask_login import current_user, login_required
 
 from app import db
-from app.models import HistoricoProducao, Machine, NcEstado, Report32Movement, Sequencia, Tab
+from app.models import Machine, NcEstado, PesagemMalharia, Sequencia, Tab
 
 info_bp = Blueprint('info_maquina', __name__, url_prefix='/info')
 
@@ -163,13 +163,11 @@ def _acompanhamento(seq, maq):
         ini -= timedelta(days=1)
     pes, ontem = [0, 0, 0], [0, 0, 0]
     ini_ont = ini - timedelta(days=1)
-    for r in Report32Movement.query.filter(Report32Movement.cod_maquina.in_([str(maq.number), f'{maq.number:02d}']), Report32Movement.dt_real >= ini_ont, Report32Movement.dt_real < ini + timedelta(days=1)).all():
-        if not r.dt_real:
+    for r in PesagemMalharia.query.filter_by(op=str(seq.op)).all():          # pecas pesadas (local 23) desta OP, com a hora real da baixa de fio
+        h = r.hora_real or r.visto_em
+        if not h or h < ini_ont or h >= ini + timedelta(days=1):
             continue
-        if r.dt_real >= ini:
-            pes[_turno_idx(r.dt_real)] += 1
-        elif str(r.op) == str(seq.op):                      # dia anterior: so as pecas desta OP
-            ontem[_turno_idx(r.dt_real)] += 1
+        (pes if h >= ini else ontem)[_turno_idx(h)] += 1
     meta_dia = seq.pecas_dia or 0
     return dict(op=seq.op, artigo=seq.artigo, cliente=seq.cliente, status=seq.status, situacao=seq.situacao, produzidas=seq.pecas_produzidas or 0, total=seq.total_pcs or 0,
                 meta_dia=round(meta_dia, 1) if meta_dia else None, meta_turno=round(meta_dia / 3, 1) if meta_dia else None, pesadas_turno=pes, pesadas_ontem=ontem, inicio_ontem=ini_ont.strftime('%d/%m %H:%M'), inicio_dia=ini.strftime('%d/%m %H:%M'),
