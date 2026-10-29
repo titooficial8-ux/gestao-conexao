@@ -324,11 +324,17 @@ def _origem(o):
 
 
 def _total_pecas(ops) -> dict:
-    """{op: total de pecas da OP} (quantidade da OP no TOTVS / metro, ja guardada na sequencia). So OPs que o Gestao conhece."""
+    """{op: ate que numero de peca existe}. Planejado = pecas totais da sequencia (quantidade/metro arredondada pra cima); se a OP ja terminou a pesagem (nada mais no local 23),
+    vale o que foi realmente pesado: 474 m / 52 m = 9,1 vira 10 no planejado, mas se a OP fechou com 9 pecas pesadas a peca 10 nao existe."""
+    from app.models import PesagemResumo
     ops = {str(o) for o in ops if o}
     if not ops:
         return {}
-    return {str(q.op): max(q.total_pcs or 0, q.pecas_produzidas or 0) for q in Sequencia.query.filter(Sequencia.op.in_(ops)).all() if (q.total_pcs or 0) > 0}
+    plan = {str(q.op): max(q.total_pcs or 0, q.pecas_produzidas or 0) for q in Sequencia.query.filter(Sequencia.op.in_(ops)).all() if (q.total_pcs or 0) > 0}
+    for r in PesagemResumo.query.filter(PesagemResumo.op.in_(ops)).all():
+        if (r.pecas or 0) > 0 and (r.no_local or 0) <= 0.5:              # terminou: so existem as pecas pesadas
+            plan[str(r.op)] = r.pecas
+    return plan
 
 
 def peca_invalida(peca, total) -> bool:
