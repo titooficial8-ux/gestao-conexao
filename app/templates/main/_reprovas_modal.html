@@ -32,7 +32,7 @@
       if (!dia.value) dia.value = d.dia;
       document.getElementById('rpResumo').innerHTML = '<b style="font-size:22px;color:#C62828">' + d.pecas + '</b> peça(s) reprovada(s) · <b>' + f(d.metros) + '</b> m · ' + d.artigos + ' artigo(s) · ' + d.maquinas + ' máquina(s)' +
         (d.top.length ? '<div style="font-size:12px;margin-top:6px">' + d.top.map(function (a) { return '<b>' + esc(a.artigo) + '</b> ' + esc(a.cliente) + ' (' + a.pecas + ')'; }).join(' · ') + '</div>' : '<div style="font-size:12px;margin-top:6px;color:#15803d">Nenhuma reprova neste dia.</div>');
-      document.getElementById('rpAuto').textContent = 'Envio automático diário às ' + d.auto.hora + ': ' + (d.auto.ativo ? 'LIGADO' : 'desligado') + ' · para ' + d.auto.destinos + ' · e-mail (SMTP) ' + (d.auto.smtp ? 'configurado' : 'NÃO configurado');
+      document.getElementById('rpAuto').textContent = 'Envio automático diário às ' + d.auto.hora + ' (só se houve reprova; às ' + d.auto.alerta + ' avisa se não houve nenhuma): ' + (d.auto.ativo ? 'LIGADO' : 'desligado') + ' · para ' + d.auto.destinos + ' · e-mail (SMTP) ' + (d.auto.smtp ? 'configurado' : 'NÃO configurado');
     }).catch(function () { document.getElementById('rpResumo').textContent = 'Não foi possível carregar.'; });
   }
   bt.addEventListener('click', function () { msg.textContent = ''; m.hidden = false; ler(); });
