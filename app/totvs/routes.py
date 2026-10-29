@@ -1559,3 +1559,34 @@ def faturamento_recente():
     return _json(dict(total=len(notas), por_dia=dict(sorted(por_dia.items())),
                       por_dia_operacao=[dict(data=k[0], operacao=k[1], tipo=k[2], notas=v) for k, v in sorted(por_op.items(), key=lambda kv: kv[0][0], reverse=True)][:60],
                       campos_exemplo=sorted(notas[0].keys())[:40] if notas else []))
+
+
+@pedidos_bp.route('/transacoes-lote')
+@login_required
+def transacoes_lote():
+    """So administrador: transacoes recentes (?dias=3) que citam um texto (?q=19872, ?q=610579, ?q=11651). Serve para achar a transacao 'presa' que ja consome a quantidade do lote (MSG37096)."""
+    if not current_user.is_admin:
+        abort(403)
+    import json as _j
+    from datetime import date, timedelta
+    from app.totvs import api, movimentos
+    q = (request.args.get('q') or '19872').strip()
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    hoje = date.today()
+    ini = hoje - timedelta(days=int(request.args.get('dias', 3)))
+    achadas, total, erros, pg = [], 0, [], 1
+    while pg <= 40:
+        r = cli.post(movimentos.TRX_URL, dict(branchCodeList=[movimentos.EMPRESA], startChangeDate=f'{ini.isoformat()}T00:00:00', endChangeDate=f'{hoje.isoformat()}T23:59:59', page=pg, pageSize=500, expand='items'))
+        if r.status_code != 200:
+            erros.append(f'HTTP {r.status_code} {r.text[:200]}')
+            break
+        j = r.json()
+        for t in j.get('items') or []:
+            total += 1
+            if q in _j.dumps(t, default=str):
+                achadas.append(t)
+        if not j.get('hasNext'):
+            break
+        pg += 1
+    return _json(dict(consultadas=total, achadas=len(achadas), transacoes=achadas[:8], erros=erros))
