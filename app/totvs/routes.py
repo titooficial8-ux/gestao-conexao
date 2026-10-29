@@ -1284,7 +1284,7 @@ def descobrir_pesagem():
     return _json(saida)
 
 
-@mov_bp.route('/lote')
+@mov_bp.route('/lote-consulta')
 @login_required
 def consultar_lote():
     """So administrador: consulta no TOTVS um lote (?lote=14866, o nr_lote do Relatorio 32) em product/v2/batch/search e mostra os campos do filtro e da resposta, para saber se
