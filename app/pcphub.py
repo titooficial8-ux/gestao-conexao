@@ -223,6 +223,14 @@ def importar_base_inicial() -> None:
         except Exception as e:  # noqa: BLE001
             db.session.rollback()
             ESTADO['paises_erro'] = str(e)[:200]
+    from app.models import HubArquivo
+    if not HubArquivo.query.first():            # historicos do Hub: copia integral, uma unica vez (depois, so pela tela de conferencia)
+        try:
+            from app import hubhistorico
+            ESTADO['historicos'] = hubhistorico.importar()
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            ESTADO['historicos_erro'] = str(e)[:200]
 
 
 def atualizar(app) -> bool:
@@ -289,3 +297,16 @@ def atualizar_agora():
         return jsonify(ok=False, erro='PCP Hub não configurado no .env (PCPHUB_EMAIL e PCPHUB_PASSWORD).'), 400
     threading.Thread(target=atualizar, args=(current_app._get_current_object(),), daemon=True, name='pcp-hub-agora').start()
     return jsonify(ok=True)
+
+
+@pcphub_bp.route('/historicos')
+@login_required
+def historicos():
+    """So administrador: importa (de novo, sem duplicar) todos os historicos do PCP Hub e mostra a conferencia Hub x Gestao, tabela a tabela."""
+    if not current_user.is_admin:
+        abort(403)
+    if not configurado():
+        return jsonify(ok=False, erro='PCP Hub não configurado no .env.'), 400
+    from app import hubhistorico
+    res = hubhistorico.importar()
+    return jsonify(completo=hubhistorico.conferir(res), tabelas=res)

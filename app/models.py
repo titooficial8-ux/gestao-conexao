@@ -433,6 +433,20 @@ class SavedDrawingSaveLog(db.Model):
     action = db.Column(db.String(20), default='saved')
 
 
+class HubArquivo(db.Model):
+    """Copia INTEGRAL (cada linha, todos os campos em JSON) das tabelas de historico/registro do PCP Hub: depois dela o Hub pode ser desligado sem perder nada.
+    (tabela, hub_id) e unico, entao a importacao pode rodar quantas vezes quiser."""
+    __tablename__ = 'hub_arquivo'
+    __table_args__ = (db.UniqueConstraint('tabela', 'hub_id', name='uq_hub_arquivo'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    tabela = db.Column(db.String(60), index=True)
+    hub_id = db.Column(db.String(60), index=True)
+    data_ref = db.Column(db.DateTime, nullable=True, index=True)       # created_at/changed_at/started_at... do registro
+    dados = db.Column(db.Text)                                          # linha completa do Hub em JSON
+    importado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class BaseEstrutura(db.Model):
     """Base Estrutura do PCP Hub: metragem padrao (ds_metros) de cada artigo
     (ds_produto). Usada pra resolver a metragem padrao de um artigo em varios
