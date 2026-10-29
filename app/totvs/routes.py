@@ -1357,6 +1357,18 @@ def operacao_inativa():
     cli.autenticar()
     pedido = request.args.get('pedido', type=int)
     saida = {}
+    if request.args.get('inativas'):                                   # ?inativas=1: lista TODAS as operacoes inativas no cadastro (para comparar com a que o faturamento/finalizacao usa)
+        todas, pag = [], 1
+        while pag <= 20:
+            r0 = cli.get(api.OPERATIONS_URL, {'PageSize': 1000, 'Page': pag})
+            if r0.status_code != 200:
+                return _json(dict(erro=f'HTTP {r0.status_code} {r0.text[:300]}')), 502
+            j0 = r0.json()
+            todas += j0.get('items') or []
+            if not j0.get('hasNext'):
+                break
+            pag += 1
+        return _json(dict(total_operacoes=len(todas), inativas=[dict(codigo=o.get('operationCode'), descricao=o.get('description'), financeira=o.get('isFinancial')) for o in todas if o.get('isInactive')]))
     filtro = dict(branchCodeList=[P.EMPRESA], orderStatusList=P.STATUS_PEDIDO)
     if pedido:
         filtro['orderCodeList'] = [pedido]
