@@ -61,8 +61,12 @@ def dia_anterior(agora: datetime = None) -> date:
 
 
 def dados(dia: date) -> dict:
-    """Dia de producao inteiro (06h20 -> 06h19 do dia seguinte)."""
+    """Dia de producao inteiro (06h20 -> 06h19 do dia seguinte). Se for o dia de producao de HOJE (ainda aberto), vai de 06h20 ate o momento da consulta/envio."""
+    from app.relatorio_fat.agenda import agora_brasilia
     ini = datetime(dia.year, dia.month, dia.day, 6, 20)
+    agora = agora_brasilia()
+    if ini <= agora < ini + timedelta(days=1):
+        return dados_periodo(ini, agora + timedelta(minutes=1), f'HOJE {dia:%d/%m} · das 06:20 às {agora:%H:%M}', dia)
     return dados_periodo(ini, ini + timedelta(days=1), dia.strftime('%d/%m/%Y'), dia)
 
 
