@@ -1343,3 +1343,48 @@ def consultar_lote():
             except Exception as e:  # noqa: BLE001
                 saida['movimento_da_op_exemplo'] = str(e)[:120]
     return _json(saida)
+
+
+@pedidos_bp.route('/operacao-inativa')
+@login_required
+def operacao_inativa():
+    """So administrador: descobre qual OPERACAO o pedido de venda usa e se ela esta inativa no TOTVS (erro GEN0001 'Esta operacao foi inativada!' ao finalizar/faturar).
+    ?pedido=NNNNN, ou sem pedido: ?cliente=110000001&qtd=400 (acha pedidos com essa quantidade solicitada). Mostra o pedido, a operacao dele e o cadastro dessa operacao."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.totvs import api, pedidos as P
+    cli = api.TotvsModaClient()
+    cli.autenticar()
+    pedido = request.args.get('pedido', type=int)
+    saida = {}
+    filtro = dict(branchCodeList=[P.EMPRESA], orderStatusList=P.STATUS_PEDIDO)
+    if pedido:
+        filtro['orderCodeList'] = [pedido]
+    else:
+        from datetime import date, timedelta
+        filtro['startOrderDate'] = f'{date.today() - timedelta(days=90)}T00:00:00'
+        filtro['endOrderDate'] = f'{date.today()}T23:59:59'
+        if request.args.get('cliente', type=int):
+            filtro['customerCodeList'] = [request.args.get('cliente', type=int)]
+    r = cli.post(P.ORDERS_URL, dict(filter=filtro, expand='items', pageSize=200, page=1))
+    if r.status_code != 200:
+        return _json(dict(erro=f'HTTP {r.status_code} {r.text[:300]}')), 502
+    achados = r.json().get('items') or []
+    qtd = request.args.get('qtd', type=float)
+    if qtd:
+        achados = [p for p in achados if any(abs((it.get('quantity') or 0) - qtd) < 0.5 for it in p.get('items') or [])]
+    ops = set()
+    ped_out = []
+    for p in achados[:10]:
+        cods = {p.get('operationCode')} | {it.get('operationCode') for it in p.get('items') or []}
+        cods = {c for c in cods if c}
+        ops |= cods
+        ped_out.append(dict(pedido=p.get('orderCode'), cliente=p.get('customerName'), situacao=p.get('statusOrder'), operacao_do_pedido=p.get('operationCode'), operacoes_dos_itens=sorted({it.get('operationCode') for it in p.get('items') or [] if it.get('operationCode')}),
+                            itens=[dict(produto=it.get('name'), solicitada=it.get('quantity'), baixada=it.get('settledQuantity'), pendente=it.get('pendingQuantity')) for it in (p.get('items') or [])[:4]],
+                            campos_com_operacao=[k for k in p if 'oper' in k.lower()]))
+    saida['pedidos'] = ped_out
+    if ops:
+        r2 = cli.get(api.OPERATIONS_URL, {'OperationCodeList': sorted(ops), 'PageSize': 100})
+        saida['operacoes'] = [{k: v for k, v in o.items() if not isinstance(v, (list, dict))} for o in (r2.json().get('items') or [])] if r2.status_code == 200 else f'HTTP {r2.status_code} {r2.text[:200]}'
+    saida['dica'] = 'Procure em "operacoes" o campo de situacao/inativa (isInactive, status...). Se a operacao estiver inativa, peca ao TI/fiscal para reativar ou troque a operacao do pedido.'
+    return _json(saida)
