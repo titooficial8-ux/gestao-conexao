@@ -115,6 +115,8 @@ def create_app():
     app.register_blueprint(presenca_bp)
     from app.relatorio_fat.routes import rel_fat_bp
     app.register_blueprint(rel_fat_bp)
+    from app.reprova_cru import rep_bp
+    app.register_blueprint(rep_bp)
 
     app.jinja_env.globals['tab_url'] = tab_url
 
@@ -330,5 +332,7 @@ def create_app():
         iniciar_pcphub(app)       # Programacao ao vivo a partir do PCP Hub: a cada 5 min (precisa de PCPHUB_EMAIL/PCPHUB_PASSWORD)
         from app.relatorio_fat.agenda import iniciar_agendador as iniciar_envio_relatorio
         iniciar_envio_relatorio(app)   # Relatorio de Faturamento por e-mail, 1x por dia (08:30)
+        from app.reprova_cru import iniciar_agendador as iniciar_reprova_email
+        iniciar_reprova_email(app)  # e-mail diario das reprovas no cru (07h); so envia com REPROVA_EMAIL_ENVIO=1
 
     return app
