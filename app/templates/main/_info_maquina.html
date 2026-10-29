@@ -15,6 +15,7 @@
 .info-et dl{display:grid;grid-template-columns:170px 1fr;gap:2px 10px;margin:6px 0 0;font-size:13px}.info-et dt{color:#64748b}.info-et dd{margin:0;font-weight:700}
 .info-oc{font-size:13px;border-bottom:1px solid #f1f5f9;padding:5px 0}.info-tag{display:inline-block;font-size:10px;font-weight:800;border-radius:6px;padding:1px 7px;color:#fff;background:#0e7490;margin-right:6px}
 .info-tag.NC{background:#b91c1c}.info-tag.RL{background:#7c3aed}.info-tag.DEFEITO{background:#b91c1c}.info-tag.PRODUÇÃO{background:#475569}.info-tag.LIBERAÇÃO{background:#15803d}.info-vazio{color:#94a3b8;font-size:13px}
+td.tp-add{cursor:pointer}td.tp-add:hover{background:#eef2ff;outline:1px dashed #7c3aed}
 td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#b45309}@keyframes ajPisca{0%,100%{background:#fde68a}50%{background:transparent}}
 #ajMod{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:3600;display:none;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto}#ajMod.on{display:flex}
 .aj-box{background:#fff;border-radius:14px;max-width:620px;width:100%;padding:18px 22px;color:#1e293b;box-shadow:0 20px 60px rgba(15,23,42,.35)}.aj-box h3{margin:0 0 4px}
@@ -22,6 +23,37 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
 .aj-bt{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}.aj-bt button{border:0;border-radius:8px;padding:8px 16px;font-weight:800;cursor:pointer}.aj-ok{background:#15803d;color:#fff}.aj-no{background:#e5e7eb}
 </style>
 <div id="infoMaq"><div class="info-box"><button class="info-fecha" type="button">Fechar</button><div id="infoMaqCorpo">Carregando…</div></div></div>
+<div id="tpMod"><div class="aj-box" id="tpCorpo"></div></div>
+<style>#tpMod{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:3600;display:none;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto}#tpMod.on{display:flex}.tp-in{padding:8px;border:1px solid #94a3b8;border-radius:8px;font:inherit}</style>
+<script>
+(function () {                      /* clique no TOTAL PCS: o PCP acrescenta pecas a OP, com motivo */
+  var mod = document.getElementById('tpMod'), corpo = document.getElementById('tpCorpo'), atual = null;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function abrir(seq) {
+    mod.classList.add('on'); corpo.textContent = 'Carregando…'; atual = seq;
+    fetch('/info/sequencia/' + seq + '/pecas-extra', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      corpo.innerHTML = '<h3>OP ' + esc(d.op) + ' · acrescentar peças</h3><div style="color:#64748b;font-size:13px">Artigo ' + esc(d.artigo) + ' · total atual <b>' + d.total + '</b> peças' + (d.extra ? ' (inclui <b>+' + d.extra + '</b> acrescentadas pelo PCP)' : '') + ' · ' + d.produzidas + ' já produzidas</div>' +
+        '<label style="font-weight:700;font-size:12px;display:block;margin-top:12px">PEÇAS A ACRESCENTAR</label><input type="number" id="tpN" class="tp-in" min="1" max="999" value="1" style="width:110px"> <span id="tpNovo" style="font-weight:800;margin-left:8px"></span>' +
+        '<label style="font-weight:700;font-size:12px;display:block;margin-top:12px">JUSTIFIQUE O MOTIVO</label><textarea id="tpMotivo" placeholder="Por que acrescentar peças a esta OP?"></textarea>' +
+        '<div class="aj-bt"><button class="aj-no" type="button" id="tpFecha">Fechar</button><button class="aj-ok" type="button" id="tpConf">Confirmar</button></div>' +
+        (d.historico.length ? '<b style="font-size:12px;text-transform:uppercase;color:#64748b;display:block;margin-top:12px">Acréscimos anteriores</b>' + d.historico.map(function (h) { return '<div style="font-size:13px;border-top:1px solid #f1f5f9;padding:4px 0"><b>+' + h.pecas + '</b> · ' + esc(h.quando) + ' · ' + esc(h.por) + ' · ' + esc(h.motivo) + '</div>'; }).join('') : '');
+      var n = document.getElementById('tpN'), nv = document.getElementById('tpNovo');
+      function calc() { nv.textContent = '→ total ' + (d.total + (parseInt(n.value, 10) || 0)) + ' peças'; }
+      n.oninput = calc; calc();
+      document.getElementById('tpFecha').onclick = function () { mod.classList.remove('on'); };
+      document.getElementById('tpConf').onclick = function () {
+        fetch('/info/sequencia/' + seq + '/pecas-extra', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pecas: n.value, motivo: document.getElementById('tpMotivo').value }) })
+          .then(function (r) { return r.json(); }).then(function (j) { if (j.erro) { alert(j.erro); return; } mod.classList.remove('on'); location.reload(); });
+      };
+    }).catch(function () { corpo.textContent = 'Não foi possível carregar.'; });
+  }
+  document.addEventListener('click', function (ev) {
+    var td = ev.target.closest('td.tp-add');
+    if (td && !td.classList.contains('aj-pisca')) abrir(td.dataset.tpSeq);
+    else if (ev.target === mod) mod.classList.remove('on');
+  });
+})();
+</script>
 <div id="ajMod"><div class="aj-box" id="ajCorpo"></div></div>
 <script>
 (function () {                      /* aumento de quantidade da OP (PCPFP084): total de pecas pisca ate o PCP justificar */

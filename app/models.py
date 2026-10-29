@@ -197,6 +197,7 @@ class Sequencia(db.Model):
     prev_fonte = db.Column(db.String(30), nullable=True)      # de onde vieram as voltas/RPM: OP, maquina+artigo ou artigo
     prev_rpm = db.Column(db.Float, nullable=True)
     prev_voltas = db.Column(db.Float, nullable=True)
+    pecas_extra = db.Column(db.Integer, default=0)             # pecas a mais acrescentadas pelo PCP (clique no TOTAL PCS); somam ao total vindo do TOTVS
     hub_ordem = db.Column(db.Integer, nullable=True)           # ultima posicao desta OP vista no PCP Hub: se o Hub mudar a ordem da maquina, a ordem do Gestao acompanha
     qt_ult = db.Column(db.Float, nullable=True)                 # ultima quantidade da OP vista no TOTVS (detecta aumento feito no PCPFP084)
     dt_cliente_manual = db.Column(db.Boolean, default=False)   # DT.CLIENTE digitada pelo PCP (ORTOBOM / OP avulsa): a leitura do PCP Hub nao sobrescreve
@@ -452,6 +453,7 @@ class AjusteQuantidade(db.Model):
     justificativa = db.Column(db.Text, nullable=True)
     justificado_por = db.Column(db.String(120), nullable=True)
     justificado_em = db.Column(db.DateTime, nullable=True)
+    origem = db.Column(db.String(10), default='totvs')        # 'totvs' (aumento detectado no PCPFP084) ou 'manual' (PCP acrescentou pecas no TOTAL PCS)
 
 
 class NcEstado(db.Model):
