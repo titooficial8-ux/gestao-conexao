@@ -451,7 +451,12 @@ def ajustes_maquina(numero):
     _tab_ok()
     from app.models import AjusteQuantidade
     seqs = {s.id for s in Machine.query.filter_by(number=numero).first_or_404().sequencias}
-    return jsonify(itens=[dict(id=a.id, seq=a.sequencia_id) for a in AjusteQuantidade.query.filter(AjusteQuantidade.justificado_em.is_(None)).all() if a.sequencia_id in seqs])
+    todos = AjusteQuantidade.query.filter(AjusteQuantidade.sequencia_id.in_(seqs), db.or_(AjusteQuantidade.origem.is_(None), AjusteQuantidade.origem == 'totvs')).order_by(AjusteQuantidade.id).all() if seqs else []
+    pend = [a for a in todos if a.justificado_em is None]
+    ultimo = {a.sequencia_id: a for a in todos}                       # a ultima reposicao de cada sequencia
+    com_pend = {a.sequencia_id for a in pend}
+    return jsonify(itens=[dict(id=a.id, seq=a.sequencia_id) for a in pend],
+                   historico=[dict(id=a.id, seq=sid) for sid, a in ultimo.items() if sid not in com_pend])
 
 
 @info_bp.route('/ajuste/<int:ajuste_id>')
@@ -536,38 +541,3 @@ def liberacoes_diagnostico():
     p = acompanhamento.liberacoes('pendente')
     out['lido_pelo_gestao'] = dict(erro=p['erro'], itens=[{k: (str(v) if k == 'em' else v) for k, v in x.items()} for x in p['itens'][:5]])
     return jsonify(out)
-
-
-# ------------------------------------------------------------------ PCP acrescenta pecas a uma OP (clique no TOTAL PCS)
-@info_bp.route('/sequencia/<int:seq_id>/pecas-extra', methods=['GET', 'POST'])
-@login_required
-def pecas_extra(seq_id):
-    """GET: total atual e historico de acrescimos. POST {pecas, motivo}: soma pecas ao total da OP (so PCP/administrador), com motivo obrigatorio e registro de quem fez."""
-    _tab_ok()
-    from app.main.routes import _pode_dias_sem_producao
-    from app.models import AjusteQuantidade
-    sq = db.session.get(Sequencia, seq_id) or abort(404)
-    if request.method == 'POST':
-        if not _pode_dias_sem_producao():
-            return jsonify(erro='Somente o PCP pode acrescentar peças.'), 403
-        d = request.get_json(silent=True) or {}
-        try:
-            n = int(d.get('pecas'))
-        except (TypeError, ValueError):
-            return jsonify(erro='Informe quantas peças acrescentar.'), 400
-        motivo = re.sub(r'\s+', ' ', str(d.get('motivo') or '')).strip()
-        if not 1 <= n <= 999:
-            return jsonify(erro='Use de 1 a 999 peças.'), 400
-        if len(motivo) < 5:
-            return jsonify(erro='Justifique o motivo (mínimo 5 caracteres).'), 400
-        antes = sq.total_pcs or 0
-        sq.pecas_extra = (sq.pecas_extra or 0) + n
-        sq.total_pcs = antes + n
-        agora = datetime.utcnow()
-        db.session.add(AjusteQuantidade(sequencia_id=sq.id, op=str(sq.op), maquina=str(sq.machine.number) if sq.machine else None, artigo=sq.artigo, qt_antes=sq.qt_plan, qt_depois=sq.qt_plan,
-                                        pecas_antes=antes, pecas_depois=antes + n, detectado_em=agora, justificativa=motivo[:500], justificado_por=current_user.name, justificado_em=agora, origem='manual'))
-        db.session.commit()
-        return jsonify(ok=True, total=sq.total_pcs, extra=sq.pecas_extra)
-    hist = AjusteQuantidade.query.filter_by(sequencia_id=sq.id, origem='manual').order_by(AjusteQuantidade.id.desc()).limit(1).all()      # o quadro mostra so a ultima reposicao (todas ficam gravadas)
-    return jsonify(op=sq.op, artigo=sq.artigo, total=sq.total_pcs or 0, extra=sq.pecas_extra or 0, produzidas=sq.pecas_produzidas or 0,
-                   historico=[dict(quando=(a.detectado_em - timedelta(hours=3)).strftime('%d/%m %H:%M'), pecas=(a.pecas_depois or 0) - (a.pecas_antes or 0), motivo=a.justificativa, por=a.justificado_por) for a in hist])
