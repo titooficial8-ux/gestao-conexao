@@ -24,7 +24,7 @@ from flask_login import current_user, login_required
 
 ASSETS = Path(__file__).parent / 'relatorio_fat' / 'assets'
 rep_bp = Blueprint('reprova_cru', __name__, url_prefix='/reprovas-cru')
-LINHAS_POR_PAGINA = 13
+LINHAS_POR_PAGINA = 22
 _trava = threading.Lock()
 
 
@@ -95,18 +95,18 @@ def _paginas(d):
 
 
 HTML = """<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><style>
-@page{size:13.333in 7.5in;margin:0}*{box-sizing:border-box}body{margin:0;font-family:'Segoe UI',Arial,sans-serif;color:#454C52}
-.pg{width:13.333in;height:7.5in;position:relative;overflow:hidden;page-break-after:always;background:#fff url('{{ fundo }}') center/cover}
-.logo{position:absolute;right:.55in;top:.18in;width:1.88in}.sec{position:absolute;left:.5in;top:.22in;font-size:13pt;font-weight:700;color:#008EC9}
-.tit{position:absolute;left:.5in;top:.5in;font-size:22pt;font-weight:700;color:#1F4E79;max-width:9.6in}
-.rod{position:absolute;left:0;right:0;bottom:0;height:.21in;background:#008EC9;color:#fff;font-size:9pt;display:flex;justify-content:space-between;padding:.03in .4in}
+@page{size:8.27in 11.69in;margin:0}*{box-sizing:border-box}body{margin:0;font-family:'Segoe UI',Arial,sans-serif;color:#454C52}
+.pg{width:8.27in;height:11.69in;position:relative;overflow:hidden;page-break-after:always;background:#fff url('{{ fundo }}') center/cover}
+.logo{position:absolute;right:.4in;top:.2in;width:1.6in}.sec{position:absolute;left:.4in;top:.25in;font-size:11pt;font-weight:700;color:#008EC9}
+.tit{position:absolute;left:.4in;top:.55in;font-size:18pt;font-weight:700;color:#1F4E79;max-width:5.6in}
+.rod{position:absolute;left:0;right:0;bottom:0;height:.24in;background:#008EC9;color:#fff;font-size:8pt;display:flex;justify-content:space-between;padding:.04in .3in}
 .nota{position:absolute;left:.35in;bottom:.3in;font-size:9pt;color:#6B7280;font-style:italic}
-.cont{position:absolute;left:.5in;right:.5in;top:1.2in;bottom:.55in}
-.cards{display:flex;gap:.2in;margin-bottom:.25in}.card{flex:1;background:#fff;border:1px solid #d9e2ec;border-left:6px solid #1F4E79;border-radius:8px;padding:.15in .2in}
-.card.v{border-left-color:#C62828}.card.l{border-left-color:#B7791F}.card small{display:block;font-size:10pt;color:#6B7280;text-transform:uppercase;letter-spacing:.04em}.card b{font-size:26pt;color:#1F4E79}.card.v b{color:#C62828}
-table{width:100%;border-collapse:collapse;font-size:10.5pt;background:rgba(255,255,255,.92)}th{background:#1F4E79;color:#fff;text-align:left;padding:6px 8px;font-size:9.5pt}td{padding:5px 8px;border-bottom:1px solid #e5e9ee}
-tr:nth-child(even) td{background:#F4F6F8}.n{text-align:right}.dois{display:flex;gap:.3in}.dois>div{flex:1}h3{margin:0 0 6px;color:#2E75B6;font-size:13pt}
-.vazio{margin-top:1.2in;text-align:center;font-size:20pt;color:#1B7F3B;font-weight:700}
+.cont{position:absolute;left:.4in;right:.4in;top:1.3in;bottom:.5in}
+.cards{display:flex;flex-wrap:wrap;gap:.12in;margin-bottom:.25in}.card{flex:1 1 30%;background:#fff;border:1px solid #d9e2ec;border-left:6px solid #1F4E79;border-radius:8px;padding:.1in .15in}
+.card.v{border-left-color:#C62828}.card.l{border-left-color:#B7791F}.card small{display:block;font-size:10pt;color:#6B7280;text-transform:uppercase;letter-spacing:.04em}.card b{font-size:22pt;color:#1F4E79}.card.v b{color:#C62828}
+table{width:100%;border-collapse:collapse;font-size:9pt;background:rgba(255,255,255,.92)}th{background:#1F4E79;color:#fff;text-align:left;padding:5px 6px;font-size:8.5pt}td{padding:4px 6px;border-bottom:1px solid #e5e9ee}
+tr:nth-child(even) td{background:#F4F6F8}.n{text-align:right}.dois{display:flex;flex-direction:column;gap:.25in}.dois>div{flex:1}h3{margin:0 0 6px;color:#2E75B6;font-size:13pt}
+.vazio{margin-top:1.2in;text-align:center;font-size:16pt;color:#1B7F3B;font-weight:700}
 </style></head><body>
 {% set total = paginas|length %}
 {% for p in paginas %}<div class="pg">
@@ -124,10 +124,10 @@ tr:nth-child(even) td{background:#F4F6F8}.n{text-align:right}.dois{display:flex;
  <div class="dois"><div><h3>Por defeito</h3><table><tr><th>Defeito</th><th class="n">Peças</th><th class="n">Metros</th></tr>{% for x in d.por_defeito[:14] %}<tr><td>{{ x.defeito }}</td><td class="n">{{ x.pecas }}</td><td class="n">{{ f(x.metros) }}</td></tr>{% endfor %}</table></div>
  <div><h3>Por máquina</h3><table><tr><th>Máquina</th><th class="n">Peças</th><th class="n">Metros</th><th class="n">Kg</th></tr>{% for x in d.por_maquina[:14] %}<tr><td>MQ {{ x.maquina }}</td><td class="n">{{ x.pecas }}</td><td class="n">{{ f(x.metros) }}</td><td class="n">{{ f(x.kg) }}</td></tr>{% endfor %}</table></div></div>
 {% else %}
- <table><tr><th>Hora</th><th>MQ</th><th>OP</th><th>Peça</th><th>Artigo</th><th>Cliente</th><th>Defeito</th><th class="n">Metros</th><th class="n">Kg</th><th>Turno</th><th>Apontado por</th></tr>{% for n in p.linhas %}<tr><td>{{ n.criado.strftime('%d/%m %H:%M') }}</td><td>{{ n.maquina }}</td><td>{{ n.op or '–' }}</td><td>{{ n.peca }}</td><td><b>{{ n.artigo }}</b></td><td>{{ n.cliente }}</td><td>{{ n.defeitos|join(', ') }}</td><td class="n">{{ f(n.metros) }}</td><td class="n">{{ f(n.quilos) }}</td><td>{{ n.turno }}</td><td>{{ n.emitente }}</td></tr>{% endfor %}</table>
+ <table><tr><th>Hora</th><th>MQ</th><th>OP</th><th>Peça</th><th>Artigo</th><th>Cliente</th><th>Defeito</th><th class="n">Metros</th><th class="n">Kg</th><th>Turno</th></tr>{% for n in p.linhas %}<tr><td>{{ n.criado.strftime('%d/%m %H:%M') }}</td><td>{{ n.maquina }}</td><td>{{ n.op or '–' }}</td><td>{{ n.peca }}</td><td><b>{{ n.artigo }}</b></td><td>{{ n.cliente }}</td><td>{{ n.defeitos|join(', ') }}</td><td class="n">{{ f(n.metros) }}</td><td class="n">{{ f(n.quilos) }}</td><td>{{ n.turno }}</td></tr>{% endfor %}</table>
 {% endif %}
 </div>
-<div class="rod"><span>www.gestaoconexao.com.br</span><span>Relatório de Reprovas no Cru · Gerado em {{ gerado }} · {{ loop.index }}/{{ total }}</span></div></div>{% endfor %}
+<div class="rod"><span>www.gestaoconexao.com.br</span><span>Reprovas no Cru · Gerado em {{ gerado }} · {{ loop.index }}/{{ total }}</span></div></div>{% endfor %}
 </body></html>"""
 
 
@@ -141,7 +141,7 @@ def gerar_pdf(d: dict) -> bytes:
     with sync_playwright() as pw:
         nav = pw.chromium.launch(executable_path=os.getenv('RELATORIO_FAT_CHROMIUM') or None)
         try:
-            pg = nav.new_page(viewport={'width': 1280, 'height': 720})
+            pg = nav.new_page(viewport={'width': 794, 'height': 1123})
             pg.set_content(html(d), wait_until='load')
             return pg.pdf(prefer_css_page_size=True, print_background=True)
         finally:
