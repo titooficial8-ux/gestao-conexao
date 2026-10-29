@@ -1,0 +1,52 @@
+<style>
+.info-i{border:1.5px solid #2f7fe0;color:#2f7fe0;background:#fff;border-radius:50%;width:20px;height:20px;font:800 12px/1 Georgia,serif;cursor:pointer;padding:0;margin-left:4px;vertical-align:middle}
+.info-i:hover{background:#2f7fe0;color:#fff}
+#infoMaq{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:3500;display:none;align-items:flex-start;justify-content:center;padding:30px 12px;overflow:auto}
+#infoMaq.on{display:flex}
+.info-box{background:#fff;border-radius:14px;max-width:760px;width:100%;padding:18px 22px;box-shadow:0 20px 60px rgba(15,23,42,.35);color:#1e293b}
+.info-box h3{margin:0 0 2px;font-size:18px}.info-box h4{margin:18px 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#64748b}
+.info-fecha{float:right;border:0;background:#e5e7eb;border-radius:8px;padding:4px 10px;cursor:pointer;font-weight:700}
+.info-kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.info-kv div{background:#f1f5f9;border-radius:8px;padding:7px 10px}.info-kv small{display:block;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.info-turnos{display:flex;gap:8px;margin-top:8px}.info-turnos div{flex:1;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;text-align:center}.info-turnos b{font-size:20px;display:block}
+.info-steps{display:flex;gap:6px;margin:8px 0 12px}.info-step{flex:1;text-align:center;font-size:11px;color:#64748b}.info-step i{display:block;width:30px;height:30px;border-radius:50%;background:#cbd5e1;color:#fff;font:800 11px/30px Arial;margin:0 auto 3px;font-style:normal}
+.info-step.feito i{background:#16a34a}.info-step.atual i{background:#f59e0b;box-shadow:0 0 0 4px #fde68a}
+.info-et{border:1px solid #e2e8f0;border-radius:10px;padding:9px 12px;margin-bottom:8px}.info-et.atual{border-color:#f59e0b;background:#fffbeb}.info-et b{font-size:12px;text-transform:uppercase}
+.info-et dl{display:grid;grid-template-columns:170px 1fr;gap:2px 10px;margin:6px 0 0;font-size:13px}.info-et dt{color:#64748b}.info-et dd{margin:0;font-weight:700}
+.info-oc{font-size:13px;border-bottom:1px solid #f1f5f9;padding:5px 0}.info-tag{display:inline-block;font-size:10px;font-weight:800;border-radius:6px;padding:1px 7px;color:#fff;background:#0e7490;margin-right:6px}
+.info-tag.DEFEITO{background:#b91c1c}.info-tag.PRODUÇÃO{background:#475569}.info-tag.LIBERAÇÃO{background:#15803d}.info-vazio{color:#94a3b8;font-size:13px}
+</style>
+<div id="infoMaq"><div class="info-box"><button class="info-fecha" type="button">Fechar</button><div id="infoMaqCorpo">Carregando…</div></div></div>
+<script>
+(function () {
+  var box = document.getElementById('infoMaq'), corpo = document.getElementById('infoMaqCorpo');
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function kv(l, v) { return '<div><small>' + l + '</small><b>' + esc(v == null || v === '' ? '–' : v) + '</b></div>'; }
+  function desenhar(d) {
+    if (d.vazio) { corpo.innerHTML = '<h3>Máquina ' + d.maquina + '</h3><p class="info-vazio">Sem sequência programada.</p>'; return; }
+    var a = d.acompanhamento, h = '<h3>Máquina ' + String(d.maquina).padStart(2, '0') + ' · OP ' + esc(a.op) + ' · ' + esc(a.artigo) + '</h3><div class="info-vazio">' + esc(a.cliente || '') + ' · ' + esc(a.situacao || a.status) + '</div>';
+    h += '<h4>Acompanhamento de produção</h4><div class="info-kv">' + kv('Produzidas / total', a.produzidas + ' / ' + a.total) + kv('Meta por dia (pç)', a.meta_dia) + kv('Meta por turno (pç)', a.meta_turno) + kv('Término previsto', a.termino) + kv('Estrutura', a.estrutura) + kv('RPM', a.rpm) + '</div>';
+    h += '<div class="info-turnos">' + [0, 1, 2].map(function (i) { return '<div><small>' + (i + 1) + 'º turno</small><b>' + a.pesadas_turno[i] + '</b>pç pesadas' + (a.meta_turno ? ' / meta ' + Math.round(a.meta_turno) : '') + '</div>'; }).join('') + '</div><div class="info-vazio" style="margin-top:4px">Dia de produção iniciado em ' + a.inicio_dia + '</div>';
+    h += '<h4>Etapas de liberação (MEC + QUALI)</h4>';
+    if (!d.etapas.length) { h += '<p class="info-vazio">Nenhuma liberação do SKU encontrada para este artigo nesta máquina' + (d.erro_sharepoint ? ' (SharePoint: ' + esc(d.erro_sharepoint) + ')' : '') + '.</p>'; }
+    else {
+      var L = d.liberacao;
+      h += '<div class="info-vazio">' + esc(L.status || '') + ' · OP ' + esc(L.op) + ' · atualizado ' + esc(L.atualizado) + '</div><div class="info-steps">' + d.etapas.map(function (e) { return '<div class="info-step ' + (e.atual ? 'atual' : (e.feito ? 'feito' : '')) + '"><i>' + e.cod + '</i>' + (e.atual ? 'atual' : (e.feito ? 'concluída' : 'pendente')) + '</div>'; }).join('') + '</div>';
+      h += d.etapas.map(function (e) {
+        return '<div class="info-et' + (e.atual ? ' atual' : '') + '"><b>' + e.cod + ' · ' + esc(e.titulo) + '</b>' + (e.itens.length ? '<dl>' + e.itens.map(function (i) { return '<dt>' + esc(i.k) + '</dt><dd>' + esc(i.v) + '</dd>'; }).join('') + '</dl>' : '<div class="info-vazio">sem registro</div>') + '</div>';
+      }).join('');
+      var reg = Object.keys(L.regulagem || {});
+      if (reg.length) h += '<div class="info-et"><b>Regulagem registrada</b><dl>' + reg.map(function (k) { return '<dt>' + esc(k) + '</dt><dd>' + esc(L.regulagem[k]) + '</dd>'; }).join('') + '</dl></div>';
+    }
+    h += '<h4>Últimas ocorrências (este artigo nesta máquina)</h4>' + (d.ocorrencias.length ? d.ocorrencias.map(function (o) { return '<div class="info-oc"><span class="info-tag ' + o.tipo + '">' + o.tipo + '</span><b>' + esc(o.quando) + '</b> · ' + esc(o.texto) + '</div>'; }).join('') : '<p class="info-vazio">Sem ocorrências registradas.</p>');
+    corpo.innerHTML = h;
+  }
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest('.info-i');
+    if (b) {
+      box.classList.add('on'); corpo.textContent = 'Carregando…';
+      fetch('/info/maquina/' + b.dataset.maq + (b.dataset.seq ? '?seq=' + b.dataset.seq : ''), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(desenhar).catch(function () { corpo.textContent = 'Não foi possível carregar.'; });
+    } else if (ev.target === box || ev.target.closest('.info-fecha')) { box.classList.remove('on'); }
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') box.classList.remove('on'); });
+})();
+</script>

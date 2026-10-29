@@ -433,6 +433,17 @@ class SavedDrawingSaveLog(db.Model):
     action = db.Column(db.String(20), default='saved')
 
 
+class NcEstado(db.Model):
+    """Estado de um alerta 'Peça apresentando defeito' (NC do SharePoint): ANALISANDO ou LIBERADO. So o lider da malharia altera; o PCP apenas acompanha."""
+    __tablename__ = 'nc_estado'
+
+    id = db.Column(db.Integer, primary_key=True)
+    nc_id = db.Column(db.String(30), unique=True, index=True)
+    estado = db.Column(db.String(20))
+    por_nome = db.Column(db.String(120))
+    em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class HubArquivo(db.Model):
     """Copia INTEGRAL (cada linha, todos os campos em JSON) das tabelas de historico/registro do PCP Hub: depois dela o Hub pode ser desligado sem perder nada.
     (tabela, hub_id) e unico, entao a importacao pode rodar quantas vezes quiser."""
