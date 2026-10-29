@@ -161,13 +161,18 @@ def _acompanhamento(seq, maq):
     ini = hoje.replace(hour=6, minute=20, second=0, microsecond=0)
     if hoje < ini:
         ini -= timedelta(days=1)
-    pes = [0, 0, 0]
-    for r in Report32Movement.query.filter(Report32Movement.cod_maquina.in_([str(maq.number), f'{maq.number:02d}']), Report32Movement.dt_real >= ini, Report32Movement.dt_real < ini + timedelta(days=1)).all():
-        if r.dt_real:
+    pes, ontem = [0, 0, 0], [0, 0, 0]
+    ini_ont = ini - timedelta(days=1)
+    for r in Report32Movement.query.filter(Report32Movement.cod_maquina.in_([str(maq.number), f'{maq.number:02d}']), Report32Movement.dt_real >= ini_ont, Report32Movement.dt_real < ini + timedelta(days=1)).all():
+        if not r.dt_real:
+            continue
+        if r.dt_real >= ini:
             pes[_turno_idx(r.dt_real)] += 1
+        elif str(r.op) == str(seq.op):                      # dia anterior: so as pecas desta OP
+            ontem[_turno_idx(r.dt_real)] += 1
     meta_dia = seq.pecas_dia or 0
     return dict(op=seq.op, artigo=seq.artigo, cliente=seq.cliente, status=seq.status, situacao=seq.situacao, produzidas=seq.pecas_produzidas or 0, total=seq.total_pcs or 0,
-                meta_dia=round(meta_dia, 1) if meta_dia else None, meta_turno=round(meta_dia / 3, 1) if meta_dia else None, pesadas_turno=pes, inicio_dia=ini.strftime('%d/%m %H:%M'),
+                meta_dia=round(meta_dia, 1) if meta_dia else None, meta_turno=round(meta_dia / 3, 1) if meta_dia else None, pesadas_turno=pes, pesadas_ontem=ontem, inicio_ontem=ini_ont.strftime('%d/%m %H:%M'), inicio_dia=ini.strftime('%d/%m %H:%M'),
                 termino=seq.prev_termino_em.strftime('%d/%m %H:%M') if seq.prev_termino_em else (seq.termino_malharia.strftime('%d/%m/%Y') if seq.termino_malharia else None),
                 rpm=seq.prev_rpm, estrutura=seq.estrutura)
 
@@ -201,22 +206,12 @@ def _etapas(artigo, op, maquina):
 
 
 def _ocorrencias(artigo, maquina, num):
-    """Ultimas ocorrencias SO deste artigo nesta maquina: liberacoes do SKU, pecas com defeito (NC) e mudancas de situacao das OPs."""
+    """Ultimas ocorrencias SO deste artigo nesta maquina e SO as apontadas na revisao do cru (NC da lista ncform)."""
     cod = (artigo or '').split(' ')[0]
-    ev = []
-    for x in _liberacoes():
-        if str(x.get('field_2') or '').strip() == cod and _maq2(x.get('field_3')) == maquina:
-            d = _utc_local(x.get('_alterado'))
-            ev.append((d, 'LIBERAÇÃO', f"OP {x.get('field_4') or '–'} · {x.get('field_7') or 'E1'} · {x.get('field_5') or ''}" + (f" · {x['field_25']}" if x.get('field_25') else '')))
-    for n in _ncs():
-        if n['artigo'] == cod and n['maquina'] == maquina:
-            ev.append((n['criado'], 'DEFEITO', f"OP {n['op'] or '–'} · peça {n['peca']} · {', '.join(n['defeitos'])} · {n['metros']:g} m · {n['origem']}" + (f" · {n['emitente']}" if n['emitente'] else '')))
-    for h in HistoricoProducao.query.filter(HistoricoProducao.machine.in_([str(num), f'{num:02d}'])).order_by(HistoricoProducao.changed_at.desc()).limit(400).all():
-        if (h.artigo or '').split(' ')[0] == cod and h.changed_at:
-            ev.append((h.changed_at - timedelta(hours=3), 'PRODUÇÃO', f"OP {h.op or '–'} · {h.old_status or '–'} → {h.new_status or '–'}"))
-    ev = [e for e in ev if e[0]]
+    ev = [(n['criado'], 'NC', f"OP {n['op'] or '–'} · peça {n['peca']} · {', '.join(n['defeitos'])} · {n['metros']:g} m · {n['origem']}" + (f" · {n['emitente']}" if n['emitente'] else '') + (f" · {n['obs']}" if n['obs'] else ''))
+          for n in _ncs() if n['artigo'] == cod and n['maquina'] == maquina and n['criado']]
     ev.sort(key=lambda e: e[0], reverse=True)
-    return [dict(quando=e[0].strftime('%d/%m %H:%M'), tipo=e[1], texto=e[2]) for e in ev[:15]]
+    return [dict(quando=e[0].strftime('%d/%m %H:%M'), tipo=e[1], texto=e[2]) for e in ev[:20]]
 
 
 @info_bp.route('/maquina/<int:numero>')
