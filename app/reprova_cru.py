@@ -239,10 +239,17 @@ def iniciar_agendador(app) -> None:
 
 
 # ------------------------------------------------------------------ tela e rotas
+def pode_ver(user=None) -> bool:
+    """Reprovas Cru so aparece para quem estiver em REPROVA_EMAIL_USUARIOS (padrao: christian.yarzon) e para o administrador (Desenvolvedor)."""
+    user = user or current_user
+    if not getattr(user, 'is_authenticated', False):
+        return False
+    lista = {e.strip().lower() for e in os.getenv('REPROVA_EMAIL_USUARIOS', 'christian.yarzon@conexaomalhas.com.br').split(',') if e.strip()}
+    return bool(user.is_admin or (user.email or '').lower() in lista)
+
+
 def _pode() -> bool:
-    from app.models import Tab
-    tab = Tab.query.filter_by(slug='programacao').first()
-    return bool(tab and tab.visible_to(current_user))
+    return pode_ver()
 
 
 def _dia_param():

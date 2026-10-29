@@ -117,6 +117,8 @@ def create_app():
     app.register_blueprint(rel_fat_bp)
     from app.reprova_cru import rep_bp
     app.register_blueprint(rep_bp)
+    from app.reprova_cru import pode_ver as _pode_reprovas
+    app.jinja_env.globals['pode_reprovas_cru'] = _pode_reprovas
 
     app.jinja_env.globals['tab_url'] = tab_url
 
