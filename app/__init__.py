@@ -120,6 +120,14 @@ def create_app():
     from app.reprova_cru import pode_ver as _pode_reprovas
     app.jinja_env.globals['pode_reprovas_cru'] = _pode_reprovas
 
+    def _pode_pcp_edita():
+        from app.main.routes import _pode_dias_sem_producao
+        try:
+            return _pode_dias_sem_producao()
+        except Exception:  # noqa: BLE001
+            return False
+    app.jinja_env.globals['pode_pcp_edita'] = _pode_pcp_edita
+
     app.jinja_env.globals['tab_url'] = tab_url
 
     from app.i18n import t as translate
@@ -192,7 +200,7 @@ def create_app():
         # colunas novas em bancos antigos (o create_all so cria tabelas que ainda nao existem)
         from sqlalchemy import inspect, text
         tabelas = set(inspect(db.engine).get_table_names())
-        for tabela, novas in (('users', (('setor_id', 'INTEGER'), ('verificado', 'BOOLEAN DEFAULT 0'), ('deve_trocar_senha', 'BOOLEAN DEFAULT 0'), ('foto_versao', 'INTEGER DEFAULT 0'), ('capa_versao', 'INTEGER DEFAULT 0'), ('capa_x', 'INTEGER DEFAULT 50'), ('capa_y', 'INTEGER DEFAULT 50'), ('segundos_acesso', 'INTEGER DEFAULT 0'), ('selo_parabens_pendente', 'BOOLEAN DEFAULT 0'))), ('pedidos_relatorio', (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)'), ('vl_unitario', 'FLOAT DEFAULT 0'))), ('pesagens_malharia', (('visto_em', 'DATETIME'), ('hora_real', 'DATETIME'), ('hora_origem', 'VARCHAR(10)'), ('trx_codigo', 'INTEGER'), ('peso_kg', 'FLOAT'))), ('pesagens_malharia_resumo', (('artigo_desc', 'VARCHAR(200)'), ('gramatura', 'FLOAT'), ('largura', 'FLOAT'), ('metro_ideal', 'FLOAT'), ('cliente_cod', 'INTEGER'))), ('baixas_fio', (('gramatura', 'FLOAT'), ('largura', 'FLOAT'))), ('artigo_impedimentos', (('origem_registro', "VARCHAR(10) DEFAULT 'hub'"),)), ('sequencias', (('situacao', 'VARCHAR(20)'), ('pecas_dia', 'FLOAT'), ('termino_calculado', 'BOOLEAN DEFAULT 0'), ('prev_fonte', 'VARCHAR(30)'), ('prev_rpm', 'FLOAT'), ('prev_voltas', 'FLOAT'), ('prev_raport', 'FLOAT'), ('qt_plan', 'FLOAT'), ('dt_cliente_manual', 'BOOLEAN DEFAULT 0'), ('aud_ok', 'BOOLEAN DEFAULT 0'), ('aud_em', 'DATETIME'), ('prev_termino_em', 'DATETIME'), ('qt_ult', 'FLOAT'), ('hub_ordem', 'INTEGER'))),
+        for tabela, novas in (('users', (('setor_id', 'INTEGER'), ('verificado', 'BOOLEAN DEFAULT 0'), ('deve_trocar_senha', 'BOOLEAN DEFAULT 0'), ('foto_versao', 'INTEGER DEFAULT 0'), ('capa_versao', 'INTEGER DEFAULT 0'), ('capa_x', 'INTEGER DEFAULT 50'), ('capa_y', 'INTEGER DEFAULT 50'), ('segundos_acesso', 'INTEGER DEFAULT 0'), ('selo_parabens_pendente', 'BOOLEAN DEFAULT 0'))), ('pedidos_relatorio', (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)'), ('vl_unitario', 'FLOAT DEFAULT 0'))), ('pesagens_malharia', (('visto_em', 'DATETIME'), ('hora_real', 'DATETIME'), ('hora_origem', 'VARCHAR(10)'), ('trx_codigo', 'INTEGER'), ('peso_kg', 'FLOAT'))), ('pesagens_malharia_resumo', (('artigo_desc', 'VARCHAR(200)'), ('gramatura', 'FLOAT'), ('largura', 'FLOAT'), ('metro_ideal', 'FLOAT'), ('cliente_cod', 'INTEGER'))), ('baixas_fio', (('gramatura', 'FLOAT'), ('largura', 'FLOAT'))), ('artigo_impedimentos', (('origem_registro', "VARCHAR(10) DEFAULT 'hub'"),)), ('sequencias', (('situacao', 'VARCHAR(20)'), ('pecas_dia', 'FLOAT'), ('termino_calculado', 'BOOLEAN DEFAULT 0'), ('prev_fonte', 'VARCHAR(30)'), ('prev_rpm', 'FLOAT'), ('prev_voltas', 'FLOAT'), ('prev_raport', 'FLOAT'), ('qt_plan', 'FLOAT'), ('dt_cliente_manual', 'BOOLEAN DEFAULT 0'), ('aud_ok', 'BOOLEAN DEFAULT 0'), ('aud_em', 'DATETIME'), ('prev_termino_em', 'DATETIME'), ('qt_ult', 'FLOAT'), ('hub_ordem', 'INTEGER'), ('pecas_extra', 'INTEGER DEFAULT 0'))), ('ajustes_quantidade', (('origem', "VARCHAR(10) DEFAULT 'totvs'"),)),
                                 ('historico_producao', (('motivo_cancelamento', 'VARCHAR(500)'), ('justificado_por', 'VARCHAR(120)'), ('justificado_em', 'DATETIME')))):
             if tabela not in tabelas:
                 continue

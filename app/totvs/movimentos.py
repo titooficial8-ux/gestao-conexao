@@ -599,6 +599,9 @@ def _registrar_aumento(s, antes: float, depois: float, metro) -> None:
     from app.models import AjusteQuantidade
     pecas_antes = pecas_totais(s.qt_plan, metro) or (s.total_pcs or 0)
     s.qt_plan = (s.qt_plan or antes) + (depois - antes)
+    novas = (pecas_totais(s.qt_plan, metro) or pecas_antes) - pecas_antes
+    if novas > 0 and (s.pecas_extra or 0) > 0:                       # o TOTVS passou a ter as pecas que o PCP tinha acrescentado: nao contar duas vezes
+        s.pecas_extra = max(0, (s.pecas_extra or 0) - novas)
     db.session.add(AjusteQuantidade(sequencia_id=s.id, op=str(s.op), maquina=str(s.machine.number) if s.machine else None, artigo=s.artigo, qt_antes=antes, qt_depois=depois,
                                     pecas_antes=pecas_antes, pecas_depois=pecas_totais(s.qt_plan, metro) or pecas_antes))
 
@@ -640,6 +643,7 @@ def _sincronizar_quantidade(s, o: dict, planejada: float = None) -> bool:
     if avulsa != (s.qt_avulsa or 0):
         s.qt_avulsa, mudou = avulsa, True
     pcs = pecas_totais(base, metro)
+    pcs = pcs + (s.pecas_extra or 0) if pcs > 0 else pcs          # pecas a mais acrescentadas pelo PCP continuam somadas ao total do TOTVS
     if pcs > 0 and pcs != (s.total_pcs or 0):
         s.total_pcs, mudou = pcs, True
     return mudou
