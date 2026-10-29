@@ -1574,9 +1574,11 @@ def transacoes_lote():
     cli = api.TotvsModaClient()
     cli.autenticar()
     hoje = date.today()
-    ini = hoje - timedelta(days=int(request.args.get('dias', 3)))
+    ini = hoje - timedelta(days=int(request.args.get('dias', 1)))
     achadas, total, erros, pg = [], 0, [], 1
-    while pg <= 40:
+    import time as _t
+    limite = _t.time() + 90
+    while pg <= 40 and _t.time() < limite:
         r = cli.post(movimentos.TRX_URL, dict(branchCodeList=[movimentos.EMPRESA], startChangeDate=f'{ini.isoformat()}T00:00:00', endChangeDate=f'{hoje.isoformat()}T23:59:59', page=pg, pageSize=500, expand='items'))
         if r.status_code != 200:
             erros.append(f'HTTP {r.status_code} {r.text[:200]}')
@@ -1589,4 +1591,4 @@ def transacoes_lote():
         if not j.get('hasNext'):
             break
         pg += 1
-    return _json(dict(consultadas=total, achadas=len(achadas), transacoes=achadas[:8], erros=erros))
+    return _json(dict(consultadas=total, achadas=len(achadas), parou_por_tempo=_t.time() >= limite, ultima_pagina=pg, transacoes=achadas[:8], erros=erros))
