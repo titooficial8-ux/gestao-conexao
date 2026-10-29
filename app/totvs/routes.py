@@ -1246,3 +1246,39 @@ def mp_diagnostico():
     if ops:
         saida['materiais_op'] = chamar(empenho.OPS_URL, dict(filter=dict(branchCodeList=[empenho.EMPRESA], cycleCodeList=[empenho.CICLO], orderCodeList=ops[:1]), expand='materials', pageSize=1, page=1))
     return _json(saida)
+
+
+@mov_bp.route('/descobrir-pesagem')
+@login_required
+def descobrir_pesagem():
+    """So administrador: procura, nos swaggers da API do TOTVS (production, production-order, product, general, stock...), caminhos e campos que possam trazer cada peca pesada
+    (lote/item/rolo/etiqueta/peso) como o Relatorio 32. Devolve so o que bate com as palavras-chave, para colar e analisar."""
+    from flask import current_app
+    if not current_user.is_admin:
+        abort(403)
+    import re
+    from app.totvs import movimentos
+    chaves = re.compile(r'lot|batch|weigh|pesag|peso|roll|rolo|etiq|label|piece|peca|item', re.I)
+    ruido = re.compile(r'invoice|payment|duplicate|billing|document|price|person|representative|bank', re.I)
+    saida = {}
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        for servico in request.args.get('servicos', 'production,production-order,product,general,stock,inventory,warehouse').split(','):
+            url = f'{movimentos.BASE_URL}/api/totvsmoda/{servico}/v2/swagger/v1/swagger.json'
+            try:
+                r = cli.session.get(url, timeout=90)
+            except Exception as e:  # noqa: BLE001
+                saida[servico] = f'erro: {str(e)[:120]}'
+                continue
+            if r.status_code != 200:
+                saida[servico] = f'HTTP {r.status_code}'
+                continue
+            doc = r.json()
+            caminhos = {c: sorted(v.keys()) for c, v in (doc.get('paths') or {}).items() if chaves.search(c) and not ruido.search(c)}
+            campos = {}
+            for nome, sch in ((doc.get('components') or {}).get('schemas') or {}).items():
+                props = [p for p in (sch.get('properties') or {}) if re.search(r'lot|batch|weigh|pesag|peso|roll|rolo|etiq|label|piece|peca|serial', p, re.I)]
+                if props and not ruido.search(nome):
+                    campos[nome] = props[:12]
+            saida[servico] = dict(todos_os_caminhos=sorted((doc.get('paths') or {}).keys())[:80], caminhos_suspeitos=caminhos, campos_suspeitos=dict(list(campos.items())[:40]))
+    return _json(saida)
