@@ -24,6 +24,7 @@
           return '<div class="ad-i"><div><b>MQ ' + esc(n.maquina) + '</b> · OP ' + esc(n.op) + ' · peça ' + esc(n.peca) + (n.parcial ? ' · <span class="ad-m">PARCIAL</span>' : '') + ' · ' + (n.metros_cru != null ? n.metros_cru + ' m no cru · ' : '') + '<b>' + n.metros + ' m</b> reprovados' + (n.metros_passou != null ? ' · passou ' + n.metros_passou + ' m' : '') + '</div><span class="ad-est">LIBERADO ' + esc(n.em || '') + (n.por ? ' · ' + esc(n.por) : '') + '</span></div>';
         }).join('') + '</div>';
       } else { lb.className = ''; lb.innerHTML = ''; }
+      if ((!d.itens || !d.itens.length) && d.erro) { el.className = 'on'; el.innerHTML = '<div class="ad-t" style="cursor:default">⚠ Não consegui ler as liberações do líder no Acompanhamento: ' + esc(d.erro) + '</div>'; return; }
       if (!d.itens || !d.itens.length) { el.className = ''; el.innerHTML = ''; return; }
       var fechado = false; try { fechado = localStorage.getItem('alertaDefeitoFechado') === '1'; } catch (e) {}
       el.className = 'on tem' + (fechado ? ' fechado' : '');
