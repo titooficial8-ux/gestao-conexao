@@ -5,7 +5,7 @@
   window.__progArrastando = function (v) { arrastando = v; };
   function ocupado() {
     if (arrastando || document.hidden) return true;
-    if (document.querySelector('.modal-backdrop:not([hidden]), .ca-mod:not([hidden]), #infoMaq.on, #ajMod.on, #tpMod.on')) return true;
+    if (document.querySelector('.modal-backdrop:not([hidden]), .ca-mod:not([hidden]), #infoMaq.on, #ajMod.on')) return true;
     var a = document.activeElement; return !!(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT'));
   }
   function conferir() {

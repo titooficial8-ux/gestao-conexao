@@ -105,7 +105,7 @@
             <span class="seq-barra"><span style="width: {{ [pct, 100] | min }}%"></span></span>
             <span class="seq-pct">{{ pct }}%</span>
           </td>
-          <td class="{{ 'tp-add' if pode_pcp_edita() }}" data-tp-seq="{{ s.id }}"{% if pode_pcp_edita() %} title="Clique para acrescentar peças a esta OP (PCP)"{% endif %}>{{ s.total_pcs }}{% if s.pecas_extra %} <small title="{{ s.pecas_extra }} peça(s) acrescentada(s) pelo PCP" style="color:#7c3aed;font-weight:800">+{{ s.pecas_extra }}</small>{% endif %}</td>
+          <td>{{ s.total_pcs }}</td>
           <td class="seq-falta">{{ s.pc_produzir }}</td>
           <td>{{ s.qt_avulsa or (s.qt_solicitada if s.id in avulsa_cli else '–') }}</td>
           {% set pp = pedidos_op.get(s.op|string, []) %}
