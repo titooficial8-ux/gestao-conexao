@@ -34,7 +34,7 @@
     <button type="button" class="prod-btn" disabled>{{ t('acao_lista') }}</button>
     <button type="button" class="prod-btn prod-btn-accent" id="btnAuditoria">&#9881; Auditoria</button>
     <button type="button" class="prod-btn" id="btnHistorico">{{ t('acao_historico') }}</button>
-    <a class="prod-btn" href="/reprovas-cru/" target="_blank" style="text-decoration:none">Reprovas Cru</a>
+    {% if pode_reprovas_cru() %}<a class="prod-btn" href="/reprovas-cru/" target="_blank" style="text-decoration:none">Reprovas Cru</a>{% endif %}
     <button type="button" class="prod-btn" id="btnDownload">{{ t('acao_download') }}</button>
     <button type="button" class="prod-btn prod-btn-warn" id="btnDiasSemProducao">{{ t('acao_dias_sem_producao') }}</button>
     <button type="button" class="prod-btn prod-btn-primary" id="btnNovoRegistro">+ {{ t('novo_registro') }}</button>
