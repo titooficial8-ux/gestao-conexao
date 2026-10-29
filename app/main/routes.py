@@ -947,9 +947,25 @@ def view_tab(slug):
             .limit(PAGE_SIZE)
             .all()
         )
+        ops_sem_pedido = []
+        if busca and not total:                    # o relatorio e feito por PEDIDO: OP sem pedido ligado (avulsa) nao tem linha; explica em vez de so dizer "nenhum pedido"
+            for termo in busca.split():
+                if not termo.isdigit():
+                    continue
+                sq = Sequencia.query.filter_by(op=termo).first()
+                fila = None if sq else FilaPreProgramacao.query.filter_by(op=termo).first()
+                ref = sq or fila
+                if not ref:
+                    continue
+                cod = (ref.artigo or '').split(' ')[0]
+                abertos = [x for x in PedidoRelatorio.query.filter(PedidoRelatorio.cod_produto == cod, PedidoRelatorio.qt_pendente > 0.5).all() if normalize_client_name(x.nome_cliente or '') == normalize_client_name(ref.cliente or '')]
+                ops_sem_pedido.append(dict(op=termo, artigo=ref.artigo, cliente=ref.cliente, qt=int((getattr(ref, 'qt_solicitada', None) or getattr(ref, 'requested_quantity', 0) or 0)),
+                                           onde=(f'máquina {sq.machine.number:02d}' if sq and sq.machine else 'Pré-Seleção'),
+                                           pedidos_abertos=sorted({x.cod_pedido for x in abertos})))
         return render_template(
             'main/relatorio_pedidos.html',
             tab=tab,
+            ops_sem_pedido=ops_sem_pedido,
             pedidos=pedidos,
             busca=busca,
             pagina=pagina,
