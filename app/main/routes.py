@@ -2649,6 +2649,31 @@ def maquina_reordenar(numero):
     return jsonify(ok=True, recalculadas=n)
 
 
+@main_bp.route('/aba/programacao/sharepoint-lista')
+@login_required
+def sharepoint_lista_diagnostico():
+    """So administrador: mostra colunas e os 5 itens mais recentes de uma lista do SharePoint (ex.: ?lista=2026_liberacao_sku_BR_GT ou ?lista=controleMecanico); sem ?lista= lista todas."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.indicadores import sharepoint as sp
+    from app import previsao
+    site = previsao.FICHA_SITE_ID
+    nome = (request.args.get('lista') or '').strip()
+    try:
+        listas = sp._get(f'{sp.GRAPH}/sites/{site}/lists', {'$top': 200})['value']
+        if not nome:
+            return jsonify(listas=[dict(id=x['id'], nome=x.get('name'), titulo=x.get('displayName')) for x in listas])
+        alvo = next((x for x in listas if nome.lower() in (x['id'].lower(), (x.get('name') or '').lower(), (x.get('displayName') or '').lower())), None)
+        if not alvo:
+            return jsonify(erro='lista não encontrada', listas=[x.get('name') for x in listas]), 404
+        cols = sp._get(f"{sp.GRAPH}/sites/{site}/lists/{alvo['id']}/columns", {'$top': 200})['value']
+        itens = sp._get(f"{sp.GRAPH}/sites/{site}/lists/{alvo['id']}/items", {'$expand': 'fields', '$top': 5, '$orderby': 'lastModifiedDateTime desc'})['value']
+        return jsonify(lista=alvo.get('displayName'), id=alvo['id'], colunas=[dict(nome=c.get('name'), titulo=c.get('displayName')) for c in cols if not c.get('readOnly') or c.get('name') in ('Title',)],
+                       exemplos=[x.get('fields') for x in itens])
+    except Exception as e:  # noqa: BLE001
+        return jsonify(erro=f'{type(e).__name__}: {str(e)[:300]}'), 500
+
+
 @main_bp.route('/aba/programacao/ficha-diagnostico')
 @login_required
 def ficha_diagnostico():
