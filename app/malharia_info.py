@@ -230,33 +230,29 @@ def _ocorrencias(artigo, maquina, num):
     ev = [(n['criado'], 'NC', ('✔ resolvida · ' if n['id'] in resolv else '') + f"OP {n['op'] or '–'} · peça {n['peca']} · {', '.join(n['defeitos'])} · {n['metros']:g} m · {n['origem']}" + (f" · {n['emitente']}" if n['emitente'] else '') + (f" · {n['obs']}" if n['obs'] else ''))
           for n in _ncs() if n['artigo'] == cod and n['maquina'] == maquina and n['criado']]
     ev.sort(key=lambda e: e[0], reverse=True)
-    return [dict(quando=e[0].strftime('%d/%m %H:%M'), tipo=e[1], texto=e[2]) for e in ev[:20]]
+    return [dict(quando=e[0].strftime('%d/%m %H:%M'), tipo=e[1], texto=e[2], aberta=not e[2].startswith('✔')) for e in ev[:20]]
 
 
 @info_bp.route('/maquina/<int:numero>/alertas')
 @login_required
 def info_alertas_maquina(numero):
-    """Sequencias da maquina com ocorrencia de defeito/reprova (NC da revisao do cru da mesma OP ou do mesmo artigo na maquina nas ultimas 72 h, ou etapa de liberacao reprovada): o i delas pisca."""
+    """Sequencias da maquina com ocorrencia de defeito/reprova (NC da revisao do cru ainda nao resolvida): pisca quando e da mesma OP; fica vermelho fixo quando e do mesmo artigo em outra OP da maquina (72 h). Liberacao nao faz piscar."""
     _tab_ok()
     maq = Machine.query.filter_by(number=numero).first_or_404()
     m2 = f'{numero:02d}'
     recente = datetime.now() - timedelta(hours=72)
     resolv = resolvidas()
-    ncs = [n for n in _ncs() if n['maquina'] == m2 and n['criado'] and n['id'] not in resolv]      # NC ja resolvida (liberada aqui ou 'ciente' no Hub) nao pisca mais
-    lib = {}
-    for x in sorted((x for x in _liberacoes() if _maq2(x.get('field_3')) == m2), key=lambda x: x.get('_alterado') or ''):
-        lib[str(x.get('field_4'))] = x                                       # vale so a liberacao mais recente de cada OP: se ja foi refeita e aprovada, a reprova antiga nao conta
-    ids = []
+    ncs = [n for n in _ncs() if n['maquina'] == m2 and n['criado'] and n['id'] not in resolv]      # NC ja resolvida (liberada aqui ou 'ciente' no Hub) nao conta mais
+    ids, marca = [], []
     for sq in maq.sequencias:
         if sq.status in ('FINALIZADO', 'CANCELADO'):
             continue
         cod = (sq.artigo or '').split(' ')[0]
-        nc = any(n['artigo'] == cod and (n['op'] == str(sq.op) or n['criado'] >= recente) for n in ncs)
-        x = lib.get(str(sq.op))
-        rep = bool(x) and 'reprov' in ' '.join(str(x.get(k) or '') for k in ('field_5', 'field_37', 'field_53')).lower() and str(x.get('field_5')) != 'Finalizado sem alterações'
-        if nc or rep:
+        if any(n['artigo'] == cod and n['op'] == str(sq.op) for n in ncs):            # NC desta mesma OP: i piscando
             ids.append(sq.id)
-    return jsonify(ids=ids)
+        elif any(n['artigo'] == cod and n['criado'] >= recente for n in ncs):          # mesmo artigo reprovado em outra OP nesta maquina: i vermelho fixo (so identifica)
+            marca.append(sq.id)
+    return jsonify(ids=ids, marca=marca)
 
 
 @info_bp.route('/maquina/<int:numero>')

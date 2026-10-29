@@ -1,6 +1,6 @@
 <style>
 .info-i{border:1.5px solid #2f7fe0;color:#2f7fe0;background:#fff;border-radius:50%;width:20px;height:20px;font:800 12px/1 Georgia,serif;cursor:pointer;padding:0;margin-left:4px;vertical-align:middle}
-.info-i.pisca{background:#dc2626;border-color:#dc2626;color:#fff;animation:infoPisca 1s infinite}@keyframes infoPisca{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.7);opacity:1}50%{box-shadow:0 0 0 6px rgba(220,38,38,0);opacity:.45}}
+.info-i.marca{background:#fecaca;border-color:#dc2626;color:#b91c1c}.info-i.pisca{background:#dc2626;border-color:#dc2626;color:#fff;animation:infoPisca 1s infinite}@keyframes infoPisca{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.7);opacity:1}50%{box-shadow:0 0 0 6px rgba(220,38,38,0);opacity:.45}}
 .info-i:hover{background:#2f7fe0;color:#fff}
 #infoMaq{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:3500;display:none;align-items:flex-start;justify-content:center;padding:30px 12px;overflow:auto}
 #infoMaq.on{display:flex}
@@ -25,6 +25,8 @@
   function desenhar(d) {
     if (d.vazio) { corpo.innerHTML = '<h3>Máquina ' + d.maquina + '</h3><p class="info-vazio">Sem sequência programada.</p>'; return; }
     var a = d.acompanhamento, h = '<h3>Máquina ' + String(d.maquina).padStart(2, '0') + ' · OP ' + esc(a.op) + ' · ' + esc(a.artigo) + '</h3><div class="info-vazio">' + esc(a.cliente || '') + ' · ' + esc(a.situacao || a.status) + '</div>';
+    var abertas = d.ocorrencias.filter(function (o) { return o.aberta; }).length;
+    if (abertas) h += '<div style="background:#fee2e2;border:1px solid #dc2626;color:#991b1b;border-radius:8px;padding:7px 12px;margin-top:8px;font-weight:800">⚠ Artigo reprovado na revisão do cru · ' + abertas + (abertas > 1 ? ' NCs' : ' NC') + ' em aberto nesta máquina</div>';
     h += '<h4>Acompanhamento de produção</h4><div class="info-kv">' + kv('Produzidas / total', a.produzidas + ' / ' + a.total) + kv('Meta por dia (pç)', a.meta_dia) + kv('Meta por turno (pç)', a.meta_turno) + kv('Término previsto (BETA TESTE)', a.termino) + kv('Estrutura', a.estrutura) + kv('RPM', a.rpm) + '</div>';
     h += '<div class="info-turnos">' + [0, 1, 2].map(function (i) { return '<div><small>' + (i + 1) + 'º turno</small><b>' + a.pesadas_turno[i] + '</b>pç pesadas' + (a.meta_turno ? ' / meta ' + Math.round(a.meta_turno) : '') + '</div>'; }).join('') + '</div><div class="info-vazio" style="margin-top:4px">Hoje: dia de produção iniciado em ' + a.inicio_dia + '</div>';
     h += '<div class="info-turnos" style="margin-top:10px">' + [0, 1, 2].map(function (i) { return '<div style="background:#f8fafc"><small>' + (i + 1) + 'º turno · dia anterior</small><b>' + a.pesadas_ontem[i] + '</b>pç pesadas</div>'; }).join('') + '</div><div class="info-vazio" style="margin-top:4px">Dia anterior (desta OP): iniciado em ' + a.inicio_ontem + '</div>';
@@ -48,7 +50,7 @@
     if (!mq) return;
     fetch('/info/maquina/' + mq.dataset.maq + '/alertas', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       if (!d) return;
-      document.querySelectorAll('.info-i[data-seq]').forEach(function (b) { b.classList.toggle('pisca', d.ids.indexOf(parseInt(b.dataset.seq, 10)) >= 0); });
+      document.querySelectorAll('.info-i[data-seq]').forEach(function (b) { var id = parseInt(b.dataset.seq, 10); b.classList.toggle('pisca', d.ids.indexOf(id) >= 0); b.classList.toggle('marca', (d.marca || []).indexOf(id) >= 0); });
     }).catch(function () {});
   }
   piscar(); setInterval(piscar, 30000);
