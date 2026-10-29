@@ -2292,7 +2292,16 @@ def api_malharia_movimentos():
     hub = dict(_hub_movimentos_json(), texto='', vistos=set())      # historico so da API do TOTVS (sem Relatorio 32 do PCP Hub)
     from app.models import BaixaFio
     # Pecas = pesagens do local 23 lidas do TOTVS (uma por peca, igual ao Relatorio 32). As baixas de fio so cobriam parte das pecas (68 de ~104 no dia 29/10) e ficam como reserva/opcao: CONTROLE_FONTE=baixas
-    api_txt = _api_baixas(hub) if (os.getenv('CONTROLE_FONTE', 'pesagens') == 'baixas' and BaixaFio.query.first()) else _api_movimentos(hub)
+    from app.models import PesagemMalharia, PesagemResumo
+    usa_baixas = os.getenv('CONTROLE_FONTE', 'pesagens') == 'baixas' and BaixaFio.query.first()
+    chave_dados = (usa_baixas, db.session.query(db.func.count(PesagemMalharia.id), db.func.max(PesagemMalharia.synced_at), db.func.max(PesagemMalharia.hora_real)).one(),
+                   db.session.query(db.func.count(PesagemResumo.id), db.func.max(PesagemResumo.atualizado_em)).one(), db.session.query(db.func.count(Sequencia.id), db.func.max(Sequencia.synced_at)).one())
+    memo = _MOV_CACHE.get('api')
+    if memo and memo['chave'] == chave_dados and time.time() - memo['t'] < 120:         # nada mudou no banco: reaproveita o calculo (antes refazia tudo a cada leitura de 15 s de cada tela)
+        api_txt = memo['txt']
+    else:
+        api_txt = _api_baixas(hub) if usa_baixas else _api_movimentos(hub)
+        _MOV_CACHE['api'] = dict(chave=chave_dados, txt=api_txt, t=time.time())
     etag = hashlib.md5(f"{hub['chave']}|{api_txt}".encode()).hexdigest()
     if request.headers.get('If-None-Match', '').strip('"W/') == etag:
         r = Response(status=304)
