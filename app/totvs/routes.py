@@ -1360,7 +1360,7 @@ def operacao_inativa():
     if request.args.get('inativas'):                                   # ?inativas=1: lista TODAS as operacoes inativas no cadastro (para comparar com a que o faturamento/finalizacao usa)
         todas, pag = [], 1
         while pag <= 20:
-            r0 = cli.get(api.OPERATIONS_URL, {'PageSize': 1000, 'Page': pag})
+            r0 = cli.get(api.OPERATIONS_URL, {'StartChangeDate': '2000-01-01T00:00:00', 'EndChangeDate': f'{__import__("datetime").date.today().isoformat()}T23:59:59', 'PageSize': 1000, 'Page': pag})      # a API exige um filtro: o periodo de alteracao inteiro traz todas
             if r0.status_code != 200:
                 return _json(dict(erro=f'HTTP {r0.status_code} {r0.text[:300]}')), 502
             j0 = r0.json()
