@@ -321,7 +321,7 @@ def iniciar_agendador(app) -> None:
 
 
 # ------------------------------------------------------------------ rotas (status e atualizar agora)
-from flask import Blueprint, abort, current_app, jsonify  # noqa: E402
+from flask import Blueprint, abort, current_app, jsonify, request  # noqa: E402
 from flask_login import current_user, login_required  # noqa: E402
 
 pcphub_bp = Blueprint('pcphub', __name__, url_prefix='/pcp-hub')
@@ -362,3 +362,24 @@ def historicos():
     from app import hubhistorico
     res = hubhistorico.importar()
     return jsonify(completo=hubhistorico.conferir(res), tabelas=res)
+
+
+@pcphub_bp.route('/relatorio32')
+@login_required
+def relatorio32():
+    """So administrador: roda a ponte do Relatorio 32 agora e compara o dia de producao (?dia=AAAA-MM-DD, padrao hoje) entre o Hub e o Gestao."""
+    if not current_user.is_admin:
+        abort(403)
+    from datetime import timedelta as _td
+    from app import relatorio32_hub as R
+    from app.models import Report32Movement
+    if not configurado():
+        return jsonify(erro='PCP Hub não configurado no .env.'), 400
+    r = R.sincronizar()
+    try:
+        dia = datetime.strptime(request.args.get('dia') or '', '%Y-%m-%d')
+    except ValueError:
+        dia = (datetime.now() - _td(hours=6, minutes=20)).replace(hour=0, minute=0, second=0, microsecond=0)
+    ini = dia.replace(hour=9, minute=20)                              # 06:20 em Brasilia = 09:20 UTC
+    q = Report32Movement.query.filter(Report32Movement.dt_real >= ini, Report32Movement.dt_real < ini + _td(days=1)).all()
+    return jsonify(sincronizacao=r, dia_producao=dia.strftime('%Y-%m-%d'), gestao=dict(pecas=len(q), ops=len({x.op for x in q}), metros=round(sum(x.qt_movimento or 0 for x in q), 1), kg=round(sum(x.qt_pesos or 0 for x in q), 1)))

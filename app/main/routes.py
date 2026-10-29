@@ -2289,11 +2289,16 @@ def api_malharia_movimentos():
     """Pesagens do local 23 (Relatorio 32 do PCP Hub ate o corte + API do TOTVS depois dele), ja com o cliente resolvido por artigo.
     Fonte unica da Gestao da Malharia, do Controle de Producao e do Dashboard Tempo Real. Como a tela relê a cada 15 s, a resposta
     vai com ETag (304 quando nada mudou) e compactada (gzip): sao ~7 MB de JSON."""
-    hub = dict(_hub_movimentos_json(), texto='', vistos=set())      # historico so da API do TOTVS (sem Relatorio 32 do PCP Hub)
+    from app import relatorio32_hub
+    base = _hub_movimentos_json()
+    if os.getenv('CONTROLE_FONTE', 'relatorio32') == 'relatorio32' and relatorio32_hub.em_dia():
+        hub, api_txt = base, ''                                    # pecas = Relatorio 32 (ponte com o Hub, igual ao que o PCP Hub mostra); se a ponte parar, cai nas baixas de fio
+        return _resposta_movimentos(hub, api_txt)
+    hub = dict(base, texto='', vistos=set())
     from app.models import BaixaFio
     # Pecas = pesagens do local 23 lidas do TOTVS (uma por peca, igual ao Relatorio 32). As baixas de fio so cobriam parte das pecas (68 de ~104 no dia 29/10) e ficam como reserva/opcao: CONTROLE_FONTE=baixas
     from app.models import PesagemMalharia, PesagemResumo
-    usa_baixas = os.getenv('CONTROLE_FONTE', 'baixas') == 'baixas' and BaixaFio.query.first()
+    usa_baixas = os.getenv('CONTROLE_FONTE', 'baixas') != 'pesagens' and BaixaFio.query.first()
     chave_dados = (usa_baixas, db.session.query(db.func.count(PesagemMalharia.id), db.func.max(PesagemMalharia.synced_at), db.func.max(PesagemMalharia.hora_real)).one(),
                    db.session.query(db.func.count(PesagemResumo.id), db.func.max(PesagemResumo.atualizado_em)).one(), db.session.query(db.func.count(Sequencia.id), db.func.max(Sequencia.synced_at)).one())
     memo = _MOV_CACHE.get('api')
@@ -2302,6 +2307,10 @@ def api_malharia_movimentos():
     else:
         api_txt = _api_baixas(hub) if usa_baixas else _api_movimentos(hub)
         _MOV_CACHE['api'] = dict(chave=chave_dados, txt=api_txt, t=time.time())
+    return _resposta_movimentos(hub, api_txt)
+
+
+def _resposta_movimentos(hub, api_txt):
     etag = hashlib.md5(f"{hub['chave']}|{api_txt}".encode()).hexdigest()
     if request.headers.get('If-None-Match', '').strip('"W/') == etag:
         r = Response(status=304)
