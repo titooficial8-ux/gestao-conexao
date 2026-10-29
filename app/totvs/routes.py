@@ -862,13 +862,18 @@ def movimentos_diagnostico():
                 continue
             if nome in saida:
                 continue
+            todos_od = {}
+            for m in itens:                                                # todos os movimentos do dia por origem -> destino (para achar onde a pesagem aparece)
+                k = f"{m.get('originLocationCode')}->{m.get('destinationLocationCode')} | {m.get('movementType')} | estornado={m.get('isReversed')}"
+                todos_od[k] = todos_od.get(k, 0) + 1
+            no23 = [m for m in itens if m.get('destinationLocationCode') == 23 and not m.get('isReversed')]
             de23 = [m for m in itens if m.get('originLocationCode') == 23]
             cont = {}
             for m in de23:
                 k = f"23->{m.get('destinationLocationCode')} | {m.get('movementType')} | estornado={m.get('isReversed')}"
                 cont[k] = cont.get(k, 0) + 1
             p24 = [m for m in de23 if m.get('destinationLocationCode') == 24]
-            saida[nome] = dict(total_movimentos_do_dia=len(itens), saindo_do_23=cont, ops_23_para_24=len({m.get('productionOrder') for m in p24}),
+            saida[nome] = dict(total_movimentos_do_dia=len(itens), por_origem_destino=dict(sorted(todos_od.items(), key=lambda kv: -kv[1])[:25]), entrando_no_23=dict(pecas=len(no23), metros=round(sum(m.get('totalQuantity') or 0 for m in no23), 1), ops=len({m.get('productionOrder') for m in no23}), por_data={d: sum(1 for m in no23 if str(m.get('movementDate'))[:10] == d) for d in sorted({str(m.get('movementDate'))[:10] for m in no23})}), saindo_do_23=cont, ops_23_para_24=len({m.get('productionOrder') for m in p24}),
                                ops_23_para_24_fora_da_programacao=len({str(m.get('productionOrder')) for m in p24} - prog),
                                metros_23_para_24=round(sum(m.get('totalQuantity') or 0 for m in p24), 1),
                                metros_23_sem_destino=round(sum(m.get('totalQuantity') or 0 for m in de23 if m.get('destinationLocationCode') is None), 1),
