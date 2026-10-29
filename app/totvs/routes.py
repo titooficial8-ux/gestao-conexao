@@ -1366,13 +1366,28 @@ def operacao_inativa():
         filtro['endOrderDate'] = f'{date.today()}T23:59:59'
         if request.args.get('cliente', type=int):
             filtro['customerCodeList'] = [request.args.get('cliente', type=int)]
-    r = cli.post(P.ORDERS_URL, dict(filter=filtro, expand='items', pageSize=200, page=1))
-    if r.status_code != 200:
-        return _json(dict(erro=f'HTTP {r.status_code} {r.text[:300]}')), 502
-    achados = r.json().get('items') or []
+    dias = request.args.get('dias', default=365, type=int)
+    if not pedido:
+        from datetime import date, timedelta
+        filtro['startOrderDate'] = f'{date.today() - timedelta(days=dias)}T00:00:00'
+        filtro.pop('customerCodeList', None)                          # o codigo do cliente pode nao ser o 110000001: procura pelo NOME
+    achados, pag = [], 1
+    while pag <= 15:
+        r = cli.post(P.ORDERS_URL, dict(filter=filtro, expand='items', pageSize=200, page=pag))
+        if r.status_code != 200:
+            return _json(dict(erro=f'HTTP {r.status_code} {r.text[:300]}')), 502
+        j = r.json()
+        achados += j.get('items') or []
+        if not j.get('hasNext') or pedido:
+            break
+        pag += 1
+    nome = (request.args.get('nome') or 'CONEXAO MALHAS').upper()
+    if not pedido:
+        achados = [p for p in achados if nome in str(p.get('customerName') or '').upper()]
     qtd = request.args.get('qtd', type=float)
     if qtd:
-        achados = [p for p in achados if any(abs((it.get('quantity') or 0) - qtd) < 0.5 for it in p.get('items') or [])]
+        achados = [p for p in achados if any(abs((it.get('quantity') or 0) - qtd) < 0.5 or abs((it.get('settledQuantity') or 0) - (request.args.get('baixa', type=float) or -1)) < 0.5 for it in p.get('items') or [])]
+    saida['pedidos_lidos_no_periodo'] = len(achados)
     ops = set()
     ped_out = []
     for p in achados[:10]:
