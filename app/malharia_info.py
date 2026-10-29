@@ -96,6 +96,25 @@ def _ncs() -> list:
     return _cacheado('ncs', 20, ler)
 
 
+def _hub_cientes() -> set:
+    """NCs que o pessoal ja deu 'ciente' no PCP Hub (enquanto o Hub ainda e usado): contam como resolvidas aqui tambem. Falha = conjunto vazio."""
+    def ler():
+        from app import pcphub
+        if not pcphub.configurado():
+            return set()
+        import requests
+        token = pcphub._login()
+        r = requests.get(f'{pcphub.URL}/rest/v1/nc_alertas', params=dict(select='nc_id', ciente_em='not.is.null', order='criado_em.desc', limit='1500'),
+                         headers=dict(apikey=pcphub.CHAVE, Authorization=f'Bearer {token}'), timeout=30)
+        r.raise_for_status()
+        return {str(x['nc_id']) for x in r.json()}
+    return _cacheado('hub_cientes', 30, ler) or set()
+
+
+def resolvidas() -> set:
+    return {e.nc_id for e in NcEstado.query.filter_by(estado='LIBERADO').all()} | set(_hub_cientes())
+
+
 def pode_liberar(u=None) -> bool:
     """Lider da malharia (ou administrador): usuario do setor Malharia com cargo de lider, ou e-mail em LIDER_MALHARIA_EMAILS."""
     u = u or current_user
@@ -121,12 +140,13 @@ def alertas():
     _tab_ok()
     limite = datetime.utcnow() - timedelta(hours=ALERTA_HORAS + 3)
     estados = {e.nc_id: e for e in NcEstado.query.all()}
+    resolv = resolvidas()
     itens = []
     for n in _ncs():
         if not n['defeitos'] or (n['setor'] and 'produ' not in n['setor'].lower()) or not n['criado'] or n['criado'] + timedelta(hours=3) < limite:
             continue
         e = estados.get(n['id'])
-        if e and e.estado == 'LIBERADO':
+        if n['id'] in resolv:
             continue
         itens.append(dict(n, criado=n['criado'].strftime('%d/%m %H:%M'), estado=e.estado if e else 'AGUARDANDO', por=e.por_nome if e else None, em=(e.em - timedelta(hours=3)).strftime('%d/%m, %H:%M') if e and e.em else None,
                           ordem=n['criado'].isoformat()))
@@ -206,7 +226,8 @@ def _etapas(artigo, op, maquina):
 def _ocorrencias(artigo, maquina, num):
     """Ultimas ocorrencias SO deste artigo nesta maquina e SO as apontadas na revisao do cru (NC da lista ncform)."""
     cod = (artigo or '').split(' ')[0]
-    ev = [(n['criado'], 'NC', f"OP {n['op'] or '–'} · peça {n['peca']} · {', '.join(n['defeitos'])} · {n['metros']:g} m · {n['origem']}" + (f" · {n['emitente']}" if n['emitente'] else '') + (f" · {n['obs']}" if n['obs'] else ''))
+    resolv = resolvidas()
+    ev = [(n['criado'], 'NC', ('✔ resolvida · ' if n['id'] in resolv else '') + f"OP {n['op'] or '–'} · peça {n['peca']} · {', '.join(n['defeitos'])} · {n['metros']:g} m · {n['origem']}" + (f" · {n['emitente']}" if n['emitente'] else '') + (f" · {n['obs']}" if n['obs'] else ''))
           for n in _ncs() if n['artigo'] == cod and n['maquina'] == maquina and n['criado']]
     ev.sort(key=lambda e: e[0], reverse=True)
     return [dict(quando=e[0].strftime('%d/%m %H:%M'), tipo=e[1], texto=e[2]) for e in ev[:20]]
@@ -220,15 +241,19 @@ def info_alertas_maquina(numero):
     maq = Machine.query.filter_by(number=numero).first_or_404()
     m2 = f'{numero:02d}'
     recente = datetime.now() - timedelta(hours=72)
-    ncs = [n for n in _ncs() if n['maquina'] == m2 and n['criado']]
-    lib = [x for x in _liberacoes() if _maq2(x.get('field_3')) == m2]
+    resolv = resolvidas()
+    ncs = [n for n in _ncs() if n['maquina'] == m2 and n['criado'] and n['id'] not in resolv]      # NC ja resolvida (liberada aqui ou 'ciente' no Hub) nao pisca mais
+    lib = {}
+    for x in sorted((x for x in _liberacoes() if _maq2(x.get('field_3')) == m2), key=lambda x: x.get('_alterado') or ''):
+        lib[str(x.get('field_4'))] = x                                       # vale so a liberacao mais recente de cada OP: se ja foi refeita e aprovada, a reprova antiga nao conta
     ids = []
     for sq in maq.sequencias:
         if sq.status in ('FINALIZADO', 'CANCELADO'):
             continue
         cod = (sq.artigo or '').split(' ')[0]
         nc = any(n['artigo'] == cod and (n['op'] == str(sq.op) or n['criado'] >= recente) for n in ncs)
-        rep = any(str(x.get('field_4')) == str(sq.op) and 'reprov' in ' '.join(str(x.get(k) or '') for k in ('field_5', 'field_37', 'field_53')).lower() for x in lib)
+        x = lib.get(str(sq.op))
+        rep = bool(x) and 'reprov' in ' '.join(str(x.get(k) or '') for k in ('field_5', 'field_37', 'field_53')).lower() and str(x.get('field_5')) != 'Finalizado sem alterações'
         if nc or rep:
             ids.append(sq.id)
     return jsonify(ids=ids)
