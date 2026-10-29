@@ -284,6 +284,21 @@ def pagina():
     return render_template_string(PAGINA, d=dados(_dia_param()), f=_fmt, cfg=config(), email=current_user.email, smtp=envio.configurado(), ult=_ler(current_app))
 
 
+@rep_bp.route('/resumo')
+@login_required
+def resumo():
+    """Resumo do dia de producao para o quadro da Programacao (pecas, metros, artigos) + estado do envio automatico."""
+    if not _pode():
+        abort(403)
+    from flask import current_app
+    from app.relatorio_fat import envio_email as envio
+    d = dados(_dia_param())
+    cfg = config()
+    return jsonify(dia=d['dia'].isoformat(), janela=d['janela'], pecas=d['pecas'], metros=d['metros'], kg=d['kg'], artigos=d['n_artigos'], maquinas=d['n_maquinas'],
+                   top=[dict(artigo=a['artigo'], cliente=a['cliente'], pecas=a['pecas']) for a in d['por_artigo'][:5]],
+                   auto=dict(ativo=cfg['ativo'], hora=cfg['hora'], destinos=cfg['destinos'], smtp=envio.configurado(), ultimo=_ler(current_app).get('ultimo')))
+
+
 @rep_bp.route('/pdf')
 @login_required
 def pdf():
