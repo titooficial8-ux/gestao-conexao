@@ -269,3 +269,58 @@ def info_maquina(numero):
     m2 = f'{numero:02d}'
     resumo, etapas = _etapas(seq.artigo, seq.op, m2)
     return jsonify(maquina=numero, acompanhamento=_acompanhamento(seq, maq), liberacao=resumo, etapas=etapas, ocorrencias=_ocorrencias(seq.artigo, m2, numero), erro_sharepoint=_erro('liberacoes') or _erro('ncs'))
+
+
+# ------------------------------------------------------------------ aumento de quantidade da OP (PCPFP084)
+def _ajuste_json(a):
+    return dict(id=a.id, op=a.op, maquina=a.maquina, artigo=a.artigo, qt_antes=round(a.qt_antes or 0, 1), qt_depois=round(a.qt_depois or 0, 1), aumento=round((a.qt_depois or 0) - (a.qt_antes or 0), 1),
+                pecas_antes=a.pecas_antes, pecas_depois=a.pecas_depois, quando=(a.detectado_em - timedelta(hours=3)).strftime('%d/%m %H:%M') if a.detectado_em else '',
+                justificativa=a.justificativa, por=a.justificado_por)
+
+
+@info_bp.route('/ajustes/<int:numero>')
+@login_required
+def ajustes_maquina(numero):
+    """Sequencias da maquina com aumento de quantidade ainda sem justificativa (o total de pecas pisca)."""
+    _tab_ok()
+    from app.models import AjusteQuantidade
+    seqs = {s.id for s in Machine.query.filter_by(number=numero).first_or_404().sequencias}
+    return jsonify(itens=[dict(id=a.id, seq=a.sequencia_id) for a in AjusteQuantidade.query.filter(AjusteQuantidade.justificado_em.is_(None)).all() if a.sequencia_id in seqs])
+
+
+@info_bp.route('/ajuste/<int:ajuste_id>')
+@login_required
+def ajuste_detalhe(ajuste_id):
+    _tab_ok()
+    from app.models import AjusteQuantidade
+    a = db.session.get(AjusteQuantidade, ajuste_id) or abort(404)
+    emp, aviso = [], None
+    try:
+        from app.totvs import api, empenho
+        cli = api.TotvsModaClient()
+        cli.autenticar()
+        log = []
+        mats = empenho.buscar_materiais_op(cli, [int(a.op)], log).get(str(a.op)) or {}
+        emp = [dict(codigo=c, nome=v[0], qtd=v[1]) for c, v in sorted(mats.items(), key=lambda kv: -kv[1][1])]
+        if not emp:
+            aviso = 'O TOTVS não devolveu materiais empenhados para esta OP' + (f' ({log[0].get("erro") or log[0].get("http")})' if log else '') + '.'
+    except Exception as e:  # noqa: BLE001
+        aviso = f'Não foi possível consultar o empenho no TOTVS agora ({str(e)[:120]}).'
+    return jsonify(ajuste=_ajuste_json(a), empenho=emp, total_kg=round(sum(x['qtd'] for x in emp), 2), aviso=aviso)
+
+
+@info_bp.route('/ajuste/<int:ajuste_id>/confirmar', methods=['POST'])
+@login_required
+def ajuste_confirmar(ajuste_id):
+    _tab_ok()
+    from app.main.routes import _pode_dias_sem_producao
+    from app.models import AjusteQuantidade
+    if not _pode_dias_sem_producao():
+        return jsonify(erro='Somente o PCP pode justificar o aumento de quantidade.'), 403
+    a = db.session.get(AjusteQuantidade, ajuste_id) or abort(404)
+    motivo = re.sub(r'\s+', ' ', str((request.get_json(silent=True) or {}).get('motivo') or '')).strip()
+    if len(motivo) < 5:
+        return jsonify(erro='Justifique o motivo (mínimo 5 caracteres).'), 400
+    a.justificativa, a.justificado_por, a.justificado_em = motivo[:500], current_user.name, datetime.utcnow()
+    db.session.commit()
+    return jsonify(ok=True)

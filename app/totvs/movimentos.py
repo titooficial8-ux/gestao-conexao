@@ -594,6 +594,15 @@ def estrutura_totvs(o: dict):
     return None
 
 
+def _registrar_aumento(s, antes: float, depois: float, metro) -> None:
+    from app import db
+    from app.models import AjusteQuantidade
+    pecas_antes = pecas_totais(s.qt_plan, metro) or (s.total_pcs or 0)
+    s.qt_plan = (s.qt_plan or antes) + (depois - antes)
+    db.session.add(AjusteQuantidade(sequencia_id=s.id, op=str(s.op), maquina=str(s.machine.number) if s.machine else None, artigo=s.artigo, qt_antes=antes, qt_depois=depois,
+                                    pecas_antes=pecas_antes, pecas_depois=pecas_totais(s.qt_plan, metro) or pecas_antes))
+
+
 def _sincronizar_quantidade(s, o: dict, planejada: float = None) -> bool:
     """A quantidade e a estrutura vem do TOTVS (o PCP Hub nao manda mais). QT.SOLICITADA e as pecas totais usam a quantidade PLANEJADA da OP:
     o `quantity` do TOTVS muda durante a producao (OP 2928: planejado 1533, depois 1518,4) e fazia 36,5 pecas virar 36. Enquanto a OP ainda nao comecou a
@@ -607,9 +616,15 @@ def _sincronizar_quantidade(s, o: dict, planejada: float = None) -> bool:
         s.qt_plan = atual                                                # ainda nao produziu: o quantity do TOTVS e o planejado
     elif planejada and planejada > 0:
         s.qt_plan = planejada
-    base = s.qt_plan
     metro = _campos_artigo(o).get('metro_ideal') or _metro_padrao(s)      # calculado antes de mexer nos valores
     mudou = False
+    ult = s.qt_ult
+    if ult is not None and not nao_comecou and s.qt_plan and atual > ult + max(0.5 * (metro or 0), 1.0):
+        _registrar_aumento(s, ult, atual, metro)                           # aumento no PCPFP084: o planejado acompanha o aumento e o total de pecas pisca ate justificar
+        mudou = True
+    if ult != atual:
+        s.qt_ult, mudou = atual, True
+    base = s.qt_plan
     est = estrutura_totvs(o)
     if est and est != s.estrutura:                                         # a estrutura tambem vem do TOTVS (nao do PCP Hub)
         s.estrutura, mudou = est, True

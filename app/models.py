@@ -197,6 +197,7 @@ class Sequencia(db.Model):
     prev_fonte = db.Column(db.String(30), nullable=True)      # de onde vieram as voltas/RPM: OP, maquina+artigo ou artigo
     prev_rpm = db.Column(db.Float, nullable=True)
     prev_voltas = db.Column(db.Float, nullable=True)
+    qt_ult = db.Column(db.Float, nullable=True)                 # ultima quantidade da OP vista no TOTVS (detecta aumento feito no PCPFP084)
     dt_cliente_manual = db.Column(db.Boolean, default=False)   # DT.CLIENTE digitada pelo PCP (ORTOBOM / OP avulsa): a leitura do PCP Hub nao sobrescreve
     qt_plan = db.Column(db.Float, nullable=True)              # quantidade PLANEJADA da OP (m): o 'quantity' do TOTVS muda durante a producao e nao serve de base para as pecas totais
     aud_ok = db.Column(db.Boolean, default=False)             # engrenagem da auditoria: verde = artigo verificado na maquina pelo mecanico e PCP
@@ -431,6 +432,25 @@ class SavedDrawingSaveLog(db.Model):
     saved_by_email = db.Column(db.String(120), nullable=True)
     saved_at = db.Column(db.DateTime, default=datetime.utcnow)
     action = db.Column(db.String(20), default='saved')
+
+
+class AjusteQuantidade(db.Model):
+    """Aumento da quantidade de uma OP em producao (PCPFP084 - Acerto de Quantidade Real): pisca no total de pecas ate o PCP justificar o motivo."""
+    __tablename__ = 'ajustes_quantidade'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sequencia_id = db.Column(db.Integer, index=True)
+    op = db.Column(db.String(30), index=True)
+    maquina = db.Column(db.String(10))
+    artigo = db.Column(db.String(60))
+    qt_antes = db.Column(db.Float)
+    qt_depois = db.Column(db.Float)
+    pecas_antes = db.Column(db.Integer)
+    pecas_depois = db.Column(db.Integer)
+    detectado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    justificativa = db.Column(db.Text, nullable=True)
+    justificado_por = db.Column(db.String(120), nullable=True)
+    justificado_em = db.Column(db.DateTime, nullable=True)
 
 
 class NcEstado(db.Model):
