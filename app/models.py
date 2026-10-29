@@ -197,6 +197,7 @@ class Sequencia(db.Model):
     prev_fonte = db.Column(db.String(30), nullable=True)      # de onde vieram as voltas/RPM: OP, maquina+artigo ou artigo
     prev_rpm = db.Column(db.Float, nullable=True)
     prev_voltas = db.Column(db.Float, nullable=True)
+    hub_ordem = db.Column(db.Integer, nullable=True)           # ultima posicao desta OP vista no PCP Hub: se o Hub mudar a ordem da maquina, a ordem do Gestao acompanha
     qt_ult = db.Column(db.Float, nullable=True)                 # ultima quantidade da OP vista no TOTVS (detecta aumento feito no PCPFP084)
     dt_cliente_manual = db.Column(db.Boolean, default=False)   # DT.CLIENTE digitada pelo PCP (ORTOBOM / OP avulsa): a leitura do PCP Hub nao sobrescreve
     qt_plan = db.Column(db.Float, nullable=True)              # quantidade PLANEJADA da OP (m): o 'quantity' do TOTVS muda durante a producao e nao serve de base para as pecas totais

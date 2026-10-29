@@ -151,6 +151,7 @@ def aplicar(linhas: list, agora=None) -> dict:
     from app.models import PesagemResumo
     no_totvs = {r.op for r in PesagemResumo.query.filter(PesagemResumo.encontrada.is_(True), PesagemResumo.quantidade_op > 0)}   # OPs cuja quantidade o TOTVS ja informa
     vistos, criadas, atualizadas, novas_seqs, prox_ordem, movidas = set(), 0, 0, [], {}, {}
+    ordem_hub, mudou_ordem = {}, set()                  # maquina -> [(sequencia, posicao no Hub)] e maquinas cuja ordem o Hub mexeu
     presentes = set()                                   # (maquina, op) que o Hub trouxe: uma OP que sumiu de uma maquina e apareceu em outra foi MOVIDA
     for r in linhas:
         try:
@@ -197,20 +198,30 @@ def aplicar(linhas: list, agora=None) -> dict:
             if s.dt_cliente_manual:                      # DT.CLIENTE digitada pelo PCP vale mais que a do Hub
                 campos.pop('dt_cliente', None)
                 campos.pop('production_month', None)
-            for k in ('total_pcs', 'qt_solicitada', 'qt_avulsa', 'estrutura', 'sequence_order'):     # a ordem da fila agora e do Gestao (arrastar na maquina);      # quantidade, avulsa e estrutura vem do TOTVS (quantidade da OP, cliente Conexao, classificacao 505); o PCP Hub so cria a linha
+            for k in ('total_pcs', 'qt_solicitada', 'qt_avulsa', 'estrutura', 'sequence_order'):     # a ordem so muda quando o Hub a muda (bloco acima); arrastar na maquina vale ate la;      # quantidade, avulsa e estrutura vem do TOTVS (quantidade da OP, cliente Conexao, classificacao 505); o PCP Hub so cria a linha
                 campos.pop(k, None)
             for k, v in campos.items():
                 setattr(s, k, v)                      # situacao e pecas_produzidas (calculadas pelo TOTVS) ficam como estao
+            ho = _int(r.get('sequence_order'))
+            ordem_hub.setdefault(m.id, []).append((s, ho))
+            if s.hub_ordem != ho or m.id in {x for x, _ in [(mv[0].machine_id, 0) for mv in movidas.values()]}:
+                mudou_ordem.add(m.id)                  # o Hub mudou a posicao desta OP (ou ela chegou de outra maquina)
             atualizadas += 1
         else:
             if m.id not in prox_ordem:
                 prox_ordem[m.id] = max([x.sequence_order or 0 for (mid, _), x in atuais.items() if mid == m.id] or [0])
             prox_ordem[m.id] += 1
-            campos['sequence_order'] = prox_ordem[m.id]                  # OP nova entra no fim da fila da maquina
-            novo = Sequencia(machine_id=m.id, pecas_produzidas=_int(r.get('quantity_pieces')), **campos)
+            campos['sequence_order'] = prox_ordem[m.id]                  # OP nova entra no fim da fila da maquina (e a maquina e realinhada pelo Hub logo abaixo)
+            novo = Sequencia(machine_id=m.id, pecas_produzidas=_int(r.get('quantity_pieces')), hub_ordem=_int(r.get('sequence_order')), **campos)
+            ordem_hub.setdefault(m.id, []).append((novo, _int(r.get('sequence_order'))))
+            mudou_ordem.add(m.id)
             db.session.add(novo)
             novas_seqs.append((novo, m.number))
             criadas += 1
+    for mid in mudou_ordem:                              # so a SEQUENCIA vem do Hub: quando o Hub mexe na ordem de uma maquina, a maquina inteira passa a seguir a ordem do Hub
+        for sq, ho in ordem_hub.get(mid, []):
+            if ho is not None:
+                sq.sequence_order, sq.hub_ordem = ho, ho
     removidas = 0
     if vistos:                                          # nunca apaga tudo se a leitura veio vazia
         saiu = {}
