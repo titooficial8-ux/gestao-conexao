@@ -5,25 +5,40 @@
 .ad-i small{color:#64748b;display:block;font-size:12px}.ad-bt{display:flex;gap:6px;flex-shrink:0;align-items:center}
 .ad-bt button{border-radius:8px;padding:5px 11px;font-size:12px;font-weight:800;cursor:pointer;border:2px solid #a8670a;background:#fff;color:#a8670a}.ad-bt .lib{background:#15803d;border-color:#15803d;color:#fff}
 .ad-est{display:inline-block;font-size:11px;font-weight:800;border-radius:6px;padding:2px 8px;border:1px solid #a8670a;color:#a8670a;background:#fff;white-space:nowrap}.ad-est.AGUARDANDO{border-color:#1d4ed8;color:#1d4ed8}
+.al-ok{display:none;border:2px solid #15803d;background:#ecf8f0;border-radius:12px;padding:8px 14px;margin:10px 0}.al-ok.on{display:block}.al-ok.fechado .ad-corpo{display:none}.al-ok.fechado .ad-seta{transform:rotate(-90deg)}
+.al-ok .ad-est{border-color:#15803d;color:#15803d}.ad-m{color:#b45309;font-weight:800}
 </style>
 <div id="alertaDefeito"></div>
+<div id="alertaLiberados"></div>
 <script>
 (function () {
   var el = document.getElementById('alertaDefeito'); if (!el) return;
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function ler() {
     fetch('/info/alertas', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var lb = document.getElementById('alertaLiberados');
+      if (d.liberados && d.liberados.length) {
+        var fl = false; try { fl = localStorage.getItem('alertaLibFechado') !== '0'; } catch (e) {}
+        lb.className = 'al-ok on' + (fl ? ' fechado' : '');
+        lb.innerHTML = '<div class="ad-t" data-lib="1"><span class="ad-seta">▼</span>✅ RL. PRODUÇÃO · liberação do(a) líder · ' + d.liberados.length + ' hoje</div><div class="ad-corpo">' + d.liberados.map(function (n) {
+          return '<div class="ad-i"><div><b>MQ ' + esc(n.maquina) + '</b> · OP ' + esc(n.op) + ' · peça ' + esc(n.peca) + (n.parcial ? ' · <span class="ad-m">PARCIAL</span>' : '') + ' · ' + (n.metros_cru != null ? n.metros_cru + ' m no cru · ' : '') + '<b>' + n.metros + ' m</b> reprovados' + (n.metros_passou != null ? ' · passou ' + n.metros_passou + ' m' : '') + '</div><span class="ad-est">LIBERADO ' + esc(n.em || '') + (n.por ? ' · ' + esc(n.por) : '') + '</span></div>';
+        }).join('') + '</div>';
+      } else { lb.className = ''; lb.innerHTML = ''; }
       if (!d.itens || !d.itens.length) { el.className = ''; el.innerHTML = ''; return; }
       var fechado = false; try { fechado = localStorage.getItem('alertaDefeitoFechado') === '1'; } catch (e) {}
       el.className = 'on tem' + (fechado ? ' fechado' : '');
       el.innerHTML = '<div class="ad-t"><span class="ad-seta">▼</span>🔔 PEÇA APRESENTANDO DEFEITO · LÍDER DO TURNO · ' + d.itens.length + (d.itens.length > 1 ? ' pendentes' : ' pendente') + '</div><div class="ad-corpo">' + d.itens.map(function (n) {
-        return '<div class="ad-i"><div><b>MQ ' + esc(n.maquina) + '</b> · OP ' + esc(n.op || '–') + ' · peça ' + esc(n.peca) + ' · artigo ' + esc(n.artigo) + ' · <b>' + n.metros + ' m</b> reprovados' +
+        return '<div class="ad-i"><div><b>MQ ' + esc(n.maquina) + '</b> · OP ' + esc(n.op || '–') + ' · peça ' + esc(n.peca) + ' · artigo ' + esc(n.artigo) + (n.parcial ? ' · <span class="ad-m">PARCIAL</span>' : '') + (n.metros_cru != null ? ' · ' + n.metros_cru + ' m no cru' : '') + ' · <b>' + n.metros + ' m</b> reprovados' + (n.metros_passou != null ? ' · passou ' + n.metros_passou + ' m' : '') +
           '<small>' + esc(n.defeitos.join(' · ')) + ' · ' + esc(n.origem) + ' · ' + esc(n.emitente) + ' · ' + esc(n.criado) + (n.obs ? ' · ' + esc(n.obs) : '') + '</small></div>' +
           '<div class="ad-bt"><span class="ad-est ' + n.estado + '">' + (n.estado === 'ANALISANDO' ? 'ANALISANDO · ' + esc(n.por || '') + ' ' + esc(n.em || '') : 'AGUARDANDO LÍDER') + '</span>' +
           (d.pode ? '<button data-id="' + esc(n.id) + '" data-e="ANALISANDO">ANALISANDO</button><button class="lib" data-id="' + esc(n.id) + '" data-e="LIBERADO">LIBERADO</button>' : '') + '</div></div>';
       }).join('') + '</div>';
     }).catch(function () {});
   }
+  document.getElementById('alertaLiberados').addEventListener('click', function (ev) {
+    if (!ev.target.closest('.ad-t')) return;
+    var f = this.classList.toggle('fechado'); try { localStorage.setItem('alertaLibFechado', f ? '1' : '0'); } catch (e) {}
+  });
   el.addEventListener('click', function (ev) {
     if (ev.target.closest('.ad-t')) {
       var f = el.classList.toggle('fechado'); try { localStorage.setItem('alertaDefeitoFechado', f ? '1' : '0'); } catch (e) {}
