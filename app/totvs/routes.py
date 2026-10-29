@@ -1357,6 +1357,12 @@ def operacao_inativa():
     cli.autenticar()
     pedido = request.args.get('pedido', type=int)
     saida = {}
+    if request.args.get('operacao'):                                   # ?operacao=1024,24: cadastro completo dessas operacoes (inclui a data da ultima alteracao)
+        cods = [int(x) for x in request.args['operacao'].replace(' ', '').split(',') if x.isdigit()]
+        r0 = cli.get(api.OPERATIONS_URL, {'OperationCodeList': cods, 'PageSize': 100})
+        if r0.status_code != 200:
+            return _json(dict(erro=f'HTTP {r0.status_code} {r0.text[:300]}')), 502
+        return _json(dict(operacoes=r0.json().get('items') or []))
     if request.args.get('inativas'):                                   # ?inativas=1: lista TODAS as operacoes inativas no cadastro (para comparar com a que o faturamento/finalizacao usa)
         todas, pag = [], 1
         while pag <= 20:
