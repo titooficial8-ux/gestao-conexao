@@ -1,11 +1,11 @@
 """Reprovas no cru: relatorio em PDF (mesmo visual do Relatorio de Faturamento) e envio automatico por e-mail.
 
 Fonte: NCs da revisao do cru (lista ncform do SharePoint: origem Auditoria Interna, setor Producao). Dia de producao = 06h20 -> 06h19 do dia seguinte.
-Envio automatico (todo dia, horario de Brasilia): 07:15 (fecha o dia de producao anterior, 06h20 -> 06h19), 12:15 (06h20 -> 12:15) e 16:15 (12:16 -> 16:15). So envia se houve reprova no periodo.
+Envio automatico (todo dia, horario de Brasilia): 07:15 (fecha o dia de producao anterior, 06h20 -> 06h19), 07:30 (06h20 de hoje -> 07:30), 12:15 (07:31 -> 12:15, tudo junto) e 16:15 (12:16 -> 16:15). So envia se houve reprova no periodo.
 As 16:30, se NAO houve nenhuma reprova entre 06:20 e 16:30, manda um aviso por e-mail dizendo isso (nao no domingo).
 .env (tudo opcional):
   REPROVA_EMAIL_ENVIO=1                 (0 desliga o envio automatico)
-  REPROVA_EMAIL_HORAS=07:15,12:15,16:15
+  REPROVA_EMAIL_HORAS=07:15,07:30,12:15,16:15
   REPROVA_EMAIL_ALERTA=16:30
   REPROVA_EMAIL_DESTINOS=a@x.com,b@y.com   (padrao: Luciane, Ezequiel, Kaio, Amabile, Isabela e Christian)
   REPROVA_EMAIL_JANELA_H=2              (se o Gestao so ligar mais de 2 h depois do horario, pula aquele envio)
@@ -48,7 +48,7 @@ def _horas(txt, padrao):
 
 
 def config() -> dict:
-    return dict(ativo=os.getenv('REPROVA_EMAIL_ENVIO', '1') == '1', horas=_horas(os.getenv('REPROVA_EMAIL_HORAS'), ['07:15', '12:15', '16:15']),
+    return dict(ativo=os.getenv('REPROVA_EMAIL_ENVIO', '1') == '1', horas=_horas(os.getenv('REPROVA_EMAIL_HORAS'), ['07:15', '07:30', '12:15', '16:15']),
                 alerta=(_horas(os.getenv('REPROVA_EMAIL_ALERTA'), ['16:30']) or ['16:30'])[0], destinos=os.getenv('REPROVA_EMAIL_DESTINOS', DESTINOS_PADRAO),
                 janela=float(os.getenv('REPROVA_EMAIL_JANELA_H', '2') or 2))
 
@@ -215,7 +215,7 @@ def _gravar(app, est: dict) -> None:
 
 def _janelas(cfg, agora: datetime) -> dict:
     """{'HH:MM': (ini, fim, rotulo)} dos envios do dia. O 1o horario fecha o dia de producao anterior (06h20 -> 06h19);
-    os demais pegam do envio anterior ate o proprio horario (o 2o comeca as 06h20, quando o dia de producao novo comeca)."""
+    os demais pegam do envio anterior ate o proprio horario (o 2o comeca as 06h20, quando o dia de producao novo comeca; depois cada um comeca no minuto seguinte ao anterior)."""
     hoje = agora.replace(hour=0, minute=0, second=0, microsecond=0)
     horas = cfg['horas']
 
