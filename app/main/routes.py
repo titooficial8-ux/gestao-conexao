@@ -2276,7 +2276,7 @@ def _api_movimentos(hub):
         kg = round(p.peso_kg, 2) if p.peso_kg else 0             # kg da baixa de fio ligada a peca (API do TOTVS)
         saida.append({
             'id': 1_000_000_000 + p.id, 'cod_maquina': str(r.maquina) if r.maquina is not None else None, 'op': p.op, 'nr_item': str(p.item),
-            'cod_artigo': desc, 'qt_movimento': p.metros, 'qt_pesos': kg,
+            'cod_artigo': desc, 'qt_movimento': p.metros, 'qt_pesos': _peso_peca(desc, p.metros, kg, r.gramatura, r.largura),      # metros x gramatura x largura (como o Relatorio 32); a baixa so entra se faltar gramatura/largura
             'dt_real': _iso_utc(dt_utc), 'metro_padrao': r.metro_padrao or p.metros,
             'local_code': '23', 'cliente': hub['cliente_de'](desc) or clientes_op.get(p.op),
         })
@@ -2291,7 +2291,8 @@ def api_malharia_movimentos():
     vai com ETag (304 quando nada mudou) e compactada (gzip): sao ~7 MB de JSON."""
     hub = dict(_hub_movimentos_json(), texto='', vistos=set())      # historico so da API do TOTVS (sem Relatorio 32 do PCP Hub)
     from app.models import BaixaFio
-    api_txt = _api_baixas(hub) if BaixaFio.query.first() else _api_movimentos(hub)
+    # Pecas = pesagens do local 23 lidas do TOTVS (uma por peca, igual ao Relatorio 32). As baixas de fio so cobriam parte das pecas (68 de ~104 no dia 29/10) e ficam como reserva/opcao: CONTROLE_FONTE=baixas
+    api_txt = _api_baixas(hub) if (os.getenv('CONTROLE_FONTE', 'pesagens') == 'baixas' and BaixaFio.query.first()) else _api_movimentos(hub)
     etag = hashlib.md5(f"{hub['chave']}|{api_txt}".encode()).hexdigest()
     if request.headers.get('If-None-Match', '').strip('"W/') == etag:
         r = Response(status=304)
