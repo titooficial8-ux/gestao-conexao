@@ -2293,7 +2293,7 @@ def api_malharia_movimentos():
     from app.models import BaixaFio
     # Pecas = pesagens do local 23 lidas do TOTVS (uma por peca, igual ao Relatorio 32). As baixas de fio so cobriam parte das pecas (68 de ~104 no dia 29/10) e ficam como reserva/opcao: CONTROLE_FONTE=baixas
     from app.models import PesagemMalharia, PesagemResumo
-    usa_baixas = os.getenv('CONTROLE_FONTE', 'pesagens') == 'baixas' and BaixaFio.query.first()
+    usa_baixas = os.getenv('CONTROLE_FONTE', 'baixas') == 'baixas' and BaixaFio.query.first()
     chave_dados = (usa_baixas, db.session.query(db.func.count(PesagemMalharia.id), db.func.max(PesagemMalharia.synced_at), db.func.max(PesagemMalharia.hora_real)).one(),
                    db.session.query(db.func.count(PesagemResumo.id), db.func.max(PesagemResumo.atualizado_em)).one(), db.session.query(db.func.count(Sequencia.id), db.func.max(Sequencia.synced_at)).one())
     memo = _MOV_CACHE.get('api')
