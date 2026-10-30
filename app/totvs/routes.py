@@ -1977,6 +1977,7 @@ def movimentos_conciliar_pecas():
     dif_producao, dif_calendario, dif_hora = Counter(), Counter(), Counter()
     por_hora_do_dia = defaultdict(Counter)
     por_maquina, por_op, por_turno = defaultdict(Counter), defaultdict(Counter), defaultdict(Counter)
+    visto_min, visto_por_origem = Counter(), defaultdict(Counter)
     exemplos, sem_api = [], Counter()
     for h in hub:
         try:
@@ -2001,11 +2002,18 @@ def movimentos_conciliar_pecas():
             metros_iguais += 1
         if p.hora_real:
             dif_hora[round((br - p.hora_real).total_seconds() / 3600)] += 1
+        if p.visto_em:
+            m = (p.visto_em - br).total_seconds() / 60                      # visto_em e o relogio de Brasilia do servidor; negativo = o Gestao 'viu' antes da hora do Hub
+            faixa = '<-5 min' if m < -5 else ('-5 a 2 min' if m < 2 else ('2 a 5 min' if m < 5 else ('5 a 15 min' if m < 15 else ('15 a 60 min' if m < 60 else ('1 a 6 h' if m < 360 else '>6 h')))))
+            visto_min[faixa] += 1
+            visto_por_origem[p.hora_origem or 'sem_origem'][faixa] += 1
         if len(exemplos) < 8:
             exemplos.append(dict(op=h.op, peca=item, hub_brasilia=br.strftime('%d/%m %H:%M'), hub_dia_producao=str(dia_prod), api_data=str(p.data), metros_hub=h.qt_movimento, metros_api=p.metros))
     return _json(dict(dias=dias, pecas_hub=len(hub), casadas=casadas, sem_correspondente_na_api=nao_casadas, metros_iguais=metros_iguais,
                       dif_dia_producao_hub_menos_data_api=dict(sorted(dif_producao.items())), dif_dia_calendario_hub_menos_data_api=dict(sorted(dif_calendario.items())),
                       dif_horas_hub_menos_hora_da_baixa=dict(sorted(dif_hora.items())),
+                      visto_em_menos_hora_do_hub={k: visto_min[k] for k in ('<-5 min', '-5 a 2 min', '2 a 5 min', '5 a 15 min', '15 a 60 min', '1 a 6 h', '>6 h')},
+                      visto_em_por_origem_da_hora={o: dict(c) for o, c in visto_por_origem.items()},
                       dif_producao_por_turno={k: dict(sorted(v.items())) for k, v in sorted(por_turno.items())},
                       dif_producao_por_maquina={k: dict(sorted(v.items())) for k, v in sorted(por_maquina.items())},
                       dif_producao_por_op_maiores={k: dict(sorted(v.items())) for k, v in sorted(por_op.items(), key=lambda kv: -sum(kv[1].values()))[:25]},
