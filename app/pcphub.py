@@ -382,4 +382,5 @@ def relatorio32():
         dia = (datetime.now() - _td(hours=6, minutes=20)).replace(hour=0, minute=0, second=0, microsecond=0)
     ini = dia.replace(hour=9, minute=20)                              # 06:20 em Brasilia = 09:20 UTC
     q = Report32Movement.query.filter(Report32Movement.dt_real >= ini, Report32Movement.dt_real < ini + _td(days=1)).all()
-    return jsonify(sincronizacao=r, dia_producao=dia.strftime('%Y-%m-%d'), gestao=dict(pecas=len(q), ops=len({x.op for x in q}), metros=round(sum(x.qt_movimento or 0 for x in q), 1), kg=round(sum(x.qt_pesos or 0 for x in q), 1)))
+    ult = R.ultima_pesagem()
+    return jsonify(sincronizacao=r, ponte=R.ESTADO, ultima_pesagem_brasilia=(ult - _td(hours=3)).strftime('%d/%m/%Y %H:%M:%S') if ult else None, atraso_horas=round((datetime.utcnow() - ult).total_seconds() / 3600, 1) if ult else None, fonte_do_controle='relatorio32 (Hub)' if R.em_dia() else 'baixas de fio (Hub parado)', dia_producao=dia.strftime('%Y-%m-%d'), gestao=dict(pecas=len(q), ops=len({x.op for x in q}), metros=round(sum(x.qt_movimento or 0 for x in q), 1), kg=round(sum(x.qt_pesos or 0 for x in q), 1)))
