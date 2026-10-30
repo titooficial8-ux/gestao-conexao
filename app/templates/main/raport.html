@@ -4,7 +4,7 @@
 <style>.rp{max-width:1000px}.rp h3{margin:22px 0 8px}.rp table{border-collapse:collapse;background:#fff}.rp td,.rp th{border:1px solid #e2e8f0;padding:5px 9px;font-size:13px;text-align:left}.rp input{width:90px;padding:4px 6px}.rp .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;align-items:start}</style>
 <div class="rp">
 <h2>Raport e RPM instalado</h2>
-<p>Quando a OP não tem voltas/RPM na base, a previsão usa: metros por dia = raport ÷ 100 × RPM instalado × 85% × 1440; peças por dia = metros por dia ÷ tamanho da peça.</p>
+<p>Quando a OP não tem voltas/RPM na base, a previsão usa: metros por dia = raport ÷ 100 × RPM instalado × {{ efic_pct }}% × 1440; peças por dia = metros por dia ÷ tamanho da peça.</p>
 <form method="post">
 <div class="g">
 <div><h3>Raport por estrutura (cm)</h3><table>{% for e in estruturas %}<tr><td>{{ e.estrutura }}</td><td><input name="e:{{ e.estrutura }}" value="{{ e.raport }}"></td></tr>{% endfor %}</table></div>

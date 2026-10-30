@@ -271,6 +271,15 @@ def _turno_idx(dt):
     return 0 if 380 <= m < 860 else (1 if 860 <= m < 1340 else 2)
 
 
+def _estimativa(seq, maq):
+    """Media de pecas que o artigo entrega nesta maquina (DS.METROS x raport/volta x RPM instalado x eficiencia)."""
+    try:
+        from app import previsao
+        return previsao.estimativa_artigo(maq.number, seq)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _acompanhamento(seq, maq):
     hoje = datetime.now()
     ini = hoje.replace(hour=6, minute=20, second=0, microsecond=0)
@@ -287,7 +296,7 @@ def _acompanhamento(seq, maq):
     return dict(op=seq.op, artigo=seq.artigo, cliente=seq.cliente, status=seq.status, situacao=seq.situacao, produzidas=seq.pecas_produzidas or 0, total=seq.total_pcs or 0,
                 meta_dia=round(meta_dia, 1) if meta_dia else None, meta_turno=round(meta_dia / 3, 1) if meta_dia else None, pesadas_turno=pes, pesadas_ontem=ontem, inicio_ontem=ini_ont.strftime('%d/%m %H:%M'), inicio_dia=ini.strftime('%d/%m %H:%M'),
                 termino=seq.prev_termino_em.strftime('%d/%m %H:%M') if seq.prev_termino_em else (seq.termino_malharia.strftime('%d/%m/%Y') if seq.termino_malharia else None),
-                rpm=seq.prev_rpm, estrutura=seq.estrutura)
+                rpm=seq.prev_rpm, estrutura=seq.estrutura, previsao_artigo=_estimativa(seq, maq))
 
 
 def _etapas(artigo, op, maquina):

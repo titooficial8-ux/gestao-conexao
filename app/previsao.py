@@ -1,7 +1,7 @@
 """Previsao de termino de cada OP na maquina, pelas voltas e RPM (mesma conta da planilha producaoDIARIA).
 
   tempo da peca (min) = voltas / RPM
-  minutos uteis por dia = 1440 x (1 - ineficiencia)            (padrao 15 % -> 1224 min)
+  minutos uteis por dia = 1440 x eficiencia                     (padrao 75 % -> 1080 min)
   pecas em 24 h        = minutos uteis / tempo da peca
   dias para terminar   = pecas que faltam / pecas em 24 h
 
@@ -10,7 +10,7 @@ proxima comeca quando a anterior termina, pulando os dias sem producao (feriados
 Sequencia.termino_malharia (Termino Malharia) e Sequencia.pecas_dia. Voltas e RPM vem da base (ProducaoRef):
 1) da propria OP, 2) do ultimo registro da maquina+artigo, 3) do ultimo registro do artigo. Sem base: usa Raport x RPM instalado (ver abaixo); sem isso, mantem o termino do PCP Hub.
 
-Raport (cm de tecido por volta): metros por dia = raport/100 x RPM instalado x 85 % x 1440; voltas da peca = metros da peca x 100 / raport.
+Raport (cm de tecido por volta): metros por dia = raport/100 x RPM instalado x eficiencia (75 %) x 1440; voltas da peca = metros da peca x 100 / raport.
 O raport vem da estrutura (CM, XN, CF, PL, XP, NV), com excecao por maquina (ex.: maquinas 4 e 8 em CM = 4,0 cm); o RPM instalado e da maquina."""
 import os
 import re
@@ -24,8 +24,9 @@ from flask import current_app
 from app import db
 from app.models import (ArtigoTamanho, FichaArtigo, Machine, MaquinaRpm, NonWorkingDay, ProducaoRef, RaportMaquinaEstrutura, RaportEstrutura, Sequencia)
 
-INEFICIENCIA = float(os.getenv('INEFICIENCIA_MAQUINA', '0.15'))
-MIN_DIA = 1440 * (1 - INEFICIENCIA)
+EFICIENCIA = min(max(float(os.getenv('EFICIENCIA_MAQUINA', '0.75') or 0.75), 0.3), 1.0)      # a maquina rende 75 % do teorico (RPM instalado x eficiencia); era 85 %
+INEFICIENCIA = 1 - EFICIENCIA
+MIN_DIA = 1440 * EFICIENCIA
 TROCA_HORAS = float(os.getenv('TROCA_HORAS', '2'))      # tempo de troca de artigo somado antes de cada OP que ainda nao esta produzindo (padrao 2 h)
 ATIVAS = ('PRODUZINDO', 'EM_SEQUENCIA', 'PCP')
 _trava = threading.Lock()
@@ -148,7 +149,7 @@ def sincronizar_sharepoint() -> int:
 
 
 # ---- ficha tecnica do artigo (lista basedeficha, site Conexopreo): RPM e voltas por peca do registro mais recente de cada artigo -------------------------------
-FONTE = os.getenv('VOLTAS_RPM_FONTE', 'raport')              # 'raport' (padrao): so RPM instalado/85 % + Raport da planilha; 'ficha': ficha do SharePoint, producaoDIARIA e, por ultimo, o Raport
+FONTE = os.getenv('VOLTAS_RPM_FONTE', 'raport')              # 'raport' (padrao): so RPM instalado x eficiencia + Raport da planilha; 'ficha': ficha do SharePoint, producaoDIARIA e, por ultimo, o Raport
 FICHA_MIN = float(os.getenv('FICHA_MIN', '30'))
 FICHA_SITE_ID = os.getenv('FICHA_SITE_ID', 'conexaomalhasedes.sharepoint.com,755eaebb-3bfb-4682-8e31-d394a0dbbf23,fb853ab7-5f02-463c-a857-841348a3b2a9')
 FICHA_LISTA_ID = os.getenv('FICHA_LISTA_ID', 'be6ae3ff-f4ce-42da-b316-9efd0459a14a')
@@ -348,7 +349,7 @@ def previsao_raport(cfg, maquina: int, s, idx_art):
     metros = _ds_metros(s) or (tam.metros_peca if tam else None)       # DS.METROS da OP (METRO IDEAL LOTE do TOTVS); a medida da planilha so entra se o TOTVS nao informar
     if not (estr and rpm and raport and metros):
         return None
-    return metros * 100 / raport, rpm * 0.85, raport                    # voltas = metragem padrao (m) x 100 / raport (cm); RPM = RPM instalado da maquina x 85 %
+    return metros * 100 / raport, rpm * EFICIENCIA, raport              # voltas = metragem padrao (m) x 100 / raport (cm); RPM = RPM instalado da maquina x eficiencia (75 %)
 
 
 class _RefFicha:
@@ -376,6 +377,26 @@ def referencia(idx, maquina: int, op, artigo):
     if f:
         return _RefFicha(f), 'ficha'
     return None, None
+
+
+def estimativa_artigo(maquina: int, s):
+    """Quantas pecas o artigo da OP `s` entrega nesta maquina (mesma conta do Termino Malharia): DS.METROS, voltas, RPM, raport, pecas por hora/turno/24 h. None se faltar base."""
+    idx = _indices()
+    ref, fonte = referencia(idx, maquina, s.op, s.artigo)
+    rap = None if ref else previsao_raport(_cfg_raport(), maquina, s, idx[2])
+    if ref:
+        voltas, rpm, min_dia, raport = ref.voltas, ref.rpm, MIN_DIA, None
+    elif rap:
+        (voltas, rpm, raport), min_dia, fonte = rap, 1440, 'raport'
+    else:
+        return None
+    if not voltas or not rpm:
+        return None
+    min_peca = voltas / rpm
+    por_dia = min_dia / min_peca
+    metros = _ds_metros(s) or (round(voltas * raport / 100, 1) if raport else None)      # sem DS.METROS no TOTVS: a metragem da planilha (voltas x raport)
+    return dict(fonte=fonte, ds_metros=metros, voltas=round(voltas, 1), rpm=round(rpm, 2), rpm_instalado=round(rpm / EFICIENCIA, 1) if fonte == 'raport' else None, raport=raport, eficiencia=round(EFICIENCIA * 100),
+                min_por_peca=round(min_peca, 1), pecas_hora=round(por_dia / 24, 2), pecas_turno=round(por_dia / 3, 1), pecas_dia=round(por_dia, 1), metros_dia=round(por_dia * metros) if metros else None)
 
 
 def _pular_dias(inicio: datetime, dias: float, parados: set) -> datetime:
@@ -427,7 +448,7 @@ def calcular(agora=None, maquina: int = None, esperar: bool = False) -> int:
                     cursor = cursor + timedelta(hours=TROCA_HORAS)
                 if ref:
                     voltas, rpm, minutos_dia, s.prev_raport = ref.voltas, ref.rpm, MIN_DIA, None
-                else:                                                   # raport x RPM instalado (ja com 85 % do RPM, sem desconto extra)
+                else:                                                   # raport x RPM instalado (ja com a eficiencia aplicada no RPM, sem desconto extra)
                     (voltas, rpm, s.prev_raport), minutos_dia, fonte = rap, 1440, 'raport'
                 tempo_peca = voltas / rpm                               # minutos por peca
                 pecas_dia = minutos_dia / tempo_peca
