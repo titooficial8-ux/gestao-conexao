@@ -123,7 +123,13 @@ def iniciar_agendador(app) -> None:
     threading.Thread(target=loop, daemon=True, name='relatorio32-hub').start()
 
 
-def em_dia(max_atraso_dias: int = 2) -> bool:
-    """A ponte esta alimentando o banco? (tem pesagem nos ultimos dias). Se nao, o Controle usa as baixas de fio em vez de zerar."""
-    ult = db.session.query(db.func.max(Report32Movement.dt_real)).scalar()
-    return bool(ult and ult >= datetime.utcnow() - timedelta(days=max_atraso_dias))
+def ultima_pesagem():
+    """dt_real (UTC) da pesagem mais recente que a ponte trouxe do Hub."""
+    return db.session.query(db.func.max(Report32Movement.dt_real)).scalar()
+
+
+def em_dia(max_atraso_horas: float = None) -> bool:
+    """A ponte esta alimentando o banco? Tem pesagem recente (padrao 8 h: a fabrica produz dia e noite). Se o agente do Hub parou, o Controle usa as baixas de fio em vez de mostrar zero."""
+    limite = float(os.getenv('RELATORIO32_MAX_ATRASO_H', '8')) if max_atraso_horas is None else max_atraso_horas
+    ult = ultima_pesagem()
+    return bool(ult and ult >= datetime.utcnow() - timedelta(hours=limite))
