@@ -95,6 +95,8 @@ def create_app():
     app.register_blueprint(mp_bp)
     from app.pcphub import pcphub_bp
     app.register_blueprint(pcphub_bp)
+    from app.relatorio32_hub import r32_bp
+    app.register_blueprint(r32_bp)
     from app.indicadores.routes import ind_bp
     app.register_blueprint(ind_bp)
     from app.desenvolvimento.routes import dev_bp
