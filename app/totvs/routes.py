@@ -1857,7 +1857,7 @@ def movimentos_transacao():
         for nome, filtro in (('por_codigo', dict(branchCodeList=[movimentos.EMPRESA], transactionCodeList=[codigo])),
                              ('por_dia_e_operacao', dict(branchCodeList=[movimentos.EMPRESA], operationCodeList=[op], startChangeDate=f'{(dia - timedelta(days=1)).date()}T00:00:00', endChangeDate=f'{(dia + timedelta(days=2)).date()}T23:59:59'))):
             for pg in range(1, 15):
-                r = cli.post(movimentos.TRX_URL, dict(filter=filtro, expand='items', page=pg, pageSize=200))
+                r = cli.post(movimentos.TRX_URL, dict(filtro, expand='items', page=pg, pageSize=200))      # a API de transacoes recebe o filtro direto no corpo (sem 'filter')
                 if r.status_code != 200:
                     saida[nome] = f'HTTP {r.status_code} {r.text[:200]}'
                     break
