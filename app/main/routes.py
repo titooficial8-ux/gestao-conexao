@@ -4,9 +4,10 @@ import json
 import hashlib
 import gzip
 import re
+import threading
 import unicodedata
 
-from flask import Blueprint, render_template, abort, redirect, url_for, request, flash, jsonify, Response, session
+from flask import Blueprint, render_template, abort, redirect, url_for, request, flash, jsonify, Response, session, current_app
 from flask_login import login_required, current_user
 from datetime import date, datetime, timedelta, timezone
 
@@ -2100,11 +2101,30 @@ def _iso_utc(dt):
     return dt.isoformat() + 'Z' if dt else None            # dt_real e guardado em UTC sem fuso: sem o Z o navegador le como horario local (3 h de erro)
 
 
-def _hub_movimentos_json():
-    """Pesagens antigas (Relatorio 32 do PCP Hub): sao ~32 mil linhas que nao mudam, entao ficam em cache (JSON pronto)."""
+_MOV_REFRESCANDO = [False]
+
+
+def _hub_movimentos_json(bloquear: bool = False):
+    """Pesagens antigas (Relatorio 32 do PCP Hub): sao ~32 mil linhas, entao ficam em cache (JSON pronto). Quando chega peca nova (a ponte traz a cada minuto) o cache e refeito EM SEGUNDO PLANO e a tela
+    continua recebendo o anterior na hora; so a 1a leitura depois que o gestao sobe espera. `bloquear=True` (o aquecimento) sempre espera e refaz."""
     chave = (Report32Movement.query.count(), db.session.query(db.func.max(Report32Movement.id)).scalar())
     quente = _MOV_CACHE['hub']
     if quente and quente['chave'] == chave and time.time() - quente['t'] < 600:
+        return quente
+    if quente and not bloquear:
+        if not _MOV_REFRESCANDO[0]:
+            _MOV_REFRESCANDO[0] = True
+            app = current_app._get_current_object()
+
+            def refazer():
+                try:
+                    with app.app_context():
+                        _hub_movimentos_json(bloquear=True)
+                except Exception:  # noqa: BLE001
+                    pass
+                finally:
+                    _MOV_REFRESCANDO[0] = False
+            threading.Thread(target=refazer, daemon=True, name='movimentos-hub').start()
         return quente
     manual, especial, report = _build_client_maps()
     cache = {}
@@ -2225,11 +2245,16 @@ def api_malharia_movimentos():
     """Pesagens do local 23 (Relatorio 32 do PCP Hub ate o corte + API do TOTVS depois dele), ja com o cliente resolvido por artigo.
     Fonte unica da Gestao da Malharia, do Controle de Producao e do Dashboard Tempo Real. Como a tela relê a cada 15 s, a resposta
     vai com ETag (304 quando nada mudou) e compactada (gzip): sao ~7 MB de JSON."""
+    return _resposta_movimentos(*_movimentos_atual())
+
+
+def _movimentos_atual(bloquear: bool = False):
+    """(hub, api_txt) da fonte ativa: Relatorio 32 pela ponte do Hub ou, se ela parou, as baixas de fio/pesagens do TOTVS."""
     from app import relatorio32_hub
-    base = _hub_movimentos_json()
+    base = _hub_movimentos_json(bloquear=bloquear)
     if os.getenv('CONTROLE_FONTE', 'relatorio32') == 'relatorio32' and relatorio32_hub.em_dia():
         hub, api_txt = base, ''                                    # pecas = Relatorio 32 (ponte com o Hub, igual ao que o PCP Hub mostra); se a ponte parar, cai nas baixas de fio
-        return _resposta_movimentos(hub, api_txt)
+        return hub, api_txt
     hub = dict(base, texto='', vistos=set())
     from app.models import BaixaFio
     # Pecas = pesagens do local 23 lidas do TOTVS (uma por peca, igual ao Relatorio 32). As baixas de fio so cobriam parte das pecas (68 de ~104 no dia 29/10) e ficam como reserva/opcao: CONTROLE_FONTE=baixas
@@ -2243,18 +2268,24 @@ def api_malharia_movimentos():
     else:
         api_txt = _api_baixas(hub) if usa_baixas else _api_movimentos(hub)
         _MOV_CACHE['api'] = dict(chave=chave_dados, txt=api_txt, t=time.time())
-    return _resposta_movimentos(hub, api_txt)
+    return hub, api_txt
+
+
+def _preparar_resposta(hub, api_txt):
+    """ETag e corpo (plano e gzip) da resposta; refeito so quando o conteudo muda. O aquecimento chama isto para a tela nunca esperar o gzip de ~7 MB."""
+    etag = hashlib.md5(f"{hub['chave']}|{api_txt}".encode()).hexdigest()
+    resp = _MOV_CACHE['resp']
+    if not resp or resp['etag'] != etag:
+        corpo = ('[' + hub['texto'] + (',' if hub['texto'] and api_txt else '') + api_txt + ']').encode('utf-8')
+        resp = _MOV_CACHE['resp'] = dict(etag=etag, plano=corpo, gz=gzip.compress(corpo, 5))
+    return etag, resp
 
 
 def _resposta_movimentos(hub, api_txt):
-    etag = hashlib.md5(f"{hub['chave']}|{api_txt}".encode()).hexdigest()
+    etag, resp = _preparar_resposta(hub, api_txt)
     if request.headers.get('If-None-Match', '').strip('"W/') == etag:
         r = Response(status=304)
     else:
-        resp = _MOV_CACHE['resp']
-        if not resp or resp['etag'] != etag:
-            corpo = ('[' + hub['texto'] + (',' if hub['texto'] and api_txt else '') + api_txt + ']').encode('utf-8')
-            resp = _MOV_CACHE['resp'] = dict(etag=etag, plano=corpo, gz=gzip.compress(corpo, 5))
         usar_gz = 'gzip' in request.headers.get('Accept-Encoding', '')
         r = Response(resp['gz'] if usar_gz else resp['plano'], mimetype='application/json')
         if usar_gz:
@@ -2263,6 +2294,21 @@ def _resposta_movimentos(hub, api_txt):
     r.headers['ETag'] = f'"{etag}"'
     r.headers['Cache-Control'] = 'no-cache'
     return r
+
+
+def iniciar_aquecimento_movimentos(app):
+    """Mantem pronto o JSON das pesagens (cache do Hub + gzip) enquanto alguem usa o Controle de Producao / Gestao da Malharia / Tempo Real: a tela abre sem esperar o calculo de ~32 mil linhas."""
+    def loop():
+        time.sleep(15)
+        while True:
+            try:
+                with app.app_context():
+                    hub, api_txt = _movimentos_atual(bloquear=True)
+                    _preparar_resposta(hub, api_txt)
+            except Exception:  # noqa: BLE001
+                pass
+            time.sleep(20)
+    threading.Thread(target=loop, daemon=True, name='movimentos-aquecimento').start()
 
 
 @main_bp.route('/api/malharia/sequencia')

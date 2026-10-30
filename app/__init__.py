@@ -348,6 +348,8 @@ def create_app():
         iniciar_envio_relatorio(app)   # Relatorio de Faturamento por e-mail, 1x por dia (08:30)
         from app.relatorio32_hub import iniciar_agendador as iniciar_r32
         iniciar_r32(app)            # Relatorio 32 (pesagens) vindo do PCP Hub, a cada 60 s: so para a producao
+        from app.main.routes import iniciar_aquecimento_movimentos
+        iniciar_aquecimento_movimentos(app)  # pesagens (Relatorio 32) sempre prontas: o Controle de Producao abre sem esperar
         from app.malharia_info import iniciar_aquecimento as iniciar_info
         iniciar_info(app)           # mantem quentes os dados do INFO da maquina enquanto alguem usa a tela
         from app.reprova_cru import iniciar_agendador as iniciar_reprova_email
