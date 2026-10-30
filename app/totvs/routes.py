@@ -1668,3 +1668,67 @@ def uso_operacao():
             pg += 1
     recentes.sort(key=lambda t: str(t.get('transactionDate') or t.get('changeDate') or ''), reverse=True)
     return _json(dict(operacao=op, total=sum(por_mes.values()), por_mes=dict(sorted(por_mes.items())), mais_recentes=recentes[:5], erros=erros[:5]))
+
+
+@mov_bp.route('/varredura-swagger')
+@login_required
+def movimentos_varredura_swagger():
+    """So administrador: le o swagger de TODOS os servicos da API do TOTVS e procura, em caminhos, descricoes e nos nomes dos campos (pedido e resposta), as palavras que identificam o historico de
+    movimentacao de pecas de uma OP (?q=peso,peca,lote,historico,...). Mostra os endpoints por pontuacao, com os campos que casaram."""
+    if not current_user.is_admin:
+        abort(403)
+    import re as _re
+    from flask import Response
+    from app.totvs import movimentos
+    palavras = [p.strip().lower() for p in (request.args.get('q') or 'peso,pesag,weigh,peca,piece,roll,rolo,lote,batch,hist,movement,movimento,machine,maquina,local,location,hora,time,real').split(',') if p.strip()]
+    servicos = [x for x in (request.args.get('servicos') or 'production,production-order,product,general,logistics,analytics,material-request,product-engineering,management,fiscal,global,data-package,sales-order,purchase-order,prototype').split(',') if x]
+    saida, erros = [], []
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        for sv in servicos:
+            url = f'{movimentos.BASE_URL}/api/totvsmoda/{sv}/v2/swagger/v1/swagger.json'
+            try:
+                r = cli.session.get(url, timeout=120)
+            except Exception as e:  # noqa: BLE001
+                erros.append(f'{sv}: {str(e)[:80]}')
+                continue
+            if r.status_code != 200:
+                erros.append(f'{sv}: HTTP {r.status_code}')
+                continue
+            doc = r.json()
+
+            def campos(sch, prof=0, visto=()):
+                """nomes de todos os campos de um schema (resolvendo $ref ate a profundidade 6)."""
+                if not isinstance(sch, dict) or prof > 6:
+                    return []
+                if '$ref' in sch:
+                    nome = sch['$ref']
+                    if nome in visto:
+                        return []
+                    alvo = doc
+                    for parte in nome.lstrip('#/').split('/'):
+                        alvo = alvo.get(parte, {}) if isinstance(alvo, dict) else {}
+                    return campos(alvo, prof + 1, visto + (nome,))
+                if sch.get('type') == 'array':
+                    return campos(sch.get('items', {}), prof + 1, visto)
+                out = []
+                for k, v in (sch.get('properties') or {}).items():
+                    out.append(k)
+                    out += campos(v, prof + 1, visto)
+                return out
+
+            for caminho, ops in (doc.get('paths') or {}).items():
+                for metodo, d in ops.items():
+                    if not isinstance(d, dict):
+                        continue
+                    corpo = ((d.get('requestBody') or {}).get('content') or {}).get('application/json', {}).get('schema', {})
+                    resp = (((d.get('responses') or {}).get('200') or {}).get('content') or {}).get('application/json', {}).get('schema', {})
+                    nomes = sorted(set(campos(corpo) + campos(resp) + [x.get('name', '') for x in d.get('parameters') or []]))
+                    texto = f"{caminho} {d.get('summary') or ''} {d.get('description') or ''}".lower()
+                    achou = {p: [n for n in nomes if p in n.lower()] for p in palavras}
+                    pont = sum(2 for p in palavras if p in texto) + sum(1 for v in achou.values() if v)
+                    if pont >= 3:
+                        saida.append((pont, sv, metodo.upper(), caminho, (d.get('summary') or d.get('description') or '')[:90], sorted({n for v in achou.values() for n in v})[:25]))
+    saida.sort(key=lambda x: -x[0])
+    linhas = [f'{p:>2} {sv} {m} {c} - {s}\n     campos: {", ".join(f)}' for p, sv, m, c, s, f in saida[:int(request.args.get('max', 40))]]
+    return Response('\n'.join(linhas + ([''] + ['ERROS: ' + '; '.join(erros)] if erros else [])) or 'nada encontrado', mimetype='text/plain')
