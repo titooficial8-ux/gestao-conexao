@@ -5,6 +5,8 @@ So leitura: nao altera nada na programacao."""
 from __future__ import annotations
 
 import io
+import os
+import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
@@ -19,6 +21,7 @@ from app.relatorio_fat import pptx_gen as G
 
 ATIVAS = ('PRODUZINDO', 'EM_SEQUENCIA', 'PCP')
 DIAS_TROCAS = 21
+DIAS_HISTORICO = int(os.getenv('ESTUDO_DIAS_HISTORICO', '15'))        # quantos dias de producao (dias ativos) de cada maquina entram no historico
 LINHAS_POR_SLIDE = 13
 
 
@@ -28,6 +31,54 @@ def _num(v, casas=1):
 
 def _cod(artigo) -> str:
     return (str(artigo or '').split(' ')[0]).strip()
+
+
+def historico(agora: datetime, dias_ativos: int = None) -> dict:
+    """Entrega REAL de cada maquina nas suas ULTIMAS producoes: pecas pesadas no local 23 (Relatorio 32) nos ultimos `dias_ativos` dias em que a maquina produziu (o dia de producao vai de 06:20 a 06:19;
+    o dia de hoje, ainda aberto, fica de fora). Peca e metro por dia = total desses dias / quantidade de dias, ou seja, quanto a maquina entrega quando esta produzindo.
+    Tamanho da peca = metro padrao da pesagem (DS.METROS)."""
+    from app.models import Report32Movement
+    k = dias_ativos or DIAS_HISTORICO
+    hoje_prod = ((agora - timedelta(hours=6, minutes=20)).date())
+    desde = agora - timedelta(days=120)                                       # olha ate 120 dias para tras para achar os ultimos K dias ativos de cada maquina
+    linhas = Report32Movement.query.filter(Report32Movement.dt_real >= desde + timedelta(hours=3), Report32Movement.cod_maquina.isnot(None)).all()
+    dia_maq = defaultdict(lambda: defaultdict(lambda: dict(pecas=0, metros=0.0, kg=0.0, ds=defaultdict(lambda: [0, 0.0]))))
+    for r in linhas:
+        try:
+            n = int(re.sub(r'\D', '', r.cod_maquina or ''))
+        except ValueError:
+            continue
+        dia = ((r.dt_real - timedelta(hours=3)) - timedelta(hours=6, minutes=20)).date()
+        if dia >= hoje_prod:
+            continue
+        d = dia_maq[n][dia]
+        d['pecas'] += 1
+        d['metros'] += r.qt_movimento or 0
+        d['kg'] += r.qt_pesos or 0
+        if r.metro_padrao:
+            g = d['ds'][round(r.metro_padrao)]
+            g[0] += 1
+            g[1] += r.qt_movimento or r.metro_padrao
+    por_maquina, ds = [], defaultdict(lambda: dict(pecas=0, metros=0.0, maq_dias=0, maquinas=set()))
+    inicio_min = None
+    for n in sorted(dia_maq):
+        dias = sorted(dia_maq[n], reverse=True)[:k]                          # as ultimas K producoes (dias ativos) desta maquina
+        if not dias:
+            continue
+        pecas = sum(dia_maq[n][x]['pecas'] for x in dias)
+        metros = sum(dia_maq[n][x]['metros'] for x in dias)
+        por_maquina.append(dict(maquina=n, pecas=pecas, metros=metros, kg=sum(dia_maq[n][x]['kg'] for x in dias), dias_ativos=len(dias), de=min(dias), ate=max(dias),
+                                pecas_dia=pecas / len(dias), metros_dia=metros / len(dias), peca_media=(metros / pecas) if pecas else None))
+        inicio_min = min(inicio_min, min(dias)) if inicio_min else min(dias)
+        for x in dias:
+            for tam, (c, mt) in dia_maq[n][x]['ds'].items():
+                g = ds[tam]
+                g['pecas'] += c
+                g['metros'] += mt
+                g['maq_dias'] += 1
+                g['maquinas'].add(n)
+    por_tamanho = [dict(ds=t, pecas=v['pecas'], maquinas=len(v['maquinas']), pecas_dia_maquina=v['pecas'] / v['maq_dias'], metros_dia_maquina=v['metros'] / v['maq_dias']) for t, v in sorted(ds.items()) if v['pecas'] >= 5]
+    return dict(dias_ativos=k, por_maquina=por_maquina, por_tamanho=por_tamanho, total_pecas=sum(m['pecas'] for m in por_maquina), desde=inicio_min)
 
 
 def coletar(agora: datetime = None) -> dict:
@@ -79,7 +130,7 @@ def coletar(agora: datetime = None) -> dict:
     grupos_ds = [dict(ds=ds, ops=len(v), maquinas=len({o['maquina'] for o in v}), pecas_dia=sum(o['pecas_dia'] for o in v) / len(v), metros_dia=sum(o['metros_dia'] for o in v) / len(v),
                       min_peca=sum(1440 / o['pecas_dia'] for o in v) / len(v)) for ds, v in sorted(por_ds.items())]
     sem_base = [o for m in maquinas for o in m['ops'] if not o['pecas_dia']]
-    return dict(agora=agora, maquinas=maquinas, trocas=trocas, grupos_ds=grupos_ds, sem_base=sem_base, eficiencia=previsao.EFICIENCIA, troca_horas=previsao.TROCA_HORAS, fonte=previsao.FONTE)
+    return dict(agora=agora, hist=historico(agora), maquinas=maquinas, trocas=trocas, grupos_ds=grupos_ds, sem_base=sem_base, eficiencia=previsao.EFICIENCIA, troca_horas=previsao.TROCA_HORAS, fonte=previsao.FONTE)
 
 
 # ------------------------------------------------------------------ paginas
@@ -189,8 +240,8 @@ def _planejar(d: dict) -> list:
         G._cartoes(s, [('MÉDIA DE ENTREGA', _num(sum(mp) / len(mp), 1) if mp else '–', 'peças por 24 h, por máquina', 'verde'), ('MÉDIA DE METROS', _num(sum(mm) / len(mm), 0) if mm else '–', 'metros por 24 h, por máquina', 'verde'),
                        ('FIM DA FILA MAIS LONGA', max(fins).strftime('%d/%m/%Y') if fins else '–', 'última OP programada', 'laranja'), ('EFICIÊNCIA USADA', f'{d["eficiencia"] * 100:.0f}%', f'troca de artigo: {d["troca_horas"]:.0f} h', 'azul')], 2.65)
         G._texto(s, 0.35, 4.3, 12.6, 0.3, 'O que este estudo mostra', 15, G.AZUL_ESCURO, negrito=True)
-        for i, t in enumerate(['Média de entrega: quantas peças cada máquina entrega por dia com os artigos que estão na fila.',
-                               'Máquinas que entregam bem e que produzem bem: ranking por peças e por metros por dia (conforme o DS.METROS da peça).',
+        for i, t in enumerate(['Média de entrega: quantas peças cada máquina deve entregar por dia com os artigos da fila (previsão).',
+                               'Máquinas que entregam bem e que produzem bem: histórico real de pesagens, por peças e por metros por dia (conforme o DS.METROS).',
                                'Trocas previstas: quando a máquina troca de artigo, nos próximos %d dias.' % DIAS_TROCAS,
                                'Pendências: OPs sem raport/RPM cadastrados, que ficam fora da média.']):
             G._texto(s, 0.55, 4.75 + i * 0.5, 12.2, 0.4, '•  ' + t, 13, G.CINZA_TEXTO)
@@ -205,31 +256,43 @@ def _planejar(d: dict) -> list:
                                                              ['Máquina', 'OPs', 'Peças a produzir', 'Qt. solicitada', 'Peças / 24 h (média)', 'Metros / 24 h (média)', 'Fim da fila'], [1.5, 1.0, 1.9, 1.9, 2.3, 2.3, 1.7], parte,
                                                              'Média simples das OPs da fila da máquina; OP sem raport/RPM fica de fora da média.'))
 
+    H = d['hist']
+    hm = [m for m in H['por_maquina'] if m['pecas_dia']]
+    periodo = f'últimas {H["dias_ativos"]} produções (dias em que a máquina produziu) de cada máquina'
+
     def ranking(prs):
-        s = _slide(prs, 'Estudo da Malharia', 'Máquinas que entregam e que produzem bem', 'Entrega = peças por 24 h; produção = metros por 24 h (peças × DS.METROS). Máquina com peça maior entrega menos peças e mais metros.')
-        top_p = sorted(com_dados, key=lambda m: -m['media_pecas'])[:10]
-        top_m = sorted([m for m in maq if m['media_metros']], key=lambda m: -m['media_metros'])[:10]
-        _barras(s, 'Entregam bem · peças por 24 h', [f'MÁQ {m["maquina"]:02d}' for m in top_p], [round(m['media_pecas'], 1) for m in top_p], '1B7F3B', 0.35, 1.15, 6.2, 5.75)
-        _barras(s, 'Produzem bem · metros por 24 h', [f'MÁQ {m["maquina"]:02d}' for m in top_m], [round(m['media_metros']) for m in top_m], '2E75B6', 6.75, 1.15, 6.2, 5.75, '#,##0')
+        s = _slide(prs, 'Estudo da Malharia', 'Máquinas que entregam e que produzem bem · histórico', f'Histórico real de pesagens (local 23, Relatório 32), {periodo}. Peças e metros por dia = o que a máquina entrega nos dias em que produz.')
+        top_p = sorted(hm, key=lambda m: -m['pecas_dia'])[:10]
+        top_m = sorted(hm, key=lambda m: -m['metros_dia'])[:10]
+        _barras(s, 'Entregam bem · peças por dia', [f'MÁQ {m["maquina"]:02d}' for m in top_p], [round(m['pecas_dia'], 1) for m in top_p], '1B7F3B', 0.35, 1.15, 6.2, 5.75)
+        _barras(s, 'Produzem bem · metros por dia', [f'MÁQ {m["maquina"]:02d}' for m in top_m], [round(m['metros_dia']) for m in top_m], '2E75B6', 6.75, 1.15, 6.2, 5.75, '#,##0')
     paginas.append(ranking)
 
+    linhas_h = [[f'MÁQ {m["maquina"]:02d}', _num(m['pecas'], 0), _num(m['metros'], 0), str(m['dias_ativos']), _num(m['pecas_dia'], 1) if m['pecas_dia'] else '–', _num(m['metros_dia'], 0) if m['metros_dia'] else '–',
+                 f'{_num(m["peca_media"], 0)} m' if m['peca_media'] else '–'] for m in sorted(hm, key=lambda m: -(m['metros_dia'] or 0))]
+    partes_h = [linhas_h[i:i + LINHAS_POR_SLIDE + 1] for i in range(0, len(linhas_h), LINHAS_POR_SLIDE + 1)] or [[]]
+    for k, parte in enumerate(partes_h):
+        paginas.append(lambda prs, parte=parte, k=k: _tabela(prs, 'Estudo da Malharia', 'Histórico de entrega por máquina' + (f' ({k + 1}/{len(partes_h)})' if len(partes_h) > 1 else ''),
+                                                             ['Máquina', 'Peças', 'Metros', 'Dias produzidos', 'Peças / dia', 'Metros / dia', 'Peça média'], [1.5, 1.4, 1.8, 2.2, 1.9, 1.9, 1.9], parte,
+                                                             f'Histórico real, {periodo}. Ordenado por metros por dia. Peças e metros por dia = total ÷ dias em que a máquina produziu.'))
+
     def por_tamanho(prs):
-        s = _slide(prs, 'Estudo da Malharia', 'Entrega por tamanho de peça (DS.METROS)', 'Média das OPs programadas com cada DS.METROS. Peça menor = mais peças por dia; peça maior = mais metros por dia.')
-        g = d['grupos_ds']
+        s = _slide(prs, 'Estudo da Malharia', 'Entrega por tamanho de peça (DS.METROS) · histórico', f'Histórico real, {periodo}. Peças e metros por dia = o que uma máquina entrega, em média, nos dias em que produziu esse tamanho.')
+        g = H['por_tamanho']
         gf = s.shapes.add_table(len(g) + 1, 5, Inches(0.35), Inches(1.15), Inches(6.3), Inches(0.42 * (len(g) + 1)))
         t = gf.table
-        for i, w in enumerate([1.3, 0.9, 1.1, 1.5, 1.5]):
+        for i, w in enumerate([1.3, 1.0, 1.1, 1.45, 1.45]):
             t.columns[i].width = Inches(w)
-        for j, h in enumerate(['DS.METROS', 'OPs', 'Máquinas', 'Peças / 24 h', 'Metros / 24 h']):
+        for j, h in enumerate(['DS.METROS', 'Peças', 'Máquinas', 'Peças / dia', 'Metros / dia']):
             G._celula(t.cell(0, j), h, 11, 'FFFFFF', G.AZUL_MEDIO, True, PP_ALIGN.LEFT if j == 0 else PP_ALIGN.RIGHT)
         for i, x in enumerate(g):
-            for j, v in enumerate([f'{_num(x["ds"], 0)} m', str(x['ops']), str(x['maquinas']), _num(x['pecas_dia'], 1), _num(x['metros_dia'], 0)]):
+            for j, v in enumerate([f'{_num(x["ds"], 0)} m', _num(x['pecas'], 0), str(x['maquinas']), _num(x['pecas_dia_maquina'], 1), _num(x['metros_dia_maquina'], 0)]):
                 G._celula(t.cell(1 + i, j), v, 12, G.CINZA_TEXTO, 'FFFFFF' if i % 2 else G.CINZA_LINHA, False, PP_ALIGN.LEFT if j == 0 else PP_ALIGN.RIGHT)
         if not g:
-            G._texto(s, 0.35, 1.2, 12.6, 0.4, 'Sem dados para calcular (faltam raport, RPM ou DS.METROS das OPs).', 13, '6B7280')
-        if g:
-            _colunas(s, 'Peças por 24 h, por tamanho de peça', [f'{_num(x["ds"], 0)} m' for x in g], [round(x['pecas_dia'], 1) for x in g], '1B7F3B', 6.95, 1.15, 6.0, 2.75)
-            _colunas(s, 'Metros por 24 h, por tamanho de peça', [f'{_num(x["ds"], 0)} m' for x in g], [round(x['metros_dia']) for x in g], '2E75B6', 6.95, 4.05, 6.0, 2.85, '#,##0')
+            G._texto(s, 0.35, 1.2, 12.6, 0.4, 'Sem pesagens no período para calcular.', 13, '6B7280')
+        else:
+            _colunas(s, 'Peças por dia, por tamanho de peça', [f'{_num(x["ds"], 0)} m' for x in g], [round(x['pecas_dia_maquina'], 1) for x in g], '1B7F3B', 6.95, 1.15, 6.0, 2.75)
+            _colunas(s, 'Metros por dia, por tamanho de peça', [f'{_num(x["ds"], 0)} m' for x in g], [round(x['metros_dia_maquina']) for x in g], '2E75B6', 6.95, 4.05, 6.0, 2.85, '#,##0')
     paginas.append(por_tamanho)
 
     # trocas
