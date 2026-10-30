@@ -1732,3 +1732,63 @@ def movimentos_varredura_swagger():
     saida.sort(key=lambda x: -x[0])
     linhas = [f'{p:>2} {sv} {m} {c} - {s}\n     campos: {", ".join(f)}' for p, sv, m, c, s, f in saida[:int(request.args.get('max', 40))]]
     return Response('\n'.join(linhas + ([''] + ['ERROS: ' + '; '.join(erros)] if erros else [])) or 'nada encontrado', mimetype='text/plain')
+
+
+@mov_bp.route('/kardex-local23')
+@login_required
+def movimentos_kardex_local23():
+    """So administrador: a materia PASSA pelo local 23 no kardex do TOTVS? Para o dia de producao (?dia=AAAA-MM-DD, padrao hoje; 06:20 a 06:19), pega as OPs que o Relatorio 32 (Hub) pesou, descobre o produto
+    de cada OP, le o kardex do produto no saldo ?saldo=23 e compara: movimentos do kardex x pecas do Hub, por produto, com exemplos crus (campos, operacao, hora, quantidade)."""
+    if not current_user.is_admin:
+        abort(403)
+    from collections import Counter, defaultdict
+    from datetime import datetime, timedelta
+    from app.models import Report32Movement
+    dia = request.args.get('dia')
+    agora = datetime.now()
+    d0 = datetime.strptime(dia, '%Y-%m-%d') if dia else (agora - timedelta(hours=6, minutes=20)).replace(hour=0, minute=0, second=0, microsecond=0)
+    ini, fim = d0.replace(hour=6, minute=20), d0.replace(hour=6, minute=20) + timedelta(days=1) - timedelta(seconds=1)
+    saldo = request.args.get('saldo', '23')
+    maximo = int(request.args.get('max', 12))
+    hub = Report32Movement.query.filter(Report32Movement.dt_real >= ini + timedelta(hours=3), Report32Movement.dt_real <= fim + timedelta(hours=3)).all()
+    por_op = Counter(r.op for r in hub)
+    saida = dict(dia_producao=d0.strftime('%Y-%m-%d'), janela=f'{ini:%d/%m %H:%M} a {fim:%d/%m %H:%M}', saldo=saldo, hub_pecas=len(hub), hub_ops=len(por_op), hub_metros=round(sum(r.qt_movimento or 0 for r in hub), 1))
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        produto_da_op, erros = {}, []
+        for op in [o for o, _ in por_op.most_common(maximo)]:
+            r = cli.post(movimentos.OPS_URL, dict(filter=dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], orderCodeList=[int(op)]), expand='items', pageSize=1, page=1))
+            if r.status_code != 200:
+                erros.append(f'OP {op}: HTTP {r.status_code}')
+                continue
+            it = ((r.json().get('items') or [{}])[0].get('items') or [{}])[0]
+            if it.get('productCode'):
+                produto_da_op[op] = it['productCode']
+        por_produto = defaultdict(lambda: dict(ops=[], hub_pecas=0))
+        for op, prod in produto_da_op.items():
+            por_produto[prod]['ops'].append(op)
+            por_produto[prod]['hub_pecas'] += por_op[op]
+        resultado, total_mov = [], 0
+        for prod, info in por_produto.items():
+            linha = dict(produto=prod, ops=info['ops'], hub_pecas=info['hub_pecas'])
+            for formato in ('datahora', 'so_data'):
+                a, b = (ini.strftime('%Y-%m-%dT%H:%M:%S'), fim.strftime('%Y-%m-%dT%H:%M:%S')) if formato == 'datahora' else (ini.strftime('%Y-%m-%d'), fim.strftime('%Y-%m-%d'))
+                r = cli.get(f'{movimentos.BASE_URL}/api/totvsmoda/product/v2/kardex-movement', dict(ProductCode=prod, BranchCode=movimentos.EMPRESA, StartDate=a, EndDate=b, BalanceType=saldo))
+                if r.status_code == 400 and 'MovementDataNotFound' in r.text:
+                    linha[formato] = 'sem movimento no periodo'
+                    continue
+                if r.status_code != 200:
+                    linha[formato] = f'HTTP {r.status_code} {r.text[:160]}'
+                    continue
+                j = r.json()
+                j = j[0] if isinstance(j, list) and j else (j if isinstance(j, dict) else {})
+                movs = j.get('movements') or []
+                linha[formato] = dict(movimentos=len(movs), por_operacao=dict(Counter(str(m.get('operationCode')) + ' ' + str(m.get('operationName') or m.get('operationDescription') or '') for m in movs).most_common(6)),
+                                      entradas=round(sum((m.get('quantity') or 0) for m in movs if str(m.get('operationType') or m.get('movementType') or '').lower() in ('input', 'e', 'entrada')), 2), campos=sorted(movs[0].keys()) if movs else [], exemplos=movs[:3],
+                                      cabecalho={k: v for k, v in j.items() if k != 'movements'})
+                if formato == 'datahora' and movs:
+                    total_mov += len(movs)
+                    break
+            resultado.append(linha)
+    saida.update(produtos=resultado, kardex_movimentos_total=total_mov, erros=erros[:5], dica='compare hub_pecas x movimentos por produto; se bater, o kardex do saldo 23 serve para automatizar. Teste ?saldo=24 e ?dia= para outros dias.')
+    return _json(saida)
