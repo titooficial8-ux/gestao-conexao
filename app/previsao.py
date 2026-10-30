@@ -1,7 +1,7 @@
 """Previsao de termino de cada OP na maquina, pelas voltas e RPM (mesma conta da planilha producaoDIARIA).
 
   tempo da peca (min) = voltas / RPM
-  minutos uteis por dia = 1440 x eficiencia                     (padrao 85 % -> 1224 min)
+  minutos uteis por dia = 1440 x eficiencia                     (padrao 80 % -> 1152 min)
   pecas em 24 h        = minutos uteis / tempo da peca
   dias para terminar   = pecas que faltam / pecas em 24 h
 
@@ -10,7 +10,7 @@ proxima comeca quando a anterior termina, pulando os dias sem producao (feriados
 Sequencia.termino_malharia (Termino Malharia) e Sequencia.pecas_dia. Voltas e RPM vem da base (ProducaoRef):
 1) da propria OP, 2) do ultimo registro da maquina+artigo, 3) do ultimo registro do artigo. Sem base: usa Raport x RPM instalado (ver abaixo); sem isso, mantem o termino do PCP Hub.
 
-Raport (cm de tecido por volta): metros por dia = raport/100 x RPM instalado x eficiencia (85 %) x 1440; voltas da peca = metros da peca x 100 / raport.
+Raport (cm de tecido por volta): metros por dia = raport/100 x RPM instalado x eficiencia (80 %) x 1440; voltas da peca = metros da peca x 100 / raport.
 O raport vem da estrutura (CM, XN, CF, PL, XP, NV), com excecao por maquina (ex.: maquinas 4 e 8 em CM = 4,0 cm); o RPM instalado e da maquina."""
 import os
 import re
@@ -24,7 +24,7 @@ from flask import current_app
 from app import db
 from app.models import (ArtigoTamanho, FichaArtigo, Machine, MaquinaRpm, NonWorkingDay, ProducaoRef, RaportMaquinaEstrutura, RaportEstrutura, Sequencia)
 
-EFICIENCIA = min(max(float(os.getenv('EFICIENCIA_MAQUINA', '0.85') or 0.85), 0.3), 1.0)      # a maquina rende 85 % do teorico (RPM instalado x eficiencia); EFICIENCIA_MAQUINA=0.75 no .env baixa para 75 %
+EFICIENCIA = min(max(float(os.getenv('EFICIENCIA_MAQUINA', '0.80') or 0.80), 0.3), 1.0)      # a maquina rende 80 % do teorico (RPM instalado x eficiencia); EFICIENCIA_MAQUINA=0.85 no .env volta para 85 %
 INEFICIENCIA = 1 - EFICIENCIA
 MIN_DIA = 1440 * EFICIENCIA
 TROCA_HORAS = float(os.getenv('TROCA_HORAS', '2'))      # tempo de troca de artigo somado antes de cada OP que ainda nao esta produzindo (padrao 2 h)
@@ -349,7 +349,7 @@ def previsao_raport(cfg, maquina: int, s, idx_art):
     metros = _ds_metros(s) or (tam.metros_peca if tam else None)       # DS.METROS da OP (METRO IDEAL LOTE do TOTVS); a medida da planilha so entra se o TOTVS nao informar
     if not (estr and rpm and raport and metros):
         return None
-    return metros * 100 / raport, rpm * EFICIENCIA, raport              # voltas = metragem padrao (m) x 100 / raport (cm); RPM = RPM instalado da maquina x eficiencia (85 %)
+    return metros * 100 / raport, rpm * EFICIENCIA, raport              # voltas = metragem padrao (m) x 100 / raport (cm); RPM = RPM instalado da maquina x eficiencia (80 %)
 
 
 class _RefFicha:
