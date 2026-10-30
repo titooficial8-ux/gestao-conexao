@@ -105,7 +105,7 @@ def coletar(agora: datetime = None) -> dict:
             pecas_dia=pd, metros_dia=(pd * ds) if (pd and ds) else None, voltas=q.prev_voltas, rpm=q.prev_rpm, raport=q.prev_raport, fonte=q.prev_fonte, fim=fim))
     maquinas = []
     for n in sorted(por_maq):
-        ops = sorted(por_maq[n], key=lambda o: (o['status'] != 'PRODUZINDO', o['ordem']))
+        ops = sorted(por_maq[n], key=lambda o: o['ordem'])
         com = [o for o in ops if o['pecas_dia']]
         comm = [o for o in ops if o['metros_dia']]
         fins = [o['fim'] for o in ops if o['fim']]

@@ -2636,7 +2636,7 @@ def programacao_previsao_diagnostico():
     from app.dias_producao import feriados
     numero = request.args.get('maquina', type=int) or 1
     maq = Machine.query.filter_by(number=numero).first_or_404()
-    seqs = sorted([q for q in maq.sequencias if q.status in previsao.ATIVAS], key=lambda q: (q.status != 'PRODUZINDO', q.sequence_order if q.sequence_order is not None else 10 ** 6, q.id))
+    seqs = sorted([q for q in maq.sequencias if q.status in previsao.ATIVAS], key=lambda q: (q.sequence_order if q.sequence_order is not None else 10 ** 6, q.id))
     hoje = date.today()
     marc_g = {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.date >= hoje, NonWorkingDay.machine_id.is_(None)).all()}
     marc_m = {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.date >= hoje, NonWorkingDay.machine_id == maq.id).all()}
@@ -2717,8 +2717,9 @@ def maquina_reordenar(numero):
     if sorted(ids) != sorted(ativas):
         return jsonify(erro='A fila mudou enquanto você arrastava; a página vai recarregar.'), 409
     antes = {q.id: q.sequence_order for q in ativas.values()}
-    produzindo = [i for i in ids if ativas[i].status == 'PRODUZINDO']
-    ids = produzindo + [i for i in ids if i not in produzindo]           # a OP produzindo fica sempre em 1o
+    if not _pode_dias_sem_producao():                                    # so o PCP pode trocar quem esta em 1o; para os demais a OP produzindo fica sempre em 1o
+        produzindo = [i for i in ids if ativas[i].status == 'PRODUZINDO']
+        ids = produzindo + [i for i in ids if i not in produzindo]
     for pos, i in enumerate(ids, 1):
         ativas[i].sequence_order = pos
     movido = ativas.get(int(d.get('movido') or 0))

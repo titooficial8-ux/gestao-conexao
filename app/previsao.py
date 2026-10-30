@@ -450,9 +450,10 @@ def calcular(agora=None, maquina: int = None, esperar: bool = False) -> int:
         for m in (Machine.query.filter_by(number=maquina).all() if maquina else Machine.query.all()):
             parados = parados_global | {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.machine_id == m.id, NonWorkingDay.date >= agora.date()).all()}
             seqs = [s for s in Sequencia.query.filter_by(machine_id=m.id).all() if (s.status or '') in ATIVAS]
-            seqs.sort(key=lambda s: (0 if s.status == 'PRODUZINDO' else 1, s.sequence_order if s.sequence_order is not None else 10 ** 6, s.id))
+            seqs.sort(key=lambda s: (s.sequence_order if s.sequence_order is not None else 10 ** 6, s.id))      # a ordem da fila manda (o PCP pode trocar quem esta em 1o)
+            primeiro_trocado = bool(seqs) and seqs[0].status != 'PRODUZINDO' and any(x.status == 'PRODUZINDO' for x in seqs)      # PCP pôs outra OP na frente da que o Hub diz estar produzindo
             cursor = agora
-            for s in seqs:
+            for pos, s in enumerate(seqs):
                 ref, fonte = referencia(idx, m.number, s.op, s.artigo)
                 rap = None if ref else previsao_raport(cfg, m.number, s, idx[2])
                 if not ref and not rap:
@@ -461,7 +462,8 @@ def calcular(agora=None, maquina: int = None, esperar: bool = False) -> int:
                     if s.termino_malharia:                              # sem base: a fila segue pelo termino que o PCP Hub informou
                         cursor = max(cursor, datetime.combine(s.termino_malharia, datetime.min.time()))
                     continue
-                if s.status != 'PRODUZINDO' and TROCA_HORAS:
+                ja_rodando = (s.status == 'PRODUZINDO' and not primeiro_trocado) or (primeiro_trocado and pos == 0)      # a OP da frente comeca agora, sem tempo de troca
+                if not ja_rodando and TROCA_HORAS:
                     cursor = cursor + timedelta(hours=TROCA_HORAS)
                 if ref:
                     voltas, rpm, minutos_dia, s.prev_raport = ref.voltas, ref.rpm, MIN_DIA, None
