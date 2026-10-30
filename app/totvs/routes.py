@@ -2018,3 +2018,66 @@ def movimentos_conciliar_pecas():
                       dif_producao_por_maquina={k: dict(sorted(v.items())) for k, v in sorted(por_maquina.items())},
                       dif_producao_por_op_maiores={k: dict(sorted(v.items())) for k, v in sorted(por_op.items(), key=lambda kv: -sum(kv[1].values()))[:25]},
                       dif_calendario_por_hora_do_dia_no_hub={f'{h:02d}h': dict(sorted(c.items())) for h, c in sorted(por_hora_do_dia.items())}, ops_sem_correspondente=dict(sem_api.most_common(12)), exemplos=exemplos))
+
+
+@mov_bp.route('/estimar-dia')
+@login_required
+def movimentos_estimar_dia():
+    """So administrador: mede quao bem a API sozinha acerta o DIA DE PRODUCAO (06:20-06:19) de cada peca, estimando a hora das pecas sem baixa de fio por interpolacao entre as pecas da mesma OP que tem hora
+    (baixa de fio 'trx'), na ordem da pesagem. Compara com o Hub (?dias=15): % de pecas no dia certo, erro de hora e quantas pecas ficam sem ancora."""
+    if not current_user.is_admin:
+        abort(403)
+    from collections import Counter, defaultdict
+    from datetime import datetime, timedelta
+    from app.models import PesagemMalharia, Report32Movement
+    dias = int(request.args.get('dias', 15))
+    corte = datetime.utcnow() - timedelta(days=dias)
+    hub = {}
+    for h in Report32Movement.query.filter(Report32Movement.dt_real >= corte).all():
+        try:
+            hub[(str(h.op), int(h.nr_item))] = h.dt_real - timedelta(hours=3)
+        except (TypeError, ValueError):
+            continue
+    por_op = defaultdict(list)
+    for p in PesagemMalharia.query.all():
+        por_op[str(p.op)].append(p)
+    dia_prod = lambda t: (t - timedelta(hours=6, minutes=20)).date()
+    stats = Counter()
+    erro_h = Counter()
+    por_metodo = defaultdict(Counter)
+    for op, lista in por_op.items():
+        lista.sort(key=lambda p: p.item)
+        ancoras = [(i, p.hora_real) for i, p in enumerate(lista) if p.hora_real and p.hora_origem == 'trx']
+        for i, p in enumerate(lista):
+            gabarito = hub.get((op, int(p.item)))
+            if gabarito is None:
+                continue
+            stats['pecas_com_gabarito'] += 1
+            if p.hora_real and p.hora_origem == 'trx':
+                est, metodo = p.hora_real, 'baixa de fio (exata)'
+            else:
+                ant = max((a for a in ancoras if a[0] < i), key=lambda a: a[0], default=None)
+                dep = min((a for a in ancoras if a[0] > i), key=lambda a: a[0], default=None)
+                if ant and dep:
+                    est = ant[1] + (dep[1] - ant[1]) * ((i - ant[0]) / (dep[0] - ant[0]))
+                    metodo = 'interpolada entre duas ancoras'
+                elif ant or dep:
+                    a = ant or dep
+                    est = a[1] + timedelta(hours=1.2) * (i - a[0])                 # uma peca a cada ~1,2 h na mesma OP
+                    metodo = 'extrapolada de uma ancora'
+                else:
+                    est, metodo = None, 'sem ancora na OP'
+            if est is None:
+                stats['sem_estimativa'] += 1
+                por_metodo[metodo]['n'] += 1
+                continue
+            certo = dia_prod(est) == dia_prod(gabarito)
+            por_metodo[metodo]['n'] += 1
+            por_metodo[metodo]['dia_certo'] += int(certo)
+            erro_h[round((est - gabarito).total_seconds() / 3600)] += 1
+            stats['com_estimativa'] += 1
+            stats['dia_certo'] += int(certo)
+    stats['pct_dia_certo_das_estimadas'] = round(100 * stats['dia_certo'] / max(stats['com_estimativa'], 1), 1)
+    stats['pct_dia_certo_de_todas'] = round(100 * stats['dia_certo'] / max(stats['pecas_com_gabarito'], 1), 1)
+    return _json(dict(dias=dias, resumo=dict(stats), por_metodo={m: dict(c, pct_dia_certo=round(100 * c['dia_certo'] / max(c['n'], 1), 1)) for m, c in por_metodo.items()},
+                      erro_de_hora_estimada_menos_hub=dict(sorted(erro_h.items()))))
