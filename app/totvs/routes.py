@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 from functools import lru_cache
 
+import os
 import threading
 import time
 
@@ -2081,3 +2082,34 @@ def movimentos_estimar_dia():
     stats['pct_dia_certo_de_todas'] = round(100 * stats['dia_certo'] / max(stats['pecas_com_gabarito'], 1), 1)
     return _json(dict(dias=dias, resumo=dict(stats), por_metodo={m: dict(c, pct_dia_certo=round(100 * c['dia_certo'] / max(c['n'], 1), 1)) for m, c in por_metodo.items()},
                       erro_de_hora_estimada_menos_hub=dict(sorted(erro_h.items()))))
+
+
+@mov_bp.route('/comparar-controle')
+@login_required
+def movimentos_comparar_controle():
+    """So administrador: o que o Controle de Producao mostra pela API do TOTVS (pecas + hora exata/estimada) contra o Relatorio 32 do Hub, por dia de producao (06:20-06:19), nos ultimos ?dias=10."""
+    if not current_user.is_admin:
+        abort(403)
+    import json as _j
+    from collections import Counter, defaultdict
+    from datetime import datetime, timedelta
+    from app.main.routes import _api_movimentos
+    from app.models import Report32Movement
+    dias = int(request.args.get('dias', 10))
+    corte = datetime.utcnow() - timedelta(days=dias + 1)
+    api = _j.loads('[' + _api_movimentos(dict(vistos=set(), cliente_de=lambda desc: None)) + ']')
+    dia_api, metros_api = Counter(), defaultdict(float)
+    for x in api:
+        t = datetime.fromisoformat(x['dt_real'].replace('Z', '')) - timedelta(hours=3, minutes=0)
+        d = (t - timedelta(hours=6, minutes=20)).date()
+        dia_api[d] += 1
+        metros_api[d] += x.get('qt_movimento') or 0
+    dia_hub, metros_hub = Counter(), defaultdict(float)
+    for h in Report32Movement.query.filter(Report32Movement.dt_real >= corte).all():
+        d = ((h.dt_real - timedelta(hours=3)) - timedelta(hours=6, minutes=20)).date()
+        dia_hub[d] += 1
+        metros_hub[d] += h.qt_movimento or 0
+    dias_lista = sorted(set(dia_hub) | {d for d in dia_api if d >= (corte + timedelta(days=1)).date()}, reverse=True)[:dias]
+    linhas = [dict(dia=str(d), hub=dia_hub.get(d, 0), controle_api=dia_api.get(d, 0), diferenca=dia_api.get(d, 0) - dia_hub.get(d, 0), pct=round(100 * dia_api.get(d, 0) / dia_hub[d], 1) if dia_hub.get(d) else None,
+                      metros_hub=round(metros_hub.get(d, 0)), metros_api=round(metros_api.get(d, 0))) for d in dias_lista]
+    return _json(dict(fonte_atual_do_controle=os.getenv('CONTROLE_FONTE', 'pesagens'), dias=linhas))

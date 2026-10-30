@@ -2196,18 +2196,22 @@ def _api_movimentos(hub):
             chaves.add(k)
             unicas.append(p)
     pecas = unicas
-    # hora de cada peca: baixa de fio (trx) > momento em que o Gestao viu > estimada entre as vizinhas da mesma OP
-    horas = {}
+    # hora de cada peca: baixa de fio (trx, hora exata) > vista ao vivo > estimada entre as vizinhas da mesma OP. A DATA do movimento da API nao e o dia da pesagem (o Hub mostra o dia de producao
+    # 0, 1 ou ate 3 dias DEPOIS dela), entao so vale como ultimo recurso: pecas com hora (exata ou estimada pelas vizinhas) ficam no dia em que realmente foram pesadas.
+    horas, exatas = {}, set()
     for p in pecas:
         if p.hora_real and p.hora_origem == 'trx':
             horas[p.id] = p.hora_real + timedelta(hours=3)            # hora da baixa de fio (horario do Brasil, UTC-3)
-        elif p.visto_em is not None:
+            exatas.add(p.id)
+        elif p.hora_origem == 'vivo' and p.visto_em is not None:
             v = p.visto_em.astimezone(timezone.utc).replace(tzinfo=None)
-            if abs((v - timedelta(hours=3)).date() - p.data) <= timedelta(days=1):    # visto na propria data (nao em carga historica)
+            if abs((v - timedelta(hours=3)).date() - p.data) <= timedelta(days=1):    # visto ao vivo na propria data (nao em carga historica)
                 horas[p.id] = v
+                exatas.add(p.id)
     por_op = {}
     for p in pecas:
         por_op.setdefault(p.op, []).append(p)
+    estimadas = set()
     for lista in por_op.values():
         lista.sort(key=lambda x: (x.data, x.item))
         for i, p in enumerate(lista):
@@ -2215,19 +2219,23 @@ def _api_movimentos(hub):
                 continue
             ant = next(((j, horas[lista[j].id]) for j in range(i - 1, -1, -1) if lista[j].id in horas), None)
             prox = next(((j, horas[lista[j].id]) for j in range(i + 1, len(lista)) if lista[j].id in horas), None)
+            meio = datetime.combine(p.data, datetime.min.time()) + timedelta(hours=15)
             if ant and prox and prox[1] > ant[1]:
                 horas[p.id] = ant[1] + (prox[1] - ant[1]) * (i - ant[0]) / (prox[0] - ant[0])
-            elif ant:
-                horas[p.id] = ant[1] + timedelta(hours=2.7) * (i - ant[0])
-            elif prox:
-                horas[p.id] = prox[1] - timedelta(hours=2.7) * (prox[0] - i)
-            else:                                                       # sem nenhuma vizinha com hora: meio do dia da movimentacao
-                horas[p.id] = datetime.combine(p.data, datetime.min.time()) + timedelta(hours=15)
+                estimadas.add(p.id)
+            elif ant or prox:
+                ref = ant or prox
+                est = ref[1] + timedelta(hours=1.5) * ((i - ref[0]) if ant else -(ref[0] - i))      # uma peca a cada ~1,5 h na mesma OP
+                if abs((est - meio).total_seconds()) <= 2 * 86400:         # extrapolacao que foge muito da data do movimento nao vale
+                    horas[p.id] = est
+                    estimadas.add(p.id)
     for p in pecas:
         r = resumos[p.op]
-        dt_utc = horas[p.id]
         ini_dia = datetime.combine(p.data, datetime.min.time()) + timedelta(hours=9, minutes=20)     # dia de producao da data do movimento: 06:20 BRT ...
-        dt_utc = min(max(dt_utc, ini_dia), ini_dia + timedelta(hours=23, minutes=59))                # ... ate 06:19 BRT do dia seguinte
+        if p.id in horas:
+            dt_utc = horas[p.id]                                                                       # hora exata ou estimada pelas vizinhas: fica onde foi pesada
+        else:
+            dt_utc = ini_dia + timedelta(hours=12)                                                     # sem nenhuma hora na OP: meio do dia de producao da data do movimento
         desc = r.artigo_desc or ''
         kg = round(p.peso_kg, 2) if p.peso_kg else 0             # kg da baixa de fio ligada a peca (API do TOTVS)
         saida.append({
@@ -2252,14 +2260,14 @@ def _movimentos_atual(bloquear: bool = False):
     """(hub, api_txt) da fonte ativa: Relatorio 32 pela ponte do Hub ou, se ela parou, as baixas de fio/pesagens do TOTVS."""
     from app import relatorio32_hub
     base = _hub_movimentos_json(bloquear=bloquear)
-    if os.getenv('CONTROLE_FONTE', 'relatorio32') == 'relatorio32' and relatorio32_hub.em_dia():
+    if os.getenv('CONTROLE_FONTE', 'pesagens') == 'relatorio32' and relatorio32_hub.em_dia():
         hub, api_txt = base, ''                                    # pecas = Relatorio 32 (ponte com o Hub, igual ao que o PCP Hub mostra); se a ponte parar, cai nas baixas de fio
         return hub, api_txt
     hub = dict(base, texto='', vistos=set())
     from app.models import BaixaFio
     # Pecas = pesagens do local 23 lidas do TOTVS (uma por peca, igual ao Relatorio 32). As baixas de fio so cobriam parte das pecas (68 de ~104 no dia 29/10) e ficam como reserva/opcao: CONTROLE_FONTE=baixas
     from app.models import PesagemMalharia, PesagemResumo
-    usa_baixas = os.getenv('CONTROLE_FONTE', 'baixas') != 'pesagens' and BaixaFio.query.first()
+    usa_baixas = os.getenv('CONTROLE_FONTE', 'pesagens') == 'baixas' and BaixaFio.query.first()
     chave_dados = (usa_baixas, db.session.query(db.func.count(PesagemMalharia.id), db.func.max(PesagemMalharia.synced_at), db.func.max(PesagemMalharia.hora_real)).one(),
                    db.session.query(db.func.count(PesagemResumo.id), db.func.max(PesagemResumo.atualizado_em)).one(), db.session.query(db.func.count(Sequencia.id), db.func.max(Sequencia.synced_at)).one())
     memo = _MOV_CACHE.get('api')
