@@ -1792,3 +1792,48 @@ def movimentos_kardex_local23():
             resultado.append(linha)
     saida.update(produtos=resultado, kardex_movimentos_total=total_mov, erros=erros[:5], dica='compare hub_pecas x movimentos por produto; se bater, o kardex do saldo 23 serve para automatizar. Teste ?saldo=24 e ?dia= para outros dias.')
     return _json(saida)
+
+
+@mov_bp.route('/kardex-saldos')
+@login_required
+def movimentos_kardex_saldos():
+    """So administrador: descobre em qual 'tipo de saldo' do kardex a malha pesada entra. Para um produto de OP que o Hub pesou (?produto=4331, ?dias=10) le o kardex SEM filtro de saldo e depois com cada
+    BalanceType de 1 a ?ate=80, mostrando quais devolvem movimentos (quantidade, operacoes, exemplos). O local 23 do Relatorio 32 nao e, necessariamente, o tipo de saldo 23."""
+    if not current_user.is_admin:
+        abort(403)
+    from collections import Counter
+    from concurrent.futures import ThreadPoolExecutor
+    from datetime import date, timedelta
+    produto = request.args.get('produto', '4331')
+    dias = int(request.args.get('dias', 10))
+    ate = int(request.args.get('ate', 80))
+    hoje = date.today()
+    a, b = (hoje - timedelta(days=dias)).isoformat(), hoje.isoformat()
+    url = f'{movimentos.BASE_URL}/api/totvsmoda/product/v2/kardex-movement'
+
+    def ler(cli, saldo):
+        p = dict(ProductCode=produto, BranchCode=movimentos.EMPRESA, StartDate=a, EndDate=b)
+        if saldo is not None:
+            p['BalanceType'] = saldo
+        r = cli.get(url, p)
+        if r.status_code == 400 and 'MovementDataNotFound' in r.text:
+            return None
+        if r.status_code != 200:
+            return f'HTTP {r.status_code} {r.text[:140]}'
+        j = r.json()
+        j = j[0] if isinstance(j, list) and j else (j if isinstance(j, dict) else {})
+        movs = j.get('movements') or []
+        return dict(movimentos=len(movs), cabecalho={k: v for k, v in j.items() if k != 'movements'}, campos=sorted(movs[0].keys()) if movs else [],
+                    por_operacao=dict(Counter(f"{m.get('operationCode')} {m.get('operationName') or m.get('operationDescription') or ''}" for m in movs).most_common(8)), exemplos=movs[:3])
+    saida = dict(produto=produto, periodo=f'{a} a {b}')
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        saida['sem_filtro_de_saldo'] = ler(cli, None)
+        achados = {}
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            for saldo, res in zip(range(1, ate + 1), ex.map(lambda s_: ler(cli, s_), range(1, ate + 1))):
+                if res:
+                    achados[saldo] = res
+    saida['saldos_com_movimento'] = achados
+    saida['saldos_testados'] = f'1 a {ate}'
+    return _json(saida)
