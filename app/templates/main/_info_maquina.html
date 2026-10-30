@@ -73,6 +73,11 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
   function desenhar(d) {
     if (d.vazio) { corpo.innerHTML = '<h3>Máquina ' + d.maquina + '</h3><p class="info-vazio">Sem sequência programada.</p>'; return; }
     var a = d.acompanhamento, h = '<h3>Máquina ' + String(d.maquina).padStart(2, '0') + ' · OP ' + esc(a.op) + ' · ' + esc(a.artigo) + '</h3><div class="info-vazio">' + esc(a.cliente || '') + ' · ' + esc(a.situacao || a.status) + '</div>';
+    (d.paradas || []).forEach(function (p) {
+      var cor = p.parada ? ['#fee2e2', '#dc2626', '#991b1b'] : ['#fff7ed', '#fdba74', '#9a3412'];
+      h += '<div style="background:' + cor[0] + ';border:1px solid ' + cor[1] + ';color:' + cor[2] + ';border-radius:8px;padding:7px 12px;margin-top:8px;font-weight:800">' + (p.parada ? '🛑 MÁQUINA PARADA' : '● ' + esc(p.tipo)) + (p.motivo ? ' · ' + esc(p.motivo) : '') +
+        '<div style="font-weight:600;font-size:12px">desde ' + esc(p.inicio) + (p.minutos != null ? ' · há ' + Math.floor(p.minutos / 60) + ':' + String(p.minutos % 60).padStart(2, '0') : '') + (p.aguardando_peca ? ' · aguardando 1ª peça' : '') + ' · ocorrência em andamento (Acompanhamento de Produção)</div></div>';
+    });
     var ncs = d.ocorrencias.filter(function (o) { return o.tipo === 'NC'; }), rls = d.ocorrencias.filter(function (o) { return o.tipo === 'RL'; });
     var abertas = d.ocorrencias.filter(function (o) { return o.aberta; }).length;
     function btnVer(t, n, r) { return '<span style="display:inline-flex;align-items:center;gap:8px">' + n + ' ' + r + '<button type="button" class="info-ver" data-t="' + t + '" style="border:0;border-radius:6px;padding:3px 12px;font-weight:800;cursor:pointer;background:#fff;color:inherit">VER</button></span>'; }
