@@ -119,6 +119,8 @@ def create_app():
     app.register_blueprint(rep_bp)
     from app.reprova_cru import pode_ver as _pode_reprovas
     app.jinja_env.globals['pode_reprovas_cru'] = _pode_reprovas
+    from app import previsao as _prev
+    app.jinja_env.globals.update(efic=_prev.EFICIENCIA, efic_pct=round(_prev.EFICIENCIA * 100), ineficiencia_pct=round((1 - _prev.EFICIENCIA) * 100), min_dia=round(_prev.MIN_DIA))
 
     def _pode_pcp_edita():
         from app.main.routes import _pode_dias_sem_producao

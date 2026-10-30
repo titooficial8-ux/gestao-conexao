@@ -84,6 +84,16 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
     if (ncs.length || rls.length) h += '<div style="background:' + (abertas ? '#fee2e2' : '#fff7ed') + ';border:1px solid ' + (abertas ? '#dc2626' : '#fdba74') + ';color:' + (abertas ? '#991b1b' : '#9a3412') + ';border-radius:8px;padding:7px 12px;margin-top:8px;font-weight:800;display:flex;align-items:center;flex-wrap:wrap;gap:6px 22px">' +
       (ncs.length ? btnVer('NC', '⚠ ' + ncs.length, ncs.length > 1 ? 'NC · peças reprovadas' : 'NC · peça reprovada') : '') + (rls.length ? btnVer('RL', '📋 ' + rls.length, 'RL.PRODUÇÃO · apontamentos do revisor') : '') + (abertas ? '<span>· ' + abertas + ' em aberto</span>' : '') + '</div>';
     h += '<h4>Acompanhamento de produção</h4><div class="info-kv">' + kv('Produzidas / total', a.produzidas + ' / ' + a.total) + kv('Meta por dia (pç)', a.meta_dia) + kv('Meta por turno (pç)', a.meta_turno) + kv('Término previsto (BETA TESTE)', a.termino) + kv('Estrutura', a.estrutura) + kv('RPM', a.rpm) + '</div>';
+    var pa = a.previsao_artigo;
+    h += '<h4>Média de peças do artigo nesta máquina</h4>';
+    if (!pa) { h += '<p class="info-vazio">Sem dados de raport/RPM/voltas para calcular a média deste artigo.</p>'; }
+    else {
+      var vir = function (n) { return n == null ? null : String(n).replace('.', ','); };
+      h += '<div class="info-kv">' + kv('DS.METROS (peça)', pa.ds_metros != null ? vir(pa.ds_metros) + ' m' : null) + kv('Voltas por peça', vir(pa.voltas)) + kv('Raport', pa.raport != null ? vir(pa.raport) + ' cm' : null) +
+        kv('RPM', pa.rpm_instalado != null ? vir(pa.rpm_instalado) + ' instalado → ' + vir(pa.rpm) + ' a ' + pa.eficiencia + '%' : vir(pa.rpm)) + kv('Minutos por peça', vir(pa.min_por_peca)) + kv('Metros por dia', pa.metros_dia != null ? vir(pa.metros_dia) + ' m' : null) + '</div>';
+      h += '<div class="info-turnos"><div style="background:#ecfdf5"><small>peças por hora</small><b>' + vir(pa.pecas_hora) + '</b>média</div><div style="background:#ecfdf5"><small>peças por turno</small><b>' + vir(pa.pecas_turno) + '</b>média</div><div style="background:#ecfdf5"><small>peças em 24 h</small><b>' + vir(pa.pecas_dia) + '</b>média</div></div>' +
+        '<div class="info-vazio" style="margin-top:4px">Voltas ÷ RPM = minutos por peça · base: ' + esc(pa.fonte === 'raport' ? 'raport da estrutura × RPM instalado da máquina' : pa.fonte) + ' · eficiência da máquina ' + pa.eficiencia + '%</div>';
+    }
     h += '<div class="info-turnos">' + [0, 1, 2].map(function (i) { return '<div><small>' + (i + 1) + 'º turno</small><b>' + a.pesadas_turno[i] + '</b>pç pesadas' + (a.meta_turno ? ' / meta ' + Math.round(a.meta_turno) : '') + '</div>'; }).join('') + '</div><div class="info-vazio" style="margin-top:4px">Hoje: dia de produção iniciado em ' + a.inicio_dia + '</div>';
     h += '<div class="info-turnos" style="margin-top:10px">' + [0, 1, 2].map(function (i) { return '<div style="background:#f8fafc"><small>' + (i + 1) + 'º turno · dia anterior</small><b>' + a.pesadas_ontem[i] + '</b>pç pesadas' + (a.meta_turno ? ' / meta ' + Math.round(a.meta_turno) : '') + '</div>'; }).join('') + '</div><div class="info-vazio" style="margin-top:4px">Dia anterior (desta OP): iniciado em ' + a.inicio_ontem + '</div>';
     h += '<h4>Etapas de liberação (MEC + QUALI)</h4>';
