@@ -379,9 +379,18 @@ def referencia(idx, maquina: int, op, artigo):
     return None, None
 
 
+def _cfg_leve(maquina: int, s):
+    """Mesma coisa que _cfg_raport(), mas so com o artigo e a maquina desta OP (o modal do INFO abre sem ler o cadastro inteiro de artigos)."""
+    cod = _codigo(s.artigo)
+    return ({r.estrutura: r.raport for r in RaportEstrutura.query.all()},
+            {(r.maquina, r.estrutura): r.raport for r in RaportMaquinaEstrutura.query.filter_by(maquina=maquina).all()},
+            {r.maquina: r.rpm_instalado for r in MaquinaRpm.query.filter_by(maquina=maquina).all()},
+            {r.artigo: r for r in ArtigoTamanho.query.filter_by(artigo=cod).all()})
+
+
 def raport_da_op(maquina: int, s):
     """Raport (cm) do artigo da OP nesta maquina: excecao da maquina + estrutura, senao o da estrutura (cadastro de Raport). None se a estrutura nao esta no cadastro."""
-    por_estr, por_maq, _rpms, artigos = _cfg_raport()
+    por_estr, por_maq, _rpms, artigos = _cfg_leve(maquina, s)
     tam = artigos.get(_codigo(s.artigo))
     estr = codigo_estrutura(s.estrutura) or (tam.estrutura if tam else None)
     return (por_maq.get((maquina, estr)) or por_estr.get(estr)) if estr else None
@@ -389,9 +398,9 @@ def raport_da_op(maquina: int, s):
 
 def estimativa_artigo(maquina: int, s):
     """Quantas pecas o artigo da OP `s` entrega nesta maquina (mesma conta do Termino Malharia): DS.METROS, voltas, RPM, raport, pecas por hora/turno/24 h. None se faltar base."""
-    idx = _indices()
+    idx = _indices() if FONTE != 'raport' else ({}, {}, {}, {})                  # fonte raport: nao precisa da base de producao (varrer a tabela inteira deixava o modal lento)
     ref, fonte = referencia(idx, maquina, s.op, s.artigo)
-    rap = None if ref else previsao_raport(_cfg_raport(), maquina, s, idx[2])
+    rap = None if ref else previsao_raport(_cfg_leve(maquina, s), maquina, s, idx[2])
     if ref:
         voltas, rpm, min_dia, raport = ref.voltas, ref.rpm, MIN_DIA, None
     elif rap:

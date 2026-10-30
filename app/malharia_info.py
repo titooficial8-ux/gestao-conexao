@@ -12,7 +12,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, jsonify, request, current_app
 from flask_login import current_user, login_required
 
 from app import db
@@ -26,13 +26,45 @@ _cache, _trava = {}, threading.Lock()
 ETAPAS = (('E1', 'Mecânico (liberação na máquina)'), ('E2', 'Revisão do cru'), ('E3', 'Acabamento'), ('E4', 'Liberação final'))
 
 
+_refrescando = set()
+_USO = [0.0]                                         # ultima vez que alguem abriu uma tela do INFO (o aquecimento so roda enquanto estao usando)
+
+
+def _refrescar(app, chave, ttl, fn):
+    try:
+        with app.app_context():
+            novo = fn()
+        with _trava:
+            _cache[chave] = (time.time(), novo, None)
+    except Exception as e:  # noqa: BLE001
+        with _trava:
+            v = _cache.get(chave)
+            _cache[chave] = (time.time() - ttl + 15, v[1] if v else [], str(e)[:200])
+    finally:
+        with _trava:
+            _refrescando.discard(chave)
+
+
 def _cacheado(chave, ttl, fn):
-    """Mantem o ultimo valor bom: se o SharePoint falhar, devolve o antigo (ou lista vazia) em vez de quebrar a tela."""
+    """Mantem o ultimo valor bom e NUNCA faz quem abriu a tela esperar o SharePoint: vencido o prazo, devolve o valor antigo na hora e atualiza em segundo plano
+    (so espera de verdade na 1a leitura ou se o valor tem mais de 6x o prazo). Se o SharePoint falhar, continua com o antigo."""
     agora = time.time()
     with _trava:
         v = _cache.get(chave)
         if v and agora - v[0] < ttl:
             return v[1]
+        if v and agora - v[0] < max(ttl * 6, 180):
+            if chave not in _refrescando:
+                try:
+                    app = current_app._get_current_object()
+                except RuntimeError:
+                    app = None
+                if app is not None:
+                    _refrescando.add(chave)
+                    threading.Thread(target=_refrescar, args=(app, chave, ttl, fn), daemon=True, name=f'info-{chave}').start()
+                    return v[1]
+            else:
+                return v[1]
     try:
         novo = fn()
     except Exception as e:  # noqa: BLE001
@@ -42,6 +74,26 @@ def _cacheado(chave, ttl, fn):
     with _trava:
         _cache[chave] = (agora, novo, None)
     return novo
+
+
+def iniciar_aquecimento(app) -> None:
+    """Mantem quentes os dados do INFO (liberacoes e NCs do SharePoint, ocorrencias do Acompanhamento) enquanto alguem esta usando a tela, para o modal abrir na hora."""
+    def loop():
+        time.sleep(30)
+        while True:
+            try:
+                if time.time() - _USO[0] < 900:
+                    with app.app_context():
+                        _liberacoes()
+                        _ncs()
+                        from app import acompanhamento
+                        if acompanhamento.configurado():
+                            acompanhamento.abertas()
+                            acompanhamento.liberacoes('pendente')
+            except Exception:  # noqa: BLE001
+                pass
+            time.sleep(12)
+    threading.Thread(target=loop, daemon=True, name='info-aquecimento').start()
 
 
 def _erro(chave):
@@ -101,7 +153,7 @@ def _ncs() -> list:
         except Exception:  # noqa: BLE001
             pass
         return saida
-    return _cacheado('ncs', 20, ler)
+    return _cacheado('ncs', 45, ler)
 
 
 def _hub_cientes() -> set:
@@ -123,6 +175,7 @@ def resolvidas() -> set:
     return {e.nc_id for e in NcEstado.query.filter_by(estado='LIBERADO').all()} | set(_hub_cientes())
 
 
+_INFO_FALHA = {}                                     # op -> quando nao deu para descobrir cliente/artigo: nao repete a busca no TOTVS por 30 min
 _INFO_OP = {}                                        # op -> (quando, cliente, artigo): cliente e artigo de uma OP nao mudam; guarda por 12 h
 
 
@@ -158,6 +211,7 @@ def info_das_ops(pares) -> dict:
         if not (cli_op and art_op):
             faltam.append(op)
         out[op] = None
+    faltam = [o for o in faltam if agora - _INFO_FALHA.get(o, 0) > 1800]
     if faltam:
         try:
             from app.totvs import api, artigos
@@ -174,6 +228,9 @@ def info_das_ops(pares) -> dict:
                 arts[op] = arts.get(op) or cods.get(str(it.get('productCode')))
         except Exception:  # noqa: BLE001
             pass
+        for o in faltam:
+            if not (nomes.get(o) and arts.get(o)):
+                _INFO_FALHA[o] = agora
     dig = {str(op): (a, inf) for op, a, inf in pares if op}
     for op, (a, inf) in dig.items():
         if out.get(op):
@@ -205,6 +262,7 @@ def pode_liberar(u=None) -> bool:
 
 
 def _tab_ok():
+    _USO[0] = time.time()
     tab = Tab.query.filter_by(slug='programacao').first_or_404()
     if not tab.visible_to(current_user):
         abort(403)
