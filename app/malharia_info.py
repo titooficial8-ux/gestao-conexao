@@ -402,6 +402,15 @@ def _ocorrencias(artigo, maquina, num):
     return sorted(nc + rl, key=lambda o: o['ordem'], reverse=True)[:50]
 
 
+def _ocorrencias_abertas(m2):
+    """Ocorrencias em andamento desta maquina no Acompanhamento de Producao (maquina parada, amostra...), as mesmas do painel Tempo Real Malharia."""
+    from app import acompanhamento
+    if not acompanhamento.configurado():
+        return []
+    return [dict(id=x['id'], tipo=x['tipo'], motivo=x['motivo'], inicio=x['inicio'], dia=x['dia'], minutos=x['minutos'], parada='PARAD' in x['tipo'], aguardando_peca=x['aguardando_peca'])
+            for x in acompanhamento.abertas()['itens'] if x['maquina'] == m2 and not x['revisor']]
+
+
 @info_bp.route('/maquina/<int:numero>/alertas')
 @login_required
 def info_alertas_maquina(numero):
@@ -415,12 +424,15 @@ def info_alertas_maquina(numero):
     pend_api = [x for x in acompanhamento.liberacoes('pendente')['itens'] if x['maquina'] == m2] if api_ok else []
     resolv = resolvidas()
     ncs = [n for n in _ncs() if n['maquina'] == m2 and n['criado'] and n['id'] not in resolv and not api_ok]      # NC ja resolvida (liberada aqui ou 'ciente' no Hub) nao conta mais
+    parada = any(o['parada'] for o in _ocorrencias_abertas(m2))
     ids, marca = [], []
+    ativas = [sq for sq in maq.sequencias if sq.status not in ('FINALIZADO', 'CANCELADO')]
+    produzindo = next((sq for sq in sorted(ativas, key=lambda q: (q.status != 'PRODUZINDO', q.sequence_order or 0))), None)
     for sq in maq.sequencias:
         if sq.status in ('FINALIZADO', 'CANCELADO'):
             continue
         cod = (sq.artigo or '').split(' ')[0]
-        if any(n['artigo'] == cod and n['op'] == str(sq.op) for n in ncs) or any(x['op'] == str(sq.op) for x in pend_api):            # NC/peca com defeito desta mesma OP ainda sem liberacao do lider: i piscando
+        if (parada and produzindo is not None and sq.id == produzindo.id) or any(n['artigo'] == cod and n['op'] == str(sq.op) for n in ncs) or any(x['op'] == str(sq.op) for x in pend_api):            # NC/peca com defeito desta mesma OP ainda sem liberacao do lider: i piscando
             ids.append(sq.id)
         elif any(n['artigo'] == cod and n['criado'] >= recente for n in ncs) or any(x['artigo'].split(' ')[0] == cod for x in pend_api):          # mesmo artigo reprovado em outra OP nesta maquina: i vermelho fixo (so identifica)
             marca.append(sq.id)
@@ -440,7 +452,7 @@ def info_maquina(numero):
         return jsonify(maquina=numero, vazio=True)
     m2 = f'{numero:02d}'
     resumo, etapas = _etapas(seq.artigo, seq.op, m2)
-    return jsonify(maquina=numero, acompanhamento=_acompanhamento(seq, maq), liberacao=resumo, etapas=etapas, ocorrencias=_ocorrencias(seq.artigo, m2, numero), erro_sharepoint=_erro('liberacoes') or _erro('ncs'))
+    return jsonify(maquina=numero, acompanhamento=_acompanhamento(seq, maq), liberacao=resumo, etapas=etapas, ocorrencias=_ocorrencias(seq.artigo, m2, numero), paradas=_ocorrencias_abertas(m2), erro_sharepoint=_erro('liberacoes') or _erro('ncs'))
 
 
 # ------------------------------------------------------------------ aumento de quantidade da OP (PCPFP084)
