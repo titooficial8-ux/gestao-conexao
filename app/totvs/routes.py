@@ -1976,6 +1976,7 @@ def movimentos_conciliar_pecas():
     casadas = nao_casadas = metros_iguais = 0
     dif_producao, dif_calendario, dif_hora = Counter(), Counter(), Counter()
     por_hora_do_dia = defaultdict(Counter)
+    por_maquina, por_op, por_turno = defaultdict(Counter), defaultdict(Counter), defaultdict(Counter)
     exemplos, sem_api = [], Counter()
     for h in hub:
         try:
@@ -1993,6 +1994,9 @@ def movimentos_conciliar_pecas():
         dif_producao[(dia_prod - p.data).days] += 1
         dif_calendario[(br.date() - p.data).days] += 1
         por_hora_do_dia[br.hour][(br.date() - p.data).days] += 1
+        por_maquina[(h.cod_maquina or '?')][(dia_prod - p.data).days] += 1
+        por_op[str(h.op)][(dia_prod - p.data).days] += 1
+        por_turno['1o 06:20-14:19' if 380 <= br.hour * 60 + br.minute < 860 else ('2o 14:20-22:19' if 860 <= br.hour * 60 + br.minute < 1340 else '3o 22:20-06:19')][(dia_prod - p.data).days] += 1
         if p.metros is not None and h.qt_movimento is not None and abs(p.metros - h.qt_movimento) < 0.01:
             metros_iguais += 1
         if p.hora_real:
@@ -2002,4 +2006,7 @@ def movimentos_conciliar_pecas():
     return _json(dict(dias=dias, pecas_hub=len(hub), casadas=casadas, sem_correspondente_na_api=nao_casadas, metros_iguais=metros_iguais,
                       dif_dia_producao_hub_menos_data_api=dict(sorted(dif_producao.items())), dif_dia_calendario_hub_menos_data_api=dict(sorted(dif_calendario.items())),
                       dif_horas_hub_menos_hora_da_baixa=dict(sorted(dif_hora.items())),
+                      dif_producao_por_turno={k: dict(sorted(v.items())) for k, v in sorted(por_turno.items())},
+                      dif_producao_por_maquina={k: dict(sorted(v.items())) for k, v in sorted(por_maquina.items())},
+                      dif_producao_por_op_maiores={k: dict(sorted(v.items())) for k, v in sorted(por_op.items(), key=lambda kv: -sum(kv[1].values()))[:25]},
                       dif_calendario_por_hora_do_dia_no_hub={f'{h:02d}h': dict(sorted(c.items())) for h, c in sorted(por_hora_do_dia.items())}, ops_sem_correspondente=dict(sem_api.most_common(12)), exemplos=exemplos))
