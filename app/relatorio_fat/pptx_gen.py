@@ -15,7 +15,7 @@ from pptx.util import Emu, Inches, Pt
 ASSETS = Path(__file__).parent / 'assets'
 AZUL_ESCURO, AZUL_MEDIO, AZUL_CLARO, CINZA_LINHA, CINZA_TEXTO = '1F4E79', '2E75B6', '008EC9', 'F4F6F8', '454C52'
 TONS_TXT = {'pos': '1B7F3B', 'neg': 'C62828', 'zero': '6B7280'}
-CTX = {'gerado': '', 'pag': 0, 'total': 0}
+CTX = {'gerado': '', 'pag': 0, 'total': 0, 'rotulo': 'Relatório de Faturamento'}
 TONS_CARD = {'azul': '1F4E79', 'laranja': 'B7791F', 'vermelho': 'C62828', 'verde': '1B7F3B'}
 
 
@@ -58,7 +58,7 @@ def _rodape(s):
     """Faixa azul com o site e, a direita, o titulo do relatorio, a data/hora em que foi gerado e a pagina."""
     _retangulo(s, 0, 7.29, 13.333, 0.21, AZUL_CLARO)
     _texto(s, 0.4, 7.32, 4.0, 0.15, 'www.gestaoconexao.com.br', 9, 'FFFFFF')
-    _texto(s, 5.4, 7.32, 7.55, 0.15, f'Relatório de Faturamento  ·  Gerado em {CTX["gerado"]}  ·  {CTX["pag"]}/{CTX["total"]}', 9, 'FFFFFF', alinhar=PP_ALIGN.RIGHT)
+    _texto(s, 5.4, 7.32, 7.55, 0.15, f'{CTX["rotulo"]}  ·  Gerado em {CTX["gerado"]}  ·  {CTX["pag"]}/{CTX["total"]}', 9, 'FFFFFF', alinhar=PP_ALIGN.RIGHT)
 
 
 def _base_conteudo(prs, secao, titulo, nota):
@@ -253,7 +253,7 @@ def _intl(prs, p):
 def gerar(paginas: list[dict], gerado_em: str = '') -> bytes:
     prs = Presentation()
     prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
-    CTX.update(gerado=gerado_em, pag=0, total=len(paginas))
+    CTX.update(gerado=gerado_em, pag=0, total=len(paginas), rotulo='Relatório de Faturamento')
     for p in paginas:
         {'capa': _capa, 'resumo': _resumo, 'tabela': _tabela, 'intl': _intl, 'grafico': _grafico_pag}[p['tipo']](prs, p)
     buf = io.BytesIO()
