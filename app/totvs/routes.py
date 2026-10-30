@@ -1837,3 +1837,44 @@ def movimentos_kardex_saldos():
     saida['saldos_com_movimento'] = achados
     saida['saldos_testados'] = f'1 a {ate}'
     return _json(saida)
+
+
+@mov_bp.route('/transacao')
+@login_required
+def movimentos_transacao():
+    """So administrador: a transacao de finalizacao do kardex (?codigo=602484, operacao ?op=2030, dia ?dia=2026-10-29) CRUA, com os itens: ela traz uma linha por peca (lote/item, peso, hora)? Se trouxer, da para
+    automatizar as pecas pela API."""
+    if not current_user.is_admin:
+        abort(403)
+    from datetime import datetime, timedelta
+    codigo = int(request.args.get('codigo', 602484))
+    op = int(request.args.get('op', 2030))
+    dia = datetime.strptime(request.args.get('dia', '2026-10-29'), '%Y-%m-%d')
+    saida = dict(codigo=codigo, operacao=op)
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        achada = None
+        for nome, filtro in (('por_codigo', dict(branchCodeList=[movimentos.EMPRESA], transactionCodeList=[codigo])),
+                             ('por_dia_e_operacao', dict(branchCodeList=[movimentos.EMPRESA], operationCodeList=[op], startChangeDate=f'{(dia - timedelta(days=1)).date()}T00:00:00', endChangeDate=f'{(dia + timedelta(days=2)).date()}T23:59:59'))):
+            for pg in range(1, 15):
+                r = cli.post(movimentos.TRX_URL, dict(filter=filtro, expand='items', page=pg, pageSize=200))
+                if r.status_code != 200:
+                    saida[nome] = f'HTTP {r.status_code} {r.text[:200]}'
+                    break
+                j = r.json()
+                for t in j.get('items') or []:
+                    if int(t.get('transactionCode') or 0) == codigo:
+                        achada = t
+                        break
+                if achada or not j.get('hasNext'):
+                    break
+            saida.setdefault(nome, 'achou' if achada else 'nao achou')
+            if achada:
+                break
+    if achada:
+        its = achada.get('items') or []
+        saida['transacao'] = {k: v for k, v in achada.items() if k != 'items'}
+        saida['n_itens'] = len(its)
+        saida['campos_do_item'] = sorted(its[0].keys()) if its else []
+        saida['itens_exemplo'] = its[:3]
+    return _json(saida)
