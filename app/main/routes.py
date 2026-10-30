@@ -2556,6 +2556,33 @@ def _assinatura_programacao(maquina=None) -> str:
     return hashlib.md5('\n'.join(partes).encode()).hexdigest()
 
 
+@main_bp.route('/aba/programacao/previsao-diagnostico')
+@login_required
+def programacao_previsao_diagnostico():
+    """So administrador: como o Termino Malharia de cada OP da maquina (?maquina=1) foi calculado (fonte, voltas, RPM, pecas/dia, quanto falta) e quais dias a conta pula (domingos + datas marcadas em Dias sem Producao; feriados nao marcados continuam produzindo)."""
+    if not current_user.is_admin:
+        abort(403)
+    from app import previsao
+    from app.dias_producao import feriados
+    numero = request.args.get('maquina', type=int) or 1
+    maq = Machine.query.filter_by(number=numero).first_or_404()
+    seqs = sorted([q for q in maq.sequencias if q.status in previsao.ATIVAS], key=lambda q: (q.status != 'PRODUZINDO', q.sequence_order if q.sequence_order is not None else 10 ** 6, q.id))
+    hoje = date.today()
+    marc_g = {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.date >= hoje, NonWorkingDay.machine_id.is_(None)).all()}
+    marc_m = {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.date >= hoje, NonWorkingDay.machine_id == maq.id).all()}
+    fer = {}
+    for a in (hoje.year, hoje.year + 1):
+        fer.update(feriados(a))
+    prox = [dict(data=k, nome=v['nome'], dia_semana=['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'][date.fromisoformat(k).weekday()], marcado_sem_producao=date.fromisoformat(k) in (marc_g | marc_m))
+            for k, v in sorted(fer.items()) if hoje <= date.fromisoformat(k) <= hoje + timedelta(days=60) and v['tipo'] != 'event']
+    return jsonify(maquina=numero, parametros=dict(fonte_voltas_rpm=previsao.FONTE, ineficiencia=previsao.INEFICIENCIA, troca_horas_antes_de_cada_op_que_nao_produz=previsao.TROCA_HORAS, domingo='nunca produz',
+                                                     sabado='produz (so para se marcado)', dia_de_producao='06:00 as 06:00'),
+                   dias_marcados_global=sorted(d.isoformat() for d in marc_g), dias_marcados_so_desta_maquina=sorted(d.isoformat() for d in marc_m), feriados_proximos_60_dias=prox,
+                   ops=[dict(ordem=q.sequence_order, op=q.op, artigo=q.artigo, status=q.status, total_pcs=q.total_pcs, produzidas=q.pecas_produzidas, restam=max((q.total_pcs or 0) - (q.pecas_produzidas or 0), 0), pecas_24h=q.pecas_dia,
+                             fonte=q.prev_fonte, voltas=q.prev_voltas, rpm_85=q.prev_rpm, raport=q.prev_raport, termino_calculado_aqui=bool(q.termino_calculado), termino_malharia=q.termino_malharia.isoformat() if q.termino_malharia else None,
+                             termino_hora=q.prev_termino_em.strftime('%d/%m %H:%M') if q.prev_termino_em else None) for q in seqs])
+
+
 @main_bp.route('/aba/programacao/assinatura-log')
 @login_required
 def programacao_assinatura_log():
