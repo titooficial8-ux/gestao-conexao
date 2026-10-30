@@ -294,6 +294,8 @@ def create_app():
         garantir_expedicao()                                             # aba Expedicao (Planejamento)
         from app.auditoria import garantir_aba as garantir_controle_artigos
         garantir_controle_artigos()                                      # aba Controle de Artigos (Planejamento)
+        from app.seed import garantir_aba_controle_mp
+        garantir_aba_controle_mp()                                       # aba Controle MP (Estoque / Supply Chain)
         from app.indicadores.routes import garantir_aba as garantir_indicadores
         garantir_indicadores()                                           # aba Indicadores (Producao)
         # contas iniciais por setor (idempotente)
