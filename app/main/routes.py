@@ -2556,6 +2556,22 @@ def _assinatura_programacao(maquina=None) -> str:
     return hashlib.md5('\n'.join(partes).encode()).hexdigest()
 
 
+@main_bp.route('/aba/programacao/estudo-malharia')
+@login_required
+def programacao_estudo_malharia():
+    """Estudo da Malharia (.pptx no modelo da Conexao): media de entrega, maquinas que entregam/produzem bem (DS.METROS), trocas previstas. So leitura."""
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+    from app import estudo_malharia
+    try:
+        corpo = estudo_malharia.gerar()
+    except Exception as e:  # noqa: BLE001
+        return Response(f'Não foi possível gerar o Estudo da Malharia: {e}', status=500, mimetype='text/plain')
+    nome = f'estudo_malharia_{(datetime.utcnow() - timedelta(hours=3)).strftime("%Y-%m-%d")}.pptx'
+    return Response(corpo, mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation', headers={'Content-Disposition': f'attachment; filename={nome}'})
+
+
 @main_bp.route('/aba/programacao/previsao-diagnostico')
 @login_required
 def programacao_previsao_diagnostico():
