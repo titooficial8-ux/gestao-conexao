@@ -461,6 +461,14 @@ def info_maquina(numero):
         return jsonify(maquina=numero, vazio=True)
     m2 = f'{numero:02d}'
     resumo, etapas = _etapas(seq.artigo, seq.op, m2)
+    if resumo is not None:                                            # o app de liberacao nao traz o raport: vem do cadastro (estrutura da OP + excecao da maquina)
+        try:
+            from app import previsao
+            rap = previsao.raport_da_op(numero, seq)
+        except Exception:  # noqa: BLE001
+            rap = None
+        if rap:
+            resumo['regulagem'] = {'Raport': f"{str(rap).replace('.', ',')} cm", **resumo['regulagem']}
     return jsonify(maquina=numero, acompanhamento=_acompanhamento(seq, maq), liberacao=resumo, etapas=etapas, ocorrencias=_ocorrencias(seq.artigo, m2, numero), paradas=_ocorrencias_abertas(m2), erro_sharepoint=_erro('liberacoes') or _erro('ncs'))
 
 

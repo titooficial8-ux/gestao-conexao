@@ -379,6 +379,14 @@ def referencia(idx, maquina: int, op, artigo):
     return None, None
 
 
+def raport_da_op(maquina: int, s):
+    """Raport (cm) do artigo da OP nesta maquina: excecao da maquina + estrutura, senao o da estrutura (cadastro de Raport). None se a estrutura nao esta no cadastro."""
+    por_estr, por_maq, _rpms, artigos = _cfg_raport()
+    tam = artigos.get(_codigo(s.artigo))
+    estr = codigo_estrutura(s.estrutura) or (tam.estrutura if tam else None)
+    return (por_maq.get((maquina, estr)) or por_estr.get(estr)) if estr else None
+
+
 def estimativa_artigo(maquina: int, s):
     """Quantas pecas o artigo da OP `s` entrega nesta maquina (mesma conta do Termino Malharia): DS.METROS, voltas, RPM, raport, pecas por hora/turno/24 h. None se faltar base."""
     idx = _indices()
