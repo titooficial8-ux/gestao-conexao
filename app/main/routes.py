@@ -1566,7 +1566,7 @@ def programacao_download():
     _larguras(ws)
 
     pr = wb.create_sheet('Programação')
-    pr.append(['Máquina', 'Seq.', 'Status', 'OP', 'Artigo', 'Cliente', 'DS.Metros', 'Qt Solicitada', 'Total Peças', 'Peças Produzidas', 'PÇ.PRODUZIR', 'Início Malharia', 'Término Malharia', 'Prazo Cliente', 'Em Atraso'])
+    pr.append(['Máquina', 'Seq.', 'Status', 'OP', 'Artigo', 'Cliente', 'Estrutura', 'DS.Metros', 'Qt Solicitada', 'Total Peças', 'Peças Produzidas', 'PÇ.PRODUZIR', 'Início Malharia', 'Término Malharia', 'Prazo Cliente', 'Em Atraso'])
     _cabecalho(pr, '0EA5E9')
     hoje_br = (datetime.utcnow() - timedelta(hours=3)).date()
     for n in sorted(por_maquina):
@@ -1574,19 +1574,19 @@ def programacao_download():
         inicio = hoje_br                                     # a 1a OP comeca agora; cada proxima comeca quando a anterior termina
         for x in lista:
             atrasado = bool(x.termino_malharia and x.dt_cliente and x.termino_malharia > x.dt_cliente)
-            pr.append([f'MÁQ {n}', x.sequence_order, STATUS_LABEL.get(x.status, x.status), x.op, x.artigo, x.cliente, resolve_metros_from_article(x.artigo), x.qt_solicitada or 0,
+            pr.append([f'MÁQ {n}', x.sequence_order, STATUS_LABEL.get(x.status, x.status), x.op, x.artigo, x.cliente, resolve_estrutura_from_article(x.artigo), resolve_metros_from_article(x.artigo), x.qt_solicitada or 0,
                        x.total_pcs or 0, x.pecas_produzidas or 0, max(0, (x.total_pcs or 0) - (x.pecas_produzidas or 0)), _fmt(inicio), _fmt(x.termino_malharia), _fmt(x.dt_cliente), 'SIM' if atrasado else 'NÃO'])
-            c = pr.cell(row=pr.max_row, column=15)
+            c = pr.cell(row=pr.max_row, column=16)
             c.fill = PatternFill('solid', fgColor='DC2626' if atrasado else '16A34A')
             c.font = Font(bold=True, color='FFFFFF')
             inicio = x.termino_malharia or inicio
-        pr.append([f'TOTAL MÁQ {n}', None, None, None, None, None, None, sum(x.qt_solicitada or 0 for x in lista), sum(x.total_pcs or 0 for x in lista), sum(x.pecas_produzidas or 0 for x in lista),
+        pr.append([f'TOTAL MÁQ {n}', None, None, None, None, None, None, None, sum(x.qt_solicitada or 0 for x in lista), sum(x.total_pcs or 0 for x in lista), sum(x.pecas_produzidas or 0 for x in lista),
                    sum(max(0, (x.total_pcs or 0) - (x.pecas_produzidas or 0)) for x in lista)])
         for c in pr[pr.max_row]:
             c.font = Font(bold=True)
             c.fill = PatternFill('solid', fgColor='E2E8F0')
     _larguras(pr)
-    pr.auto_filter.ref = f'A1:{get_column_letter(15)}{pr.max_row}'
+    pr.auto_filter.ref = f'A1:{get_column_letter(16)}{pr.max_row}'
 
     buf = BytesIO()
     wb.save(buf)
