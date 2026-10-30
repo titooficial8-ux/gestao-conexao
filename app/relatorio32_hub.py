@@ -52,16 +52,8 @@ def _chave(op, item, lote, dt):
     return (str(op or ''), str(item or ''), str(lote or ''), dt)
 
 
-def sincronizar(dias: int = None) -> dict:
-    """Le do Hub as pesagens dos ultimos `dias` e acerta o banco do Gestao (insere as novas, apaga as que o Hub tirou). Precisa de app_context."""
-    agora = datetime.utcnow()
-    ult = db.session.query(db.func.max(Report32Movement.dt_real)).scalar()
-    if dias is None:
-        dias = int(os.getenv('RELATORIO32_DIAS', '3'))
-        if not ult or ult < agora - timedelta(days=7):               # banco vazio ou muito atrasado: primeira carga maior
-            dias = int(os.getenv('RELATORIO32_DIAS_INICIAL', '60'))
-    desde = (agora - timedelta(days=dias)).replace(hour=0, minute=0, second=0, microsecond=0)
-    linhas = _ler_hub(desde)
+def aplicar(linhas: list, desde: datetime, apagar: bool = True) -> dict:
+    """Acerta o banco com as pesagens recebidas (do Hub ou direto do agente): insere as novas e, se `apagar`, remove as da janela [desde, agora] que sumiram. dt_real em UTC ingenuo."""
     existentes = {_chave(r.op, r.nr_item, r.nr_lote, r.dt_real): r for r in Report32Movement.query.filter(Report32Movement.dt_real >= desde).all()}
     novas, vistas = 0, set()
     for x in linhas:
@@ -73,18 +65,71 @@ def sincronizar(dias: int = None) -> dict:
         db.session.add(Report32Movement(ciclo=x.get('ciclo'), op=str(x.get('op') or ''), nr_lote=str(x.get('nr_lote') or ''), nr_item=str(x.get('nr_item') or ''), cod_artigo=x.get('cod_artigo'),
                                         metro_padrao=_num(x.get('metro_padrao')), gramatura=_num(x.get('gramatura')), largura=_num(x.get('largura')), local_code=str(x.get('local_code') or '23'),
                                         qt_movimento=_num(x.get('qt_movimento')), qt_pesos=_num(x.get('qt_pesos')), cod_maquina=str(x.get('cod_maquina') or '') or None, dt_real=dt))
+        existentes[k] = None
         novas += 1
     removidas = 0
-    if linhas:                                                          # nunca apaga tudo se a leitura veio vazia
+    if apagar and linhas:                                               # nunca apaga tudo se a leitura veio vazia
         for k, r in existentes.items():
-            if k not in vistas:
+            if r is not None and k not in vistas:
                 db.session.delete(r)
                 removidas += 1
     db.session.commit()
     return dict(lidas=len(linhas), novas=novas, removidas=removidas, desde=desde.isoformat())
 
 
+def sincronizar(dias: int = None) -> dict:
+    """Le do Hub as pesagens dos ultimos `dias` e acerta o banco do Gestao (insere as novas, apaga as que o Hub tirou). Precisa de app_context."""
+    agora = datetime.utcnow()
+    ult = db.session.query(db.func.max(Report32Movement.dt_real)).scalar()
+    if dias is None:
+        dias = int(os.getenv('RELATORIO32_DIAS', '3'))
+        if not ult or ult < agora - timedelta(days=7):               # banco vazio ou muito atrasado: primeira carga maior
+            dias = int(os.getenv('RELATORIO32_DIAS_INICIAL', '60'))
+    desde = (agora - timedelta(days=dias)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return aplicar(_ler_hub(desde), desde)
+
+
+# ------------------------------------------------------------------ recebimento direto do agente (sem o Hub)
+from flask import Blueprint, jsonify, request  # noqa: E402
+
+r32_bp = Blueprint('relatorio32_receber', __name__, url_prefix='/api/relatorio32')
+RECEBIDO = dict(ultimo=None, linhas=0, novas=0)
+
+
+@r32_bp.route('/receber', methods=['POST'])
+def receber():
+    """O agente que le o Relatorio 32 (DICFM001) no TOTVS envia as pesagens direto para o Gestao, sem passar pelo PCP Hub.
+    Cabecalho `X-Token` = RELATORIO32_TOKEN do .env. Corpo JSON: {"linhas": [{op, nr_item, nr_lote, cod_artigo, cod_maquina, local_code, qt_movimento, qt_pesos, metro_padrao, gramatura, largura, ciclo, dt_real}],
+    "completo": false}. dt_real em ISO; sem fuso = horario de Brasilia. completo=true: as linhas sao TODAS as do periodo (a partir da menor dt_real) e as que nao vierem sao removidas."""
+    token = os.getenv('RELATORIO32_TOKEN', '').strip()
+    if not token:
+        return jsonify(ok=False, erro='RELATORIO32_TOKEN nao configurado no .env do Gestao.'), 503
+    if request.headers.get('X-Token', '') != token:
+        return jsonify(ok=False, erro='token invalido'), 401
+    j = request.get_json(silent=True) or {}
+    linhas = j.get('linhas') if isinstance(j, dict) else j
+    if not isinstance(linhas, list) or not linhas:
+        return jsonify(ok=False, erro='envie {"linhas": [...]}'), 400
+    BR = timedelta(hours=3)
+    pronto = []
+    for x in linhas:
+        try:
+            v = str(x['dt_real']).replace('Z', '+00:00')
+            d = datetime.fromisoformat(v)
+            if d.tzinfo is None:
+                d = (d + BR).replace(tzinfo=timezone.utc)             # sem fuso: horario de Brasilia -> UTC
+            pronto.append(dict(x, dt_real=d.isoformat()))
+        except (KeyError, ValueError):
+            return jsonify(ok=False, erro=f'linha sem dt_real valido: {str(x)[:120]}'), 400
+    menor = min(_utc(x['dt_real']) for x in pronto)
+    r = aplicar(pronto, menor, apagar=bool(j.get('completo')) if isinstance(j, dict) else False)
+    RECEBIDO.update(ultimo=datetime.now().isoformat(timespec='seconds'), linhas=r['lidas'], novas=r['novas'])
+    return jsonify(ok=True, **r)
+
+
 def atualizar(app) -> bool:
+    if RECEBIDO['ultimo'] and (datetime.now() - datetime.fromisoformat(RECEBIDO['ultimo'])) < timedelta(minutes=10):
+        return False                                                    # o agente esta enviando direto: nao mistura com a leitura do Hub (evita contar a mesma peca duas vezes)
     if not _trava.acquire(blocking=False):
         return False
     t0 = time.time()
