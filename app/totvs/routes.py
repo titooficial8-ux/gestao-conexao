@@ -1955,3 +1955,48 @@ def movimentos_crus():
     saida['movimentos_por_data'] = dict(sorted(Counter(str(m.get('movementDate'))[:10] for m in movs if m.get('originLocationCode') == 23 and m.get('destinationLocationCode') == 24).items()))
     saida['hub_por_data'] = dict(sorted(Counter((h.dt_real - timedelta(hours=3)).strftime('%Y-%m-%d') for h in hub).items()))
     return _json(saida)
+
+
+@mov_bp.route('/conciliar-pecas')
+@login_required
+def movimentos_conciliar_pecas():
+    """So administrador: casa PECA A PECA (OP + numero da peca) as pesagens do Hub (Relatorio 32) com as da API (movimento 23->24 da OP) dos ultimos ?dias=15 e mostra a diferenca de DIA entre as duas:
+    histograma de (dia de producao do Hub - data do movimento na API). Se for sempre o mesmo numero (ex.: +1), a API sozinha da o dia certo de cada peca."""
+    if not current_user.is_admin:
+        abort(403)
+    from collections import Counter, defaultdict
+    from datetime import datetime, timedelta
+    from app.models import PesagemMalharia, Report32Movement
+    dias = int(request.args.get('dias', 15))
+    corte = datetime.utcnow() - timedelta(days=dias)
+    hub = Report32Movement.query.filter(Report32Movement.dt_real >= corte).all()
+    api = defaultdict(dict)
+    for p in PesagemMalharia.query.all():
+        api[str(p.op)][int(p.item)] = p
+    casadas = nao_casadas = metros_iguais = 0
+    dif_producao, dif_calendario, dif_hora = Counter(), Counter(), Counter()
+    exemplos, sem_api = [], Counter()
+    for h in hub:
+        try:
+            item = int(h.nr_item)
+        except (TypeError, ValueError):
+            continue
+        p = api.get(str(h.op), {}).get(item)
+        if p is None or p.data is None:
+            nao_casadas += 1
+            sem_api[str(h.op)] += 1
+            continue
+        casadas += 1
+        br = h.dt_real - timedelta(hours=3)
+        dia_prod = (br - timedelta(hours=6, minutes=20)).date()
+        dif_producao[(dia_prod - p.data).days] += 1
+        dif_calendario[(br.date() - p.data).days] += 1
+        if p.metros is not None and h.qt_movimento is not None and abs(p.metros - h.qt_movimento) < 0.01:
+            metros_iguais += 1
+        if p.hora_real:
+            dif_hora[round((br - p.hora_real).total_seconds() / 3600)] += 1
+        if len(exemplos) < 8:
+            exemplos.append(dict(op=h.op, peca=item, hub_brasilia=br.strftime('%d/%m %H:%M'), hub_dia_producao=str(dia_prod), api_data=str(p.data), metros_hub=h.qt_movimento, metros_api=p.metros))
+    return _json(dict(dias=dias, pecas_hub=len(hub), casadas=casadas, sem_correspondente_na_api=nao_casadas, metros_iguais=metros_iguais,
+                      dif_dia_producao_hub_menos_data_api=dict(sorted(dif_producao.items())), dif_dia_calendario_hub_menos_data_api=dict(sorted(dif_calendario.items())),
+                      dif_horas_hub_menos_hora_da_baixa=dict(sorted(dif_hora.items())), ops_sem_correspondente=dict(sem_api.most_common(12)), exemplos=exemplos))
