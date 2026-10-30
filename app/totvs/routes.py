@@ -1878,3 +1878,39 @@ def movimentos_transacao():
         saida['campos_do_item'] = sorted(its[0].keys()) if its else []
         saida['itens_exemplo'] = its[:3]
     return _json(saida)
+
+
+@mov_bp.route('/conciliar')
+@login_required
+def movimentos_conciliar():
+    """So administrador: as pecas que a API do TOTVS ja traz (PesagemMalharia = movimentos da OP no local 23; BaixaFio = transacao 2000 com a hora) contra o Relatorio 32 do Hub, no dia de producao
+    (?dia=AAAA-MM-DD, 06:20 a 06:19). Por OP: Hub x API por hora real x API por data x baixas de fio. Mostra onde a API perde peca (sem hora, hora em outro dia, OP fora da lista) para acertar a regra."""
+    if not current_user.is_admin:
+        abort(403)
+    from collections import Counter, defaultdict
+    from datetime import datetime, timedelta
+    from app.models import BaixaFio, PesagemMalharia, Report32Movement
+    d0 = datetime.strptime(request.args['dia'], '%Y-%m-%d') if request.args.get('dia') else (datetime.now() - timedelta(hours=6, minutes=20)).replace(hour=0, minute=0, second=0, microsecond=0)
+    ini, fim = d0.replace(hour=6, minute=20), d0.replace(hour=6, minute=20) + timedelta(days=1)
+    hub = Report32Movement.query.filter(Report32Movement.dt_real >= ini + timedelta(hours=3), Report32Movement.dt_real < fim + timedelta(hours=3)).all()
+    hub_op = Counter(r.op for r in hub)
+    pes_all = PesagemMalharia.query.all()
+    por_hora, por_data, total_op, sem_hora = Counter(), Counter(), Counter(), Counter()
+    origem = Counter()
+    for p in pes_all:
+        total_op[p.op] += 1
+        h = p.hora_real or p.visto_em
+        if p.hora_real and ini <= p.hora_real < fim:
+            por_hora[p.op] += 1
+            origem[p.hora_origem or '-'] += 1
+        if p.data == d0.date():
+            por_data[p.op] += 1
+        if not p.hora_real:
+            sem_hora[p.op] += 1
+    baixas = Counter(b.op for b in BaixaFio.query.filter(BaixaFio.mudou >= ini, BaixaFio.mudou < fim).all())
+    ops = sorted(set(hub_op) | set(por_hora) | set(baixas), key=lambda o: -max(hub_op.get(o, 0), por_hora.get(o, 0)))
+    linhas = [dict(op=o, hub=hub_op.get(o, 0), api_por_hora=por_hora.get(o, 0), api_por_data=por_data.get(o, 0), baixas_de_fio=baixas.get(o, 0), pesagens_total_da_op=total_op.get(o, 0), sem_hora=sem_hora.get(o, 0)) for o in ops]
+    falta = [x for x in linhas if x['hub'] != x['api_por_hora']]
+    return _json(dict(dia_producao=d0.strftime('%Y-%m-%d'), janela=f'{ini:%d/%m %H:%M} a {fim:%d/%m %H:%M}',
+                      totais=dict(hub=len(hub), api_por_hora=sum(por_hora.values()), api_por_data=sum(por_data.values()), baixas_de_fio=sum(baixas.values())),
+                      origem_da_hora_na_api=dict(origem), ops_com_diferenca=len(falta), ops_so_no_hub=[x['op'] for x in linhas if x['hub'] and not x['pesagens_total_da_op']][:30], diferencas=falta[:40], todas_as_ops=linhas[:60]))
