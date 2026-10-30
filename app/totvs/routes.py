@@ -1946,6 +1946,8 @@ def movimentos_crus():
     saida['campos'] = sorted({k for m in movs for k in m.keys()})
     saida['por_origem_destino'] = dict(Counter(f"{m.get('originLocationCode')}->{m.get('destinationLocationCode')} {m.get('movementType')}" for m in movs))
     saida['campos_com_hora'] = sorted({k for m in movs for k, v in m.items() if isinstance(v, str) and 'T' in v and ':' in v})
+    saida['todos_em_ordem'] = [f"seq {m.get('sequence')}: {m.get('originLocationCode')}->{m.get('destinationLocationCode')} · {str(m.get('movementDate'))[:10]} · {round(m.get('totalQuantity') or 0, 3)} · {m.get('component')} · usuario {m.get('user')}" + (' · ESTORNADO' if m.get('isReversed') else '')
+                               for m in sorted(movs, key=lambda m: (str(m.get('movementDate')), m.get('sequence') or 0))]
     saida['exemplos_23_para_24'] = [m for m in movs if m.get('originLocationCode') == 23 and m.get('destinationLocationCode') == 24][:4]
     saida['exemplo_outro'] = [m for m in movs if not (m.get('originLocationCode') == 23 and m.get('destinationLocationCode') == 24)][:2]
     hub = Report32Movement.query.filter(Report32Movement.op == op).order_by(Report32Movement.dt_real).all()
