@@ -161,7 +161,8 @@ tr:nth-child(even) td{background:#F4F6F8}.n{text-align:right}.dois{display:flex;
 
 
 def html(d: dict) -> str:
-    return render_template_string(HTML, d=d, paginas=_paginas(d), f=_fmt, logo=_img('logo_colorida.png', 'image/png'), fundo=_img('conteudo_fundo.jpg', 'image/jpeg'),
+    from flask import current_app
+    return current_app.jinja_env.from_string(HTML).render(d=d, paginas=_paginas(d), f=_fmt, logo=_img('logo_colorida.png', 'image/png'), fundo=_img('conteudo_fundo.jpg', 'image/jpeg'),
                                   gerado=__import__('app.relatorio_fat.agenda', fromlist=['x']).agora_brasilia().strftime('%d/%m/%Y %H:%M'))
 
 
