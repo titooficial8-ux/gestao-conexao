@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+{% include 'main/_programacao_mp.html' %}
+<script>
+(function () { function ini() { if (window.pmIniciar) window.pmIniciar(); } if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ini); else ini(); })();
+</script>
+{% endblock %}

@@ -1195,8 +1195,8 @@ mp_bp = Blueprint('planejamento_mp', __name__, url_prefix='/planejamento-mp')
 
 
 def _autorizar_mp():
-    tab = Tab.query.filter_by(slug='programacao').first_or_404()
-    if not tab.visible_to(current_user):
+    abas = Tab.query.filter(Tab.slug.in_(['controle-mp', 'programacao'])).all()
+    if not any(t.visible_to(current_user) for t in abas):
         abort(403)
 
 

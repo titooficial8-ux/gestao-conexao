@@ -1258,6 +1258,9 @@ def view_tab(slug):
     if slug == 'controle-estoque':
         return render_template('main/controle_estoque.html', tab=tab)
 
+    if slug == 'controle-mp':
+        return render_template('main/controle_mp.html', tab=tab)
+
     if slug == 'indicadores':
         return render_template('main/indicadores.html', tab=tab)
 

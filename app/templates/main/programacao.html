@@ -5,10 +5,6 @@
   <img src="{{ url_for('static', filename='img/banner_topo.jpg') }}" alt="Conexão Malhas e Desenvolvimento">
 </div>
 
-<div class="pm-troca" style="margin: 14px 0 0;">
-  <button type="button" class="active" data-visao="maq">Máquinas</button>
-  <button type="button" data-visao="mp">Dashboard de matéria-prima</button>
-</div>
 <div id="progVisaoMaq">
 <div class="prod-toolbar">
   <div class="prod-toolbar-title">
@@ -119,21 +115,8 @@
   {% include 'main/_programacao_maquinas.html' %}
 </div>
 </div>
-<div id="progVisaoMp" hidden>
-  {% include 'main/_programacao_mp.html' %}
-</div>
 <script>
-(function () {
-  var bt = document.querySelectorAll('.pm-troca button'), maq = document.getElementById('progVisaoMaq'), mp = document.getElementById('progVisaoMp');
-  function ir(v) {
-    maq.hidden = v !== 'maq'; mp.hidden = v !== 'mp';
-    bt.forEach(function (b) { b.classList.toggle('active', b.dataset.visao === v); });
-    if (v === 'mp' && window.pmIniciar) window.pmIniciar();
-    try { history.replaceState(null, '', v === 'mp' ? '#materia-prima' : location.pathname + location.search); } catch (e) {}
-  }
-  bt.forEach(function (b) { b.addEventListener('click', function () { ir(b.dataset.visao); }); });
-  if (location.hash === '#materia-prima') ir('mp');
-})();
+if (location.hash === '#materia-prima') location.replace('{{ url_for("main.view_tab", slug="controle-mp") }}');
 </script>
 
 <div class="modal-backdrop" id="modalDownload" hidden>

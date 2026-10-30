@@ -250,3 +250,20 @@ def seed_machine_capacities():
             ))
 
     db.session.commit()
+
+
+def garantir_aba_controle_mp() -> None:
+    """Aba 'Controle MP' em Gestao Estoque (Supply Chain): o antigo Dashboard de materia-prima da Programacao. Quem via a Programacao ou o Supply Chain continua vendo."""
+    cat = Category.query.filter_by(slug='estoque').first()
+    if not cat:
+        return
+    tab = Tab.query.filter_by(slug='controle-mp').first()
+    if not tab:
+        ordem = max([t.order or 0 for t in cat.tabs] or [0]) + 1
+        tab = Tab(category_id=cat.id, slug='controle-mp', name_pt='Controle MP', name_es='Control MP', icon='\U0001F9F5', icon_color='#0ea5e9', is_new=True, order=ordem)
+        db.session.add(tab)
+        db.session.flush()
+        origem = [t for t in Tab.query.filter(Tab.slug.in_(['programacao', 'dashboard-estoque'])).all()]
+        setores = {s_.id: s_ for t in origem for s_ in t.sectors}
+        tab.sectors = list(setores.values())
+        db.session.commit()
