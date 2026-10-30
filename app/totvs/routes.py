@@ -1975,6 +1975,7 @@ def movimentos_conciliar_pecas():
         api[str(p.op)][int(p.item)] = p
     casadas = nao_casadas = metros_iguais = 0
     dif_producao, dif_calendario, dif_hora = Counter(), Counter(), Counter()
+    por_hora_do_dia = defaultdict(Counter)
     exemplos, sem_api = [], Counter()
     for h in hub:
         try:
@@ -1991,6 +1992,7 @@ def movimentos_conciliar_pecas():
         dia_prod = (br - timedelta(hours=6, minutes=20)).date()
         dif_producao[(dia_prod - p.data).days] += 1
         dif_calendario[(br.date() - p.data).days] += 1
+        por_hora_do_dia[br.hour][(br.date() - p.data).days] += 1
         if p.metros is not None and h.qt_movimento is not None and abs(p.metros - h.qt_movimento) < 0.01:
             metros_iguais += 1
         if p.hora_real:
@@ -1999,4 +2001,5 @@ def movimentos_conciliar_pecas():
             exemplos.append(dict(op=h.op, peca=item, hub_brasilia=br.strftime('%d/%m %H:%M'), hub_dia_producao=str(dia_prod), api_data=str(p.data), metros_hub=h.qt_movimento, metros_api=p.metros))
     return _json(dict(dias=dias, pecas_hub=len(hub), casadas=casadas, sem_correspondente_na_api=nao_casadas, metros_iguais=metros_iguais,
                       dif_dia_producao_hub_menos_data_api=dict(sorted(dif_producao.items())), dif_dia_calendario_hub_menos_data_api=dict(sorted(dif_calendario.items())),
-                      dif_horas_hub_menos_hora_da_baixa=dict(sorted(dif_hora.items())), ops_sem_correspondente=dict(sem_api.most_common(12)), exemplos=exemplos))
+                      dif_horas_hub_menos_hora_da_baixa=dict(sorted(dif_hora.items())),
+                      dif_calendario_por_hora_do_dia_no_hub={f'{h:02d}h': dict(sorted(c.items())) for h, c in sorted(por_hora_do_dia.items())}, ops_sem_correspondente=dict(sem_api.most_common(12)), exemplos=exemplos))
