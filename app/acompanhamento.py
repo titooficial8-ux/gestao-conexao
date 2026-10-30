@@ -61,17 +61,7 @@ def _local(v):
 
 def abertas() -> dict:
     """Ocorrencias em andamento (cache de 15 s; se a API falhar, devolve a ultima leitura boa com o erro)."""
-    agora = time.time()
-    v = _cache.get('abertas')
-    if v and agora - v['t'] < 15:
-        return v['r']
-    try:
-        itens = _lista(chamar('/ocorrencias', {'status': 'andamento'}))
-        r = dict(itens=[_normalizar(x) for x in itens], erro=None)
-    except Exception as e:  # noqa: BLE001
-        r = dict(itens=(v['r']['itens'] if v else []), erro=str(e)[:200])
-    _cache['abertas'] = dict(t=agora, r=r)
-    return r
+    return _cached('abertas', 15, lambda: [_normalizar(x) for x in _lista(chamar('/ocorrencias', {'status': 'andamento'}))])
 
 
 def _normalizar(x: dict) -> dict:
@@ -106,10 +96,30 @@ def _rl_item(x: dict) -> dict:
                 liberado_em=_hm(lib.get('liberadoEm')), liberado_por=lib.get('liberadoPor') or '')
 
 
+_refrescando = set()
+
+
+def _refrescar(chave, fn):
+    try:
+        r = dict(itens=fn(), erro=None)
+    except Exception as e:  # noqa: BLE001
+        v = _cache.get(chave)
+        r = dict(itens=(v['r']['itens'] if v else []), erro=str(e)[:200])
+    _cache[chave] = dict(t=time.time(), r=r)
+    _refrescando.discard(chave)
+
+
 def _cached(chave, ttl, fn):
+    """Vencido o prazo, devolve a leitura antiga na hora e atualiza em segundo plano (so espera na 1a vez ou se a leitura tem mais de 6x o prazo)."""
     agora = time.time()
     v = _cache.get(chave)
     if v and agora - v['t'] < ttl:
+        return v['r']
+    if v and agora - v['t'] < max(ttl * 6, 90):
+        if chave not in _refrescando:
+            _refrescando.add(chave)
+            import threading
+            threading.Thread(target=_refrescar, args=(chave, fn), daemon=True, name=f'acomp-{chave}').start()
         return v['r']
     try:
         r = dict(itens=fn(), erro=None)
