@@ -412,3 +412,38 @@ def enviar_teste():
         return jsonify(ok=True, para=destinos)
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=str(e)[:300]), 500
+
+
+@rep_bp.route('/diagnostico')
+@login_required
+def diagnostico():
+    """So administrador: por que o e-mail das reprovas nao chegou. Mostra o relogio, se o agendador esta vivo, o SMTP, o que ja foi enviado hoje, as travas do dia e, para cada horario, quantas reprovas
+    ha no periodo e por que ele esta (ou nao) na fila."""
+    if not current_user.is_admin:
+        abort(403)
+    import tempfile
+    from flask import current_app
+    from app.relatorio_fat import envio_email as envio
+    from app.relatorio_fat.agenda import agora_brasilia
+    cfg = config()
+    agora = agora_brasilia()
+    est = _ler(current_app)
+    feitos_hoje = (est.get('feitos') or {}).get(agora.date().isoformat(), [])
+    jan = _janelas(cfg, agora)
+    horarios = []
+    for hm in cfg['horas']:
+        h_dt = agora.replace(hour=int(hm[:2]), minute=int(hm[3:]), second=0, microsecond=0)
+        ini, fim, rotulo = jan[hm]
+        try:
+            n = dados_periodo(ini, fim, rotulo)['pecas']
+        except Exception as e:  # noqa: BLE001
+            n = f'erro: {str(e)[:80]}'
+        situacao = ('ja processado hoje (enviado ou sem reprova nova)' if hm in feitos_hoje else 'ainda nao chegou a hora' if agora < h_dt else
+                    f'FORA DA JANELA de {cfg["janela"]} h (o app estava fora do ar nesse intervalo?)' if agora > h_dt + timedelta(hours=cfg['janela']) else 'na fila: deve processar no proximo minuto')
+        horarios.append(dict(horario=hm, periodo=f'{ini:%d/%m %H:%M} ate {fim:%d/%m %H:%M}', reprovas_no_periodo=n, situacao=situacao, envia_email=bool(n) and not isinstance(n, str)))
+    pasta = Path(tempfile.gettempdir())
+    travas = [dict(arquivo=p.name, idade_min=round((time.time() - p.stat().st_mtime) / 60, 1)) for p in sorted(pasta.glob(f'gestao_relatorio_fat_{agora.date().isoformat()}_reprova*.lock'))]
+    return jsonify(agora_brasilia=agora.strftime('%d/%m/%Y %H:%M:%S'), agendador_vivo=any(t.name == 'reprova-cru-email' and t.is_alive() for t in threading.enumerate()), envio_ligado=cfg['ativo'],
+                   smtp_configurado=envio.configurado(), smtp_faltando=envio.faltando() if not envio.configurado() else [], destinos=cfg['destinos'], janela_horas=cfg['janela'],
+                   ultimo=est.get('ultimo'), erro=est.get('erro'), erro_em=est.get('erro_em'), horarios_processados_hoje=feitos_hoje, travas_de_hoje=travas, horarios=horarios,
+                   alerta=dict(horario=cfg['alerta'], ja_processado='alerta' in feitos_hoje))
