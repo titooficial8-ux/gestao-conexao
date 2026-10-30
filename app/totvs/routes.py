@@ -1914,3 +1914,42 @@ def movimentos_conciliar():
     return _json(dict(dia_producao=d0.strftime('%Y-%m-%d'), janela=f'{ini:%d/%m %H:%M} a {fim:%d/%m %H:%M}',
                       totais=dict(hub=len(hub), api_por_hora=sum(por_hora.values()), api_por_data=sum(por_data.values()), baixas_de_fio=sum(baixas.values())),
                       origem_da_hora_na_api=dict(origem), ops_com_diferenca=len(falta), ops_so_no_hub=[x['op'] for x in linhas if x['hub'] and not x['pesagens_total_da_op']][:30], diferencas=falta[:40], todas_as_ops=linhas[:60]))
+
+
+@mov_bp.route('/movs-crus')
+@login_required
+def movimentos_crus():
+    """So administrador: os movimentos CRUS da OP (?op=2809) em production/v2/movements, todos os campos (inclusive qualquer data/hora de registro), ao lado das pesagens que o Hub tem da mesma OP com a hora real.
+    Serve para achar um campo do movimento que acompanhe a hora da pesagem e permita montar o dia de producao so pela API."""
+    if not current_user.is_admin:
+        abort(403)
+    from collections import Counter
+    from datetime import date, datetime, timedelta
+    from app.models import Report32Movement
+    op = request.args.get('op', '2809')
+    dias = int(request.args.get('dias', 20))
+    hoje = date.today()
+    saida = dict(op=op)
+    with movimentos._trava:
+        cli = movimentos._cliente()
+        movs = []
+        for lote_ini in range(0, dias, 30):
+            fim = hoje - timedelta(days=lote_ini)
+            ini = fim - timedelta(days=min(30, dias - lote_ini))
+            r = cli.post(movimentos.MOV_URL, dict(branchCodeList=[movimentos.EMPRESA], cycleCodeList=[13], productionOrderCodeList=[op], movementStartDate=ini.isoformat(), movementEndDate=(fim + timedelta(days=1)).isoformat(),
+                                                  listNormalMovement=True, listFinalizationMovement=True, reversalType=2))
+            if r.status_code != 200:
+                saida['erro'] = f'HTTP {r.status_code} {r.text[:200]}'
+                break
+            movs += r.json().get('items') or []
+    saida['n_movimentos'] = len(movs)
+    saida['campos'] = sorted({k for m in movs for k in m.keys()})
+    saida['por_origem_destino'] = dict(Counter(f"{m.get('originLocationCode')}->{m.get('destinationLocationCode')} {m.get('movementType')}" for m in movs))
+    saida['campos_com_hora'] = sorted({k for m in movs for k, v in m.items() if isinstance(v, str) and 'T' in v and ':' in v})
+    saida['exemplos_23_para_24'] = [m for m in movs if m.get('originLocationCode') == 23 and m.get('destinationLocationCode') == 24][:4]
+    saida['exemplo_outro'] = [m for m in movs if not (m.get('originLocationCode') == 23 and m.get('destinationLocationCode') == 24)][:2]
+    hub = Report32Movement.query.filter(Report32Movement.op == op).order_by(Report32Movement.dt_real).all()
+    saida['hub_pesagens'] = [dict(item=h.nr_item, lote=h.nr_lote, brasilia=(h.dt_real - timedelta(hours=3)).strftime('%d/%m %H:%M:%S'), metros=h.qt_movimento, kg=h.qt_pesos) for h in hub][-25:]
+    saida['movimentos_por_data'] = dict(sorted(Counter(str(m.get('movementDate'))[:10] for m in movs if m.get('originLocationCode') == 23 and m.get('destinationLocationCode') == 24).items()))
+    saida['hub_por_data'] = dict(sorted(Counter((h.dt_real - timedelta(hours=3)).strftime('%Y-%m-%d') for h in hub).items()))
+    return _json(saida)
