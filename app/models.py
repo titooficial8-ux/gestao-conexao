@@ -839,3 +839,14 @@ class FichaArtigo(db.Model):
     status = db.Column(db.String(30))
     data = db.Column(db.Date)
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ProjetosSnapshot(db.Model):
+    """Retrato da planilha de OKR/projetos da equipe de TI (Gestao Projetos): cada atualizacao guarda quem enviou, quando e o conteudo lido."""
+    __tablename__ = 'projetos_snapshot'
+
+    id = db.Column(db.Integer, primary_key=True)
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    usuario = db.Column(db.String(120))
+    arquivo = db.Column(db.String(200))
+    dados = db.Column(db.Text)                       # JSON do que foi lido da planilha

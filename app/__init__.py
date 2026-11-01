@@ -97,6 +97,8 @@ def create_app():
     app.register_blueprint(pcphub_bp)
     from app.relatorio32_hub import r32_bp
     app.register_blueprint(r32_bp)
+    from app.projetos import projetos_bp
+    app.register_blueprint(projetos_bp)
     from app.indicadores.routes import ind_bp
     app.register_blueprint(ind_bp)
     from app.desenvolvimento.routes import dev_bp
@@ -298,6 +300,8 @@ def create_app():
         garantir_expedicao()                                             # aba Expedicao (Planejamento)
         from app.auditoria import garantir_aba as garantir_controle_artigos
         garantir_controle_artigos()                                      # aba Controle de Artigos (Planejamento)
+        from app.seed import garantir_aba_gestao_projetos
+        garantir_aba_gestao_projetos()                                   # aba Gestao Projetos (Sistema)
         from app.seed import garantir_aba_controle_mp
         garantir_aba_controle_mp()                                       # aba Controle MP (Estoque / Supply Chain)
         from app.indicadores.routes import garantir_aba as garantir_indicadores

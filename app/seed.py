@@ -267,3 +267,16 @@ def garantir_aba_controle_mp() -> None:
         setores = {s_.id: s_ for t in origem for s_ in t.sectors}
         tab.sectors = list(setores.values())
         db.session.commit()
+
+
+def garantir_aba_gestao_projetos() -> None:
+    """Aba 'Gestão Projetos' em Gestao Sistema: projetos e OKR da equipe de Tecnologia/Informacao. Visivel ao TI/Sistema e a Diretoria (e administradores)."""
+    cat = Category.query.filter_by(slug='sistema').first()
+    if not cat or Tab.query.filter_by(slug='gestao-projetos').first():
+        return
+    ordem = max([t.order or 0 for t in cat.tabs] or [0]) + 1
+    tab = Tab(category_id=cat.id, slug='gestao-projetos', name_pt='Gestão Projetos', name_es='Gestión Proyectos', icon='\U0001F680', icon_color='#7c3aed', is_new=True, order=ordem)
+    db.session.add(tab)
+    db.session.flush()
+    tab.sectors = [s_ for s_ in Sector.query.all() if s_.name in ('TI/Sistema', 'Diretoria')]
+    db.session.commit()

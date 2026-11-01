@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<style>
+  .gp { --cinza: #6a7b90; --verde: #1b9a5b; --azul: #2f7fe0; --ambar: #e0972f; --verm: #d6455d; }
+  .gp-topo { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin: 4px 0 14px; }
+  .gp-topo h1 { margin: 0; font-size: 26px; line-height: 1.15; color: #0f2540; }
+  .gp-sub { font-size: 12.5px; color: var(--cinza); margin-top: 4px; }
+  .gp-btn { border: 1px solid #d5dfec; background: #fff; color: #0f2540; padding: 9px 16px; border-radius: 10px; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .gp-btn.pri { background: #0a2540; color: #fff; border-color: #0a2540; }
+  .gp-hero { display: grid; grid-template-columns: auto 1fr 1fr 1fr 1fr; gap: 26px; padding: 24px 28px; border-radius: 18px; color: #fff; align-items: center;
+    background: linear-gradient(100deg, rgba(8, 24, 44, .9) 0%, rgba(10, 37, 64, .8) 55%, rgba(30, 40, 90, .7) 100%), url('/static/img/fundo-estoque.jpg') center 55% / cover no-repeat, linear-gradient(120deg, #0a2540, #1e2a5a); box-shadow: 0 12px 32px rgba(10, 37, 64, .25); }
+  .gp-ring { position: relative; width: 132px; height: 132px; }
+  .gp-ring b { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 28px; line-height: 1; }
+  .gp-ring b span { font-size: 9.5px; color: #9fbbe0; letter-spacing: .1em; text-transform: uppercase; margin-top: 4px; font-weight: 800; }
+  .gp-rot { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #8fb4dc; }
+  .gp-big { font-size: 32px; font-weight: 800; margin: 7px 0 3px; font-variant-numeric: tabular-nums; line-height: 1.05; }
+  .gp-big small { font-size: 15px; color: #b9d0ea; font-weight: 700; margin-left: 4px; }
+  .gp-txt { font-size: 12px; color: #b9d0ea; }
+  .gp-abas { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 14px; }
+  .gp-abas button { border: 1px solid #d5dfec; background: #fff; color: #36506f; padding: 9px 18px; border-radius: 999px; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .gp-abas button.on { background: #0a2540; border-color: #0a2540; color: #fff; }
+  .gp-card { background: #fff; border: 1px solid #e1e9f3; border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 2px rgba(16, 38, 63, .04), 0 8px 20px rgba(16, 38, 63, .05); }
+  .gp-card h3 { margin: 0 0 12px; font-size: 15px; color: #0f2540; }
+  .gp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 14px; }
+  .gp-mod { cursor: pointer; transition: box-shadow .15s, transform .15s; }
+  .gp-mod:hover { box-shadow: 0 10px 26px rgba(16, 38, 63, .12); transform: translateY(-1px); }
+  .gp-mod-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .gp-mod h4 { margin: 0; font-size: 15px; color: #0f2540; }
+  .gp-pts { font-size: 12px; color: var(--cinza); margin-top: 3px; }
+  .gp-barra { height: 9px; border-radius: 99px; background: #e8eef6; overflow: hidden; margin: 12px 0 6px; }
+  .gp-barra i { display: block; height: 100%; border-radius: 99px; background: var(--cor, var(--azul)); }
+  .gp-pct { display: flex; justify-content: space-between; font-size: 12px; color: var(--cinza); }
+  .gp-pct b { color: #0f2540; font-size: 15px; }
+  .gp-st { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 99px; white-space: nowrap; letter-spacing: .03em; }
+  .gp-st.ok { background: #dcf5e8; color: #14744a; }
+  .gp-st.and { background: #dbeafe; color: #1d4ed8; }
+  .gp-st.nao { background: #eceff4; color: #5b6b7c; }
+  .gp-st.ana { background: #fff1d6; color: #9a5b00; }
+  .gp-st.can { background: #fde2e6; color: #b3263f; }
+  .gp-tab { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .gp-tab th { text-align: left; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #5d6e84; padding: 8px 10px; border-bottom: 2px solid #e1e9f3; }
+  .gp-tab td { padding: 9px 10px; border-bottom: 1px solid #eef2f8; vertical-align: top; }
+  .gp-tab td.n, .gp-tab th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .gp-det { grid-column: 1 / -1; }
+  .gp-kan { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; align-items: start; }
+  .gp-col h4 { margin: 0 0 10px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #5d6e84; display: flex; justify-content: space-between; }
+  .gp-item { background: #fff; border: 1px solid #e1e9f3; border-left: 4px solid var(--cor, #94a3b8); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(16, 38, 63, .04); }
+  .gp-item b { display: block; color: #0f2540; font-size: 13.5px; margin-bottom: 6px; }
+  .gp-item small { display: block; color: var(--cinza); font-size: 11.5px; line-height: 1.5; }
+  .gp-niv { display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: #fde2e6; color: #b3263f; margin-left: 6px; }
+  .gp-etapas { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .gp-etapa { display: flex; gap: 12px; }
+  .gp-etapa > i { flex: none; width: 34px; height: 34px; border-radius: 50%; background: #0a2540; color: #fff; display: flex; align-items: center; justify-content: center; font-style: normal; font-weight: 800; font-size: 14px; }
+  .gp-etapa b { display: block; color: #0f2540; font-size: 14px; }
+  .gp-etapa span { font-size: 12px; color: var(--cinza); line-height: 1.45; }
+  .gp-aviso { margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; background: #fff7e6; border: 1px solid #f3d9a4; color: #7a5200; font-size: 12.5px; }
+  .gp-vazio { color: var(--cinza); font-size: 13px; padding: 14px 0; }
+  @media (max-width: 1000px) { .gp-hero { grid-template-columns: 1fr 1fr; } }
+</style>
+
+<div class="gp" id="gp">
+  <div class="gp-topo">
+    <div>
+      <h1>Gestão de Projetos</h1>
+      <div class="gp-sub" id="gpSub">Equipe de Tecnologia e Informação · OKR 2026 · carregando…</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center"><span id="gpAtualiza" hidden>
+      <input type="file" id="gpArq" accept=".xlsx,.xlsm" hidden><button type="button" class="gp-btn pri" id="gpBtn">⬆ Atualizar base (.xlsx)</button></span></div>
+  </div>
+  <div id="gpMsg"></div>
+  <div class="gp-hero" id="gpHero"></div>
+  <div class="gp-abas" id="gpAbas">
+    <button data-v="okr" class="on">Visão OKR</button><button data-v="mod">Módulos e entregas</button><button data-v="sol">Solicitações de desenvolvimento</button><button data-v="eq">Equipe</button><button data-v="met">Metodologia</button>
+  </div>
+  <div id="gpCorpo"></div>
+</div>
+
+<script>
+(function () {
+  var D = null, visao = 'okr', mes = null, aberto = null;
+  var corpo = document.getElementById('gpCorpo');
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function pct(v, c) { return (v * 100).toLocaleString('pt-BR', { maximumFractionDigits: c == null ? 0 : c }) + '%'; }
+  function nf(v, c) { return Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: c == null ? 0 : c }); }
+  function dt(v) { return /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v.split('-').reverse().join('/') : (v || '–'); }
+  function cls(st) { var s = String(st || '').toLowerCase(); if (s.indexOf('conclu') === 0 && s.indexOf('nao') < 0 && s.indexOf('não') < 0) return 'ok'; if (s.indexOf('and') >= 0) return 'and'; if (s.indexOf('cancel') >= 0) return 'can'; if (s.indexOf('anál') >= 0 || s.indexOf('anal') >= 0) return 'ana'; return 'nao'; }
+  function st(s) { return '<span class="gp-st ' + cls(s) + '">' + esc(s || 'Sem status') + '</span>'; }
+  function cor(p) { return p >= 1 ? 'var(--verde)' : (p >= 0.5 ? 'var(--azul)' : (p > 0 ? 'var(--ambar)' : '#b8c4d4')); }
+  function barra(p) { return '<div class="gp-barra"><i style="width:' + Math.round(Math.max(0, Math.min(1, p)) * 100) + '%;--cor:' + cor(p) + '"></i></div>'; }
+
+  function hero() {
+    var g = D.geral || {}, ent = [], mods = D.modulos || [];
+    mods.forEach(function (m) { ent = ent.concat(m.entregas || []); });
+    var ok = ent.filter(function (e) { return cls(e.status) === 'ok'; }).length;
+    var ab = (D.solicitacoes || []).filter(function (s) { var c = cls(s.status); return c === 'and' || c === 'ana'; }).length;
+    var p = g.concluido || 0, R = 56, C = 2 * Math.PI * R;
+    document.getElementById('gpHero').innerHTML =
+      '<div class="gp-ring"><svg width="132" height="132" viewBox="0 0 132 132"><circle cx="66" cy="66" r="' + R + '" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="12"/><circle cx="66" cy="66" r="' + R + '" fill="none" stroke="#5eead4" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + (C * Math.min(p, 1)) + ' ' + C + '" transform="rotate(-90 66 66)"/></svg><b>' + pct(p, 1) + '<span>do OKR</span></b></div>' +
+      '<div><div class="gp-rot">Pontos concluídos</div><div class="gp-big">' + nf(g.pontos_concluidos, 0) + '<small>/ ' + nf(g.pontos, 0) + '</small></div><div class="gp-txt">OKR 2026 · ' + esc(g.status || '') + '</div></div>' +
+      '<div><div class="gp-rot">Módulos</div><div class="gp-big">' + mods.length + '<small>' + mods.filter(function (m) { return cls(m.status) === 'ok'; }).length + ' concluídos</small></div><div class="gp-txt">áreas do Gestão Conexão</div></div>' +
+      '<div><div class="gp-rot">Entregas</div><div class="gp-big">' + ent.length + '<small>' + ok + ' concluídas</small></div><div class="gp-txt">itens entregues pela equipe</div></div>' +
+      '<div><div class="gp-rot">Solicitações abertas</div><div class="gp-big">' + ab + '<small>de ' + (D.solicitacoes || []).length + '</small></div><div class="gp-txt">em análise ou em andamento</div></div>';
+  }
+
+  function okr() {
+    var chaves = Object.keys(D.meses || {});
+    if (!chaves.length) { corpo.innerHTML = '<div class="gp-card gp-vazio">Nenhum mês de OKR na base.</div>'; return; }
+    if (!mes || chaves.indexOf(mes) < 0) mes = chaves.filter(function (k) { return (D.meses[k].krs || []).length; }).pop() || chaves[chaves.length - 1];
+    var m = D.meses[mes], h = '<div class="gp-abas" style="margin-top:0">' + chaves.map(function (k) { return '<button data-mes="' + k + '" class="' + (k === mes ? 'on' : '') + '">' + k + '</button>'; }).join('') + '</div>';
+    if (!(m.krs || []).length) { corpo.innerHTML = h + '<div class="gp-card gp-vazio">Os Key Results de ' + mes + ' ainda não foram definidos na planilha.</div>'; ligar(); return; }
+    h += '<div class="gp-grid">' + m.krs.map(function (k) {
+      return '<div class="gp-card"><div class="gp-mod-top"><h4>' + esc(k.nome) + '</h4>' + st(k.status) + '</div><div class="gp-pts">' + nf(k.pontos) + ' pontos · peso ' + pct(k.partic) + '</div>' + barra(k.concluido) +
+        '<div class="gp-pct"><span>' + nf(k.pontos_concluidos, 1) + ' pontos concluídos</span><b>' + pct(k.concluido, 1) + '</b></div></div>'; }).join('') + '</div>';
+    var g = m.geral;
+    if (g) h += '<div class="gp-card" style="margin-top:14px"><h3>Geral do mês · ' + pct(g.concluido, 1) + ' · ' + nf(g.pontos_concluidos, 1) + ' de ' + nf(g.pontos) + ' pontos</h3>' + barra(g.concluido) + '</div>';
+    if ((m.historico || []).length) h += '<div class="gp-card" style="margin-top:14px"><h3>Histórico de atualizações</h3><table class="gp-tab"><tr><th>Key Result</th><th>Atividade</th><th>Responsável</th><th class="n">% concluído</th><th class="n">Pontos</th><th>Status</th><th>Observações</th></tr>' +
+      m.historico.map(function (x) { var kr = (m.krs.filter(function (k) { return k.n === x.n; })[0] || {}).nome || ('KR ' + x.n); return '<tr><td>' + esc(kr) + '</td><td>' + esc(x.nome) + '</td><td>' + esc(x.responsavel || '–') + '</td><td class="n">' + pct(x.concluido) + '</td><td class="n">' + nf(x.pontos_concluidos, 1) + '</td><td>' + st(x.status) + '</td><td>' + esc(x.obs || '') + '</td></tr>'; }).join('') + '</table></div>';
+    corpo.innerHTML = h; ligar();
+  }
+
+  function modulos() {
+    var h = '<div class="gp-grid">';
+    (D.modulos || []).forEach(function (m) {
+      h += '<div class="gp-card gp-mod" data-mod="' + m.n + '"><div class="gp-mod-top"><h4>' + m.n + '. ' + esc(m.nome) + '</h4>' + st(m.status) + '</div><div class="gp-pts">' + nf(m.pontos) + ' pontos · ' + (m.entregas || []).length + ' entregas</div>' + barra(m.concluido) +
+        '<div class="gp-pct"><span>' + nf(m.pontos_concluidos, 1) + ' pontos concluídos</span><b>' + pct(m.concluido) + '</b></div></div>';
+      if (aberto === m.n) {
+        h += '<div class="gp-card gp-det"><h3>' + esc(m.nome) + ' · entregas</h3><table class="gp-tab"><tr><th>Entrega</th><th>Início</th><th>Responsável</th><th class="n">%</th><th class="n">Pontos</th><th>Status</th><th>Observações</th></tr>' +
+          (m.entregas || []).map(function (e) { return '<tr><td>' + esc(e.nome) + '</td><td>' + dt(e.inicio) + '</td><td>' + esc(e.responsavel || '–') + '</td><td class="n">' + pct(e.concluido) + '</td><td class="n">' + nf(e.pontos_concluidos, 1) + '</td><td>' + st(e.status) + '</td><td>' + esc(e.obs || '') + '</td></tr>'; }).join('') + '</table></div>';
+      }
+    });
+    corpo.innerHTML = h + '</div>'; ligar();
+  }
+
+  function solicitacoes() {
+    var grupos = [['EM ANÁLISE', 'ana', '#e0972f'], ['EM ANDAMENTO', 'and', '#2f7fe0'], ['CONCLUÍDO', 'ok', '#1b9a5b'], ['CANCELADO', 'can', '#d6455d']], lista = D.solicitacoes || [], h = '<div class="gp-kan">';
+    grupos.forEach(function (g) {
+      var it = lista.filter(function (s) { return cls(s.status) === g[1]; });
+      if (!it.length && g[1] === 'ok') return;
+      h += '<div class="gp-col"><h4><span>' + g[0] + '</span><span>' + it.length + '</span></h4>' + (it.map(function (s) {
+        return '<div class="gp-item" style="--cor:' + g[2] + '"><b>' + esc(s.nome) + (String(s.nivel || '').toUpperCase().indexOf('PRIOR') === 0 ? '<span class="gp-niv">PRIORITÁRIO</span>' : '') + '</b>' +
+          (s.depto && s.depto !== 'Cancelado' ? '<small>Solicitante: <strong>' + esc(s.depto) + '</strong></small>' : '') + (/^\d{4}-/.test(s.solicitada || '') ? '<small>Solicitada em ' + dt(s.solicitada) + (/^\d{4}-/.test(s.inicio || '') ? ' · início do desenvolvimento ' + dt(s.inicio) : '') + '</small>' : '') +
+          (s.nivel && String(s.nivel).toUpperCase().indexOf('PRIOR') !== 0 && s.nivel !== 'Cancelado' ? '<small>Nível: ' + esc(s.nivel.charAt(0) + s.nivel.slice(1).toLowerCase()) + '</small>' : '') + (s.obs ? '<small>' + esc(s.obs) + '</small>' : '') + '</div>'; }).join('') || '<div class="gp-vazio">Nenhuma</div>') + '</div>';
+    });
+    corpo.innerHTML = h + '</div>';
+  }
+
+  function equipe() {
+    var p = {};
+    (D.modulos || []).forEach(function (m) { (m.entregas || []).forEach(function (e) { String(e.responsavel || '').split('/').map(function (x) { return x.trim(); }).filter(Boolean).forEach(function (n) {
+      var x = p[n] = p[n] || { n: n, ent: 0, ok: 0, and: 0 }; x.ent++; var c = cls(e.status); if (c === 'ok') x.ok++; else if (c === 'and') x.and++; }); }); });
+    var lista = Object.keys(p).map(function (k) { return p[k]; }).sort(function (a, b) { return b.ent - a.ent; }), max = lista.length ? lista[0].ent : 1;
+    corpo.innerHTML = '<div class="gp-card"><h3>Participação nas entregas</h3><table class="gp-tab"><tr><th>Pessoa</th><th>Participação</th><th class="n">Entregas</th><th class="n">Concluídas</th><th class="n">Em andamento</th></tr>' +
+      lista.map(function (x) { return '<tr><td><b>' + esc(x.n) + '</b></td><td style="width:42%">' + barra(x.ent / max) + '</td><td class="n">' + x.ent + '</td><td class="n">' + x.ok + '</td><td class="n">' + x.and + '</td></tr>'; }).join('') + '</table>' +
+      '<div class="gp-aviso">Conta cada entrega em que a pessoa aparece como responsável (entregas com mais de um nome contam para todos).</div></div>';
+  }
+
+  function metodologia() {
+    corpo.innerHTML = '<div class="gp-card"><h3>Etapas de desenvolvimento · Site/API</h3><div class="gp-etapas">' + (D.etapas || []).map(function (e) {
+      return '<div class="gp-etapa"><i>' + esc(e.n) + '</i><div><b>' + esc(e.etapa) + '</b><span>' + esc(e.descricao || '') + '</span></div></div>'; }).join('') + '</div></div>';
+  }
+
+  function ligar() {
+    corpo.querySelectorAll('[data-mes]').forEach(function (b) { b.onclick = function () { mes = b.dataset.mes; okr(); }; });
+    corpo.querySelectorAll('[data-mod]').forEach(function (c) { c.onclick = function () { var n = parseInt(c.dataset.mod, 10); aberto = aberto === n ? null : n; modulos(); }; });
+  }
+  function desenhar() { ({ okr: okr, mod: modulos, sol: solicitacoes, eq: equipe, met: metodologia })[visao](); }
+
+  document.getElementById('gpAbas').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-v]'); if (!b) return; visao = b.dataset.v;
+    document.querySelectorAll('#gpAbas button').forEach(function (x) { x.classList.toggle('on', x === b); }); desenhar();
+  });
+  function carregar() {
+    fetch('/projetos/dados', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      D = d;
+      if (d.vazio) { corpo.innerHTML = '<div class="gp-card gp-vazio">Ainda não há base de projetos. ' + (d.pode_editar ? 'Use "Atualizar base" para enviar a planilha de OKR.' : '') + '</div>'; document.getElementById('gpAtualiza').hidden = !d.pode_editar; return; }
+      document.getElementById('gpSub').textContent = 'Equipe de Tecnologia e Informação · OKR 2026 · base atualizada em ' + d.atualizado_em + ' por ' + d.atualizado_por + (d.arquivo ? ' (' + d.arquivo + ')' : '');
+      document.getElementById('gpAtualiza').hidden = !d.pode_editar; hero(); desenhar();
+    }).catch(function () { corpo.innerHTML = '<div class="gp-card gp-vazio">Não foi possível carregar a base de projetos.</div>'; });
+  }
+  var arq = document.getElementById('gpArq');
+  document.getElementById('gpBtn').addEventListener('click', function () { arq.click(); });
+  arq.addEventListener('change', function () {
+    if (!arq.files[0]) return; var fd = new FormData(); fd.append('arquivo', arq.files[0]); var msg = document.getElementById('gpMsg'); msg.innerHTML = '<div class="gp-aviso">Lendo a planilha…</div>';
+    fetch('/projetos/atualizar', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+      msg.innerHTML = j.ok ? '<div class="gp-aviso" style="background:#e6f7ee;border-color:#a8e0c0;color:#14744a">Base atualizada: ' + j.modulos + ' módulos, ' + j.solicitacoes + ' solicitações.</div>' : '<div class="gp-aviso" style="background:#fde2e6;border-color:#f3b4be;color:#b3263f">' + esc(j.erro || 'Erro') + '</div>';
+      arq.value = ''; if (j.ok) carregar();
+    }).catch(function () { msg.innerHTML = '<div class="gp-aviso">Falha no envio.</div>'; });
+  });
+  carregar();
+})();
+</script>
+{% endblock %}
