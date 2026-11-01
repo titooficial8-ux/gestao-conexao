@@ -61,6 +61,22 @@ def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str
                 servidor=host, de=msg['From'], anexos=[(n, len(d)) for n, d, _ in anexos])
 
 
+AVISO_LEGAL = (
+    'AVISO LEGAL: Esta mensagem, incluindo seus anexos, é destinada exclusivamente para a(s) pessoa(s) a quem é dirigida, podendo conter informação confidencial e/ou privilegiada. '
+    'Se você não for destinatário desta mensagem, desde já fica notificado de abster-se de utilizar a informação contida nesta mensagem de qualquer forma, sujeitando o infrator às penas da lei; '
+    'notificar o remetente e eliminar o seu conteúdo de forma definitiva. Informações transmitidas por e-mail podem ser alteradas por terceiros, não havendo garantia de que sua integridade foi mantida '
+    'e que esteja livre de vírus, interceptação ou interferência, não podendo ser imputada qualquer responsabilidade à Gestão Conexão com relação ao seu conteúdo;\n\n'
+    'LEGAL NOTICE: This message, including its attachments, is intended exclusively for the people to whom it is addressed, and may contain confidential and/or privileged information. '
+    'If you are not a recipient of this message, you are hereby notified to refrain from using the information contained in this message, subjecting the infringer to the penalties of the law. '
+    'Information transmitted by e-mail may be changed by third parties, and there is no guarantee that its integrity has been maintained and that it is free of viruses, interception or interference, '
+    'and no responsibility will be attributed to connection management in relation to its content;\n\n'
+    'AVISO LEGAL: Este mensaje, incluyendo sus anexos, está destinado exclusivamente a las personas a quienes se dirige, y puede contener información confidencial y / o privilegiada. '
+    'Si usted no es un destinatario de este mensaje, por la presente se le notifica que se abstenga de usar la información contenida en este mensaje, sometiendo al infractor a las penas de la ley. '
+    'La información transmitida por correo electrónico puede ser modificada por terceros, y no hay garantía de que su integridad ha sido mantenida y que está libre de virus, interceptación o interferencia, '
+    'y ninguna responsabilidad será atribuida a gestión de conexión en relación con su contenido.'
+)
+
+
 def corpo_padrao(ref: str, gerado: str, automatico: bool = False, titulo: str = 'Relatório de Faturamento') -> str:
     """Texto do e-mail do Relatorio de Faturamento (ref = 'Outubro/2026', gerado = '13/10/2026 11:15')."""
     dia, _, hora = gerado.partition(' ')
@@ -69,5 +85,6 @@ def corpo_padrao(ref: str, gerado: str, automatico: bool = False, titulo: str = 
         f'Segue em anexo o {titulo} de {ref}, gerado em {dia} às {hora}.\n\n'
         'Atenciosamente,\n'
         'Gestão Conexão\n'
-        'www.gestaoconexao.com.br'
+        'www.gestaoconexao.com.br\n\n'
+        '--\n' + AVISO_LEGAL
     )
