@@ -28,6 +28,23 @@ def validar(destinos: str) -> list[str]:
     return lista
 
 
+def _html_com_aviso(corpo: str) -> str | None:
+    """Versao HTML do e-mail quando ele termina com o AVISO LEGAL: texto normal, uma linha cinza e o aviso em letra pequena e cinza (3 paragrafos), como no modelo aprovado."""
+    import html as _h
+    marca = '\n\n--\n'
+    if marca not in corpo or 'AVISO LEGAL' not in corpo:
+        return None
+    principal, aviso = corpo.split(marca, 1)
+
+    def paragrafos(txt, estilo):
+        return ''.join(f'<p style="{estilo}">{_h.escape(par).replace(chr(10), "<br>")}</p>' for par in txt.split('\n\n') if par.strip())
+    fonte = 'font-family:Calibri,Arial,sans-serif;'
+    return ('<html><body style="margin:0;padding:0">'
+            f'<div style="{fonte}font-size:11pt;color:#222">' + paragrafos(principal, 'margin:0 0 12px 0') + '</div>'
+            '<hr style="border:0;border-top:1px solid #8c8c8c;margin:22px 0 16px 0">'
+            f'<div style="{fonte}font-size:8pt;color:#4a4a4a;line-height:1.5">' + paragrafos(aviso, 'margin:0 0 14px 0') + '</div></body></html>')
+
+
 def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str, bytes, str]], prioridade_alta: bool = False) -> dict:
     """anexos = [(nome_do_arquivo, bytes, mime 'tipo/subtipo')]. Devolve {'message_id', 'recusados': {email: motivo}, 'servidor'} para o historico de envios."""
     if not configurado():
@@ -44,6 +61,9 @@ def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str
         msg['Importance'] = 'High'
         msg['X-MSMail-Priority'] = 'High'
     msg.set_content(corpo)
+    html = _html_com_aviso(corpo)
+    if html:
+        msg.add_alternative(html, subtype='html')
     for nome, dados, mime in anexos:
         tipo, sub = mime.split('/', 1)
         msg.add_attachment(dados, maintype=tipo, subtype=sub, filename=nome)
