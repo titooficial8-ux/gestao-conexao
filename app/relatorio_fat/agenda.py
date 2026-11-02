@@ -7,6 +7,8 @@ Padrao: de segunda a sexta, as 08:00 e as 13:00 (horario de Brasilia), em PDF, p
   RELATORIO_FAT_ENVIO_DIAS=0,1,2,3,4    (0 = segunda ... 6 = domingo)
   RELATORIO_FAT_ENVIO_FORMATO=pdf        (pdf, pptx ou ambos)
   RELATORIO_FAT_DESTINOS=a@x.com,b@y.com
+  RELATORIO_FAT_FERIADOS=1               (1 = nao envia em feriado nacional; 0 = envia mesmo em feriado)
+  RELATORIO_FAT_DIAS_SEM_ENVIO=2026-11-20,2026-12-24   (datas extras sem envio, AAAA-MM-DD)
   RELATORIO_FAT_ENVIO_PEDIDOS=1          (1 = manda junto o PDF da Entrada de Pedidos, em alta prioridade; 0 = so o faturamento)
 Nao repete o mesmo horario no mesmo dia: a data do ultimo envio de cada horario fica em instance/relatorio_fat_envio.json. Se o envio falhar (e-mail nao configurado, sem
 dados do TOTVS...), tenta de novo a cada 30 minutos ate o fim da janela do horario.
@@ -139,10 +141,25 @@ def _enviados(est: dict, cfg: dict) -> dict:
     return env
 
 
+def dia_sem_envio(dia) -> str | None:
+    """Motivo pelo qual NAO se envia o e-mail automatico neste dia (feriado nacional ou data marcada no .env), ou None. Envio manual nao e afetado."""
+    from app.dias_producao import feriados
+    extras = {x.strip() for x in os.getenv('RELATORIO_FAT_DIAS_SEM_ENVIO', '').split(',') if x.strip()}
+    if dia.isoformat() in extras:
+        return 'data marcada para não enviar'
+    if os.getenv('RELATORIO_FAT_FERIADOS', '1') != '0':
+        f = feriados(dia.year).get(dia.isoformat())
+        if f and f.get('tipo') in ('fixed', 'moveable'):                  # feriado nacional (os estaduais/municipais e a Copa nao bloqueiam)
+            return f'feriado: {f["nome"]}'
+    return None
+
+
 def _horario_devido(app, agora: datetime):
     """Devolve o horario ('HH:MM') que deve ser enviado agora, ou None."""
     cfg = configuracao()
     if not cfg['ativo'] or agora.weekday() not in cfg['dias']:
+        return None
+    if dia_sem_envio(agora.date()):                                       # feriado: o e-mail automatico nao sai
         return None
     est = _ler(app)
     env = _enviados(est, cfg)
