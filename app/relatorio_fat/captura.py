@@ -88,7 +88,8 @@ def capturar_blocos(base_url: str, user_id: int, ano, mes) -> dict:
             pg.wait_for_load_state('networkidle', timeout=60000)
             pg.wait_for_timeout(3000)                                      # animacao dos graficos
             alvos = [('kpi_receita', '.cme-kpigrid', 0), ('graf_receita', '.sl-grafico', 0), ('kpi_metros', '.cme-kpigrid', 1), ('graf_metros', '.sl-grafico', 1),
-                     ('seg_mes', '.sl-prog', 0), ('seg_acum', '.sl-prog', 1), ('ext_mes', '.sl-prog', 2), ('ext_acum', '.sl-prog', 3)]
+                     ('seg_mes', '.sl-prog', 0), ('seg_acum', '.sl-prog', 1), ('ext_mes', '.sl-prog', 2), ('ext_acum', '.sl-prog', 3),
+                     ('t_seg', '#sl-seg', 0), ('t_mt', '#sl-mt', 0), ('t_pm', '#sl-pm', 0), ('t_rep', '#sl-rep', 0), ('t_orto', '#sl-orto', 0), ('t_int', '#sl-int', 0)]
             fotos = {}
             for nome, sel, i in alvos:
                 loc = pg.locator(sel)
