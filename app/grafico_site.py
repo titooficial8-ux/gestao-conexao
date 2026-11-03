@@ -19,7 +19,7 @@ function nf(v, d) { return v.toLocaleString('pt-BR', { minimumFractionDigits: d 
 var n = C.unidade === 'mts' ? function (v) { return nf(Math.round(v)); } : function (v) { return nf(Math.round(v / 1000)); };
 var txt = C.unidade === 'mts' ? function (v) { return n(v) + ' mts'; } : function (v) { return 'R$ ' + n(v) + ' mil'; };
 document.getElementById('tit').textContent = C.titulo + ' — ' + C.ano;
-document.getElementById('sub').textContent = C.sub + C.ano_ant;
+document.getElementById('sub').textContent = C.sub + C.ano_ant + (C.S2 ? ' · linha laranja = ' + C.ano2 : '');
 var S = C.S, tot = C.tot, chips = document.getElementById('chips');
 function chip(r, v, cls) { var c = document.createElement('div'); c.className = 'sl-chip ' + (cls || ''); c.innerHTML = '<span>' + r + '</span><strong>' + v + '</strong>'; chips.appendChild(c); }
 chip('Acumulado realizado', txt(tot.real)); chip('Plano acumulado', txt(tot.plano));
@@ -33,12 +33,13 @@ var rotulos = { id: 'rotulos', afterDatasetsDraw: function (ch) {
     ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 6); else ctx.rect(x - w / 2, y - h / 2, w, h); ctx.fill(); ctx.stroke(); ctx.fillStyle = cor; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(t, x, y + 0.5); }
   [[1, '#11703c', -17, S.map(function (x) { return x.plano; })], [2, '#6b7686', 19, S.map(function (x) { return x.ant; })]].forEach(function (cfg) {
     ch.getDatasetMeta(cfg[0]).data.forEach(function (el, i) { var v = cfg[3][i]; if (!v) return; etiqueta(n(v), el.x, Math.min(Math.max(el.y + cfg[2], 12), ch.chartArea.bottom - 28), cfg[1]); }); });
+  if (C.S2) ch.getDatasetMeta(3).data.forEach(function (el, i) { var v = C.S2[i]; if (!v) return; etiqueta(n(v), el.x, Math.min(Math.max(el.y + 40, 12), ch.chartArea.bottom - 28), '#a85a00'); });
   ctx.restore(); } };
 Chart.defaults.animation = false;
 new Chart(document.getElementById('cv'), { data: { labels: labels, datasets: [
   { type: 'bar', label: String(C.ano), data: real, order: 3, borderRadius: 6, maxBarThickness: 46, backgroundColor: S.map(function (x) { return x.mes === C.mes ? '#0a3d8f' : 'rgba(47,127,224,0.88)'; }) },
   { type: 'line', label: 'Plano', data: S.map(function (x) { return Math.round(x.plano); }), order: 1, borderColor: '#1f9d55', backgroundColor: '#1f9d55', borderWidth: 2.5, borderDash: [7, 5], pointRadius: 4, pointBackgroundColor: '#fff', pointBorderWidth: 2, tension: 0.25 },
-  { type: 'line', label: String(C.ano_ant), data: S.map(function (x) { return Math.round(x.ant); }), order: 2, borderColor: '#9aa6bc', backgroundColor: 'rgba(154,166,188,0.15)', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.25 }] },
+  { type: 'line', label: String(C.ano_ant), data: S.map(function (x) { return Math.round(x.ant); }), order: 2, borderColor: '#9aa6bc', backgroundColor: 'rgba(154,166,188,0.15)', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.25 }].concat(C.S2 ? [{ type: 'line', label: String(C.ano2), data: C.S2.map(function (v) { return Math.round(v); }), order: 2, borderColor: '#e0912b', backgroundColor: '#e0912b', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#fff', pointBorderWidth: 2, tension: 0.25 }] : []) },
   options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 26, right: 8 } },
     plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 9, padding: 18 } }, tooltip: { enabled: false } },
     scales: { x: { grid: { display: false }, ticks: { font: { weight: '600' } } }, y: { beginAtZero: true, grid: { color: 'rgba(120,130,150,0.15)' }, border: { display: false }, ticks: { callback: function (v) { return n(v); } } } } },
