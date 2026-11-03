@@ -246,7 +246,11 @@ def vendas_pptx():
     if not d:
         return Response('Ainda não há dados de faturamento carregados do TOTVS.', status=404, mimetype='text/plain; charset=utf-8')
     try:
-        corpo = vendas_deck.gerar(d, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'))
+        try:
+            fotos = captura.capturar_blocos(_base_url(), _usuario_id(), d['ano'], d['mes'])       # paineis do BI Comercial, como aparecem no site
+        except Exception:  # noqa: BLE001
+            fotos = None                                                                      # sem o Chromium: usa os cartoes/graficos desenhados no proprio PowerPoint
+        corpo = vendas_deck.gerar(d, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), fotos)
     except Exception as e:  # noqa: BLE001
         return Response(f'Não foi possível gerar a apresentação de Vendas: {e}', status=500, mimetype='text/plain; charset=utf-8')
     nome = re.sub(r'[^A-Za-z0-9_]+', '_', f'VENDAS_{_norm(dados.MESES[d["mes"] - 1]).upper()}_{d["ano"]}') + '.pptx'

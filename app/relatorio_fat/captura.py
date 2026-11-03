@@ -68,3 +68,34 @@ def _gerar(sync_playwright, base_url: str, user_id: int, ano, mes, visao: str = 
             return pdf
         finally:
             nav.close()
+
+
+def capturar_blocos(base_url: str, user_id: int, ano, mes) -> dict:
+    """Fotos (PNG, 2x) dos paineis do BI Comercial como aparecem no site: cartoes de receita e de metros, os dois graficos mensais e os quatro quadros de barras
+    (receita por segmento e por pais, mes e acumulado). Usado pela apresentacao de Vendas."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as e:
+        raise RuntimeError('playwright não instalado. ' + AJUDA) from e
+    base = base_url.rstrip('/')
+    q = ''.join(f'&{k}={v}' for k, v in (('ano', ano), ('mes', mes)) if v)
+    with sync_playwright() as pw:
+        nav = pw.chromium.launch(executable_path=os.getenv('RELATORIO_FAT_CHROMIUM') or None)
+        try:
+            pg = nav.new_page(viewport={'width': 1500, 'height': 1000}, device_scale_factor=2)
+            pg.goto(f'{base}/relatorio-faturamento/entrar?t={novo_token(user_id)}{q}', wait_until='domcontentloaded', timeout=60000)
+            pg.wait_for_selector('#sl-int', timeout=180000)
+            pg.wait_for_load_state('networkidle', timeout=60000)
+            pg.wait_for_timeout(3000)                                      # animacao dos graficos
+            alvos = [('kpi_receita', '.cme-kpigrid', 0), ('graf_receita', '.sl-grafico', 0), ('kpi_metros', '.cme-kpigrid', 1), ('graf_metros', '.sl-grafico', 1),
+                     ('seg_mes', '.sl-prog', 0), ('seg_acum', '.sl-prog', 1), ('ext_mes', '.sl-prog', 2), ('ext_acum', '.sl-prog', 3)]
+            fotos = {}
+            for nome, sel, i in alvos:
+                loc = pg.locator(sel)
+                if loc.count() > i:
+                    loc.nth(i).scroll_into_view_if_needed()
+                    pg.wait_for_timeout(400)
+                    fotos[nome] = loc.nth(i).screenshot(type='png')
+            return fotos
+        finally:
+            nav.close()
