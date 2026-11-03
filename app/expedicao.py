@@ -192,3 +192,41 @@ def diagnostico():
                    inspecao=dict(cod=d.get('inspecao_cod'), nome=d.get('inspecao_desc'), n=len(d.get('inspecao') or {}), total_itens=d.get('inspecao_total_itens'), saldos_vistos=d.get('estoques_vistos')),
                    flags_amostra=dict(list((d.get('flags') or {}).items())[:5]), status_nf=sorted({n[3] for n in (d.get('notas') or {}).values()}), status_nfe=sorted({n[4] for n in (d.get('notas') or {}).values()}),
                    estado=expedicao.ESTADO, amostra_item_pedido=__import__('app.totvs.pedidos', fromlist=['ESTADO']).ESTADO.get('amostra_item'), amostra_pedido=__import__('app.totvs.pedidos', fromlist=['ESTADO']).ESTADO.get('amostra_pedido'))
+
+
+@exp_bp.route('/inspecao-email/pdf')
+@login_required
+def inspecao_email_pdf():
+    """Previa do PDF do alerta de saldo aguardando inspecao (quem ve a aba)."""
+    _autorizar()
+    from flask import Response
+    from app import expedicao_inspecao as EI
+    try:
+        pdf = EI.gerar_pdf(EI.dados())
+    except Exception as e:  # noqa: BLE001
+        return Response(f'Não foi possível gerar o PDF: {e}', status=500, mimetype='text/plain')
+    return Response(pdf, mimetype='application/pdf', headers={'Content-Disposition': 'inline; filename=saldo_aguardando_inspecao.pdf'})
+
+
+@exp_bp.route('/inspecao-email/teste', methods=['GET', 'POST'])
+@login_required
+def inspecao_email_teste():
+    """So administrador: manda AGORA o e-mail do saldo aguardando inspecao (?para=a@x.com,b@y.com; padrao: Christian), no mesmo formato do envio automatico, e mostra o estado do agendador."""
+    if not current_user.is_admin:
+        abort(403)
+    from app import expedicao_inspecao as EI
+    from app.relatorio_fat import envio_email as envio
+    from flask import current_app
+    cfg = EI.config()
+    est = EI._ler(current_app)
+    if request.args.get('estado'):
+        return jsonify(config=dict(cfg, inicio='%02d:%02d' % cfg['inicio'], fim='%02d:%02d' % cfg['fim']), estado=est, smtp=envio.configurado())
+    try:
+        destinos = envio.validar(request.values.get('para') or EI.DESTINO_PADRAO)
+        d = EI.dados()
+        if not d['lista']:
+            return jsonify(ok=False, erro='A Expedição ainda não leu o saldo aguardando inspeção do TOTVS (lista vazia).'), 409
+        rec = EI.enviar(destinos, d, teste=request.values.get('teste', '1') != '0')
+        return jsonify(ok=True, para=destinos, total_m=d['total'], produtos=d['itens'], recusados=rec.get('recusados'), acima_do_limite=d['total'] > cfg['limite'])
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, erro=str(e)[:300]), 500

@@ -356,6 +356,8 @@ def create_app():
         iniciar_r32(app)            # Relatorio 32 (pesagens) vindo do PCP Hub, a cada 60 s: so para a producao
         from app.main.routes import iniciar_aquecimento_movimentos
         iniciar_aquecimento_movimentos(app)  # pesagens (Relatorio 32) sempre prontas: o Controle de Producao abre sem esperar
+        from app.expedicao_inspecao import iniciar_agendador as iniciar_exp_inspecao
+        iniciar_exp_inspecao(app)  # e-mail do saldo aguardando inspecao (> limite de metros), 1x por dia util
         from app.malharia_info import iniciar_aquecimento as iniciar_info
         iniciar_info(app)           # mantem quentes os dados do INFO da maquina enquanto alguem usa a tela
         from app.reprova_cru import iniciar_agendador as iniciar_reprova_email
