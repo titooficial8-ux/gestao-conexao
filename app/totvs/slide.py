@@ -200,8 +200,13 @@ def montar(regs: list[dict], mes: int, ano: int) -> dict:
     cab_mt = dict(totais=liq_mt + dev_mt, devolvidos=dev_mt, liquido=liq_mt, plano=plano_mt, falta=plano_mt - liq_mt,
                   pct_dev=(dev_mt / (liq_mt + dev_mt)) if (liq_mt + dev_mt) else 0, pct_plano=(liq_mt / plano_mt) if plano_mt else 0)
 
+    # ---- series mensais so de colchao (MI + M.E.): receita liquida (R$) e quantidade em metros, ano-1 x ano
+    colch = {x['seg'] for x in regs if 'COLCH' in (x['seg'] or '')}
+    serie_colch = [dict(mes=m, ant=sum(soma('liquida', mes=m, ano=ant, seg=sg) for sg in colch), real=sum(soma('liquida', mes=m, ano=ano, seg=sg) for sg in colch)) for m in range(1, 13)]
+    serie_colch_mt = [dict(mes=m, ant=sum(soma('quant', mes=m, ano=ant, seg=sg, esp='MT') for sg in colch), real=sum(soma('quant', mes=m, ano=ano, seg=sg, esp='MT') for sg in colch)) for m in range(1, 13)]
+
     visivel = lambda l: [x for x in l if base._k(x['rotulo']) not in ocultos]
     rs, mt, kg = visivel(rs), visivel(mt), visivel(kg)
-    return dict(serie_mensal=serie, serie_metros=serie_mt, cabecalho_metros=cab_mt, mes=mes, ano=ano, ano_ant=ant, cabecalho=cab, receita=rs, receita_total=tot_rs, metros=mt, metros_total=tot_mt, quilos=kg, quilos_total=tot_kg,
+    return dict(serie_mensal=serie, serie_metros=serie_mt, serie_colchao=serie_colch, serie_colchao_mt=serie_colch_mt, cabecalho_metros=cab_mt, mes=mes, ano=ano, ano_ant=ant, cabecalho=cab, receita=rs, receita_total=tot_rs, metros=mt, metros_total=tot_mt, quilos=kg, quilos_total=tot_kg,
                 preco_medio=pm, representantes=reps, representantes_total=tot_reps, ortobom=orto, ortobom_total=orto_tot, ortobom_plano=orto_plano,
                 internacional=intl, internacional_total=it)
