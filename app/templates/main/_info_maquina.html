@@ -3,6 +3,7 @@
 .info-i.marca{background:#fecaca;border-color:#dc2626;color:#b91c1c}.info-i.pisca{background:#dc2626;border-color:#dc2626;color:#fff;animation:infoPisca 1s infinite}@keyframes infoPisca{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.7);opacity:1}50%{box-shadow:0 0 0 6px rgba(220,38,38,0);opacity:.45}}
 .info-i:hover{background:#2f7fe0;color:#fff}
 .info-i.tem-obs{background:#fef3c7;border-color:#d97706;color:#92400e;box-shadow:0 0 0 2px #fde68a}
+.obs-abrir{margin-top:10px;border:1.5px solid #d6b36b;background:#fff;color:#92400e;border-radius:8px;padding:6px 14px;font-weight:800;cursor:pointer;font-size:13px}.obs-abrir.tem{background:#fef3c7;border-color:#d97706}.obs-abrir:hover{background:#fde68a}
 .obs-box{border:1.5px solid #f59e0b;background:#fffbeb;border-radius:10px;padding:10px 12px;margin-top:10px}.obs-box h4{margin:0 0 6px;color:#92400e}.obs-box textarea{width:100%;box-sizing:border-box;min-height:70px;border:1px solid #d6b36b;border-radius:8px;padding:8px 10px;font:inherit;color:#1e293b;background:#fff;resize:vertical}.obs-txt{white-space:pre-wrap;font-size:14px;color:#1e293b}.obs-meta{font-size:11px;color:#92400e;margin-top:4px}.obs-bt{display:flex;gap:8px;align-items:center;margin-top:6px}.obs-bt button{border:0;border-radius:8px;padding:6px 14px;font-weight:800;cursor:pointer;background:#92400e;color:#fff}.obs-msg{font-size:12px;color:#166534}
 #infoMaq{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:3500;display:none;align-items:flex-start;justify-content:center;padding:30px 12px;overflow:auto}
 #infoMaq.on{display:flex}
@@ -76,10 +77,13 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
     if (d.vazio) { corpo.innerHTML = '<h3>Máquina ' + d.maquina + '</h3><p class="info-vazio">Sem sequência programada.</p>'; return; }
     var a = d.acompanhamento, h = '<h3>Máquina ' + String(d.maquina).padStart(2, '0') + ' · OP ' + esc(a.op) + ' · ' + esc(a.artigo) + '</h3><div class="info-vazio">' + esc(a.cliente || '') + ' · ' + esc(a.situacao || a.status) + '</div>';
     var ob = d.obs_pcp || {};
-    h += '<div class="obs-box" id="obsPcp" data-seq="' + ob.seq + '"><h4>Observação do PCP</h4>' + (ob.pode
-      ? '<textarea id="obsTexto" maxlength="1000" placeholder="Escreva aqui a observação do PCP sobre esta OP (aparece para todos que abrirem o i)">' + esc(ob.texto) + '</textarea><div class="obs-bt"><button type="button" id="obsSalvar">Salvar observação</button><span class="obs-msg" id="obsMsg"></span></div>'
-      : (ob.texto ? '<div class="obs-txt">' + esc(ob.texto) + '</div>' : '<div class="info-vazio">Sem observação do PCP.</div>')) +
-      '<div class="obs-meta" id="obsMeta">' + (ob.texto && ob.por ? 'Por ' + esc(ob.por) + (ob.em ? ' · ' + esc(ob.em) : '') : '') + '</div></div>';
+    if (ob.texto || ob.pode) {
+      h += '<button type="button" id="obsAbrir" class="obs-abrir' + (ob.texto ? ' tem' : '') + '">' + (ob.texto ? '📝 Ver observação do PCP' : '📝 Adicionar observação do PCP') + '</button>' +
+        '<div class="obs-box" id="obsPcp" data-seq="' + ob.seq + '" hidden><h4>Observação do PCP</h4>' + (ob.pode
+        ? '<textarea id="obsTexto" maxlength="1000" placeholder="Escreva aqui a observação do PCP sobre esta OP (aparece para todos que abrirem o i)">' + esc(ob.texto) + '</textarea><div class="obs-bt"><button type="button" id="obsSalvar">Salvar observação</button><span class="obs-msg" id="obsMsg"></span></div>'
+        : '<div class="obs-txt">' + esc(ob.texto) + '</div>') +
+        '<div class="obs-meta" id="obsMeta">' + (ob.texto && ob.por ? 'Por ' + esc(ob.por) + (ob.em ? ' · ' + esc(ob.em) : '') : '') + '</div></div>';
+    }
     (d.paradas || []).forEach(function (p) {
       var cor = p.parada ? ['#fee2e2', '#dc2626', '#991b1b'] : ['#fff7ed', '#fdba74', '#9a3412'];
       h += '<div style="background:' + cor[0] + ';border:1px solid ' + cor[1] + ';color:' + cor[2] + ';border-radius:8px;padding:7px 12px;margin-top:8px;font-weight:800">' + (p.parada ? '🛑 MÁQUINA PARADA' : '● ' + esc(p.tipo)) + (p.motivo ? ' · ' + esc(p.motivo) : '') +
@@ -140,6 +144,13 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
   }
   piscar(); setInterval(piscar, 30000);
   document.addEventListener('click', function (ev) {
+    var ab = ev.target.closest('#obsAbrir');
+    if (ab) {
+      var bx0 = document.getElementById('obsPcp'); bx0.hidden = !bx0.hidden;
+      ab.textContent = bx0.hidden ? (ab.classList.contains('tem') ? '📝 Ver observação do PCP' : '📝 Adicionar observação do PCP') : '📝 Ocultar observação do PCP';
+      if (!bx0.hidden) { var t0 = document.getElementById('obsTexto'); if (t0) t0.focus(); }
+      return;
+    }
     var sv = ev.target.closest('#obsSalvar');
     if (sv) {
       var tx = document.getElementById('obsTexto'), mg = document.getElementById('obsMsg'), bx = document.getElementById('obsPcp');
@@ -148,7 +159,7 @@ td.aj-pisca{animation:ajPisca 1s infinite;cursor:pointer;font-weight:900;color:#
         .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro'); return j; }); })
         .then(function (j) {
           mg.textContent = j.texto ? 'Salvo.' : 'Observação removida.'; document.getElementById('obsMeta').textContent = j.texto ? 'Por ' + j.por + (j.em ? ' · ' + j.em : '') : '';
-          var ib = document.querySelector('.info-i[data-seq="' + bx.dataset.seq + '"]'); if (ib) ib.classList.toggle('tem-obs', !!j.texto);
+          var ib = document.querySelector('.info-i[data-seq="' + bx.dataset.seq + '"]'); if (ib) ib.classList.toggle('tem-obs', !!j.texto); var ab2 = document.getElementById('obsAbrir'); if (ab2) { ab2.classList.toggle('tem', !!j.texto); ab2.textContent = '📝 Ocultar observação do PCP'; }
         }).catch(function (e) { mg.style.color = '#b91c1c'; mg.textContent = e.message; }).then(function () { sv.disabled = false; });
       return;
     }
