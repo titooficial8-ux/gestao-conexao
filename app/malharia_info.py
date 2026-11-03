@@ -527,7 +527,28 @@ def info_maquina(numero):
             rap = None
         if rap:
             resumo['regulagem'] = {'Raport': f"{str(rap).replace('.', ',')} cm", **resumo['regulagem']}
-    return jsonify(maquina=numero, acompanhamento=_acompanhamento(seq, maq), liberacao=resumo, etapas=etapas, ocorrencias=_ocorrencias(seq.artigo, m2, numero), paradas=_ocorrencias_abertas(m2), erro_sharepoint=_erro('liberacoes') or _erro('ncs'))
+    from app.main.routes import _pode_dias_sem_producao
+    obs = dict(seq=seq.id, texto=seq.obs_pcp or '', por=seq.obs_pcp_por or '', em=(seq.obs_pcp_em - timedelta(hours=3)).strftime('%d/%m/%Y %H:%M') if seq.obs_pcp_em else '', pode=_pode_dias_sem_producao())
+    return jsonify(maquina=numero, obs_pcp=obs, acompanhamento=_acompanhamento(seq, maq), liberacao=resumo, etapas=etapas, ocorrencias=_ocorrencias(seq.artigo, m2, numero), paradas=_ocorrencias_abertas(m2), erro_sharepoint=_erro('liberacoes') or _erro('ncs'))
+
+
+@info_bp.route('/sequencia/<int:seq_id>/observacao', methods=['POST'])
+@login_required
+def observacao_pcp(seq_id):
+    """Observacao do PCP sobre a OP (vazio apaga). So PCP/administrador escreve; todos que veem a sequencia leem."""
+    _tab_ok()
+    from app.main.routes import _pode_dias_sem_producao
+    if not _pode_dias_sem_producao():
+        return jsonify(erro='Somente o PCP e os administradores escrevem a observação.'), 403
+    q = db.session.get(Sequencia, seq_id)
+    if not q:
+        return jsonify(erro='OP não encontrada.'), 404
+    txt = re.sub(r'[ \t]+', ' ', str((request.get_json(silent=True) or {}).get('texto') or '')).strip()
+    if len(txt) > 1000:
+        return jsonify(erro='Use no máximo 1000 caracteres.'), 400
+    q.obs_pcp, q.obs_pcp_por, q.obs_pcp_em = (txt or None), (getattr(current_user, 'name', None) or 'Usuário' if txt else None), (datetime.utcnow() if txt else None)
+    db.session.commit()
+    return jsonify(ok=True, texto=txt, por=q.obs_pcp_por or '', em=(q.obs_pcp_em - timedelta(hours=3)).strftime('%d/%m/%Y %H:%M') if q.obs_pcp_em else '')
 
 
 # ------------------------------------------------------------------ aumento de quantidade da OP (PCPFP084)

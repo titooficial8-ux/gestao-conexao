@@ -207,6 +207,9 @@ class Sequencia(db.Model):
     prev_raport = db.Column(db.Float, nullable=True)          # raport (cm) usado quando a previsao saiu de raport x RPM instalado
     prev_termino_em = db.Column(db.DateTime, nullable=True)   # data e hora previstas de termino (voltas/RPM + fila da maquina)
     maq_fixa = db.Column(db.Boolean, default=False)           # OP transferida de maquina aqui no Gestao: a leitura do PCP Hub nao a devolve para a maquina antiga (a marca sai quando o Hub passa a mostrar a mesma maquina)
+    obs_pcp = db.Column(db.Text, nullable=True)               # observacao do PCP sobre a OP (aparece no 'i' da sequencia)
+    obs_pcp_por = db.Column(db.String(120), nullable=True)
+    obs_pcp_em = db.Column(db.DateTime, nullable=True)
 
     @property
     def termino_hora_aprox(self):
