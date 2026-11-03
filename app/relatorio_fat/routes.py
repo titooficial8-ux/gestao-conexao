@@ -185,6 +185,54 @@ def enviar():
     return jsonify(ok=True, enviado_para=destinos, anexos=[a[0] for a in anexos])
 
 
+@rel_fat_bp.route('/enviar-mes')
+@login_required
+def enviar_mes():
+    """Envio manual de um mes fechado (Faturamento + Entrada de Pedidos, mesmo e-mail do automatico). ?mes=10 mostra a previa (assunto, destinatarios, texto);
+    &enviar=1 envia de verdade; &para=a@x.com envia so para esse(s) endereco(s) com [TESTE] no assunto."""
+    if not pode_gerar(current_user):
+        abort(403)
+    mes = request.args.get('mes', type=int)
+    if not mes or not 1 <= mes <= 12:
+        return Response('Informe o mes: /relatorio-faturamento/enviar-mes?mes=10', status=400, mimetype='text/plain; charset=utf-8')
+    ano = request.args.get('ano', type=int) or agora_brasilia_ano()
+    if not envio.configurado():
+        return Response('E-mail ainda nao configurado neste computador: faltam ' + ', '.join(envio.faltando()), status=400, mimetype='text/plain; charset=utf-8')
+    teste = (request.args.get('para') or '').strip()
+    try:
+        destinos = envio.validar(teste or agenda.configuracao()['destinos'])
+    except ValueError as e:
+        return Response(str(e), status=400, mimetype='text/plain; charset=utf-8')
+    ref = f'{dados.MESES[mes - 1]}/{ano}'
+    assunto = ('[TESTE] ' if teste else '') + f'Relatório de Faturamento e Entrada de Pedidos — {ref}'
+    titulo = 'Relatório de Faturamento e o Relatório de Entrada de Pedidos'
+    corpo = envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), titulo=titulo)
+    if request.args.get('enviar') != '1':
+        return Response(f'PREVIA (nada foi enviado)\n\nAssunto: {assunto}\nPara ({len(destinos)}): {", ".join(destinos)}\n\n{corpo}\n\n'
+                        f'Para enviar de verdade, acrescente &enviar=1 ao endereco.', mimetype='text/plain; charset=utf-8')
+    anexos = []
+    for fn, rotulo in ((lambda: _montar('pdf', ano, mes), 'PDF do Relatório de Faturamento'), (lambda: _montar_pedidos(mes), 'PDF da Entrada de Pedidos')):
+        try:
+            r = fn()
+        except Exception as e:  # noqa: BLE001
+            return Response(f'Nao foi possivel gerar o {rotulo}: {e}', status=500, mimetype='text/plain; charset=utf-8')
+        if not r:
+            return Response('Ainda nao ha dados de faturamento carregados do TOTVS.', status=404, mimetype='text/plain; charset=utf-8')
+        if (r[2], r[3]) != (mes, ano):
+            return Response(f'O {rotulo} saiu de {dados.MESES[r[2] - 1]}/{r[3]}, nao de {ref}. Nada foi enviado.', status=409, mimetype='text/plain; charset=utf-8')
+        anexos.append((r[1], r[0], MIME['pdf']))
+    try:
+        rec = envio.enviar(destinos, assunto, corpo, anexos, prioridade_alta=True)
+        agenda.registrar_envio(current_app, assunto, destinos, rec, 'manual mes (' + (getattr(current_user, 'name', '') or '?') + ')')
+    except Exception as e:  # noqa: BLE001
+        return Response(f'Nao foi possivel enviar: {e}', status=502, mimetype='text/plain; charset=utf-8')
+    return Response(f'ENVIADO: {assunto}\nPara: {", ".join(destinos)}\nAnexos: {", ".join(a[0] for a in anexos)}', mimetype='text/plain; charset=utf-8')
+
+
+def agora_brasilia_ano() -> int:
+    return agenda.agora_brasilia().year
+
+
 @rel_fat_bp.route('/gerar')
 @login_required
 def gerar():
