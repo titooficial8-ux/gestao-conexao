@@ -21,7 +21,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 DESTINO_PADRAO = 'christian.yarzon@conexaomalhas.com.br'                    # usado so no envio de teste
-PARA_PADRAO = 'luciane.frias@conexaomalhas.com.br,vinicius.ricci@conexaomalhas.com.br'
+PARA_PADRAO = 'luciane.frias@conexaomalhas.com.br,vinicius.ricci@conexaomalhas.com.br,isabela.ramos@conexaomalhas.com.br'
 CC_PADRAO = 'edmar.santos@conexaomalhas.com.br,christian.yarzon@conexaomalhas.com.br'
 _trava = threading.Lock()
 
