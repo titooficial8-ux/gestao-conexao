@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block page_title %}{{ t('maquina') }} {{ '%02d'|format(machine.number) }}{% endblock %}
 {% block content %}
+{% if manut_ativas and machine.number in manut_ativas %}<style>@keyframes manutPisca{0%,100%{opacity:1}50%{opacity:.3}}</style><div style="background:#dc2626;color:#fff;font-weight:900;border-radius:10px;padding:10px 16px;margin-bottom:12px;animation:manutPisca 1s infinite">&#128295; MÁQUINA EM MANUTENÇÃO — {{ manut_ativas[machine.number] }} (sinalizado pelo líder no Acompanhamento de Produção)</div>{% endif %}
 
 <div class="page-banner page-banner-maquina">
   <img src="{{ url_for('static', filename='img/banner_maquina_soft.jpg') }}" alt="">

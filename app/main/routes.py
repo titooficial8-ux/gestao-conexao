@@ -898,14 +898,14 @@ def view_tab(slug):
             return render_template(
                 'main/_programacao_maquinas.html',
                 machines=machines, busca=busca, filtro_cliente=filtro_cliente, filtro_mes=filtro_mes,
-                est_rodando=estruturas_rodando(machines), ind_maquinas=indicadores_maquinas(machines), maquinas_gargalo=maquinas_gargalo,
+                est_rodando=estruturas_rodando(machines), ind_maquinas=indicadores_maquinas(machines), maquinas_gargalo=maquinas_gargalo, manut_ativas=_manut_ativas(),
             )
 
         return render_template(
             'main/programacao.html',
             tab=tab,
             machines=machines,
-            est_rodando=estruturas_rodando(machines), ind_maquinas=indicadores_maquinas(machines), maquinas_gargalo=maquinas_gargalo,
+            est_rodando=estruturas_rodando(machines), ind_maquinas=indicadores_maquinas(machines), maquinas_gargalo=maquinas_gargalo, manut_ativas=_manut_ativas(),
             total_maquinas_cadastradas=total_maquinas_cadastradas,
             maquinas_ativas=maquinas_ativas,
             total_sequencias=total_sequencias,
@@ -1362,6 +1362,9 @@ def view_tab(slug):
 
     if slug == 'expedicao':
         return render_template('main/expedicao.html', tab=tab)
+
+    if slug == 'amostras-manutencoes':
+        return render_template('main/amostras_manutencoes.html', tab=tab)
 
     if slug == 'nf-xml':
         return render_template('main/nf_xml.html', tab=tab)
@@ -2710,6 +2713,19 @@ def sequencia_dt_cliente(seq_id):
     return jsonify(ok=True, exibe=exibe, edita=(q.dt_cliente.strftime('%d/%m/%Y') if q.dt_cliente else (q.production_month or '')))
 
 
+def _manut_ativas() -> dict:
+    """{maquina: 'desde dd/mm HH:MM'} das maquinas com manutencao em andamento (Acompanhamento de Producao ou aviso do Gestao)."""
+    try:
+        from app.manutencao import em_manutencao
+        out = {}
+        for n, a in em_manutencao().items():
+            ini = a.inicio.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=-3))) if a.inicio else None
+            out[n] = ('desde ' + ini.strftime('%d/%m %H:%M')) if ini else 'em andamento'
+        return out
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 @main_bp.route('/aba/programacao/story')
 @login_required
 def programacao_story():
@@ -2977,7 +2993,7 @@ def maquina_detalhe(numero):
                           op_produzindo=produzindo.op if produzindo else None)
     return render_template(
         'main/maquina_detalhe.html',
-        pode_editar_dt=_pode_dias_sem_producao(), dt_editavel={q.id for q in sequencias if q.qt_avulsa or q.id in avulsa_cli or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper() or q.dt_cliente_manual or (not q.dt_cliente and not q.production_month)}, atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), maquinas_destino=[m.number for m in Machine.query.order_by(Machine.number).all() if m.number != machine.number], impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
+        pode_editar_dt=_pode_dias_sem_producao(), dt_editavel={q.id for q in sequencias if q.qt_avulsa or q.id in avulsa_cli or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper() or q.dt_cliente_manual or (not q.dt_cliente and not q.production_month)}, atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), manut_ativas=_manut_ativas(), maquinas_destino=[m.number for m in Machine.query.order_by(Machine.number).all() if m.number != machine.number], impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
         artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, avulsa_cli=avulsa_cli, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
         tab=tab,
         machine=machine,
