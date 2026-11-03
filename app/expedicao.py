@@ -232,6 +232,11 @@ def inspecao_email_teste():
             return jsonify(ok=False, erro='A Expedição ainda não leu o saldo aguardando inspeção do TOTVS (lista vazia).'), 409
         teste = not real
         rec = EI.enviar(destinos, d, teste=teste, cc=copias)
+        if real:                                              # enviado manualmente para a lista oficial: o automatico nao repete hoje
+            from app.relatorio_fat.agenda import agora_brasilia, _reivindicar
+            _reivindicar(agora_brasilia().date(), 'inspecao')
+            est.update(enviado_em=agora_brasilia().date().isoformat(), ultimo=f'{agora_brasilia():%d/%m %H:%M} · envio manual para a lista oficial', erro=None, erro_em=None)
+            EI._gravar(current_app, est)
         return jsonify(ok=True, para=destinos, cc=copias, assunto=EI.assunto_do_email(d, teste), total_m=d['total'], produtos=d['itens'], recusados=rec.get('recusados'), acima_do_limite=d['total'] > cfg['limite'])
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=str(e)[:300]), 500

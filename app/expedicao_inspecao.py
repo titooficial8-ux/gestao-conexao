@@ -179,7 +179,10 @@ def enviar(destinos: list, d: dict = None, teste: bool = False, cc: list = None)
     pdf = gerar_pdf(d)
     assunto = assunto_do_email(d, teste)
     rec = envio.enviar(destinos, assunto, corpo(d), [(f'saldo_aguardando_inspecao_{d["gerado"]:%Y-%m-%d_%H%M}.pdf', pdf, 'application/pdf')], cc=cc or None)
-    agenda.registrar_envio(current_app._get_current_object(), assunto, list(destinos) + list(cc or []), rec, 'inspecao-teste' if teste else 'inspecao')
+    try:                                                      # o e-mail ja saiu: falha ao anotar no historico NUNCA pode virar um segundo envio
+        agenda.registrar_envio(current_app._get_current_object(), assunto, list(destinos) + list(cc or []), rec, 'inspecao-teste' if teste else 'inspecao')
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
     return rec
 
 
@@ -240,20 +243,25 @@ def _tick(app) -> None:
             lock = _reivindicar(agora.date(), 'inspecao')
             if lock is None:
                 return
+            enviado = False
             try:
                 if not envio.configurado():
                     raise RuntimeError('E-mail não configurado: preencha no .env ' + ', '.join(envio.faltando()))
                 destinos, copias = envio.validar(cfg['destinos']), envio.validar(cfg['cc'])
                 enviar(destinos, d, cc=copias)
+                enviado = True
                 est.update(enviado_em=hoje, ultimo=f'{agora:%d/%m %H:%M} · {_fmt(d["total"], 2)} m em {d["itens"]} produto(s) enviados para {len(destinos)} pessoa(s) (+{len(copias)} em cópia)', erro=None, erro_em=None)
                 print(f'[expedicao-inspecao] {est["ultimo"]}', flush=True)
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
-                est.update(erro=str(e)[:300], erro_em=agora.isoformat(timespec='seconds'))
-                try:
-                    lock.unlink()
-                except OSError:
-                    pass
+                if enviado:                                          # ja foi enviado: so anota; NAO solta a trava nem tenta de novo hoje
+                    est.update(enviado_em=hoje, erro=None, erro_em=None)
+                else:
+                    est.update(erro=str(e)[:300], erro_em=agora.isoformat(timespec='seconds'))
+                    try:
+                        lock.unlink()
+                    except OSError:
+                        pass
             _gravar(app, est)
     except Exception:  # noqa: BLE001
         traceback.print_exc()
