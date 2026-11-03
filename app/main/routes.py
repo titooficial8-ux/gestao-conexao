@@ -4,6 +4,7 @@ import json
 import hashlib
 import gzip
 import re
+import urllib.parse
 import threading
 import unicodedata
 
@@ -2705,6 +2706,71 @@ def sequencia_dt_cliente(seq_id):
     return jsonify(ok=True, exibe=exibe, edita=(q.dt_cliente.strftime('%d/%m/%Y') if q.dt_cliente else (q.production_month or '')))
 
 
+@main_bp.route('/aba/programacao/story')
+@login_required
+def programacao_story():
+    """PDF de uma folha com a programacao de todas as maquinas (1o rodando + fila em sequencia), igual ao Story do PCP Hub."""
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
+    if not tab.visible_to(current_user):
+        abort(403)
+    from app import story_pdf
+    try:
+        pdf, nome = story_pdf.gerar_pdf()
+    except Exception as e:  # noqa: BLE001
+        return Response(f'Não foi possível gerar o Story: {e}', status=500, mimetype='text/plain; charset=utf-8')
+    r = Response(pdf, mimetype='application/pdf')
+    r.headers['Content-Disposition'] = "attachment; filename*=UTF-8''" + urllib.parse.quote(nome)
+    r.headers['Cache-Control'] = 'no-store'
+    return r
+
+
+@main_bp.route('/aba/programacao/sequencia/<int:seq_id>/transferir', methods=['POST'])
+@login_required
+def sequencia_transferir(seq_id):
+    """Transfere a OP para outra maquina (botao direito na fila). O motivo e obrigatorio e a movimentacao fica no historico do Controle de Artigos."""
+    tab = Tab.query.filter_by(slug='programacao').first_or_404()
+    if not tab.visible_to(current_user) or not _pode_dias_sem_producao():
+        return jsonify(erro='Somente o PCP e os administradores transferem artigos de máquina.'), 403
+    import uuid
+    from app import auditoria
+    from app.models import ArtigoImpedimento
+    q = db.session.get(Sequencia, seq_id)
+    if not q or q.status in ('FINALIZADO', 'CANCELADO'):
+        return jsonify(erro='OP não encontrada ou já finalizada.'), 404
+    d = request.get_json(silent=True) or {}
+    destino = Machine.query.filter_by(number=int(d['destino'])).first() if str(d.get('destino') or '').isdigit() else None
+    motivo = str(d.get('motivo') or '').upper()
+    just = re.sub(r'\s+', ' ', str(d.get('justificativa') or '')).strip()
+    if not destino:
+        return jsonify(erro='Escolha a máquina de destino.'), 400
+    if destino.id == q.machine_id:
+        return jsonify(erro='A OP já está nesta máquina.'), 400
+    if motivo not in auditoria.MOTIVOS:
+        return jsonify(erro='Escolha o motivo da movimentação (Malha, Problema técnico ou Outro).'), 400
+    if len(just) < 10:
+        return jsonify(erro='A justificativa é obrigatória (mínimo de 10 caracteres).'), 400
+    bloq = auditoria.bloqueio(q.artigo, destino.number)
+    if bloq:
+        return jsonify(erro=bloq), 409
+    origem = q.machine
+    ativas_dest = [x.sequence_order or 0 for x in Sequencia.query.filter_by(machine_id=destino.id).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).all()]
+    db.session.add(ArtigoImpedimento(id=uuid.uuid4().hex, artigo=q.artigo, artigo_norm=auditoria._norm_artigo(q.artigo), op=q.op, qt_solicitada=float(q.qt_solicitada or 0), maquina=origem.number,
+                                     destino=str(destino.number), motivo=motivo, justificativa=just, movido_por=auditoria._usuario(), movido_em=datetime.utcnow(), ativo=True, origem_registro='gestao'))
+    q.machine_id, q.sequence_order = destino.id, max(ativas_dest or [0]) + 1
+    q.maq_fixa, q.aud_ok, q.aud_em, q.termino_calculado, q.prev_termino_em = True, False, None, False, None
+    resto = Sequencia.query.filter_by(machine_id=origem.id).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).order_by(Sequencia.sequence_order).all()
+    for pos, x in enumerate(resto, 1):
+        x.sequence_order = pos
+    db.session.commit()
+    from app import previsao
+    for n in (origem.number, destino.number):
+        try:
+            previsao.calcular(maquina=n, esperar=True)
+        except Exception:  # noqa: BLE001
+            pass
+    return jsonify(ok=True, destino=destino.number)
+
+
 @main_bp.route('/aba/programacao/maquina/<int:numero>/reordenar', methods=['POST'])
 @login_required
 def maquina_reordenar(numero):
@@ -2903,7 +2969,7 @@ def maquina_detalhe(numero):
                           op_produzindo=produzindo.op if produzindo else None)
     return render_template(
         'main/maquina_detalhe.html',
-        pode_editar_dt=_pode_dias_sem_producao(), dt_editavel={q.id for q in sequencias if q.qt_avulsa or q.id in avulsa_cli or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper()}, atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
+        pode_editar_dt=_pode_dias_sem_producao(), dt_editavel={q.id for q in sequencias if q.qt_avulsa or q.id in avulsa_cli or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper()}, atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), maquinas_destino=[m.number for m in Machine.query.order_by(Machine.number).all() if m.number != machine.number], motivos_mov=__import__('app.auditoria', fromlist=['MOTIVOS']).MOTIVOS, impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
         artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, avulsa_cli=avulsa_cli, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
         tab=tab,
         machine=machine,

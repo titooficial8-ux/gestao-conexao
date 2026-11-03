@@ -161,8 +161,9 @@ def aplicar(linhas: list, agora=None) -> dict:
         if mm and r.get('op'):
             presentes.add((mm.id, str(r.get('op'))))
     por_op = {}
+    fixas = {str(x.op): x for x in atuais.values() if x.op and x.maq_fixa}      # OPs transferidas de maquina no Gestao: o Hub ainda mostra a maquina antiga
     for (mid, op), x in atuais.items():
-        if x.op and (mid, op) not in presentes:
+        if x.op and not x.maq_fixa and (mid, op) not in presentes:
             por_op.setdefault(op, x)
     for r in linhas:
         try:
@@ -182,6 +183,23 @@ def aplicar(linhas: list, agora=None) -> dict:
                       production_month=r.get('production_month'), termino_malharia=_data(r.get('estimated_end_date')), estrutura=resolve_estrutura_from_article(r.get('article')),
                       region=r.get('region') or 'BR', synced_at=agora)
         s = atuais.get(chave)
+        if not s and r.get('op') and str(r.get('op')) in fixas:        # transferida no Gestao: atualiza os dados mas mantem a maquina (e a ordem) daqui
+            s = fixas[str(r.get('op'))]
+            vistos.add((s.machine_id, str(s.op)))
+            campos.pop('sequence_order', None)
+            if s.termino_calculado:
+                campos.pop('termino_malharia', None)
+            if s.dt_cliente_manual:
+                campos.pop('dt_cliente', None)
+                campos.pop('production_month', None)
+            for k in ('total_pcs', 'qt_solicitada', 'qt_avulsa', 'estrutura'):
+                campos.pop(k, None)
+            for k, v in campos.items():
+                setattr(s, k, v)
+            atualizadas += 1
+            continue
+        if s and s.maq_fixa:                                          # o Hub alcancou a mudanca: a marca nao e mais necessaria
+            s.maq_fixa = False
         if not s and r.get('op') and str(r.get('op')) in por_op:      # mudou de maquina no Hub: leva a mesma sequencia (mantem tudo do Gestao) em vez de apagar e recriar
             s = por_op.pop(str(r.get('op')))
             movidas[str(r.get('op'))] = (s, s.machine.number if s.machine else None)

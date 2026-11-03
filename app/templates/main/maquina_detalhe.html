@@ -483,6 +483,65 @@ tr.seq-arrastando{opacity:.45}tr.seq-alvo-antes td{box-shadow:inset 0 3px 0 #2f7
   });
 })();
 </script>
+{% if pode_editar_dt %}
+<style>
+.mv-menu{position:fixed;z-index:3500;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 10px 30px rgba(15,23,42,.25);padding:4px;min-width:230px}
+.mv-menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;color:#0f172a}.mv-menu button:hover{background:#eef4ff}
+.mv-box{background:#fff;border-radius:12px;padding:18px 20px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(15,23,42,.4)}
+.mv-box h3{margin:0 0 4px;font-size:16px;color:#0f172a}.mv-box .mv-sub{font-size:12px;color:#64748b;margin-bottom:12px}
+.mv-box label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#475569;margin:10px 0 4px}
+.mv-box select,.mv-box textarea{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #94a3b8;border-radius:8px;font-size:14px;font-family:inherit;color:#0f172a;background:#fff}
+.mv-box textarea{min-height:72px;resize:vertical}.mv-erro{color:#b91c1c;font-size:12px;margin-top:8px;min-height:16px}
+.mv-bt{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}.mv-bt button{border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer}.mv-ok{background:#0f2a4a;color:#fff}.mv-no{background:#e5e7eb}
+</style>
+<div class="modal-backdrop" id="mvModal" hidden><div class="mv-box">
+  <h3>Transferir artigo de máquina</h3><div class="mv-sub" id="mvInfo"></div>
+  <label for="mvDestino">Máquina de destino</label>
+  <select id="mvDestino"><option value="">Selecione…</option>{% for n in maquinas_destino %}<option value="{{ n }}">Máquina {{ n }}</option>{% endfor %}</select>
+  <label for="mvMotivo">Motivo da movimentação</label>
+  <select id="mvMotivo"><option value="">Selecione…</option>{% for k, v in motivos_mov.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+  <label for="mvJust">Justificativa (obrigatória)</label>
+  <textarea id="mvJust" placeholder="Explique por que o artigo está saindo desta máquina (mín. 10 caracteres)"></textarea>
+  <div class="mv-erro" id="mvErro"></div>
+  <div class="mv-bt"><button type="button" class="mv-no" id="mvNo">Cancelar</button><button type="button" class="mv-ok" id="mvOk">Transferir</button></div>
+</div></div>
+<script>
+(function () {
+  var tb = document.querySelector('.seq-table tbody'); if (!tb) return;
+  var menu = null, alvo = null, modal = document.getElementById('mvModal');
+  function fecha() { if (menu) { menu.remove(); menu = null; } }
+  document.addEventListener('click', fecha); document.addEventListener('scroll', fecha, true);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { fecha(); modal.hidden = true; } });
+  tb.addEventListener('contextmenu', function (e) {
+    var tr = e.target.closest('tr[data-seq-id]'); if (!tr) return;
+    e.preventDefault(); fecha(); alvo = tr;
+    menu = document.createElement('div'); menu.className = 'mv-menu';
+    menu.innerHTML = '<button type="button">&#8644; Transferir para outra máquina…</button>';
+    menu.style.left = Math.min(e.clientX, window.innerWidth - 250) + 'px'; menu.style.top = Math.min(e.clientY, window.innerHeight - 60) + 'px';
+    document.body.appendChild(menu);
+    menu.firstChild.addEventListener('click', function (ev) {
+      ev.stopPropagation(); fecha();
+      var op = (tr.querySelector('.seq-op') || {}).textContent || '', art = (tr.children[8] || {}).textContent || '';
+      document.getElementById('mvInfo').textContent = 'Máquina {{ machine.number }} · Artigo ' + art.trim() + ' · OP ' + op.trim();
+      ['mvDestino', 'mvMotivo', 'mvJust'].forEach(function (i) { document.getElementById(i).value = ''; }); document.getElementById('mvErro').textContent = '';
+      modal.hidden = false;
+    });
+  });
+  document.getElementById('mvNo').addEventListener('click', function () { modal.hidden = true; });
+  document.getElementById('mvOk').addEventListener('click', function () {
+    var er = document.getElementById('mvErro'), bt = this;
+    var corpo = { destino: document.getElementById('mvDestino').value, motivo: document.getElementById('mvMotivo').value, justificativa: document.getElementById('mvJust').value };
+    if (!corpo.destino) { er.textContent = 'Escolha a máquina de destino.'; return; }
+    if (!corpo.motivo) { er.textContent = 'Escolha o motivo da movimentação.'; return; }
+    if (corpo.justificativa.trim().length < 10) { er.textContent = 'A justificativa é obrigatória (mínimo de 10 caracteres).'; return; }
+    bt.disabled = true; er.textContent = 'Transferindo…';
+    fetch('/aba/programacao/sequencia/' + alvo.dataset.seqId + '/transferir', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.erro || 'Erro'); return d; }); })
+      .then(function () { location.reload(); }).catch(function (x) { er.textContent = x.message; bt.disabled = false; });
+  });
+})();
+</script>
+{% endif %}
 <style>td.dt-edit{cursor:text}td.dt-edit:hover .dt-txt{border-bottom:1px dashed #64748b}
 .dt-pop{position:fixed;z-index:3000;background:#fff;border:2px solid #2f7fe0;border-radius:10px;padding:10px 12px;box-shadow:0 10px 30px rgba(15,23,42,.25);width:230px;font-family:inherit}
 .dt-pop label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#475569;margin-bottom:5px}
