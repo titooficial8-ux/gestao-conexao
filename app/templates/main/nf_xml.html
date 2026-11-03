@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
+{% block content %}
+<style>
+.nx{max-width:1240px}.nx h1{margin:0 0 4px;font-size:26px;color:#0f2540}.nx .sub{font-size:13px;color:#64748b;margin-bottom:16px;max-width:880px}
+.nx-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.nx-card h3{margin:0 0 10px;font-size:15px;color:#0f2540}
+.nx-up{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.nx-up label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:4px}
+.nx-up input[type=file]{width:100%;font-size:13px;border:1px dashed #94a3b8;border-radius:10px;padding:10px;background:#f8fafc;box-sizing:border-box}
+.nx-btn{border:0;border-radius:10px;padding:10px 20px;font-weight:800;font-size:14px;cursor:pointer;background:#0e7490;color:#fff}.nx-btn.sec{background:#e5e7eb;color:#334155}.nx-btn:disabled{opacity:.6;cursor:wait}
+.nx-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 12px}.nx-g label{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:3px}
+.nx-g input,.nx-g textarea,.nx-tab input{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;color:#0f172a;background:#fff}
+.nx-g .l2{grid-column:span 2}.nx-g .l4{grid-column:1/-1}
+.nx-tabw{overflow:auto;border:1px solid #e5e7eb;border-radius:10px}.nx-tab{width:100%;border-collapse:collapse;font-size:13px}.nx-tab th{background:#f8fafc;padding:8px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;text-align:left;white-space:nowrap}.nx-tab td{padding:5px 6px;border-top:1px solid #f1f5f9}
+.nx-tab input{min-width:70px}.nx-tab td.d input{min-width:260px}.nx-rm{border:0;background:#fee2e2;color:#991b1b;border-radius:6px;cursor:pointer;font-weight:800;padding:3px 8px}
+.nx-msg{font-size:13px;margin:8px 0;min-height:18px}.nx-msg.err{color:#b91c1c}.nx-msg.ok{color:#166534}
+.nx-lista{margin:6px 0 0;padding-left:18px;font-size:13px;color:#334155}.nx-lista li{margin:4px 0}.nx-box-err{background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;border-radius:10px;padding:10px 14px;font-size:13px;margin-top:10px}
+.nx-box-av{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:10px;padding:10px 14px;font-size:13px;margin-top:10px}.nx-box-ok{background:#ecfdf5;border:1px solid #86efac;color:#166534;border-radius:10px;padding:10px 14px;font-size:13px;margin-top:10px}
+details.nx-d summary{cursor:pointer;font-weight:700;color:#0f2540;font-size:13px}details.nx-d pre{white-space:pre-wrap;font-size:12px;background:#f8fafc;border-radius:8px;padding:10px;max-height:320px;overflow:auto}
+</style>
+<div class="nx">
+  <h1>&#129534; NF XML</h1>
+  <div class="sub">Gera o <b>XML de DUIMP no layout que o TOTVS importa</b>. Envie o XML da NF-e e o extrato da DUIMP (PDF) enviados pelo despachante JMR; o sistema lê o que consegue, você confere os valores e ele monta o XML com as validações (soma exata dos itens, ordem das tags, centavos pelo maior resto) e a lista de pontos para conferir antes de importar.</div>
+
+  <div class="nx-card">
+    <h3>1. Arquivos da importação</h3>
+    <div class="nx-up">
+      <div><label>XML da NF-e (JMR) *</label><input type="file" id="fNfe" accept=".xml"></div>
+      <div><label>Extrato da DUIMP (PDF)</label><input type="file" id="fExt" accept=".pdf"></div>
+      <div><label>DANFE (PDF) — só para conferência</label><input type="file" id="fDanfe" accept=".pdf"></div>
+    </div>
+    <div style="margin-top:12px"><button type="button" class="nx-btn" id="btLer">Ler arquivos</button></div>
+    <div class="nx-msg" id="msgLer"></div>
+  </div>
+
+  <div id="passo2" hidden>
+    <div class="nx-card"><h3>2. Confira os dados da DUIMP <small style="font-weight:600;color:#64748b">(o extrato da Receita é a fonte da verdade)</small></h3>
+      <div class="nx-g" id="gCab"></div>
+      <details class="nx-d" id="dExt" style="margin-top:10px"><summary>Texto lido do extrato (para copiar valores)</summary><pre id="txtExt"></pre></details>
+    </div>
+    <div class="nx-card"><h3>Itens</h3>
+      <div class="nx-tabw"><table class="nx-tab"><thead><tr><th>Adição</th><th>Código</th><th>Descrição</th><th>NCM</th><th>Qtd (kg)</th><th>Unit. US$</th><th>Valor aduaneiro R$</th><th>PIS %</th><th>COFINS %</th><th></th></tr></thead><tbody id="tbItens"></tbody></table></div>
+      <div style="margin-top:8px"><button type="button" class="nx-btn sec" id="btAddItem">+ Item</button></div>
+    </div>
+    <div class="nx-card"><h3>Texto complementar (INFOCOMPLEMENTARES)</h3>
+      <div class="sub" style="margin:0 0 8px">Deixe em branco para o sistema montar o texto no padrão da JMR com os campos acima, ou cole/edite o texto completo aqui.</div>
+      <textarea id="fInfo" rows="8" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-family:Consolas,monospace;font-size:12px"></textarea>
+    </div>
+    <div class="nx-card"><button type="button" class="nx-btn" id="btGerar">Gerar XML do TOTVS</button><div class="nx-msg" id="msgGerar"></div><div id="resultado"></div></div>
+  </div>
+</div>
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  var CAMPOS = [
+    ['numero', 'Nº DUIMP (15 caracteres)'], ['data_duimp', 'Data/hora do registro (dd/mm/aaaa hh:mm:ss)'], ['data_desembaraco', 'Data do desembaraço (vazio se em análise)'], ['uf', 'UF desembaraço'], ['local', 'Local (Santos, Itajaí…)'],
+    ['siscomex', 'Taxa Siscomex R$'], ['despesas', 'Despesas aduaneiras R$ (AFRMM…)'], ['frete', 'Frete R$'], ['seguro', 'Seguro R$'], ['fob_usd', 'FOB US$'], ['fob_brl', 'FOB R$'], ['cif', 'Valor aduaneiro total (CIF) R$'],
+    ['tot_ii', 'II total R$'], ['tot_pis', 'PIS total R$'], ['tot_cofins', 'COFINS total R$'], ['icms_total', 'ICMS a recolher R$'], ['al_ii', 'Alíquota II %'], ['al_pis', 'Alíquota PIS %'], ['al_cofins', 'Alíquota COFINS %'], ['al_icms', 'Alíquota ICMS %'],
+    ['exportador', 'Exportador', 2], ['fabricante', 'Fabricante (vazio = o exportador)', 2],
+    ['bl', 'B/L master'], ['fatura', 'Fatura'], ['nossa_ref', 'Nossa referência (DSJMR…)'], ['taxa_dolar', 'Taxa do dólar (7 casas)'], ['data_taxa', 'Data da taxa'], ['navio', 'Navio'], ['armador', 'Transportador'],
+    ['data_embarque', 'Data embarque'], ['data_chegada', 'Data chegada'], ['data_operacao', 'Data de operação'], ['presenca_numero', 'Presença de carga (nº CE)'], ['presenca_data', 'Presença de carga (data)'], ['manifesto', 'Manifesto'],
+    ['recinto', 'Recinto alfandegado', 2], ['incoterm', 'Incoterm'], ['volumes', 'Volumes (caixas)'], ['frete_usd', 'Frete US$'], ['containers', 'Containers (separe por vírgula)', 2]
+  ];
+  function montarCab(f) {
+    $('gCab').innerHTML = CAMPOS.map(function (c) { return '<div class="' + (c[2] === 2 ? 'l2' : '') + '"><label>' + c[1] + '</label><input type="text" data-k="' + c[0] + '" value="' + esc(f[c[0]]) + '"></div>'; }).join('');
+  }
+  function linhaItem(i) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = ['ad', 'cod', 'desc', 'ncm', 'qtd', 'unit', 'vad', 'al_pis', 'al_cofins'].map(function (k) { return '<td' + (k === 'desc' ? ' class="d"' : '') + '><input type="text" data-i="' + k + '" value="' + esc(i[k]) + '"></td>'; }).join('') + '<td><button type="button" class="nx-rm" title="Remover">×</button></td>';
+    tr.querySelector('.nx-rm').addEventListener('click', function () { tr.remove(); });
+    $('tbItens').appendChild(tr);
+  }
+  function coletar() {
+    var d = {}; document.querySelectorAll('#gCab [data-k]').forEach(function (e) { d[e.dataset.k] = e.value; });
+    d.info = $('fInfo').value;
+    d.itens = Array.prototype.map.call($('tbItens').querySelectorAll('tr'), function (tr) { var o = {}; tr.querySelectorAll('[data-i]').forEach(function (e) { o[e.dataset.i] = e.value; }); return o; });
+    return d;
+  }
+  $('btAddItem').addEventListener('click', function () { linhaItem({ ad: '1' }); });
+  $('btLer').addEventListener('click', function () {
+    var f = $('fNfe').files[0], m = $('msgLer'); m.className = 'nx-msg';
+    if (!f) { m.className = 'nx-msg err'; m.textContent = 'Escolha o XML da NF-e.'; return; }
+    var fd = new FormData(); fd.append('nfe', f); if ($('fExt').files[0]) fd.append('extrato', $('fExt').files[0]);
+    $('btLer').disabled = true; m.textContent = 'Lendo os arquivos…';
+    fetch('/duimp/ler', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro'); return j; }); }).then(function (j) {
+      montarCab(j.form); $('tbItens').textContent = ''; (j.itens || []).forEach(linhaItem);
+      $('txtExt').textContent = j.texto_extrato || 'Extrato não enviado.'; $('passo2').hidden = false; $('resultado').textContent = '';
+      m.className = 'nx-msg ok'; m.textContent = 'NF-e ' + (j.nfe.numero || '') + ' lida (' + (j.itens || []).length + ' item(ns))' + (j.extrato_lido ? ' e extrato lido.' : '; sem extrato: preencha os campos pelo PDF.') + ' Confira tudo abaixo.';
+      $('passo2').scrollIntoView({ behavior: 'smooth' });
+    }).catch(function (e) { m.className = 'nx-msg err'; m.textContent = e.message; }).then(function () { $('btLer').disabled = false; });
+  });
+  $('btGerar').addEventListener('click', function () {
+    var m = $('msgGerar'); m.className = 'nx-msg'; m.textContent = 'Gerando…'; $('btGerar').disabled = true;
+    fetch('/duimp/gerar', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(coletar()) }).then(function (r) { return r.json(); }).then(function (j) {
+      var h = '';
+      if (j.erros && j.erros.length) h += '<div class="nx-box-err"><b>Corrija antes de gerar:</b><ul class="nx-lista">' + j.erros.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+      if (j.avisos && j.avisos.length) h += '<div class="nx-box-av"><b>Avisos:</b><ul class="nx-lista">' + j.avisos.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+      if (j.xml) {
+        h += '<div class="nx-box-ok"><b>XML gerado e validado:</b> ' + esc(j.arquivo) + ' <button type="button" class="nx-btn" id="btBaixar" style="margin-left:10px;padding:6px 14px">Baixar XML</button></div>';
+        h += '<div class="nx-card" style="margin-top:12px"><h3>Pontos para conferir antes de importar no TOTVS</h3><ul class="nx-lista">' + (j.pontos || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+        h += '<details class="nx-d"><summary>Ver o XML</summary><pre>' + esc(j.xml) + '</pre></details>';
+      }
+      $('resultado').innerHTML = h; m.textContent = '';
+      var b = $('btBaixar'); if (b) b.addEventListener('click', function () {
+        var bl = new Blob([j.xml], { type: 'application/xml;charset=utf-8' }), a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = j.arquivo; document.body.appendChild(a); a.click(); a.remove();
+      });
+    }).catch(function () { m.className = 'nx-msg err'; m.textContent = 'Não foi possível gerar.'; }).then(function () { $('btGerar').disabled = false; });
+  });
+})();
+</script>
+{% endblock %}

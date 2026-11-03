@@ -99,6 +99,8 @@ def create_app():
     app.register_blueprint(r32_bp)
     from app.projetos import projetos_bp
     app.register_blueprint(projetos_bp)
+    from app.duimp_xml import duimp_bp
+    app.register_blueprint(duimp_bp)
     from app.indicadores.routes import ind_bp
     app.register_blueprint(ind_bp)
     from app.desenvolvimento.routes import dev_bp
@@ -302,6 +304,8 @@ def create_app():
         garantir_controle_artigos()                                      # aba Controle de Artigos (Planejamento)
         from app.seed import garantir_aba_gestao_projetos
         garantir_aba_gestao_projetos()                                   # aba Gestao Projetos (Sistema)
+        from app.seed import garantir_aba_nf_xml
+        garantir_aba_nf_xml()                                            # aba NF XML (Financeiro): DUIMP no layout do TOTVS
         from app.seed import garantir_aba_amostras_no_planejamento
         garantir_aba_amostras_no_planejamento()                          # Amostras - Manutencoes passa para Gestao Planejamento
         from app.seed import garantir_aba_controle_mp

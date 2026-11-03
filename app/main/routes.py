@@ -1363,6 +1363,9 @@ def view_tab(slug):
     if slug == 'expedicao':
         return render_template('main/expedicao.html', tab=tab)
 
+    if slug == 'nf-xml':
+        return render_template('main/nf_xml.html', tab=tab)
+
     if slug == 'controle-artigos':
         return render_template('main/controle_artigos.html', tab=tab)
 

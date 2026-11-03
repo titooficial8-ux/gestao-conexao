@@ -85,6 +85,7 @@ CATEGORIES_DATA = [
         'sector': 'Financeiro',
         'tabs': [
             ('painel-financeiro', 'Painel Financeiro', 'Panel Financiero', '\U0001F4B9', '#3fa34d', True),
+            ('nf-xml', 'NF XML', 'NF XML', '\U0001F9FE', '#0e7490', True),
         ],
     },
     {
@@ -293,4 +294,17 @@ def garantir_aba_amostras_no_planejamento() -> None:
     pcp = Sector.query.filter_by(name='PCP').first()
     if pcp and pcp not in tab.sectors:
         tab.sectors.append(pcp)
+    db.session.commit()
+
+
+def garantir_aba_nf_xml() -> None:
+    """Aba 'NF XML' em Gestao Financeira: gera o XML de DUIMP no layout do TOTVS. Visivel ao Financeiro e a Diretoria (e administradores)."""
+    cat = Category.query.filter_by(slug='financeira').first()
+    if not cat or Tab.query.filter_by(slug='nf-xml').first():
+        return
+    ordem = max([t.order or 0 for t in cat.tabs] or [0]) + 1
+    tab = Tab(category_id=cat.id, slug='nf-xml', name_pt='NF XML', name_es='NF XML', icon='\U0001F9FE', icon_color='#0e7490', is_new=True, order=ordem)
+    db.session.add(tab)
+    db.session.flush()
+    tab.sectors = [s_ for s_ in Sector.query.all() if s_.name in ('Financeiro', 'Diretoria')]
     db.session.commit()
