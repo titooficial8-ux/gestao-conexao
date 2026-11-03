@@ -63,7 +63,7 @@ HTML = """<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><style>
 .rod{position:absolute;left:0;right:0;bottom:0;height:.24in;background:#008EC9;color:#fff;font-size:8pt;display:flex;justify-content:space-between;padding:.04in .3in}
 .nota{position:absolute;left:.35in;bottom:.3in;font-size:9pt;color:#6B7280;font-style:italic}
 .cont{position:absolute;left:.4in;right:.4in;top:1.3in;bottom:.5in}
-.cards{display:flex;flex-wrap:wrap;gap:.12in;margin-bottom:.22in}.card{flex:1 1 22%;background:#fff;border:1px solid #d9e2ec;border-left:6px solid #1F4E79;border-radius:8px;padding:.1in .13in}
+.cards{display:flex;flex-wrap:wrap;gap:.12in;margin-bottom:.22in}.card{flex:1 1 40%;background:#fff;border:1px solid #d9e2ec;border-left:6px solid #1F4E79;border-radius:8px;padding:.1in .13in}
 .card.v{border-left-color:#C62828}.card.l{border-left-color:#B7791F}.card small{display:block;font-size:8.5pt;color:#6B7280;text-transform:uppercase;letter-spacing:.04em}.card b{font-size:18pt;color:#1F4E79}.card.v b{color:#C62828}
 .alerta{background:#FFF4E5;border:1px solid #F5C77E;border-radius:8px;padding:.09in .14in;margin-bottom:.2in;font-size:10pt;color:#7A4B00}
 table{width:100%;border-collapse:collapse;font-size:9pt;background:rgba(255,255,255,.93)}th{background:#1F4E79;color:#fff;text-align:left;padding:5px 6px;font-size:8.5pt}td{padding:4px 6px;border-bottom:1px solid #e5e9ee}
@@ -75,12 +75,12 @@ tr:nth-child(even) td{background:#F4F6F8}.n{text-align:right}tr.tot td{backgroun
 <div class="tit">Saldo aguardando inspeção{{ ' (cont.)' if p.parte>1 }}</div>
 <div class="cont">
 {% if p.parte==1 %}
- <div class="cards"><div class="card v"><small>Saldo em aberto</small><b>{{ f(d.total, 2) }} m</b></div><div class="card"><small>Produtos em aberto</small><b>{{ d.itens }}</b></div><div class="card l"><small>Desses, na expedição</small><b>{{ f(d.na_exp_m, 2) }} m</b></div><div class="card"><small>Peças na expedição</small><b>{{ f(d.na_exp_pecas) }}</b></div></div>
- <div class="alerta"><b>Solicitamos à equipe responsável para analisar estes materiais disponíveis em Inspeção.</b> São {{ f(d.total, 2) }} m em {{ d.itens }} produto(s) aguardando inspeção, para inventariar ou limpar no sistema.{% if d.estoque_expedicao %} Estoque total da Expedição: {{ f(d.estoque_expedicao, 2) }} m.{% endif %}</div>
+ <div class="cards"><div class="card v"><small>Saldo em aberto</small><b>{{ f(d.total, 2) }} m</b></div><div class="card"><small>Produtos em aberto</small><b>{{ d.itens }}</b></div></div>
+ <div class="alerta"><b>Solicitamos à equipe responsável para analisar estes materiais disponíveis em Inspeção.</b> São {{ f(d.total, 2) }} m em {{ d.itens }} produto(s) aguardando inspeção, para inventariar ou limpar no sistema.</div>
 {% endif %}
- <table><tr><th>Produto</th><th>Descrição</th><th class="n">Em inspeção (m)</th><th class="n">Na expedição (m)</th><th class="n">Peças na exp.</th></tr>
- {% for x in p.linhas %}<tr><td>{{ x.cod }}</td><td>{{ x.nome }}</td><td class="n">{{ f(x.saldo, 2) }}</td><td class="n">{{ f(x.exp_m, 2) if x.exp_m else '—' }}</td><td class="n">{{ f(x.exp_pecas) if x.exp_pecas else '—' }}</td></tr>{% endfor %}
- {% if p.ultima %}<tr class="tot"><td colspan="2">SALDO TOTAL EM ABERTO · {{ d.itens }} produto(s)</td><td class="n">{{ f(d.total, 2) }} m</td><td class="n">{{ f(d.na_exp_m, 2) }} m</td><td class="n">{{ f(d.na_exp_pecas) }}</td></tr>{% endif %}
+ <table><tr><th>Produto</th><th>Descrição</th><th class="n">Em inspeção (m)</th></tr>
+ {% for x in p.linhas %}<tr><td>{{ x.cod }}</td><td>{{ x.nome }}</td><td class="n">{{ f(x.saldo, 2) }}</td></tr>{% endfor %}
+ {% if p.ultima %}<tr class="tot"><td colspan="2">SALDO TOTAL EM ABERTO · {{ d.itens }} produto(s)</td><td class="n">{{ f(d.total, 2) }} m</td></tr>{% endif %}
  </table>
 </div>
 {% if p.ultima %}<div class="nota">Dados do TOTVS{% if d.em %} lidos em {{ em_txt }}{% endif %} · saldo {{ d.nome }}</div>{% endif %}
