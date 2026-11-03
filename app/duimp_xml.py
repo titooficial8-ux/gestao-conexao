@@ -322,13 +322,13 @@ def ler():
         nfe = ler_nfe(f_xml.read())
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=f'Não consegui ler o XML da NF-e: {str(e)[:160]}'), 400
-    ext, texto = {}, ''
+    ext, texto, aviso = {}, '', ''
     if f_pdf and f_pdf.filename:
         try:
             texto = texto_pdf(f_pdf.read())
             ext = ler_extrato(texto)
         except Exception as e:  # noqa: BLE001
-            return jsonify(ok=False, erro=f'Não consegui ler o PDF do extrato: {str(e)[:200]}'), 400
+            aviso = f'Não consegui ler o PDF do extrato ({str(e)[:160]}). Os dados da NF-e foram carregados; preencha o restante olhando o extrato.'
     totais = nfe['totais']
     itens = [dict(ad=i['ad'] or '1', cod=i['cod'], desc=i['desc'], ncm=i['ncm'], qtd=i['qtd'], unit=i['unit'], vad=i['vprod'], al_pis=i['pPIS'], al_cofins=i['pCOFINS']) for i in nfe['itens']]
     form = dict(numero=ext.get('numero') or re.sub(r'\D', '', nfe['nDI']) and nfe['nDI'] or '', data_duimp=ext.get('data_registro') or '', data_desembaraco='', uf=nfe['uf_desemb'] or 'SP', local=nfe['local_desemb'] or 'Santos',
@@ -336,7 +336,7 @@ def ler():
                 icms_total=totais['vICMS'], tot_ii=totais['vII'], tot_pis=totais['vPIS'], tot_cofins=totais['vCOFINS'], al_ii='18', al_pis='2.10', al_cofins='10.25', al_icms='18',
                 exportador='', fabricante='', taxa_dolar=ext.get('taxa_dolar', ''), navio=ext.get('navio', ''), bl=ext.get('bl', ''), manifesto=ext.get('manifesto', ''), recinto=ext.get('recinto', ''), incoterm=ext.get('incoterm', ''),
                 volumes=ext.get('volumes', ''), fatura='', nossa_ref='', armador='', data_taxa='', data_embarque='', data_chegada='', data_operacao='', presenca_numero='', presenca_data='', containers='', frete_usd='')
-    return jsonify(ok=True, form=form, itens=itens, nfe=dict(numero=nfe['nnf'], emissao=nfe['emissao'], emitente=nfe['emitente']), extrato_lido=bool(texto), texto_extrato=texto[:20000])
+    return jsonify(ok=True, form=form, itens=itens, nfe=dict(numero=nfe['nnf'], emissao=nfe['emissao'], emitente=nfe['emitente']), extrato_lido=bool(texto), texto_extrato=texto[:20000], aviso=aviso)
 
 
 @duimp_bp.route('/gerar', methods=['POST'])
