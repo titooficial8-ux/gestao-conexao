@@ -339,6 +339,18 @@ def _trocar_tabela_por_foto(slide, foto: bytes, largura_total: bool):
     return True
 
 
+def serie_do_modelo(indice_slide: int, nome: str):
+    """Valores (12 meses) de uma serie do grafico de um slide do proprio modelo: usada so para anos antigos que nao estao nas notas do TOTVS (vieram de outra planilha)."""
+    prs = Presentation(str(MODELO))
+    for sh in prs.slides[indice_slide].shapes:
+        if sh.has_chart:
+            for pl in sh.chart.plots:
+                for se in pl.series:
+                    if str(se.name) == str(nome):
+                        return [float(v) * 1000 if v is not None else 0.0 for v in se.values]                    # o modelo guarda em R$ mil; o grafico do site usa R$
+    return None
+
+
 def gerar(d: dict, agora: str, fotos: dict | None = None, graficos: dict | None = None) -> bytes:
     """d = dados do slide mensal (app.totvs.routes.dados_do_slide). Devolve o .pptx preenchido."""
     prs = Presentation(str(MODELO))
@@ -480,6 +492,10 @@ def gerar(d: dict, agora: str, fotos: dict | None = None, graficos: dict | None 
             if graficos.get(chave):
                 if idx != 9:
                     _textos(S[idx], mes, ano, agora)
+                if chave == 'mi3' and graficos.get('_nota_mi3'):
+                    for sh in S[idx].shapes:
+                        if sh.has_text_frame and sh.name == 'TextBox 9':
+                            _set_par(sh.text_frame.paragraphs[0], graficos['_nota_mi3'].replace('{agora}', agora))
                 _trocar_grafico_por_fotos(S[idx], [graficos[chave]])
     if fotos:                                                       # 8 e 9: iguais ao painel do site (cartoes + grafico com plano e ano anterior)
         if fotos.get('graf_receita'):
