@@ -1,6 +1,7 @@
 """Botao 'Relatorio de Faturamento' (PowerPoint e PDF): so aparece e so funciona para quem esta na lista (padrao: Christian, Edmar e Luciano)."""
 from __future__ import annotations
 
+import calendar
 import os
 import re
 import unicodedata
@@ -204,7 +205,7 @@ def enviar_mes():
     except ValueError as e:
         return Response(str(e), status=400, mimetype='text/plain; charset=utf-8')
     ref = f'{dados.MESES[mes - 1]}/{ano}'
-    assunto = ('[TESTE] ' if teste else '') + f'Relatório de Faturamento e Entrada de Pedidos — {ref}'
+    assunto = ('[TESTE] ' if teste else '') + f'Relatório de Faturamento e Entrada de Pedidos — ({calendar.monthrange(ano, mes)[1]:02d}/{mes:02d}/{ano} Fechamento - {dados.MESES[mes - 1]} {ano})'
     titulo = 'Relatório de Faturamento e o Relatório de Entrada de Pedidos'
     corpo = envio.corpo_padrao(ref, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), titulo=titulo)
     if request.args.get('enviar') != '1':
