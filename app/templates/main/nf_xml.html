@@ -66,7 +66,7 @@ details.nx-d summary{cursor:pointer;font-weight:700;color:#0f2540;font-size:13px
   }
   function linhaItem(i) {
     var tr = document.createElement('tr');
-    tr.innerHTML = ['ad', 'cod', 'desc', 'ncm', 'qtd', 'unit', 'vad', 'al_pis', 'al_cofins'].map(function (k) { return '<td' + (k === 'desc' ? ' class="d"' : '') + '><input type="text" data-i="' + k + '" value="' + esc(i[k]) + '"></td>'; }).join('') + '<td><button type="button" class="nx-rm" title="Remover">×</button></td>';
+    tr.innerHTML = ['ad', 'cod', 'desc', 'ncm', 'qtd', 'unit', 'vad', 'al_pis', 'al_cofins'].map(function (k) { return '<td' + (k === 'desc' ? ' class="d"' : '') + '><input type="text" data-i="' + k + '" value="' + esc(i[k]) + '"></td>'; }).join('') + '<td><button type="button" class="nx-rm" title="Remover">×</button><input type="hidden" data-i="ref_ii" value="' + esc(i.ref_ii) + '"><input type="hidden" data-i="ref_pis" value="' + esc(i.ref_pis) + '"><input type="hidden" data-i="ref_cofins" value="' + esc(i.ref_cofins) + '"></td>';
     tr.querySelector('.nx-rm').addEventListener('click', function () { tr.remove(); });
     $('tbItens').appendChild(tr);
   }
