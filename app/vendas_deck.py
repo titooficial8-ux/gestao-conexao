@@ -391,7 +391,7 @@ def gerar(d: dict, agora: str, fotos: dict | None = None) -> bytes:
     base = S[7]
     novos = []
     if fotos:                                                       # indicadores do BI Comercial: fotos dos proprios paineis do site, em tempo real
-        sec = 'VENDAS CONSOLIDADO'
+        sec = 'PAINÉIS DO BI COMERCIAL (SITE)'
         rf = f'Imagens dos painéis do BI Comercial em tempo real (TOTVS), geradas em {agora}.'
         pares = [(('kpi_receita', 'graf_receita'), f'Indicadores de receita — {MESES_ABREV[mes - 1]}/{ano}', False), (('kpi_metros', 'graf_metros'), f'Indicadores de volume — {MESES_ABREV[mes - 1]}/{ano}', False),
                  (('seg_mes', 'seg_acum'), f'Receita por segmento — {MESES_ABREV[mes - 1]}/{ano}', True), (('ext_mes', 'ext_acum'), f'Receita mercado externo por país — {MESES_ABREV[mes - 1]}/{ano}', True)]
@@ -432,11 +432,7 @@ def gerar(d: dict, agora: str, fotos: dict | None = None) -> bytes:
                     (str(ano), [round(x['real'] / 1000, 1) if x['real'] else None for x in sv], '2E75B6')]
             novos.append(_slide_resumo(prs, base, cartao_xml, 'VENDAS CONSOLIDADO', f'Volume em metros — resumo do mês ({MESES_ABREV[mes - 1]}/{ano})',
                                        f'Volume em mil metros (colchão, automotivo, calçado, colchão M.E. e moveleiro). Fonte: TOTVS em tempo real, gerado em {agora}.', cards2, extras2, MESES_ABREV, ser2))
-    lst = prs.slides._sldIdLst
-    for i, sl in enumerate(novos):
-        el = list(lst)[-(len(novos) - i)]                           # os slides novos entram no fim; sobe cada um para depois da capa
-        lst.remove(el)
-        lst.insert(1 + i, el)
+    # os slides do modelo ficam na ordem original (2 = Receita, 3 = Volume...); os paineis do site entram no fim, depois do ultimo slide do modelo
 
     buf = io.BytesIO()
     prs.save(buf)
