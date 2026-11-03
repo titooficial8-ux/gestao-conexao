@@ -110,12 +110,27 @@ def ler_nfe(conteudo: bytes) -> dict:
 
 
 # ---------------------------------------------------------------- leitura do extrato (PDF) - melhor esforco; tudo e conferido pelo usuario
+def _pypdf():
+    """pypdf instalada no computador ou, se nao houver, a copia que acompanha o Gestao (app/_vendor): assim nao precisa instalar nada na VPS."""
+    try:
+        import pypdf
+        return pypdf
+    except ImportError:
+        import os
+        import sys
+        raiz = os.path.join(os.path.dirname(__file__), '_vendor')
+        if raiz not in sys.path:
+            sys.path.insert(0, raiz)
+        import pypdf
+        return pypdf
+
+
 def texto_pdf(conteudo: bytes) -> str:
     try:
-        from pypdf import PdfReader
+        pypdf = _pypdf()
     except ImportError as e:  # noqa: BLE001
-        raise RuntimeError('Biblioteca pypdf não instalada neste computador. Rode: python -m pip install -r requirements.txt') from e
-    r = PdfReader(io.BytesIO(conteudo))
+        raise RuntimeError('Não consegui carregar a leitura de PDF (pypdf).') from e
+    r = pypdf.PdfReader(io.BytesIO(conteudo))
     return '\n'.join((p.extract_text() or '') for p in r.pages)
 
 
@@ -331,7 +346,7 @@ def ler():
             aviso = f'Não consegui ler o PDF do extrato ({str(e)[:160]}). Os dados da NF-e foram carregados; preencha o restante olhando o extrato.'
     totais = nfe['totais']
     itens = [dict(ad=i['ad'] or '1', cod=i['cod'], desc=i['desc'], ncm=i['ncm'], qtd=i['qtd'], unit=i['unit'], vad=i['vprod'], al_pis=i['pPIS'], al_cofins=i['pCOFINS']) for i in nfe['itens']]
-    form = dict(numero=ext.get('numero') or re.sub(r'\D', '', nfe['nDI']) and nfe['nDI'] or '', data_duimp=ext.get('data_registro') or '', data_desembaraco='', uf=nfe['uf_desemb'] or 'SP', local=nfe['local_desemb'] or 'Santos',
+    form = dict(numero=ext.get('numero') or re.sub(r'\D', '', nfe['nDI']) and nfe['nDI'] or '', data_duimp=ext.get('data_registro') or '', data_desembaraco='', uf=nfe['uf_desemb'] or 'SP', local=re.sub(r'^PORTO\s+DE\s+', '', nfe['local_desemb'] or 'Santos', flags=re.I).title(),
                 siscomex=totais['vOutro'], despesas=str(sum(num(i['vDespAdu']) + num(i['vAFRMM']) for i in nfe['itens'])), frete=totais['vFrete'], seguro=totais['vSeg'], fob_usd='', fob_brl='', cif=totais['vProd'],
                 icms_total=totais['vICMS'], tot_ii=totais['vII'], tot_pis=totais['vPIS'], tot_cofins=totais['vCOFINS'], al_ii='18', al_pis='2.10', al_cofins='10.25', al_icms='18',
                 exportador='', fabricante='', taxa_dolar=ext.get('taxa_dolar', ''), navio=ext.get('navio', ''), bl=ext.get('bl', ''), manifesto=ext.get('manifesto', ''), recinto=ext.get('recinto', ''), incoterm=ext.get('incoterm', ''),
