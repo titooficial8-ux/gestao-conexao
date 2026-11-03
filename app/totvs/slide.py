@@ -68,9 +68,16 @@ def montar(regs: list[dict], mes: int, ano: int) -> dict:
     ocultos = {base._k(x) for x in (base.ajustes().get('segmentos_ocultos') or {}).get('lista', [])}
     regs = [x for x in regs if x['ano'] in (ano, ant)]            # segmentos ocultos continuam nos totais (como na planilha); so a linha some
 
+    # notas iguais em (ano, mes, segmento, especie, representante, filial, pais, tipo) somam numa linha so: soma() varre esta lista compacta em vez de todas as notas (mesmo resultado, bem mais rapido)
+    _c = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0])
+    for x in regs:
+        v = _c[(x['ano'], x['mes'], x['seg'], x['esp'], x['rep'], x['fantasia'], x['ext'], x['tipo'])]
+        v[0] += x['liquida']; v[1] += x['bruta']; v[2] += x['quant']; v[3] += x['quant_raw']
+    regs_c = [dict(ano=k[0], mes=k[1], seg=k[2], esp=k[3], rep=k[4], fantasia=k[5], ext=k[6], tipo=k[7], liquida=v[0], bruta=v[1], quant=v[2], quant_raw=v[3]) for k, v in _c.items()]
+
     def soma(campo, **f):
         t = 0.0
-        for x in regs:
+        for x in regs_c:
             if (f.get('ano') is not None and x['ano'] != f['ano']) or (f.get('mes') is not None and x['mes'] != f['mes']):
                 continue
             if f.get('ate') is not None and not (x['mes'] and x['mes'] <= f['ate']):
@@ -188,9 +195,17 @@ def montar(regs: list[dict], mes: int, ano: int) -> dict:
     serie = [dict(mes=m, ant=por.get((ant, m), 0), real=por.get((ano, m), 0),
                   plano=sum(P['seg'].get((base._k(sg), m), {}).get('val', 0) for sg in SEGMENTOS_RS)) for m in range(1, 13)]
 
+    # ---- agregados de uma passada so (ano, mes, segmento[, especie]): as series mensais abaixo leem daqui em vez de varrer todas as notas a cada mes/segmento (ficava lento)
+    agL, agQ, agQR = defaultdict(float), defaultdict(float), defaultdict(float)
+    for x in regs:
+        if x['mes']:
+            agL[(x['ano'], x['mes'], x['seg'])] += x['liquida']
+            agQ[(x['ano'], x['mes'], x['seg'], x['esp'])] += x['quant']
+            agQR[(x['ano'], x['mes'], x['seg'], x['esp'])] += x['quant_raw']
+
     # ---- serie mensal em metros (grafico de volume): mesma conta das linhas de metros, mes a mes
-    serie_mt = [dict(mes=m, ant=sum(soma('quant_raw', mes=m, ano=ant, seg=sg, esp='MT') for sg in SEGMENTOS_MT),
-                     real=sum(soma('quant', mes=m, ano=ano, seg=sg, esp='MT') for sg in SEGMENTOS_MT),
+    serie_mt = [dict(mes=m, ant=sum(agQR[(ant, m, sg, 'MT')] for sg in SEGMENTOS_MT),
+                     real=sum(agQ[(ano, m, sg, 'MT')] for sg in SEGMENTOS_MT),
                      plano=sum(P['seg'].get((base._k(sg), m), {}).get('mt', 0) for sg in SEGMENTOS_MT)) for m in range(1, 13)]
 
     # ---- cartoes do volume em metros do mes: total, devolvido, liquido da devolucao e quanto falta para o plano
@@ -204,12 +219,12 @@ def montar(regs: list[dict], mes: int, ano: int) -> dict:
     colch = sorted({x['seg'] for x in regs if 'COLCH' in (x['seg'] or '')})
     ME = 'COLCHÃO M.E.'
     pl_seg = lambda sg, m, k='val': P['seg'].get((base._k(sg), m), {}).get(k, 0)
-    serie_colch = [dict(mes=m, ant=sum(soma('liquida', mes=m, ano=ant, seg=sg) for sg in colch), real=sum(soma('liquida', mes=m, ano=ano, seg=sg) for sg in colch),
+    serie_colch = [dict(mes=m, ant=sum(agL[(ant, m, sg)] for sg in colch), real=sum(agL[(ano, m, sg)] for sg in colch),
                         plano=sum(pl_seg(sg, m) for sg in colch)) for m in range(1, 13)]
-    serie_colch_mt = [dict(mes=m, ant=sum(soma('quant', mes=m, ano=ant, seg=sg, esp='MT') for sg in colch), real=sum(soma('quant', mes=m, ano=ano, seg=sg, esp='MT') for sg in colch)) for m in range(1, 13)]
-    serie_me = [dict(mes=m, ant=soma('liquida', mes=m, ano=ant, seg=ME), real=soma('liquida', mes=m, ano=ano, seg=ME), plano=pl_seg(ME, m)) for m in range(1, 13)]
+    serie_colch_mt = [dict(mes=m, ant=sum(agQ[(ant, m, sg, 'MT')] for sg in colch), real=sum(agQ[(ano, m, sg, 'MT')] for sg in colch)) for m in range(1, 13)]
+    serie_me = [dict(mes=m, ant=agL[(ant, m, ME)], real=agL[(ano, m, ME)], plano=pl_seg(ME, m)) for m in range(1, 13)]
     serie_mi = [dict(mes=m, ant=a_['ant'] - e_['ant'], real=a_['real'] - e_['real'], plano=a_['plano'] - e_['plano']) for m, a_, e_ in zip(range(1, 13), serie, serie_me)]
-    serie_me_mt = [dict(mes=m, ant=soma('quant_raw', mes=m, ano=ant, seg=ME, esp='MT'), real=soma('quant', mes=m, ano=ano, seg=ME, esp='MT'), plano=pl_seg(ME, m, 'mt')) for m in range(1, 13)]
+    serie_me_mt = [dict(mes=m, ant=agQR[(ant, m, ME, 'MT')], real=agQ[(ano, m, ME, 'MT')], plano=pl_seg(ME, m, 'mt')) for m in range(1, 13)]
 
     visivel = lambda l: [x for x in l if base._k(x['rotulo']) not in ocultos]
     rs, mt, kg = visivel(rs), visivel(mt), visivel(kg)
