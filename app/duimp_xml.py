@@ -49,7 +49,7 @@ def num(v, padrao=D('0')) -> D:
 
 
 def q2(x) -> D:
-    return D(x).quantize(CENT, ROUND_HALF_UP)
+    return num(x).quantize(CENT, ROUND_HALF_UP)
 
 
 def br(x) -> str:
@@ -158,6 +158,35 @@ def ler_extrato(texto: str) -> dict:
     )
 
 
+def ler_infcpl(txt: str) -> dict:
+    """O despachante (JMR) escreve nas informacoes complementares da NF-e o mesmo texto que vai para o TOTVS (B/L, fatura, taxa, navio, manifesto, containers, valores...). Le cada campo pelo rotulo."""
+    t = (txt or '').replace('\r', '')
+    if 'DOCUMENTOS QUE INSTRUEM' not in t.upper():
+        return {}
+    g = lambda *pad: _achar(t, *pad)
+    brn = lambda v: re.sub(r'[^\d,]', '', v).replace(',', '.') if v else ''
+    rot = re.search(r'ROTEIRO DA VIAGEM[^\n]*\n([^\n]+)\n([^\n]+)', t, re.I)
+    emb = re.search(r'-\s*(\d{2}/\d{2}/\d{4})\s*-', rot.group(1)) if rot else None
+    che = re.search(r'-\s*(\d{2}/\d{2}/\d{4})\s*-', rot.group(2)) if rot else None
+    ref = g(r'REFERENCIA DO CLIENTE:\s*([^\n]+)')
+    fat = g(r'FATURA:\s*([^\n]+)')
+    exportador = (ref[: -len(fat)].rstrip(' -').strip() if fat and ref.endswith(fat) else (ref.rsplit(' - ', 1)[0].strip() if ' - ' in ref else ref)) if ref else ''
+    sisc_info = {}
+    out = dict(
+        bl=g(r'B/L MASTER:\s*([^\s\n]+)'), hbl=g(r'HBL:\s*([^\s\n]+)'), fatura=g(r'FATURA:\s*([^\n]+)'),
+        taxa_dolar=g(r'US\$:\s*([\d.,]+)\s+DE'), data_taxa=g(r'US\$:\s*[\d.,]+\s+DE\s+(\d{2}/\d{2}/\d{4})'),
+        exportador=exportador, nossa_ref=g(r'NOSSA REFERENCIA:\s*([^\n]+)'), navio=(re.search(r'^NAVIO:\s*(.+)$', t, re.M | re.I).group(1).strip() if re.search(r'^NAVIO:\s*(.+)$', t, re.M | re.I) else ''),
+        armador=g(r'TRANSPORTADOR:\s*([^\n]+)'), data_embarque=emb.group(1) if emb else '', data_chegada=che.group(1) if che else '',
+        data_operacao=g(r'DATA DE OPERACAO:\s*(\d{2}/\d{2}/\d{4})'), presenca_numero=g(r'CEMERCANTE\s*([\d]+)'), presenca_data=g(r'CEMERCANTE\s*\d+\s*DATA:\s*(\d{2}/\d{2}/\d{4})'),
+        manifesto=g(r'MANIFESTO\s+([\w.\-]+)'), recinto=g(r'RECINTO ALFANDEGADO:\s*([^\n]+)'), incoterm=g(r'INCOTERM:\s*(\w+)'), volumes=g(r'VOLUMES:\s*(\d+)'),
+        containers=', '.join(re.sub(r'\s*\d{2}\w{0,2}$', '', c.strip()).strip() for c in re.split(r'/', g(r'CNTR\.?\(S\):\s*([^\n]+)')) if c.strip()),
+        fob_usd=brn(g(r'MERCADORIA:\s*US\$\s*([\d.,]+)')), fob_brl=brn(g(r'MERCADORIA:\s*US\$\s*[\d.,]+\s*R\$\s*([\d.,]+)')), frete_usd=brn(g(r'FRETE:\s*US\$\s*([\d.,]+)')),
+        frete=brn(g(r'FRETE:\s*US\$\s*[\d.,]+\s*R\$\s*([\d.,]+)')), cif=brn(g(r'VALOR ADUANEIRO:\s*R\$\s*([\d.,]+)')), despesas=brn(g(r'DESPESAS ADUANEIRAS \(TRIBUTADAS\):\s*R\$\s*([\d.,]+)')),
+        icms_total=brn(g(r'ICMS A RECOLHER\s*R\$\s*([\d.,]+)')))
+    out['containers'] = ', '.join(re.sub(r'\s+40HC$', '', c.strip(), flags=re.I) for c in re.split(r'/', g(r'CNTR\.?\(S\):\s*([^\n]+)')) if c.strip())
+    return {k: v for k, v in out.items() if v}
+
+
 # ---------------------------------------------------------------- calculo e geracao
 def _distribui(itens, aliq_key, total, base_key='vad'):
     """Imposto por item pelo maior resto: a soma dos itens fecha exatamente com o total recolhido. Devolve {indice: valor} e os itens ajustados."""
@@ -182,7 +211,7 @@ def _info(d, itens, cab) -> str:
          f'{cab["local"]} - {d.get("data_chegada", "")} - {d.get("navio", "")}', '.', f'DATA DE OPERACAO: {d.get("data_operacao", "")}', '.', f'PRESENCA DE CARGA: CEMERCANTE{d.get("presenca_numero", "")} DATA: {d.get("presenca_data", "")}', '.',
          f'MANIFESTO {d.get("manifesto", "")}', '.', f'U.R.F. ENTRADA: PORTO DE {cab["local"].upper()}', f'RECINTO ALFANDEGADO: {d.get("recinto", "")}', '.', f'INCOTERM: {d.get("incoterm", "")}', '.',
          f'VOLUMES: {d.get("volumes", "")} CAIXAS', '.', f'CNTR.(S): {cnt}', '.', f'MERCADORIA:          US$  {br(cab["fob_usd"])}    R$  {br(cab["fob_brl"])}',
-         f'FRETE:               US$  {br(d.get("frete_usd", 0) and num(d.get("frete_usd")))}  R$  {br(cab["frete"])}', '.', f'VALOR ADUANEIRO:                       R$  {br(cab["cif"])}', '.', 'DESPACHANTES CREDENCIADOS:'] + DESPACHANTES + \
+         f'FRETE:               US$  {br(num(d.get("frete_usd")))}  R$  {br(cab["frete"])}', '.', f'VALOR ADUANEIRO:                       R$  {br(cab["cif"])}', '.', 'DESPACHANTES CREDENCIADOS:'] + DESPACHANTES + \
         ['.', f'DESPESAS ADUANEIRAS (TRIBUTADAS): R$ {br(cab["desp"])}', '.', 'DEMONSTRATIVO DE CALCULO:', '.']
     for n, i in enumerate(itens, 1):
         L += [f'ITEM {n} NCM: {i["ncm"][:4]}.{i["ncm"][4:6]}.{i["ncm"][6:8]}', f'VALOR ADUANEIRO      :       R$ {br(i["vad"])}', f'DESPESAS ADUANEIRAS:         R$ {br(i["desp_item"])}',
@@ -231,7 +260,7 @@ def gerar(d: dict) -> dict:
             ajustes.append(f'{t}: item {k + 1} recebeu +0,01 (valor puro {ex[k]:.4f} → {valores[k]}), para a soma dos itens fechar com o total recolhido de {tot[t]}.')
         soma = sum(valores)
         if soma != tot[t]:
-            avisos.append(f'{t}: a soma dos itens ({soma}) não fecha com o total informado ({tot[t]}). Confira alíquotas e valores aduaneiros.')
+            avisos.append(f'{t}: a soma dos itens ({soma}) não fecha com o total informado ({tot[t]}). Confira alíquotas e valores aduaneiros (se a DUIMP tem NCMs com alíquotas diferentes, por exemplo COFINS 9,65% e 10,25%, preencha a alíquota de cada item na tabela).')
     va_total = sum(i['vad'] for i in itens) or D('1')
     for i in itens:                                                        # Siscomex e despesas rateados pelo valor aduaneiro (so para o demonstrativo do texto)
         i['sisc_item'] = q2(sisc * i['vad'] / va_total)
@@ -322,7 +351,7 @@ def gerar(d: dict) -> dict:
     pontos.append(f'Exportador/fabricante: {d.get("exportador") or "(vazio)"} / {d.get("fabricante") or "(o mesmo)"}. Se for novo ou diferente das importações anteriores, confira no cadastro do TOTVS com endereço completo (cidade, estado, país); fornecedor com município inválido é rejeitado.')
     pontos.append('Compare com o extrato e o DANFE: datas conflitantes (texto do despachante × campo estruturado da carga → use o campo estruturado), descrições truncadas, "fabricante desconhecido", <Signature> de outra empresa e erros de digitação da JMR.')
     pontos.append('ICMS por item do demonstrativo foi recalculado a 18% por dentro com Siscomex e despesas rateados pelo valor aduaneiro; o ICMS total do cabeçalho é o informado ("ICMS a recolher" do extrato).')
-    return dict(ok=not erros, erros=erros, avisos=avisos, ajustes=ajustes, pontos=pontos, xml=xml, arquivo=f'DUIMP_-_{num_duimp}_TOTVS.xml', info=info)
+    return dict(ok=not erros, erros=erros, avisos=avisos, ajustes=ajustes, pontos=pontos, xml=(None if erros else xml), arquivo=f'DUIMP_-_{num_duimp}_TOTVS.xml', info=info)
 
 
 # ---------------------------------------------------------------- rotas
@@ -351,7 +380,22 @@ def ler():
                 icms_total=totais['vICMS'], tot_ii=totais['vII'], tot_pis=totais['vPIS'], tot_cofins=totais['vCOFINS'], al_ii='18', al_pis='2.10', al_cofins='10.25', al_icms='18',
                 exportador='', fabricante='', taxa_dolar=ext.get('taxa_dolar', ''), navio=ext.get('navio', ''), bl=ext.get('bl', ''), manifesto=ext.get('manifesto', ''), recinto=ext.get('recinto', ''), incoterm=ext.get('incoterm', ''),
                 volumes=ext.get('volumes', ''), fatura='', nossa_ref='', armador='', data_taxa='', data_embarque='', data_chegada='', data_operacao='', presenca_numero='', presenca_data='', containers='', frete_usd='')
-    return jsonify(ok=True, form=form, itens=itens, nfe=dict(numero=nfe['nnf'], emissao=nfe['emissao'], emitente=nfe['emitente']), extrato_lido=bool(texto), texto_extrato=texto[:20000], aviso=aviso)
+    info_cpl = ler_infcpl(nfe['info_adic'])                      # o texto complementar da JMR preenche quase tudo sozinho
+    for k, v in info_cpl.items():
+        if k in form and not str(form.get(k) or '').strip():
+            form[k] = v
+        elif k == 'frete' and num(form.get('frete')) == 0:
+            form[k] = v
+    for k in ('taxa_dolar', 'data_taxa', 'exportador', 'bl', 'fatura', 'nossa_ref', 'navio', 'armador', 'data_embarque', 'data_chegada', 'data_operacao', 'presenca_numero', 'presenca_data', 'manifesto', 'recinto', 'incoterm', 'volumes', 'containers',
+              'fob_usd', 'fob_brl', 'frete_usd', 'icms_total', 'cif', 'despesas'):
+        if info_cpl.get(k) and not str(ext.get(k) or '').strip():
+            form[k] = info_cpl[k]
+    form['info'] = nfe['info_adic'] if info_cpl else ''
+    if not form.get('data_duimp') and nfe.get('dDI'):
+        d_ = nfe['dDI'][:10]
+        form['data_duimp'] = f'{d_[8:10]}/{d_[5:7]}/{d_[:4]}' if re.match(r'\d{4}-\d{2}-\d{2}', d_) else d_
+    campos_vazios = [k for k in ('numero', 'data_duimp', 'fob_usd', 'fob_brl', 'cif', 'exportador', 'bl', 'navio', 'taxa_dolar') if not str(form.get(k) or '').strip()]
+    return jsonify(ok=True, form=form, itens=itens, nfe=dict(numero=nfe['nnf'], emissao=nfe['emissao'], emitente=nfe['emitente']), extrato_lido=bool(texto), texto_extrato=texto[:20000], aviso=aviso, lidos_da_nfe=sorted(info_cpl), vazios=campos_vazios)
 
 
 @duimp_bp.route('/gerar', methods=['POST'])
@@ -362,4 +406,6 @@ def gerar_rota():
     try:
         return jsonify(gerar(d))
     except Exception as e:  # noqa: BLE001
-        return jsonify(ok=False, erros=[f'Não consegui gerar o XML: {str(e)[:200]}']), 400
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        return jsonify(ok=False, erros=[f'Não consegui gerar o XML: {type(e).__name__} {str(e)[:200]}. Confira se algum campo numérico ficou com texto.']), 400
