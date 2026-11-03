@@ -13,6 +13,9 @@ from pathlib import Path
 from pptx import Presentation
 from pptx.chart.data import CategoryChartData
 from pptx.dml.color import RGBColor
+from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
+from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+from pptx.util import Emu, Pt
 
 MODELO = Path(__file__).parent / 'seed_data' / 'vendas_modelo.pptx'
 VERDE, VERMELHO = '1B5E20', 'B71C1C'
@@ -194,6 +197,82 @@ def _grafico(slide, ant, ano, mes, ant_vals, real_vals, casas=0):
     ch.replace_data(cd)
 
 
+CINZA = '64748B'
+
+
+def _clonar_base(prs, origem, secao: str, titulo: str, nota: str):
+    """Slide novo com o mesmo fundo, logo, cabecalho e rodape do slide `origem` (sem o grafico), com titulo e nota proprios."""
+    novo = prs.slides.add_slide(origem.slide_layout)
+    for sh in list(novo.shapes):
+        sh._element.getparent().remove(sh._element)
+    for sh in origem.shapes:
+        if sh.has_chart:
+            continue
+        el = copy.deepcopy(sh._element)
+        for blip in el.iter('{http://schemas.openxmlformats.org/drawingml/2006/main}blip'):
+            rid = blip.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+            if rid:
+                nova = novo.part.relate_to(origem.part.related_part(rid), RT.IMAGE)
+                blip.set('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed', nova)
+        novo.shapes._spTree.append(el)
+    for sh in novo.shapes:
+        if sh.has_text_frame and sh.name == 'TextBox 4':
+            _set_par(sh.text_frame.paragraphs[0], secao)
+        elif sh.has_text_frame and sh.name == 'TextBox 5':
+            _set_par(sh.text_frame.paragraphs[0], titulo)
+        elif sh.has_text_frame and sh.name == 'TextBox 9':
+            _set_par(sh.text_frame.paragraphs[0], nota)
+    return novo
+
+
+def _cartao_novo(slide, modelo_xml, x, y, rotulo, valor, nota=None, tom=None):
+    el = copy.deepcopy(modelo_xml)
+    slide.shapes._spTree.append(el)
+    sh = slide.shapes[-1]
+    ids = [int(x_.shape_id) for x_ in slide.shapes if str(x_.shape_id).isdigit()]
+    el.nvSpPr.cNvPr.set('id', str(max(ids) + 1))
+    el.nvSpPr.cNvPr.set('name', f'Rounded Rectangle {max(ids) + 1}')
+    sh.left, sh.top = int(x), int(y)
+    ps = sh.text_frame.paragraphs
+    _set_par(ps[0], rotulo)
+    _set_par(ps[1], valor)
+    _set_par(ps[2], nota or '')
+    if ps[2].runs:
+        ps[2].runs[0].font.color.rgb = RGBColor.from_string({'verde': VERDE, 'vermelho': VERMELHO}.get(tom, CINZA))
+    return sh
+
+
+def _grafico_novo(slide, x, y, w, h, cats, series):
+    cd = CategoryChartData()
+    cd.categories = cats
+    for nome, vals, _ in series:
+        cd.add_series(nome, vals)
+    ch = slide.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Emu(int(x)), Emu(int(y)), Emu(int(w)), Emu(int(h)), cd).chart
+    ch.has_legend, ch.legend.position, ch.legend.include_in_layout = True, XL_LEGEND_POSITION.BOTTOM, False
+    ch.legend.font.size = Pt(10)
+    ch.category_axis.tick_labels.font.size = Pt(10)
+    ch.value_axis.tick_labels.font.size = Pt(9)
+    ch.value_axis.major_gridlines.format.line.color.rgb = RGBColor.from_string('E2E8F0')
+    ch.value_axis.format.line.fill.background()
+    ch.plots[0].gap_width, ch.plots[0].overlap = 60, -5
+    for se, (_, _, cor) in zip(ch.plots[0].series, series):
+        se.format.fill.solid()
+        se.format.fill.fore_color.rgb = RGBColor.from_string(cor)
+    return ch
+
+
+def _slide_resumo(prs, base, cartao_xml, secao, titulo, nota, cards, extras, cats, series):
+    s = _clonar_base(prs, base, secao, titulo, nota)
+    xs, ys = (320040, 3170040, 6020040), (1051560, 2314560)
+    for i, c in enumerate(cards[:6]):
+        _cartao_novo(s, cartao_xml, xs[i % 3], ys[i // 3], *c)
+    for i, c in enumerate(extras[:4]):
+        _cartao_novo(s, cartao_xml, 9144000, 1051560 + i * 1263000, *c)
+    _grafico_novo(s, 320040, 3560000, 8620000, 2780000, cats, series)
+    return s
+
+
+
 def gerar(d: dict, agora: str) -> bytes:
     """d = dados do slide mensal (app.totvs.routes.dados_do_slide). Devolve o .pptx preenchido."""
     prs = Presentation(str(MODELO))
@@ -263,6 +342,55 @@ def gerar(d: dict, agora: str) -> bytes:
             tot[b]['v_ant'], tot[b]['v_plano'] = _var(tot[b]['real'], tot[b]['ant']), _var(tot[b]['real'], tot[b]['plano'])
         _tabela(s, tb, _por_rotulo(sel), _colunas_8(mil), dict(rotulo='TOTAL', **tot))
         _cabecalho(tb, mes, ano); _textos(s, mes, ano, agora)
+
+    # 31 - Mercado internacional por pais (R$ mil)
+    s = S[30]; tb = _tb(s)
+    cs = []
+    for base_, b in ((1, 'mes'), (4, 'acum')):
+        cs += [(base_, lambda L, b=b: L[b]['plano'], 'n', mil), (base_ + 1, lambda L, b=b: L[b]['real'], 'n', mil), (base_ + 2, lambda L, b=b: L[b]['var'], 'v', None)]
+    _tabela(s, tb, _por_rotulo(d['internacional']), cs, d['internacional_total'])
+    _cabecalho(tb, mes, ano); _textos(s, mes, ano, agora)
+    it = d['internacional_total']
+    _cartao(s, 'PLANO (OUT', [f'PLANO ({mon})', f'R$ {mil(it["mes"]["plano"])}K', f'Realizado: R$ {mil(it["mes"]["real"])}K ({sinal(it["mes"]["var"])})'], cor(it['mes']['var']))
+    _cartao(s, 'PLANO (ACUM', [None, f'R$ {mil(it["acum"]["plano"])}K', f'Realizado: R$ {mil(it["acum"]["real"])}K ({sinal(it["acum"]["var"])})'], cor(it['acum']['var']))
+
+    # Novos (indicadores do BI Comercial): resumo do mes em R$ e em metros, logo depois da capa
+    c, tm_, ta_ = d['cabecalho'], d['receita_total']['mes'], d['receita_total']['acum']
+    falta = tm_['plano'] - tm_['real']
+    pdev = (c['devolucao_bruta'] / c['receita_bruta_sem_dev'] * 100) if c['receita_bruta_sem_dev'] else 0
+    virg = lambda x: f'{x:.1f}'.replace('.', ',')
+    cards = [('RECEITA BRUTA', f'R$ {mil(c["receita_bruta_sem_dev"])}', None, None), ('RECEITA BRUTA (MENOS DEVOL.)', f'R$ {mil(c["receita_bruta"])}', None, None),
+             ('DEDUÇÕES (IMPOSTOS)', f'R$ {mil(c["deducoes"])}', f'{c["deducoes_pct"] * 100:.0f}% da bruta', None), ('DEVOLUÇÕES (BRUTO)', f'R$ {mil(c["devolucao_bruta"])}', f'{virg(pdev)}% da bruta', 'vermelho'),
+             ('RECEITA LÍQUIDA', f'R$ {mil(c["receita_liquida"])}', f'vs plano: {sinal(tm_["v_plano"])}', 'verde' if (tm_['v_plano'] or 0) >= 0 else 'vermelho'),
+             ('META DO MÊS SUPERADA' if falta <= 0 else 'FALTA PARA O PLANO DO MÊS', f'R$ {mil(abs(falta))}', f'plano: R$ {mil(tm_["plano"])} · {virg(tm_["real"] / tm_["plano"] * 100 if tm_["plano"] else 0)}% atingido',
+              'verde' if falta <= 0 else 'vermelho')]
+    extras = [('ACUMULADO REALIZADO', f'R$ {mil(ta_["real"])}', None, None), ('PLANO ACUMULADO', f'R$ {mil(ta_["plano"])}', None, None),
+              ('% DO PLANO', f'{(ta_["real"] / ta_["plano"] * 100 if ta_["plano"] else 0):.0f}%', None, None), (f'VS {ant}', sinal(ta_['v_ant']), None, 'verde' if (ta_['v_ant'] or 0) >= 0 else 'vermelho')]
+    sm = d['serie_mensal']
+    ser = [(str(ant), [round(x['ant'] / 1000) for x in sm], '9AA6BC'), ('Plano', [round(x['plano'] / 1000) for x in sm], '1F9D55'),
+           (str(ano), [round(x['real'] / 1000) if x['real'] else None for x in sm], '2E75B6')]
+    base, cartao_xml = S[7], copy.deepcopy(next(sh for sh in S[1].shapes if sh.has_text_frame and sh.text_frame.text.upper().startswith('PLANO (ACUM'))._element)
+    r1 = _slide_resumo(prs, base, cartao_xml, 'VENDAS CONSOLIDADO', f'Resumo do mês — {MESES_ABREV[mes - 1]}/{ano} (R$ mil)',
+                       f'Valores em R$ mil. Fonte: TOTVS em tempo real (Relatório 150 e planilha de planos), gerado em {agora}. Barras do ano atual só até o último mês com notas emitidas.', cards, extras, MESES_ABREV, ser)
+    cm_, tmt = d.get('cabecalho_metros'), d['metros_total']['acum']
+    novos = [r1]
+    if cm_ and d.get('serie_metros'):
+        fm = cm_['falta']
+        cards2 = [('MTS TOTAIS', f'{n0(cm_["totais"])} mts', None, None), ('DEVOLUÇÕES', f'{n0(cm_["devolvidos"])} mts', f'{virg(cm_["pct_dev"] * 100)}% do total', 'vermelho'),
+                  ('LÍQUIDO DA DEVOLUÇÃO', f'{n0(cm_["liquido"])} mts', f'vs plano: {sinal(cm_["liquido"] / cm_["plano"] - 1 if cm_["plano"] else 0)}', 'verde' if cm_['liquido'] >= cm_['plano'] else 'vermelho'),
+                  ('META DE MTS SUPERADA' if fm <= 0 else 'FALTA PARA O PLANO (MTS)', f'{n0(abs(fm))} mts', f'plano: {n0(cm_["plano"])} mts · {virg(cm_["pct_plano"] * 100)}% atingido', 'verde' if fm <= 0 else 'vermelho')]
+        extras2 = [('ACUMULADO REALIZADO', f'{n0(tmt["real"])} mts', None, None), ('PLANO ACUMULADO', f'{n0(tmt["plano"])} mts', None, None),
+                   ('% DO PLANO', f'{(tmt["real"] / tmt["plano"] * 100 if tmt["plano"] else 0):.0f}%', None, None), (f'VS {ant}', sinal(tmt['v_ant']), None, 'verde' if (tmt['v_ant'] or 0) >= 0 else 'vermelho')]
+        sv = d['serie_metros']
+        ser2 = [(str(ant), [round(x['ant'] / 1000, 1) for x in sv], '9AA6BC'), ('Plano', [round(x['plano'] / 1000, 1) for x in sv], '1F9D55'),
+                (str(ano), [round(x['real'] / 1000, 1) if x['real'] else None for x in sv], '2E75B6')]
+        novos.append(_slide_resumo(prs, base, cartao_xml, 'VENDAS CONSOLIDADO', f'Volume em metros — resumo do mês ({MESES_ABREV[mes - 1]}/{ano})',
+                                   f'Volume em mil metros (colchão, automotivo, calçado, colchão M.E. e moveleiro). Fonte: TOTVS em tempo real, gerado em {agora}.', cards2, extras2, MESES_ABREV, ser2))
+    lst = prs.slides._sldIdLst
+    for i, sl in enumerate(novos):
+        el = list(lst)[-(len(novos) - i)]                           # os slides novos entram no fim; sobe cada um para depois da capa
+        lst.remove(el)
+        lst.insert(1 + i, el)
 
     buf = io.BytesIO()
     prs.save(buf)
