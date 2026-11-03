@@ -85,7 +85,7 @@ details.nx-d summary{cursor:pointer;font-weight:700;color:#0f2540;font-size:13px
     fetch('/duimp/ler', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro'); return j; }); }).then(function (j) {
       montarCab(j.form); $('tbItens').textContent = ''; (j.itens || []).forEach(linhaItem);
       $('txtExt').textContent = j.texto_extrato || 'Extrato não enviado.'; $('passo2').hidden = false; $('resultado').textContent = '';
-      m.className = 'nx-msg ok'; m.textContent = 'NF-e ' + (j.nfe.numero || '') + ' lida (' + (j.itens || []).length + ' item(ns))' + (j.extrato_lido ? ' e extrato lido.' : '; sem extrato: preencha os campos pelo PDF.') + ' Confira tudo abaixo.';
+      m.className = j.aviso ? 'nx-msg err' : 'nx-msg ok'; if (j.aviso) { m.textContent = 'NF-e ' + (j.nfe.numero || '') + ' lida (' + (j.itens || []).length + ' item(ns)). ' + j.aviso; $('passo2').scrollIntoView({ behavior: 'smooth' }); return; } m.textContent = 'NF-e ' + (j.nfe.numero || '') + ' lida (' + (j.itens || []).length + ' item(ns))' + (j.extrato_lido ? ' e extrato lido.' : '; sem extrato: preencha os campos pelo PDF.') + ' Confira tudo abaixo.';
       $('passo2').scrollIntoView({ behavior: 'smooth' });
     }).catch(function (e) { m.className = 'nx-msg err'; m.textContent = e.message; }).then(function () { $('btLer').disabled = false; });
   });
