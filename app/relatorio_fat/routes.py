@@ -246,37 +246,7 @@ def vendas_pptx():
     if not d:
         return Response('Ainda não há dados de faturamento carregados do TOTVS.', status=404, mimetype='text/plain; charset=utf-8')
     try:
-        fotos = graficos = None
-        if request.args.get('sem_fotos') != '1':                    # fotos dos paineis/tabelas do site e graficos no estilo do site (tudo do TOTVS, na hora)
-            from app import grafico_site
-            fotos = captura.capturar_blocos(_base_url(), _usuario_id(), d['ano'], d['mes'])
-            ms = [('colchao', 'Receita líquida colchão por mês', 'serie_colchao', 'rs'), ('mi', 'Receita líquida MI por mês', 'serie_mi', 'rs'),
-                  ('me', 'Receita líquida ME por mês', 'serie_me', 'rs'), ('me_mt', 'Volume ME em mts por mês', 'serie_me_mt', 'mts')]
-            ms = [m for m in ms if d.get(m[2])]
-            extra, nota_mi3 = {}, None
-            try:                                                                              # MI em 3 anos: o ano retrasado vem do TOTVS se as notas dele estiverem carregadas; senao, do proprio modelo (planilha)
-                from app.totvs.routes import serie_receita_mi
-                sm3 = serie_receita_mi(d['ano'], (d['ano'] - 2,))
-                if d.get('serie_mi'):
-                    if sm3.get(d['ano'] - 2):
-                        extra = dict(S2=sm3[d['ano'] - 2], ano2=d['ano'] - 2)
-                    else:
-                        antigo = vendas_deck.serie_do_modelo(20, d['ano'] - 2)
-                        if antigo:
-                            extra = dict(S2=antigo, ano2=d['ano'] - 2)
-                            nota_mi3 = f'Receita líquida em R$ mil. {d["ano"] - 1} e {d["ano"]}: TOTVS em tempo real, gerado em {{agora}}. {d["ano"] - 2}: base anterior (planilha), pois essas notas não estão carregadas no TOTVS do Gestão.'
-            except Exception:  # noqa: BLE001
-                extra = {}
-            sub = lambda u: ('Milhares de R$ (R$ mil)' if u == 'rs' else 'Mts') + ' · linha verde = plano · linha cinza = '
-            itens = [dict(titulo=t, sub=sub(u), unidade=u, S=d[k]) for _, t, k, u in ms]
-            chaves = [m[0] for m in ms]
-            if extra:                                                                         # slide 21: MI em 3 anos
-                itens.append(dict(titulo='Receita líquida MI por mês', sub=sub('rs'), unidade='rs', S=d['serie_mi'], **extra))
-                chaves.append('mi3')
-            graficos = dict(zip(chaves, grafico_site.renderizar(itens, d['ano'], d['mes'])))
-            if nota_mi3:
-                graficos['_nota_mi3'] = nota_mi3
-        corpo = vendas_deck.gerar(d, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), fotos, graficos)
+        corpo = vendas_deck.gerar(d, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'))
     except Exception as e:  # noqa: BLE001
         return Response(f'Não foi possível gerar a apresentação de Vendas: {e}', status=500, mimetype='text/plain; charset=utf-8')
     nome = re.sub(r'[^A-Za-z0-9_]+', '_', f'VENDAS_{_norm(dados.MESES[d["mes"] - 1]).upper()}_{d["ano"]}') + '.pptx'

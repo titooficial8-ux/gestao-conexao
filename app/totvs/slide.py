@@ -226,8 +226,32 @@ def montar(regs: list[dict], mes: int, ano: int) -> dict:
     serie_mi = [dict(mes=m, ant=a_['ant'] - e_['ant'], real=a_['real'] - e_['real'], plano=a_['plano'] - e_['plano']) for m, a_, e_ in zip(range(1, 13), serie, serie_me)]
     serie_me_mt = [dict(mes=m, ant=agQR[(ant, m, ME, 'MT')], real=agQ[(ano, m, ME, 'MT')], plano=pl_seg(ME, m, 'mt')) for m in range(1, 13)]
 
+    # ---- cartoes de indicadores por escopo (consolidado, mercado interno = total - M.E., mercado externo = COLCHAO M.E., colchao) e de metros (consolidado, MI, ME)
+    def _fecha(c):
+        c['deducoes'] = c['receita_bruta'] - c['receita_liquida']
+        c['deducoes_pct'] = (c['deducoes'] / c['receita_bruta']) if c['receita_bruta'] else 0
+        c['v_plano'] = _var(c['receita_liquida'], c['plano'])
+        return c
+
+    def _cab_segs(segs):
+        f = lambda campo, **k: sum(soma(campo, mes=mes, ano=ano, seg=sg, **k) for sg in segs)
+        bruta, dev_b = f('bruta'), -f('bruta', tipo='DEV')
+        return _fecha(dict(receita_bruta_sem_dev=bruta + dev_b, receita_bruta=bruta, devolucao_bruta=dev_b, receita_liquida=f('liquida'), plano=sum(pl_seg(sg, mes) for sg in segs)))
+    c_tot = _fecha(dict(receita_bruta_sem_dev=cab['receita_bruta_sem_dev'], receita_bruta=cab['receita_bruta'], devolucao_bruta=cab['devolucao_bruta'], receita_liquida=cab['receita_liquida'],
+                        plano=tot_rs['mes']['plano']))
+    c_me = _cab_segs([ME])
+    c_mi = _fecha({k: c_tot[k] - c_me[k] for k in ('receita_bruta_sem_dev', 'receita_bruta', 'devolucao_bruta', 'receita_liquida', 'plano')})
+    cab_escopos = dict(total=c_tot, mi=c_mi, me=c_me, colchao=_cab_segs(colch))
+
+    def _cab_m(liq, dev, plano):
+        return dict(totais=liq + dev, devolvidos=dev, liquido=liq, plano=plano, falta=plano - liq, pct_dev=(dev / (liq + dev)) if (liq + dev) else 0, pct_plano=(liq / plano) if plano else 0)
+    m_me = _cab_m(agQ[(ano, mes, ME, 'MT')], -soma('quant', mes=mes, ano=ano, seg=ME, esp='MT', tipo='DEV'), pl_seg(ME, mes, 'mt'))
+    m_mi = _cab_m(cab_mt['liquido'] - m_me['liquido'], cab_mt['devolvidos'] - m_me['devolvidos'], cab_mt['plano'] - m_me['plano'])
+    cab_mt_escopos = dict(total=cab_mt, mi=m_mi, me=m_me)
+    serie_mi_mt = [dict(mes=m, ant=a_['ant'] - e_['ant'], real=a_['real'] - e_['real'], plano=a_['plano'] - e_['plano']) for m, a_, e_ in zip(range(1, 13), serie_mt, serie_me_mt)]
+
     visivel = lambda l: [x for x in l if base._k(x['rotulo']) not in ocultos]
     rs, mt, kg = visivel(rs), visivel(mt), visivel(kg)
-    return dict(serie_mensal=serie, serie_metros=serie_mt, serie_colchao=serie_colch, serie_colchao_mt=serie_colch_mt, serie_mi=serie_mi, serie_me=serie_me, serie_me_mt=serie_me_mt, cabecalho_metros=cab_mt, mes=mes, ano=ano, ano_ant=ant, cabecalho=cab, receita=rs, receita_total=tot_rs, metros=mt, metros_total=tot_mt, quilos=kg, quilos_total=tot_kg,
+    return dict(serie_mensal=serie, serie_metros=serie_mt, serie_colchao=serie_colch, serie_colchao_mt=serie_colch_mt, serie_mi=serie_mi, serie_me=serie_me, serie_me_mt=serie_me_mt, serie_mi_mt=serie_mi_mt, cab_escopos=cab_escopos, cab_mt_escopos=cab_mt_escopos, cabecalho_metros=cab_mt, mes=mes, ano=ano, ano_ant=ant, cabecalho=cab, receita=rs, receita_total=tot_rs, metros=mt, metros_total=tot_mt, quilos=kg, quilos_total=tot_kg,
                 preco_medio=pm, representantes=reps, representantes_total=tot_reps, ortobom=orto, ortobom_total=orto_tot, ortobom_plano=orto_plano,
                 internacional=intl, internacional_total=it)
