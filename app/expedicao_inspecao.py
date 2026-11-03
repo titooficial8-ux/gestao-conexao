@@ -76,7 +76,7 @@ tr:nth-child(even) td{background:#F4F6F8}.n{text-align:right}tr.tot td{backgroun
 <div class="cont">
 {% if p.parte==1 %}
  <div class="cards"><div class="card v"><small>Saldo em aberto</small><b>{{ f(d.total, 2) }} m</b></div><div class="card"><small>Produtos em aberto</small><b>{{ d.itens }}</b></div><div class="card l"><small>Desses, na expedição</small><b>{{ f(d.na_exp_m, 2) }} m</b></div><div class="card"><small>Peças na expedição</small><b>{{ f(d.na_exp_pecas) }}</b></div></div>
- <div class="alerta"><b>Saldo acima do limite de {{ f(limite) }} m.</b> São {{ f(d.total, 2) }} m em {{ d.itens }} produto(s) aguardando inspeção, para inventariar ou limpar no sistema.{% if d.estoque_expedicao %} Estoque total da Expedição: {{ f(d.estoque_expedicao, 2) }} m.{% endif %}</div>
+ <div class="alerta"><b>Solicitamos à equipe responsável para analisar estes materiais disponíveis em Inspeção.</b> São {{ f(d.total, 2) }} m em {{ d.itens }} produto(s) aguardando inspeção, para inventariar ou limpar no sistema.{% if d.estoque_expedicao %} Estoque total da Expedição: {{ f(d.estoque_expedicao, 2) }} m.{% endif %}</div>
 {% endif %}
  <table><tr><th>Produto</th><th>Descrição</th><th class="n">Em inspeção (m)</th><th class="n">Na expedição (m)</th><th class="n">Peças na exp.</th></tr>
  {% for x in p.linhas %}<tr><td>{{ x.cod }}</td><td>{{ x.nome }}</td><td class="n">{{ f(x.saldo, 2) }}</td><td class="n">{{ f(x.exp_m, 2) if x.exp_m else '—' }}</td><td class="n">{{ f(x.exp_pecas) if x.exp_pecas else '—' }}</td></tr>{% endfor %}
@@ -128,8 +128,9 @@ def gerar_pdf(d: dict) -> bytes:
 def corpo(d: dict) -> str:
     from app.relatorio_fat import envio_email as envio
     return ('Prezados,\n\n'
-            f'O saldo aguardando inspeção na Expedição está em {_fmt(d["total"], 2)} m, em {d["itens"]} produto(s), acima do limite de {_fmt(config()["limite"])} m. '
+            f'O saldo aguardando inspeção na Expedição está em {_fmt(d["total"], 2)} m, em {d["itens"]} produto(s). '
             'Segue em anexo o relatório em PDF, com o saldo total em aberto e o detalhe por produto.\n\n'
+            'Solicitamos à equipe responsável para analisar estes materiais disponíveis em Inspeção.\n\n'
             f'Gerado em {d["gerado"]:%d/%m/%Y} às {d["gerado"]:%H:%M}.\n\n'
             'Atenciosamente,\n'
             'Gestão Conexão\n'
