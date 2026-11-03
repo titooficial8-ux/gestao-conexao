@@ -830,6 +830,25 @@ class ArtigoImpedimento(db.Model):
     origem_registro = db.Column(db.String(10), default='gestao')   # 'hub' = importado do PCP Hub uma unica vez; 'gestao' = registrado aqui
 
 
+class ArtigoMovimentacao(db.Model):
+    """Log de movimentacao de OP/artigo entre maquinas (feita no Gestao com o motivo escrito, ou detectada na leitura do PCP Hub). Aparece em Controle de Artigos > Movimentacoes (Logs)."""
+    __tablename__ = 'artigo_movimentacoes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    quando = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    artigo = db.Column(db.String(60), index=True)
+    op = db.Column(db.String(30))
+    cliente = db.Column(db.String(120))
+    qt_solicitada = db.Column(db.Float)
+    origem = db.Column(db.Integer)                        # maquina de onde saiu
+    destino = db.Column(db.Integer)                       # maquina para onde foi
+    motivo = db.Column(db.Text)                           # texto escrito por quem moveu ('Movido no PCP Hub' quando veio da leitura do Hub)
+    por = db.Column(db.String(120))
+    nao_roda = db.Column(db.Boolean, default=False)       # tambem registrado como "artigo nao roda" na maquina de origem
+    impedimento_id = db.Column(db.String(40), nullable=True)
+    origem_registro = db.Column(db.String(10), default='gestao')   # 'gestao' ou 'hub'
+
+
 class FichaArtigo(db.Model):
     """Ficha tecnica do artigo (lista basedeficha do SharePoint): RPM e voltas por peca do REGISTRO MAIS RECENTE de cada artigo. Base da previsao de termino da malharia."""
     __tablename__ = 'ficha_artigo'

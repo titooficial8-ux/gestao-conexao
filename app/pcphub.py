@@ -248,6 +248,12 @@ def aplicar(linhas: list, agora=None) -> dict:
                 saiu[str(s.op)] = (s, s.machine.number if s.machine else None)
                 db.session.delete(s)
                 removidas += 1
+        if movidas:                                     # historico: toda OP que mudou de maquina no PCP Hub entra no log de movimentacoes (Controle de Artigos)
+            from app.models import ArtigoMovimentacao
+            for op, mv in movidas.items():
+                sq, de, para = mv[0], mv[1], (mv[2] if len(mv) > 2 else None)
+                db.session.add(ArtigoMovimentacao(artigo=sq.artigo, op=op, cliente=sq.cliente, qt_solicitada=float(sq.qt_solicitada or 0), origem=de, destino=para, motivo='Movido no PCP Hub',
+                                                  por='PCP Hub', origem_registro='hub'))
         if saiu or movidas:                             # OP que mudou de maquina durante uma auditoria vai para o log (origem -> destino)
             from app.auditoria import registrar_movimentacoes
             novas = {str(n.op): (n, num) for n, num in novas_seqs if n.op}
