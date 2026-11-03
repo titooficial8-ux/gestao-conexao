@@ -253,9 +253,21 @@ def vendas_pptx():
             ms = [('colchao', 'Receita líquida colchão por mês', 'serie_colchao', 'rs'), ('mi', 'Receita líquida MI por mês', 'serie_mi', 'rs'),
                   ('me', 'Receita líquida ME por mês', 'serie_me', 'rs'), ('me_mt', 'Volume ME em mts por mês', 'serie_me_mt', 'mts')]
             ms = [m for m in ms if d.get(m[2])]
+            extra = {}
+            try:                                                                              # MI com o ano retrasado (2024) tambem do TOTVS, so se as notas desse ano estiverem carregadas
+                from app.totvs.routes import serie_receita_mi
+                sm3 = serie_receita_mi(d['ano'], (d['ano'] - 2,))
+                if sm3.get(d['ano'] - 2) and d.get('serie_mi'):
+                    extra = dict(S2=sm3[d['ano'] - 2], ano2=d['ano'] - 2)
+            except Exception:  # noqa: BLE001
+                extra = {}
             sub = lambda u: ('Milhares de R$ (R$ mil)' if u == 'rs' else 'Mts') + ' · linha verde = plano · linha cinza = '
-            pngs = grafico_site.renderizar([dict(titulo=t, sub=sub(u), unidade=u, S=d[k]) for _, t, k, u in ms], d['ano'], d['mes'])
-            graficos = {m[0]: png for m, png in zip(ms, pngs)}
+            itens = [dict(titulo=t, sub=sub(u), unidade=u, S=d[k]) for _, t, k, u in ms]
+            chaves = [m[0] for m in ms]
+            if extra:                                                                         # slide 21: MI em 3 anos
+                itens.append(dict(titulo='Receita líquida MI por mês', sub=sub('rs'), unidade='rs', S=d['serie_mi'], **extra))
+                chaves.append('mi3')
+            graficos = dict(zip(chaves, grafico_site.renderizar(itens, d['ano'], d['mes'])))
         corpo = vendas_deck.gerar(d, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), fotos, graficos)
     except Exception as e:  # noqa: BLE001
         return Response(f'Não foi possível gerar a apresentação de Vendas: {e}', status=500, mimetype='text/plain; charset=utf-8')

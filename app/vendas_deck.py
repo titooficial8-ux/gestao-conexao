@@ -476,7 +476,7 @@ def gerar(d: dict, agora: str, fotos: dict | None = None, graficos: dict | None 
             if fotos.get(chave):
                 _trocar_tabela_por_foto(S[idx], fotos[chave], larga)
     if graficos:                                                    # slides 10, 20, 32 e 33: graficos no estilo do site (series do TOTVS)
-        for idx, chave in ((9, 'colchao'), (19, 'mi'), (31, 'me'), (32, 'me_mt')):
+        for idx, chave in ((9, 'colchao'), (19, 'mi'), (20, 'mi3'), (31, 'me'), (32, 'me_mt')):
             if graficos.get(chave):
                 if idx != 9:
                     _textos(S[idx], mes, ano, agora)

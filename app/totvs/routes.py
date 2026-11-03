@@ -187,6 +187,23 @@ def _montar_slide(ano, mes):
     return dict(_slide_cache[chave])
 
 
+def serie_receita_mi(ano_ref: int, anos: tuple) -> dict:
+    """{ano: [12 valores]}: receita liquida do mercado interno (segmentos de receita menos COLCHAO M.E.) mes a mes, direto das notas do TOTVS. Ano sem notas carregadas fica de fora."""
+    chave = servico._chave_blocos()
+    segs = set(slide.SEGMENTOS_RS) - {'COLCHÃO M.E.'}
+    out = {}
+    for y in anos:
+        regs = _derivados(chave, (y,))
+        if not regs:
+            continue
+        v = [0.0] * 12
+        for x in regs:
+            if x['mes'] and x['ano'] == y and x['seg'] in segs:
+                v[x['mes'] - 1] += x['liquida']
+        out[y] = v
+    return out
+
+
 def dados_do_slide(ano=None, mes=None):
     """Dados do slide mensal (o mesmo da tela) para um mes/ano; None se ainda nao ha notas carregadas."""
     idx = servico._indice()
