@@ -33,6 +33,7 @@
     {% if pode_reprovas_cru() %}<button type="button" class="prod-btn" id="btnReprovasCru">Reprovas Cru</button>{% endif %}
     <button type="button" class="prod-btn" id="btnDownload">{{ t('acao_download') }}</button>
     <button type="button" class="prod-btn" id="btnEstudo">Estudos Malharia</button>
+    <button type="button" class="prod-btn prod-btn-story" id="btnStory" title="Story — programação por máquina (somente EM SEQUÊNCIA), em PDF de uma folha">&#11015; Story</button>
     <button type="button" class="prod-btn prod-btn-warn" id="btnDiasSemProducao">{{ t('acao_dias_sem_producao') }}</button>
   </div>
 </div>
@@ -57,6 +58,21 @@
   {% endif %}
 </form>
 
+<script>
+(function () {
+  var b = document.getElementById('btnStory'); if (!b) return;
+  b.addEventListener('click', function () {
+    var txt = b.innerHTML; b.disabled = true; b.textContent = 'Gerando o PDF…';
+    fetch('{{ url_for("main.programacao_story") }}', { credentials: 'same-origin' }).then(function (r) {
+      if (!r.ok) return r.text().then(function (t) { throw new Error(t || 'Erro'); });
+      var cd = r.headers.get('Content-Disposition') || '', m = /filename\*=UTF-8''([^;]+)/.exec(cd);
+      return r.blob().then(function (bl) { return [bl, m ? decodeURIComponent(m[1]) : 'Programacao_por_Maquina.pdf']; });
+    }).then(function (x) {
+      var a = document.createElement('a'); a.href = URL.createObjectURL(x[0]); a.download = x[1]; document.body.appendChild(a); a.click(); a.remove();
+    }).catch(function (e) { alert(e.message); }).then(function () { b.disabled = false; b.innerHTML = txt; });
+  });
+})();
+</script>
 <script>
 (function () {
   var form = document.getElementById('formFiltrosProgramacao');
