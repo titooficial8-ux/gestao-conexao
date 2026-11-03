@@ -1,12 +1,15 @@
-"""Alerta por e-mail do saldo AGUARDANDO INSPECAO da Expedicao: quando passa de EXPEDICAO_INSPECAO_LIMITE metros (padrao 1.000 m), manda um e-mail com o PDF do saldo (por produto + saldo total em aberto).
+"""Alerta por e-mail do saldo AGUARDANDO INSPECAO da Expedicao: duas vezes por mes (dia 03 e dia 25, ou o proximo dia util se cair em fim de semana ou feriado nacional), SO quando o saldo aguardando
+inspecao esta acima de EXPEDICAO_INSPECAO_LIMITE metros (padrao 1.000 m). Manda o PDF com o saldo total em aberto e o detalhe por produto.
 
 .env (opcional):
   EXPEDICAO_INSPECAO_EMAIL=1                 (0 desliga o envio automatico)
   EXPEDICAO_INSPECAO_LIMITE=1000             (metros)
-  EXPEDICAO_INSPECAO_DESTINOS=a@x.com,b@y.com  (padrao: so o Christian, fase de teste)
+  EXPEDICAO_INSPECAO_DIAS=3,25               (dias do mes; cai em fim de semana/feriado -> proximo dia util)
+  EXPEDICAO_INSPECAO_DESTINOS=a@x.com,b@y.com   (Para)
+  EXPEDICAO_INSPECAO_CC=c@x.com,d@y.com         (Cc)
   EXPEDICAO_INSPECAO_HORAS=08:00-18:00       (janela do dia em que o alerta pode sair, horario de Brasilia)
-Regra: no maximo 1 e-mail por dia util (nao envia em fim de semana nem feriado nacional), no 1o momento da janela em que o saldo esta acima do limite. O saldo e lido do painel da Expedicao
-(atualizado do TOTVS pelo proprio agendador da Expedicao). Se o envio falhar, tenta de novo em 30 minutos."""
+No dia de envio, sem saldo acima do limite nao manda nada (e nao recupera depois). O saldo e lido do painel da Expedicao (atualizado do TOTVS pelo agendador da Expedicao).
+Se o envio falhar, tenta de novo em 30 minutos dentro da janela."""
 from __future__ import annotations
 
 import json
@@ -14,10 +17,12 @@ import os
 import threading
 import time
 import traceback
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
-DESTINO_PADRAO = 'christian.yarzon@conexaomalhas.com.br'
+DESTINO_PADRAO = 'christian.yarzon@conexaomalhas.com.br'                    # usado so no envio de teste
+PARA_PADRAO = 'luciane.frias@conexaomalhas.com.br,vinicius.ricci@conexaomalhas.com.br'
+CC_PADRAO = 'edmar.santos@conexaomalhas.com.br,christian.yarzon@conexaomalhas.com.br'
 _trava = threading.Lock()
 
 
@@ -35,7 +40,36 @@ def config() -> dict:
         limite = float(os.getenv('EXPEDICAO_INSPECAO_LIMITE', '1000'))
     except ValueError:
         limite = 1000.0
-    return dict(ativo=os.getenv('EXPEDICAO_INSPECAO_EMAIL', '1') != '0', limite=limite, destinos=os.getenv('EXPEDICAO_INSPECAO_DESTINOS', DESTINO_PADRAO), inicio=hm(ini, (8, 0)), fim=hm(fim, (18, 0)))
+    try:
+        dias = sorted({int(x) for x in os.getenv('EXPEDICAO_INSPECAO_DIAS', '3,25').split(',') if x.strip()})
+    except ValueError:
+        dias = [3, 25]
+    return dict(ativo=os.getenv('EXPEDICAO_INSPECAO_EMAIL', '1') != '0', limite=limite, destinos=os.getenv('EXPEDICAO_INSPECAO_DESTINOS', PARA_PADRAO), cc=os.getenv('EXPEDICAO_INSPECAO_CC', CC_PADRAO),
+                dias=dias or [3, 25], inicio=hm(ini, (8, 0)), fim=hm(fim, (18, 0)))
+
+
+def data_de_envio(ano: int, mes: int, dia: int) -> date:
+    """Data real do envio do `dia` do mes: se cair em fim de semana ou feriado nacional, vai para o proximo dia util."""
+    from app.relatorio_fat.agenda import dia_sem_envio
+    d = date(ano, mes, min(dia, 28 if mes == 2 else 30 if mes in (4, 6, 9, 11) else 31))
+    while d.weekday() >= 5 or dia_sem_envio(d):
+        d += timedelta(days=1)
+    return d
+
+
+def hoje_e_dia_de_envio(hoje: date) -> bool:
+    return any(data_de_envio(hoje.year, hoje.month, x) == hoje for x in config()['dias'])
+
+
+def proximos_envios(a_partir: date, n: int = 6) -> list:
+    out, ano, mes = [], a_partir.year, a_partir.month
+    while len(out) < n:
+        for x in config()['dias']:
+            d = data_de_envio(ano, mes, x)
+            if d >= a_partir and d not in out:
+                out.append(d)
+        ano, mes = (ano + 1, 1) if mes == 12 else (ano, mes + 1)
+    return sorted(out)[:n]
 
 
 def _fmt(v, casas=0):
@@ -130,7 +164,7 @@ def corpo(d: dict) -> str:
     return ('Prezados,\n\n'
             f'Segue as informações de saldo aguardando inspeção para a equipe verificar, atualmente está em {_fmt(d["total"], 2)} m, em {d["itens"]} produto(s). '
             'Segue em anexo o relatório em PDF, com o saldo total em aberto e o detalhe por produto.\n\n'
-            f'Atenção: Este email é enviado de forma automática quando atingir a metragem de {config()["limite"]:g}mt em inspeção.\n\n'
+            f'Atenção: Este email é enviado de forma automática nos dias {" e ".join(f"{x:02d}" for x in config()["dias"])} de cada mês (dias úteis), quando o saldo em inspeção atingir a metragem de {config()["limite"]:g}mt.\n\n'
             'Solicitamos à equipe responsável para analisar estes materiais disponíveis em Inspeção.\n\n'
             'Atenciosamente,\n'
             'Gestão Conexão\n'
@@ -138,15 +172,19 @@ def corpo(d: dict) -> str:
             '--\n' + envio.AVISO_LEGAL)
 
 
-def enviar(destinos: list, d: dict = None, teste: bool = False) -> dict:
+def enviar(destinos: list, d: dict = None, teste: bool = False, cc: list = None) -> dict:
     from flask import current_app
     from app.relatorio_fat import agenda, envio_email as envio
     d = d or dados()
     pdf = gerar_pdf(d)
-    assunto = ('[TESTE] ' if teste else '') + f'Expedição — saldo aguardando inspeção: {_fmt(d["total"], 2)} m ({d["itens"]} produto{"s" if d["itens"] != 1 else ""})'
-    rec = envio.enviar(destinos, assunto, corpo(d), [(f'saldo_aguardando_inspecao_{d["gerado"]:%Y-%m-%d_%H%M}.pdf', pdf, 'application/pdf')])
-    agenda.registrar_envio(current_app._get_current_object(), assunto, destinos, rec, 'inspecao-teste' if teste else 'inspecao')
+    assunto = assunto_do_email(d, teste)
+    rec = envio.enviar(destinos, assunto, corpo(d), [(f'saldo_aguardando_inspecao_{d["gerado"]:%Y-%m-%d_%H%M}.pdf', pdf, 'application/pdf')], cc=cc or None)
+    agenda.registrar_envio(current_app._get_current_object(), assunto, list(destinos) + list(cc or []), rec, 'inspecao-teste' if teste else 'inspecao')
     return rec
+
+
+def assunto_do_email(d: dict, teste: bool = False) -> str:
+    return ('[TESTE] ' if teste else '') + f'Expedição — saldo aguardando inspeção: {_fmt(d["total"], 2)} m ({d["itens"]} produto{"s" if d["itens"] != 1 else ""})'
 
 
 # ------------------------------------------------------------------ agendador
@@ -176,7 +214,7 @@ def _tick(app) -> None:
     if not cfg['ativo']:
         return
     agora = agora_brasilia()
-    if agora.weekday() >= 5 or dia_sem_envio(agora.date()):
+    if agora.weekday() >= 5 or dia_sem_envio(agora.date()) or not hoje_e_dia_de_envio(agora.date()):          # so nos dias 03 e 25 (ou o proximo dia util)
         return
     if not ((agora.hour, agora.minute) >= cfg['inicio'] and (agora.hour, agora.minute) <= cfg['fim']):
         return
@@ -205,9 +243,9 @@ def _tick(app) -> None:
             try:
                 if not envio.configurado():
                     raise RuntimeError('E-mail não configurado: preencha no .env ' + ', '.join(envio.faltando()))
-                destinos = envio.validar(cfg['destinos'])
-                enviar(destinos, d)
-                est.update(enviado_em=hoje, ultimo=f'{agora:%d/%m %H:%M} · {_fmt(d["total"], 2)} m em {d["itens"]} produto(s) enviados para {len(destinos)} pessoa(s)', erro=None, erro_em=None)
+                destinos, copias = envio.validar(cfg['destinos']), envio.validar(cfg['cc'])
+                enviar(destinos, d, cc=copias)
+                est.update(enviado_em=hoje, ultimo=f'{agora:%d/%m %H:%M} · {_fmt(d["total"], 2)} m em {d["itens"]} produto(s) enviados para {len(destinos)} pessoa(s) (+{len(copias)} em cópia)', erro=None, erro_em=None)
                 print(f'[expedicao-inspecao] {est["ultimo"]}', flush=True)
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
