@@ -2683,8 +2683,9 @@ def sequencia_dt_cliente(seq_id):
         abort(403)
     q = db.session.get(Sequencia, seq_id) or abort(404)
     avulsa = bool(q.qt_avulsa) or not PedidoRelatorio.query.filter(PedidoRelatorio.nr_op == str(q.op)).first()
-    if normalize_client_name(q.cliente or '') != 'ORTOBOM' and not avulsa:
-        return jsonify(erro='A DT.CLIENTE só pode ser editada em OP da ORTOBOM ou OP avulsa.'), 400
+    sem_data = not q.dt_cliente and not q.production_month                      # 'A DEFINIR': o pedido nao trouxe data, o PCP pode preencher
+    if normalize_client_name(q.cliente or '') != 'ORTOBOM' and not avulsa and not sem_data and not q.dt_cliente_manual:
+        return jsonify(erro='A DT.CLIENTE só pode ser editada em OP da ORTOBOM, OP avulsa ou OP com a data "A DEFINIR".'), 400
     txt = re.sub(r'\s+', ' ', str((request.get_json(silent=True) or {}).get('texto') or '')).strip()
     if len(txt) > 10:
         return jsonify(erro='Use no máximo 10 caracteres.'), 400
@@ -2966,7 +2967,7 @@ def maquina_detalhe(numero):
                           op_produzindo=produzindo.op if produzindo else None)
     return render_template(
         'main/maquina_detalhe.html',
-        pode_editar_dt=_pode_dias_sem_producao(), dt_editavel={q.id for q in sequencias if q.qt_avulsa or q.id in avulsa_cli or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper()}, atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), maquinas_destino=[m.number for m in Machine.query.order_by(Machine.number).all() if m.number != machine.number], impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
+        pode_editar_dt=_pode_dias_sem_producao(), dt_editavel={q.id for q in sequencias if q.qt_avulsa or q.id in avulsa_cli or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper() or q.dt_cliente_manual or (not q.dt_cliente and not q.production_month)}, atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), maquinas_destino=[m.number for m in Machine.query.order_by(Machine.number).all() if m.number != machine.number], impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
         artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, avulsa_cli=avulsa_cli, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
         tab=tab,
         machine=machine,
