@@ -45,7 +45,7 @@ def _html_com_aviso(corpo: str) -> str | None:
             f'<div style="{fonte}font-size:8pt;color:#4a4a4a;line-height:1.5">' + paragrafos(aviso, 'margin:0 0 14px 0') + '</div></body></html>')
 
 
-def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str, bytes, str]], prioridade_alta: bool = False) -> dict:
+def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str, bytes, str]], prioridade_alta: bool = False, cc: list[str] | None = None) -> dict:
     """anexos = [(nome_do_arquivo, bytes, mime 'tipo/subtipo')]. Devolve {'message_id', 'recusados': {email: motivo}, 'servidor'} para o historico de envios."""
     if not configurado():
         raise RuntimeError('E-mail não configurado: preencha no .env ' + ', '.join(faltando()) + '.')
@@ -55,6 +55,8 @@ def enviar(destinos: list[str], assunto: str, corpo: str, anexos: list[tuple[str
     msg['Subject'] = assunto
     msg['From'] = os.getenv('SMTP_FROM') or usuario
     msg['To'] = ', '.join(destinos)
+    if cc:
+        msg['Cc'] = ', '.join(cc)                                   # send_message entrega tambem para quem esta em Cc
     msg['Message-ID'] = make_msgid(domain=(usuario.split('@')[-1] if '@' in usuario else None))
     if prioridade_alta:
         msg['X-Priority'] = '1 (Highest)'

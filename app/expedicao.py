@@ -211,22 +211,27 @@ def inspecao_email_pdf():
 @exp_bp.route('/inspecao-email/teste', methods=['GET', 'POST'])
 @login_required
 def inspecao_email_teste():
-    """So administrador: manda AGORA o e-mail do saldo aguardando inspecao (?para=a@x.com,b@y.com; padrao: Christian), no mesmo formato do envio automatico, e mostra o estado do agendador."""
+    """So administrador: manda AGORA o e-mail do saldo aguardando inspecao no mesmo formato do automatico. Sem parametros vai SO para o Christian (teste, assunto com [TESTE]);
+    ?real=1 manda para a lista oficial (Para e Cc do .env); ?para=a@x.com,b@y.com&cc=c@x.com escolhe os destinatarios. ?estado=1 mostra a configuracao, os proximos dias de envio e o ultimo envio."""
     if not current_user.is_admin:
         abort(403)
+    from datetime import date
     from app import expedicao_inspecao as EI
     from app.relatorio_fat import envio_email as envio
     from flask import current_app
     cfg = EI.config()
     est = EI._ler(current_app)
     if request.args.get('estado'):
-        return jsonify(config=dict(cfg, inicio='%02d:%02d' % cfg['inicio'], fim='%02d:%02d' % cfg['fim']), estado=est, smtp=envio.configurado())
+        return jsonify(config=dict(cfg, inicio='%02d:%02d' % cfg['inicio'], fim='%02d:%02d' % cfg['fim']), proximos_envios=[d.strftime('%d/%m/%Y (%a)') for d in EI.proximos_envios(date.today())], estado=est, smtp=envio.configurado())
     try:
-        destinos = envio.validar(request.values.get('para') or EI.DESTINO_PADRAO)
+        real = request.values.get('real') == '1'
+        destinos = envio.validar(request.values.get('para') or (cfg['destinos'] if real else EI.DESTINO_PADRAO))
+        copias = envio.validar(request.values.get('cc') or cfg['cc']) if (real or request.values.get('cc')) else []
         d = EI.dados()
         if not d['lista']:
             return jsonify(ok=False, erro='A Expedição ainda não leu o saldo aguardando inspeção do TOTVS (lista vazia).'), 409
-        rec = EI.enviar(destinos, d, teste=request.values.get('teste', '1') != '0')
-        return jsonify(ok=True, para=destinos, total_m=d['total'], produtos=d['itens'], recusados=rec.get('recusados'), acima_do_limite=d['total'] > cfg['limite'])
+        teste = not real
+        rec = EI.enviar(destinos, d, teste=teste, cc=copias)
+        return jsonify(ok=True, para=destinos, cc=copias, assunto=EI.assunto_do_email(d, teste), total_m=d['total'], produtos=d['itens'], recusados=rec.get('recusados'), acima_do_limite=d['total'] > cfg['limite'])
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=str(e)[:300]), 500
