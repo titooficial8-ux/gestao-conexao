@@ -234,6 +234,28 @@ def agora_brasilia_ano() -> int:
     return agenda.agora_brasilia().year
 
 
+@rel_fat_bp.route('/vendas-pptx')
+@login_required
+def vendas_pptx():
+    """Apresentacao de Vendas (modelo VENDAS_OUTUBRO_2026) com os numeros do mes preenchidos em tempo real; os slides sem fonte de dados ficam como no modelo."""
+    if not pode_gerar(current_user):
+        abort(403)
+    from app import vendas_deck
+    from app.totvs.routes import dados_do_slide
+    d = dados_do_slide(request.args.get('ano', type=int), request.args.get('mes', type=int))
+    if not d:
+        return Response('Ainda não há dados de faturamento carregados do TOTVS.', status=404, mimetype='text/plain; charset=utf-8')
+    try:
+        corpo = vendas_deck.gerar(d, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'))
+    except Exception as e:  # noqa: BLE001
+        return Response(f'Não foi possível gerar a apresentação de Vendas: {e}', status=500, mimetype='text/plain; charset=utf-8')
+    nome = re.sub(r'[^A-Za-z0-9_]+', '_', f'VENDAS_{_norm(dados.MESES[d["mes"] - 1]).upper()}_{d["ano"]}') + '.pptx'
+    r = Response(corpo, mimetype=MIME['pptx'])
+    r.headers['Content-Disposition'] = f'attachment; filename="{nome}"'
+    r.headers['Cache-Control'] = 'no-store'
+    return r
+
+
 @rel_fat_bp.route('/gerar')
 @login_required
 def gerar():
