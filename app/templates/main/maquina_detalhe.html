@@ -500,6 +500,7 @@ tr.seq-arrastando{opacity:.45}tr.seq-alvo-antes td{box-shadow:inset 0 3px 0 #2f7
   <select id="mvDestino"><option value="">Selecione…</option>{% for n in maquinas_destino %}<option value="{{ n }}">Máquina {{ n }}</option>{% endfor %}</select>
   <label for="mvJust">Motivo da movimentação (obrigatório)</label>
   <textarea id="mvJust" placeholder="Escreva o motivo da transferência (mín. 10 caracteres)"></textarea>
+  <label style="display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:0;font-size:13px;color:#334155;font-weight:600;margin-top:12px"><input type="checkbox" id="mvNaoRoda" style="margin-top:3px"> <span>Este artigo <b>NÃO RODA</b> na máquina {{ machine.number }} (bloqueia o artigo nessa máquina no Controle de Artigos). Deixe desmarcado para só registrar a movimentação no log.</span></label>
   <div class="mv-erro" id="mvErro"></div>
   <div class="mv-bt"><button type="button" class="mv-no" id="mvNo">Cancelar</button><button type="button" class="mv-ok" id="mvOk">Transferir</button></div>
 </div></div>
@@ -521,14 +522,14 @@ tr.seq-arrastando{opacity:.45}tr.seq-alvo-antes td{box-shadow:inset 0 3px 0 #2f7
       ev.stopPropagation(); fecha();
       var op = (tr.querySelector('.seq-op') || {}).textContent || '', art = (tr.children[8] || {}).textContent || '';
       document.getElementById('mvInfo').textContent = 'Máquina {{ machine.number }} · Artigo ' + art.trim() + ' · OP ' + op.trim();
-      ['mvDestino', 'mvJust'].forEach(function (i) { document.getElementById(i).value = ''; }); document.getElementById('mvErro').textContent = '';
+      ['mvDestino', 'mvJust'].forEach(function (i) { document.getElementById(i).value = ''; }); document.getElementById('mvNaoRoda').checked = false; document.getElementById('mvErro').textContent = '';
       modal.hidden = false;
     });
   });
   document.getElementById('mvNo').addEventListener('click', function () { modal.hidden = true; });
   document.getElementById('mvOk').addEventListener('click', function () {
     var er = document.getElementById('mvErro'), bt = this;
-    var corpo = { destino: document.getElementById('mvDestino').value, motivo: document.getElementById('mvJust').value };
+    var corpo = { destino: document.getElementById('mvDestino').value, motivo: document.getElementById('mvJust').value, nao_roda: document.getElementById('mvNaoRoda').checked };
     if (!corpo.destino) { er.textContent = 'Escolha a máquina de destino.'; return; }
     if (corpo.motivo.trim().length < 10) { er.textContent = 'O motivo é obrigatório (mínimo de 10 caracteres).'; return; }
     bt.disabled = true; er.textContent = 'Transferindo…';

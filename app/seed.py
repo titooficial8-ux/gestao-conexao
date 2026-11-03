@@ -47,6 +47,7 @@ CATEGORIES_DATA = [
             ('historico', 'Histórico', 'Historial', '\U0001F551', '#5b6b7c', True),
             ('relatorio-pedidos', 'Relatório Pedidos', 'Informe de Pedidos', '\U0001F9FE', '#2f7fe0', False),
             ('pre-programacao', 'Pré-Programação', 'Pre-Programación', '\U0001F5C2', '#e0972f', False),
+            ('amostras-manutencoes', 'Amostras - Manutenções', 'Muestras - Mantenimientos', '\U0001F9F5', '#8a5fe0', False),
         ],
     },
     {
@@ -118,7 +119,6 @@ CATEGORIES_DATA = [
         'sector': 'Desenvolvimento',
         'tabs': [
             ('saved-drawing', 'Saved Drawing', 'Diseños Guardados', '✏', '#8a5fe0', False),
-            ('amostras-manutencoes', 'Amostras - Manutenções', 'Muestras - Mantenimientos', '\U0001F9F5', '#8a5fe0', False),
         ],
     },
     {
@@ -279,4 +279,18 @@ def garantir_aba_gestao_projetos() -> None:
     db.session.add(tab)
     db.session.flush()
     tab.sectors = [s_ for s_ in Sector.query.all() if s_.name in ('TI/Sistema', 'Diretoria')]
+    db.session.commit()
+
+
+def garantir_aba_amostras_no_planejamento() -> None:
+    """A aba 'Amostras - Manutencoes' fica em Gestao Planejamento (antes estava em Desenvolvimento). Em bancos antigos muda de categoria e o PCP passa a ve-la."""
+    cat = Category.query.filter_by(slug='planejamento').first()
+    tab = Tab.query.filter_by(slug='amostras-manutencoes').first()
+    if not cat or not tab or tab.category_id == cat.id:
+        return
+    tab.category_id = cat.id
+    tab.order = max([t.order or 0 for t in cat.tabs if t.id != tab.id] or [0]) + 1
+    pcp = Sector.query.filter_by(name='PCP').first()
+    if pcp and pcp not in tab.sectors:
+        tab.sectors.append(pcp)
     db.session.commit()

@@ -270,3 +270,23 @@ def artigos_dados():
     itens = ArtigoImpedimento.query.order_by(ArtigoImpedimento.artigo_norm, ArtigoImpedimento.movido_em.desc()).all()
     from app.models import Machine
     return jsonify(itens=[_item(i) for i in itens], motivos=MOTIVOS, maquinas=[m.number for m in Machine.query.order_by(Machine.number).all()])
+
+
+@aud_bp.route('/movimentacoes-dados')
+@login_required
+def movimentacoes_dados():
+    """Log de movimentacoes de OP entre maquinas: as feitas no Gestao (com o motivo escrito), as detectadas no PCP Hub e os registros antigos de 'artigo nao roda' (que tambem sao movimentacoes)."""
+    _tab_ca()
+    from app.models import ArtigoMovimentacao
+    br = lambda d: d.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=-3))).strftime('%d/%m/%Y %H:%M') if d else ''
+    movs = ArtigoMovimentacao.query.order_by(ArtigoMovimentacao.quando.desc()).limit(2000).all()
+    usados = {m.impedimento_id for m in movs if m.impedimento_id}
+    linhas = [dict(quando=m.quando.isoformat() if m.quando else '', em=br(m.quando), artigo=m.artigo or '', op=m.op or '', cliente=m.cliente or '', qt=int(m.qt_solicitada or 0), origem=m.origem, destino=m.destino,
+                   motivo=m.motivo or '', por=m.por or '', nao_roda=bool(m.nao_roda), fonte=m.origem_registro or 'gestao') for m in movs]
+    for i in ArtigoImpedimento.query.order_by(ArtigoImpedimento.movido_em.desc()).limit(2000).all():      # registros de "nao roda" (importados do Hub ou antigos) tambem sao movimentacoes
+        if i.id in usados:
+            continue
+        linhas.append(dict(quando=i.movido_em.isoformat() if i.movido_em else '', em=br(i.movido_em), artigo=i.artigo or '', op=i.op or '', cliente='', qt=int(i.qt_solicitada or 0), origem=i.maquina,
+                           destino=_maq(i.destino), motivo=(MOTIVOS.get(i.motivo, i.motivo or '') + (': ' + i.justificativa if i.justificativa else '')), por=i.movido_por or '', nao_roda=True, fonte=i.origem_registro or 'hub'))
+    linhas.sort(key=lambda x: x['quando'], reverse=True)
+    return jsonify(itens=linhas)

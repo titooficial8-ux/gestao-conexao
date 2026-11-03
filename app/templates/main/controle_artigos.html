@@ -17,6 +17,8 @@
 .ca-mod{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:2000}.ca-mod[hidden]{display:none}.ca-box{background:#fff;border-radius:14px;padding:22px;width:min(520px,94vw);max-height:92vh;overflow:auto}
 .ca-box h3{margin:0 0 12px}.ca-box label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:10px 0 3px}.ca-box input,.ca-box select,.ca-box textarea{width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box}
 .ca-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ca-acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.ca-acoes button{border:0;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer}.ca-ok{background:#7f1d2d;color:#fff}.ca-cancel{background:#e5e7eb}.ca-err{color:#b91c1c;font-size:13px;margin-top:8px;min-height:16px}
+.ca-abas{display:flex;gap:8px;margin:0 0 14px}.ca-aba{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:999px;padding:8px 18px;font-weight:800;font-size:13px;cursor:pointer}.ca-aba.on{background:#7f1d2d;border-color:#7f1d2d;color:#fff}
+.ca-tabwrap{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:auto}.ca-tab{width:100%;border-collapse:collapse;font-size:13px;color:#334155}.ca-tab th{position:sticky;top:0;background:#f8fafc;text-align:left;padding:9px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;border-bottom:1px solid #e5e7eb;white-space:nowrap}.ca-tab td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}.ca-tab tr:hover td{background:#fafbfc}.ca-tag{display:inline-block;font-size:10px;font-weight:800;border-radius:6px;padding:1px 7px;color:#fff;background:#64748b}.ca-tag.nr{background:#b91c1c}.ca-tag.hub{background:#0e7490}
 .ca-vazio{padding:40px;text-align:center;color:#64748b;background:#fff;border-radius:12px;border:1px dashed #cbd5e1}.ca-aviso{font-size:12px;color:#64748b;margin-top:14px}
 </style>
 <div class="ca">
@@ -26,12 +28,20 @@
     <button type="button" class="ca-novo" id="caNovo">+ Registrar impedimento</button>
     <div class="ca-stats"><div class="ca-stat"><strong id="caNArt">–</strong><span>Artigos bloqueados</span></div><div class="ca-stat"><strong id="caNBloq">–</strong><span>Bloqueios ativos</span></div><div class="ca-stat"><strong id="caNMaq">–</strong><span>Máquinas afetadas</span></div></div>
   </div>
+  <div class="ca-abas"><button type="button" class="ca-aba on" data-aba="imp">&#9940; Artigos que não rodam</button><button type="button" class="ca-aba" data-aba="mov">&#128260; Movimentações (Logs)</button></div>
+  <div id="caPainelImp">
   <div class="ca-bar">
     <input type="text" id="caBusca" placeholder="Buscar por artigo, máquina, OP ou justificativa…" autocomplete="off">
     <label><input type="checkbox" id="caOff"> Mostrar bloqueios já desativados</label>
   </div>
   <div id="caLista" class="ca-grid"></div>
   <p class="ca-aviso">Registre aqui quando um artigo não roda numa máquina. Ele fica bloqueado: não dá para programá-lo nessa máquina (Novo registro e Pré-Programação) e a OP aparece com ⛔ na Programação. Para liberar, use "Liberar" com uma justificativa.</p>
+  </div>
+  <div id="caPainelMov" hidden>
+    <div class="ca-bar"><input type="text" id="mvBusca" placeholder="Buscar por artigo, OP, cliente, máquina, motivo ou quem moveu…" autocomplete="off"><label><input type="checkbox" id="mvSoNaoRoda"> Só os que marcaram "não roda"</label></div>
+    <div class="ca-tabwrap"><table class="ca-tab"><thead><tr><th>Data/hora</th><th>Artigo</th><th>OP</th><th>Cliente</th><th>Qt (un)</th><th>De</th><th>Para</th><th>Motivo</th><th>Quem moveu</th><th></th></tr></thead><tbody id="mvCorpo"></tbody></table></div>
+    <p class="ca-aviso" id="mvInfo"></p>
+  </div>
 </div>
 <div class="ca-mod" id="caMod" hidden><div class="ca-box">
   <h3 id="caModTitulo">Registrar impedimento</h3>
@@ -88,6 +98,29 @@
       : post('{{ url_for("auditoria.registrar_impedimento") }}', {artigo: $('fArt').value, op: $('fOp').value, maquina: $('fMaq').value, destino: $('fDest').value, motivo: $('fMot').value, qt: $('fQt').value, justificativa: $('fJust').value});
     p.then(function () { $('caMod').hidden = true; ['fArt', 'fOp', 'fQt', 'fJust'].forEach(function (i) { $(i).value = ''; }); return carregar(); }).catch(function (er) { $('caErr').textContent = er.message; });
   });
+  var movs = [], movCarregado = false;
+  function desenharMov() {
+    var q = $('mvBusca').value.trim().toLowerCase(), so = $('mvSoNaoRoda').checked;
+    var vis = movs.filter(function (m) { return (!so || m.nao_roda) && (!q || [m.artigo, m.op, m.cliente, m.origem, m.destino, m.motivo, m.por].join(' ').toLowerCase().indexOf(q) >= 0); });
+    $('mvCorpo').innerHTML = vis.length ? vis.map(function (m) {
+      return '<tr><td style="white-space:nowrap">' + esc(m.em) + '</td><td><b>' + esc(m.artigo) + '</b></td><td>' + esc(m.op) + '</td><td>' + esc(m.cliente) + '</td><td>' + (m.qt || '') + '</td><td>Máq. ' + esc(m.origem == null ? '?' : m.origem) + '</td><td>Máq. ' + esc(m.destino == null ? '?' : m.destino) + '</td><td>' + esc(m.motivo) + '</td><td>' + esc(m.por) + '</td><td>' +
+        (m.nao_roda ? '<span class="ca-tag nr">NÃO RODA</span> ' : '') + (m.fonte === 'hub' ? '<span class="ca-tag hub">PCP HUB</span>' : '') + '</td></tr>';
+    }).join('') : '<tr><td colspan="10" class="ca-vazio" style="border:0">Nenhuma movimentação encontrada.</td></tr>';
+    $('mvInfo').textContent = vis.length + ' movimentação(ões). Toda OP que o PCP move de máquina (no Gestão, com o motivo escrito, ou no PCP Hub) entra aqui; só vira "artigo não roda" quando o PCP marca essa opção.';
+  }
+  function carregarMov() {
+    return fetch('{{ url_for("auditoria.movimentacoes_dados") }}', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (d) { movs = d.itens || []; movCarregado = true; desenharMov(); })
+      .catch(function () { $('mvCorpo').innerHTML = '<tr><td colspan="10" class="ca-vazio" style="border:0">Não consegui carregar as movimentações.</td></tr>'; });
+  }
+  document.querySelectorAll('.ca-aba').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.ca-aba').forEach(function (x) { x.classList.toggle('on', x === b); });
+      var mov = b.dataset.aba === 'mov';
+      $('caPainelImp').hidden = mov; $('caPainelMov').hidden = !mov; $('caNovo').hidden = mov;
+      if (mov && !movCarregado) carregarMov(); else if (mov) carregarMov();
+    });
+  });
+  $('mvBusca').addEventListener('input', desenharMov); $('mvSoNaoRoda').addEventListener('change', desenharMov);
   carregar();
   document.getElementById('caBusca').addEventListener('input', desenhar);
   document.getElementById('caOff').addEventListener('change', desenhar);

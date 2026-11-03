@@ -302,6 +302,8 @@ def create_app():
         garantir_controle_artigos()                                      # aba Controle de Artigos (Planejamento)
         from app.seed import garantir_aba_gestao_projetos
         garantir_aba_gestao_projetos()                                   # aba Gestao Projetos (Sistema)
+        from app.seed import garantir_aba_amostras_no_planejamento
+        garantir_aba_amostras_no_planejamento()                          # Amostras - Manutencoes passa para Gestao Planejamento
         from app.seed import garantir_aba_controle_mp
         garantir_aba_controle_mp()                                       # aba Controle MP (Estoque / Supply Chain)
         from app.indicadores.routes import garantir_aba as garantir_indicadores

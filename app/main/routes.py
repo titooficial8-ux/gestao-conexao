@@ -2752,8 +2752,15 @@ def sequencia_transferir(seq_id):
         return jsonify(erro=bloq), 409
     origem = q.machine
     ativas_dest = [x.sequence_order or 0 for x in Sequencia.query.filter_by(machine_id=destino.id).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).all()]
-    db.session.add(ArtigoImpedimento(id=uuid.uuid4().hex, artigo=q.artigo, artigo_norm=auditoria._norm_artigo(q.artigo), op=q.op, qt_solicitada=float(q.qt_solicitada or 0), maquina=origem.number,
-                                     destino=str(destino.number), motivo='OUTRO', justificativa=just, movido_por=auditoria._usuario(), movido_em=datetime.utcnow(), ativo=True, origem_registro='gestao'))
+    nao_roda = bool(d.get('nao_roda'))
+    imp_id = None
+    if nao_roda:                                                          # so quando o PCP marca que o artigo NAO RODA na maquina de origem: bloqueia o artigo la (Controle de Artigos)
+        imp_id = uuid.uuid4().hex
+        db.session.add(ArtigoImpedimento(id=imp_id, artigo=q.artigo, artigo_norm=auditoria._norm_artigo(q.artigo), op=q.op, qt_solicitada=float(q.qt_solicitada or 0), maquina=origem.number,
+                                         destino=str(destino.number), motivo='OUTRO', justificativa=just, movido_por=auditoria._usuario(), movido_em=datetime.utcnow(), ativo=True, origem_registro='gestao'))
+    from app.models import ArtigoMovimentacao
+    db.session.add(ArtigoMovimentacao(artigo=q.artigo, op=q.op, cliente=q.cliente, qt_solicitada=float(q.qt_solicitada or 0), origem=origem.number, destino=destino.number, motivo=just,
+                                      por=auditoria._usuario(), nao_roda=nao_roda, impedimento_id=imp_id, origem_registro='gestao'))
     q.machine_id, q.sequence_order = destino.id, max(ativas_dest or [0]) + 1
     q.maq_fixa, q.aud_ok, q.aud_em, q.termino_calculado, q.prev_termino_em = True, False, None, False, None
     resto = Sequencia.query.filter_by(machine_id=origem.id).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).order_by(Sequencia.sequence_order).all()
