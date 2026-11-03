@@ -128,10 +128,10 @@ def gerar_pdf(d: dict) -> bytes:
 def corpo(d: dict) -> str:
     from app.relatorio_fat import envio_email as envio
     return ('Prezados,\n\n'
-            f'O saldo aguardando inspeção na Expedição está em {_fmt(d["total"], 2)} m, em {d["itens"]} produto(s). '
+            f'Segue as informações de saldo aguardando inspeção para a equipe verificar, atualmente está em {_fmt(d["total"], 2)} m, em {d["itens"]} produto(s). '
             'Segue em anexo o relatório em PDF, com o saldo total em aberto e o detalhe por produto.\n\n'
+            f'Atenção: Este email é enviado de forma automática quando atingir a metragem de {config()["limite"]:g}mt em inspeção.\n\n'
             'Solicitamos à equipe responsável para analisar estes materiais disponíveis em Inspeção.\n\n'
-            f'Gerado em {d["gerado"]:%d/%m/%Y} às {d["gerado"]:%H:%M}.\n\n'
             'Atenciosamente,\n'
             'Gestão Conexão\n'
             'www.gestaoconexao.com.br\n\n'
