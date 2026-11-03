@@ -66,7 +66,7 @@ details.nx-d summary{cursor:pointer;font-weight:700;color:#0f2540;font-size:13px
   }
   function linhaItem(i) {
     var tr = document.createElement('tr');
-    tr.innerHTML = ['ad', 'cod', 'desc', 'ncm', 'qtd', 'unit', 'vad', 'al_pis', 'al_cofins'].map(function (k) { return '<td' + (k === 'desc' ? ' class="d"' : '') + '><input type="text" data-i="' + k + '" value="' + esc(i[k]) + '"></td>'; }).join('') + '<td><button type="button" class="nx-rm" title="Remover">×</button><input type="hidden" data-i="ref_ii" value="' + esc(i.ref_ii) + '"><input type="hidden" data-i="ref_pis" value="' + esc(i.ref_pis) + '"><input type="hidden" data-i="ref_cofins" value="' + esc(i.ref_cofins) + '"></td>';
+    tr.innerHTML = ['ad', 'cod', 'desc', 'ncm', 'qtd', 'unit', 'vad', 'al_pis', 'al_cofins'].map(function (k) { return '<td' + (k === 'desc' ? ' class="d"' : '') + '><input type="text" data-i="' + k + '" value="' + esc(i[k]) + '"></td>'; }).join('') + '<td><button type="button" class="nx-rm" title="Remover">×</button><input type="hidden" data-i="exp" value="' + esc(i.exp) + '"><input type="hidden" data-i="fab" value="' + esc(i.fab) + '"><input type="hidden" data-i="ref_ii" value="' + esc(i.ref_ii) + '"><input type="hidden" data-i="ref_pis" value="' + esc(i.ref_pis) + '"><input type="hidden" data-i="ref_cofins" value="' + esc(i.ref_cofins) + '"></td>';
     tr.querySelector('.nx-rm').addEventListener('click', function () { tr.remove(); });
     $('tbItens').appendChild(tr);
   }
@@ -86,6 +86,7 @@ details.nx-d summary{cursor:pointer;font-weight:700;color:#0f2540;font-size:13px
       montarCab(j.form); $('fInfo').value = j.form.info || ''; $('tbItens').textContent = ''; (j.itens || []).forEach(linhaItem);
       $('txtExt').textContent = j.texto_extrato || 'Extrato não enviado.'; $('passo2').hidden = false; $('resultado').textContent = '';
       m.className = j.aviso ? 'nx-msg err' : 'nx-msg ok'; if (j.aviso) { m.textContent = 'NF-e ' + (j.nfe.numero || '') + ' lida (' + (j.itens || []).length + ' item(ns)). ' + j.aviso; $('passo2').scrollIntoView({ behavior: 'smooth' }); return; } m.textContent = 'NF-e ' + (j.nfe.numero || '') + ' lida (' + (j.itens || []).length + ' item(ns))' + (j.extrato_lido ? ' e extrato lido' : '') + (j.lidos_da_nfe && j.lidos_da_nfe.length ? '; ' + j.lidos_da_nfe.length + ' campos preenchidos pelo texto da NF-e' : '') + '.' + (j.vazios && j.vazios.length ? ' Faltou preencher: ' + j.vazios.join(', ') + '.' : ' Tudo preenchido: confira antes de gerar.');
+      if (j.conferir && j.conferir.length) { var cf = document.createElement('div'); cf.className = 'nx-box-av'; cf.innerHTML = '<b>Conferir (a leitura encontrou):</b><ul class="nx-lista">' + j.conferir.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'; m.appendChild(cf); }
       $('passo2').scrollIntoView({ behavior: 'smooth' });
     }).catch(function (e) { m.className = 'nx-msg err'; m.textContent = e.message; }).then(function () { $('btLer').disabled = false; });
   });
