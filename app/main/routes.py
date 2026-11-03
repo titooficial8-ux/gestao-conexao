@@ -2739,23 +2739,20 @@ def sequencia_transferir(seq_id):
         return jsonify(erro='OP não encontrada ou já finalizada.'), 404
     d = request.get_json(silent=True) or {}
     destino = Machine.query.filter_by(number=int(d['destino'])).first() if str(d.get('destino') or '').isdigit() else None
-    motivo = str(d.get('motivo') or '').upper()
-    just = re.sub(r'\s+', ' ', str(d.get('justificativa') or '')).strip()
+    just = re.sub(r'\s+', ' ', str(d.get('motivo') or '')).strip()
     if not destino:
         return jsonify(erro='Escolha a máquina de destino.'), 400
     if destino.id == q.machine_id:
         return jsonify(erro='A OP já está nesta máquina.'), 400
-    if motivo not in auditoria.MOTIVOS:
-        return jsonify(erro='Escolha o motivo da movimentação (Malha, Problema técnico ou Outro).'), 400
     if len(just) < 10:
-        return jsonify(erro='A justificativa é obrigatória (mínimo de 10 caracteres).'), 400
+        return jsonify(erro='O motivo da movimentação é obrigatório (mínimo de 10 caracteres).'), 400
     bloq = auditoria.bloqueio(q.artigo, destino.number)
     if bloq:
         return jsonify(erro=bloq), 409
     origem = q.machine
     ativas_dest = [x.sequence_order or 0 for x in Sequencia.query.filter_by(machine_id=destino.id).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).all()]
     db.session.add(ArtigoImpedimento(id=uuid.uuid4().hex, artigo=q.artigo, artigo_norm=auditoria._norm_artigo(q.artigo), op=q.op, qt_solicitada=float(q.qt_solicitada or 0), maquina=origem.number,
-                                     destino=str(destino.number), motivo=motivo, justificativa=just, movido_por=auditoria._usuario(), movido_em=datetime.utcnow(), ativo=True, origem_registro='gestao'))
+                                     destino=str(destino.number), motivo='OUTRO', justificativa=just, movido_por=auditoria._usuario(), movido_em=datetime.utcnow(), ativo=True, origem_registro='gestao'))
     q.machine_id, q.sequence_order = destino.id, max(ativas_dest or [0]) + 1
     q.maq_fixa, q.aud_ok, q.aud_em, q.termino_calculado, q.prev_termino_em = True, False, None, False, None
     resto = Sequencia.query.filter_by(machine_id=origem.id).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).order_by(Sequencia.sequence_order).all()
@@ -2969,7 +2966,7 @@ def maquina_detalhe(numero):
                           op_produzindo=produzindo.op if produzindo else None)
     return render_template(
         'main/maquina_detalhe.html',
-        pode_editar_dt=_pode_dias_sem_producao(), dt_editavel={q.id for q in sequencias if q.qt_avulsa or q.id in avulsa_cli or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper()}, atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), maquinas_destino=[m.number for m in Machine.query.order_by(Machine.number).all() if m.number != machine.number], motivos_mov=__import__('app.auditoria', fromlist=['MOTIVOS']).MOTIVOS, impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
+        pode_editar_dt=_pode_dias_sem_producao(), dt_editavel={q.id for q in sequencias if q.qt_avulsa or q.id in avulsa_cli or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper()}, atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), maquinas_destino=[m.number for m in Machine.query.order_by(Machine.number).all() if m.number != machine.number], impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
         artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, avulsa_cli=avulsa_cli, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
         tab=tab,
         machine=machine,
