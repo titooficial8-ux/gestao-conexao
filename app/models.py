@@ -471,6 +471,27 @@ class NcEstado(db.Model):
     em = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class AvisoManut(db.Model):
+    """Aviso de manutencao ou de amostra de uma maquina (ex-PCP Hub): programado, em andamento ou finalizado. Quem entra em andamento/finaliza sozinho e a leitura do Acompanhamento de Producao."""
+    __tablename__ = 'avisos_manut'
+
+    id = db.Column(db.Integer, primary_key=True)
+    tipo = db.Column(db.String(12), default='MANUTENCAO', index=True)      # MANUTENCAO | AMOSTRA
+    maquina = db.Column(db.Integer, index=True)
+    mecanico = db.Column(db.String(120))
+    data = db.Column(db.Date, nullable=True)                                # dia previsto/de referencia
+    horas_estimadas = db.Column(db.Float, nullable=True)
+    inicio = db.Column(db.DateTime, nullable=True)                          # UTC
+    fim = db.Column(db.DateTime, nullable=True)                             # UTC
+    status = db.Column(db.String(14), default='PROGRAMADA', index=True)     # PROGRAMADA | EM_ANDAMENTO | FINALIZADA
+    obs = db.Column(db.Text)
+    origem = db.Column(db.String(10), default='gestao')                     # hub | gestao | acomp
+    hub_id = db.Column(db.String(80), nullable=True, index=True)
+    acomp_id = db.Column(db.String(80), nullable=True, index=True)          # id da ocorrencia no Acompanhamento de Producao
+    criado_por = db.Column(db.String(120))
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class HubArquivo(db.Model):
     """Copia INTEGRAL (cada linha, todos os campos em JSON) das tabelas de historico/registro do PCP Hub: depois dela o Hub pode ser desligado sem perder nada.
     (tabela, hub_id) e unico, entao a importacao pode rodar quantas vezes quiser."""

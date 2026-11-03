@@ -101,6 +101,8 @@ def create_app():
     app.register_blueprint(projetos_bp)
     from app.duimp_xml import duimp_bp
     app.register_blueprint(duimp_bp)
+    from app.manutencao import manut_bp
+    app.register_blueprint(manut_bp)
     from app.indicadores.routes import ind_bp
     app.register_blueprint(ind_bp)
     from app.desenvolvimento.routes import dev_bp
@@ -356,6 +358,8 @@ def create_app():
         iniciar_indicadores(app)  # Indicadores: pecas do acabamento (transacoes 2030/2031) a cada 10 min
         from app.pcphub import iniciar_agendador as iniciar_pcphub
         iniciar_pcphub(app)       # Programacao ao vivo a partir do PCP Hub: a cada 5 min (precisa de PCPHUB_EMAIL/PCPHUB_PASSWORD)
+        from app.manutencao import iniciar_agendador as iniciar_manutencao
+        iniciar_manutencao(app)   # Manutencoes/Amostras: le o Acompanhamento de Producao a cada 60 s (maquina em manutencao pisca)
         from app.relatorio_fat.agenda import iniciar_agendador as iniciar_envio_relatorio
         iniciar_envio_relatorio(app)   # Relatorio de Faturamento por e-mail, 1x por dia (08:30)
         from app.relatorio32_hub import iniciar_agendador as iniciar_r32
