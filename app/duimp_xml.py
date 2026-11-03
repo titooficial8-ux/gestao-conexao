@@ -49,7 +49,7 @@ def num(v, padrao=D('0')) -> D:
 
 
 def q2(x) -> D:
-    return D(x).quantize(CENT, ROUND_HALF_UP)
+    return num(x).quantize(CENT, ROUND_HALF_UP)
 
 
 def br(x) -> str:
@@ -182,7 +182,7 @@ def _info(d, itens, cab) -> str:
          f'{cab["local"]} - {d.get("data_chegada", "")} - {d.get("navio", "")}', '.', f'DATA DE OPERACAO: {d.get("data_operacao", "")}', '.', f'PRESENCA DE CARGA: CEMERCANTE{d.get("presenca_numero", "")} DATA: {d.get("presenca_data", "")}', '.',
          f'MANIFESTO {d.get("manifesto", "")}', '.', f'U.R.F. ENTRADA: PORTO DE {cab["local"].upper()}', f'RECINTO ALFANDEGADO: {d.get("recinto", "")}', '.', f'INCOTERM: {d.get("incoterm", "")}', '.',
          f'VOLUMES: {d.get("volumes", "")} CAIXAS', '.', f'CNTR.(S): {cnt}', '.', f'MERCADORIA:          US$  {br(cab["fob_usd"])}    R$  {br(cab["fob_brl"])}',
-         f'FRETE:               US$  {br(d.get("frete_usd", 0) and num(d.get("frete_usd")))}  R$  {br(cab["frete"])}', '.', f'VALOR ADUANEIRO:                       R$  {br(cab["cif"])}', '.', 'DESPACHANTES CREDENCIADOS:'] + DESPACHANTES + \
+         f'FRETE:               US$  {br(num(d.get("frete_usd")))}  R$  {br(cab["frete"])}', '.', f'VALOR ADUANEIRO:                       R$  {br(cab["cif"])}', '.', 'DESPACHANTES CREDENCIADOS:'] + DESPACHANTES + \
         ['.', f'DESPESAS ADUANEIRAS (TRIBUTADAS): R$ {br(cab["desp"])}', '.', 'DEMONSTRATIVO DE CALCULO:', '.']
     for n, i in enumerate(itens, 1):
         L += [f'ITEM {n} NCM: {i["ncm"][:4]}.{i["ncm"][4:6]}.{i["ncm"][6:8]}', f'VALOR ADUANEIRO      :       R$ {br(i["vad"])}', f'DESPESAS ADUANEIRAS:         R$ {br(i["desp_item"])}',
@@ -231,7 +231,7 @@ def gerar(d: dict) -> dict:
             ajustes.append(f'{t}: item {k + 1} recebeu +0,01 (valor puro {ex[k]:.4f} → {valores[k]}), para a soma dos itens fechar com o total recolhido de {tot[t]}.')
         soma = sum(valores)
         if soma != tot[t]:
-            avisos.append(f'{t}: a soma dos itens ({soma}) não fecha com o total informado ({tot[t]}). Confira alíquotas e valores aduaneiros.')
+            avisos.append(f'{t}: a soma dos itens ({soma}) não fecha com o total informado ({tot[t]}). Confira alíquotas e valores aduaneiros (se a DUIMP tem NCMs com alíquotas diferentes, por exemplo COFINS 9,65% e 10,25%, preencha a alíquota de cada item na tabela).')
     va_total = sum(i['vad'] for i in itens) or D('1')
     for i in itens:                                                        # Siscomex e despesas rateados pelo valor aduaneiro (so para o demonstrativo do texto)
         i['sisc_item'] = q2(sisc * i['vad'] / va_total)
@@ -322,7 +322,7 @@ def gerar(d: dict) -> dict:
     pontos.append(f'Exportador/fabricante: {d.get("exportador") or "(vazio)"} / {d.get("fabricante") or "(o mesmo)"}. Se for novo ou diferente das importações anteriores, confira no cadastro do TOTVS com endereço completo (cidade, estado, país); fornecedor com município inválido é rejeitado.')
     pontos.append('Compare com o extrato e o DANFE: datas conflitantes (texto do despachante × campo estruturado da carga → use o campo estruturado), descrições truncadas, "fabricante desconhecido", <Signature> de outra empresa e erros de digitação da JMR.')
     pontos.append('ICMS por item do demonstrativo foi recalculado a 18% por dentro com Siscomex e despesas rateados pelo valor aduaneiro; o ICMS total do cabeçalho é o informado ("ICMS a recolher" do extrato).')
-    return dict(ok=not erros, erros=erros, avisos=avisos, ajustes=ajustes, pontos=pontos, xml=xml, arquivo=f'DUIMP_-_{num_duimp}_TOTVS.xml', info=info)
+    return dict(ok=not erros, erros=erros, avisos=avisos, ajustes=ajustes, pontos=pontos, xml=(None if erros else xml), arquivo=f'DUIMP_-_{num_duimp}_TOTVS.xml', info=info)
 
 
 # ---------------------------------------------------------------- rotas
@@ -362,4 +362,6 @@ def gerar_rota():
     try:
         return jsonify(gerar(d))
     except Exception as e:  # noqa: BLE001
-        return jsonify(ok=False, erros=[f'Não consegui gerar o XML: {str(e)[:200]}']), 400
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        return jsonify(ok=False, erros=[f'Não consegui gerar o XML: {type(e).__name__} {str(e)[:200]}. Confira se algum campo numérico ficou com texto.']), 400
