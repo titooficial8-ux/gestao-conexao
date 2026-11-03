@@ -278,11 +278,9 @@ def _slide_resumo(prs, base, cartao_xml, secao, titulo, nota, cards, extras, cat
 
 
 
-def _slide_fotos(prs, base, secao, titulo, nota, fotos: list, lado_a_lado: bool):
-    """Slide com as fotos dos paineis do site, sem distorcer: empilhadas (uma sobre a outra) ou lado a lado, centralizadas na area util."""
+def _colocar_fotos(s, fotos: list, lado_a_lado: bool, X=320040, Y=1051560, W=11548872, H=5248440, GAP=120000):
+    """Poe as fotos dos paineis do site no slide, sem distorcer: empilhadas ou lado a lado, centralizadas na area util."""
     from PIL import Image
-    s = _clonar_base(prs, base, secao, titulo, nota)
-    X, Y, W, H, GAP = 320040, 1051560, 11548872, 5248440, 120000
     tam = [Image.open(io.BytesIO(b)).size for b in fotos]
     if lado_a_lado:
         w = (W - GAP * (len(fotos) - 1)) / len(fotos)
@@ -290,15 +288,31 @@ def _slide_fotos(prs, base, secao, titulo, nota, fotos: list, lado_a_lado: bool)
             esc = min(w / pw_, H / ph_)
             ww, hh = pw_ * esc, ph_ * esc
             s.shapes.add_picture(io.BytesIO(b), Emu(int(X + i * (w + GAP) + (w - ww) / 2)), Emu(int(Y)), Emu(int(ww)), Emu(int(hh)))
-    else:
-        altura = sum(W * p_[1] / p_[0] for p_ in tam) + GAP * (len(fotos) - 1)
-        f = min(1.0, H / altura)
-        y = Y
-        for b, (pw_, ph_) in zip(fotos, tam):
-            ww, hh = W * f, W * f * ph_ / pw_
-            s.shapes.add_picture(io.BytesIO(b), Emu(int(X + (W - ww) / 2)), Emu(int(y)), Emu(int(ww)), Emu(int(hh)))
-            y += hh + GAP * f
+        return
+    altura = sum(W * p_[1] / p_[0] for p_ in tam) + GAP * (len(fotos) - 1)
+    f = min(1.0, H / altura)
+    y = Y
+    for b, (pw_, ph_) in zip(fotos, tam):
+        ww, hh = W * f, W * f * ph_ / pw_
+        s.shapes.add_picture(io.BytesIO(b), Emu(int(X + (W - ww) / 2)), Emu(int(y)), Emu(int(ww)), Emu(int(hh)))
+        y += hh + GAP * f
+
+
+def _slide_fotos(prs, base, secao, titulo, nota, fotos: list, lado_a_lado: bool):
+    s = _clonar_base(prs, base, secao, titulo, nota)
+    _colocar_fotos(s, fotos, lado_a_lado)
     return s
+
+
+def _trocar_grafico_por_fotos(slide, fotos: list):
+    """No slide do modelo, o grafico simples sai e entram os paineis do site (cartoes + grafico com plano e ano anterior), na mesma posicao."""
+    for sh in list(slide.shapes):
+        if sh.has_chart:
+            X, Y, W, H = sh.left, sh.top, sh.width, sh.height
+            sh._element.getparent().remove(sh._element)
+            _colocar_fotos(slide, fotos, False, X, Y, W, H)
+            return True
+    return False
 
 
 def gerar(d: dict, agora: str, fotos: dict | None = None) -> bytes:
@@ -393,8 +407,7 @@ def gerar(d: dict, agora: str, fotos: dict | None = None) -> bytes:
     if fotos:                                                       # indicadores do BI Comercial: fotos dos proprios paineis do site, em tempo real
         sec = 'PAINÉIS DO BI COMERCIAL (SITE)'
         rf = f'Imagens dos painéis do BI Comercial em tempo real (TOTVS), geradas em {agora}.'
-        pares = [(('kpi_receita', 'graf_receita'), f'Indicadores de receita — {MESES_ABREV[mes - 1]}/{ano}', False), (('kpi_metros', 'graf_metros'), f'Indicadores de volume — {MESES_ABREV[mes - 1]}/{ano}', False),
-                 (('seg_mes', 'seg_acum'), f'Receita por segmento — {MESES_ABREV[mes - 1]}/{ano}', True), (('ext_mes', 'ext_acum'), f'Receita mercado externo por país — {MESES_ABREV[mes - 1]}/{ano}', True)]
+        pares = [(('seg_mes', 'seg_acum'), f'Receita por segmento — {MESES_ABREV[mes - 1]}/{ano}', True), (('ext_mes', 'ext_acum'), f'Receita mercado externo por país — {MESES_ABREV[mes - 1]}/{ano}', True)]
         for chaves, tit, lado in pares:
             imgs = [fotos[k] for k in chaves if k in fotos]
             if imgs:
@@ -433,6 +446,12 @@ def gerar(d: dict, agora: str, fotos: dict | None = None) -> bytes:
             novos.append(_slide_resumo(prs, base, cartao_xml, 'VENDAS CONSOLIDADO', f'Volume em metros — resumo do mês ({MESES_ABREV[mes - 1]}/{ano})',
                                        f'Volume em mil metros (colchão, automotivo, calçado, colchão M.E. e moveleiro). Fonte: TOTVS em tempo real, gerado em {agora}.', cards2, extras2, MESES_ABREV, ser2))
     # os slides do modelo ficam na ordem original (2 = Receita, 3 = Volume...); os paineis do site entram no fim, depois do ultimo slide do modelo
+
+    if fotos:                                                       # 8 e 9: iguais ao painel do site (cartoes + grafico com plano e ano anterior)
+        if fotos.get('graf_receita'):
+            _trocar_grafico_por_fotos(S[7], [fotos[k] for k in ('kpi_receita', 'graf_receita') if k in fotos])
+        if fotos.get('graf_metros'):
+            _trocar_grafico_por_fotos(S[8], [fotos[k] for k in ('kpi_metros', 'graf_metros') if k in fotos])
 
     buf = io.BytesIO()
     prs.save(buf)
