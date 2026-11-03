@@ -315,7 +315,31 @@ def _trocar_grafico_por_fotos(slide, fotos: list):
     return False
 
 
-def gerar(d: dict, agora: str, fotos: dict | None = None) -> bytes:
+def _trocar_tabela_por_foto(slide, foto: bytes, largura_total: bool):
+    """Tira a tabela do modelo (com as pilulas, divisorias e bolinhas por cima) e poe a mesma tabela do site, como aparece na tela."""
+    from PIL import Image
+    tb = next((s for s in slide.shapes if s.has_table), None)
+    if tb is None:
+        return False
+    l, t, r, b = tb.left, tb.top, tb.left + tb.width, tb.top + tb.height
+    X, Y = tb.left, tb.top
+    W = 11548872 if largura_total else tb.width
+    for sh in list(slide.shapes):
+        if sh is tb or sh._element is tb._element:
+            continue
+        dentro = l - 50000 <= sh.left <= r and t - 50000 <= sh.top <= b + 200000
+        pequeno = sh.width < 800000 and sh.height < 300000                           # pilulas de variacao e bolinhas de status
+        divisoria = sh.width < 40000 and sh.height > 1000000                          # linha vertical entre mes e acumulado
+        if dentro and (pequeno or divisoria) and not sh.has_chart and sh.shape_type != 13:
+            sh._element.getparent().remove(sh._element)
+    tb._element.getparent().remove(tb._element)
+    pw_, ph_ = Image.open(io.BytesIO(foto)).size
+    esc = min(W / pw_, 5248440 / ph_)
+    slide.shapes.add_picture(io.BytesIO(foto), Emu(int(X)), Emu(int(Y)), Emu(int(pw_ * esc)), Emu(int(ph_ * esc)))
+    return True
+
+
+def gerar(d: dict, agora: str, fotos: dict | None = None, graficos: dict | None = None) -> bytes:
     """d = dados do slide mensal (app.totvs.routes.dados_do_slide). Devolve o .pptx preenchido."""
     prs = Presentation(str(MODELO))
     S = prs.slides
@@ -447,6 +471,16 @@ def gerar(d: dict, agora: str, fotos: dict | None = None) -> bytes:
                                        f'Volume em mil metros (colchão, automotivo, calçado, colchão M.E. e moveleiro). Fonte: TOTVS em tempo real, gerado em {agora}.', cards2, extras2, MESES_ABREV, ser2))
     # os slides do modelo ficam na ordem original (2 = Receita, 3 = Volume...); os paineis do site entram no fim, depois do ultimo slide do modelo
 
+    if fotos:                                                       # tabelas dos slides 2, 3, 4, 6, 7 e 31: iguais as tabelas do site
+        for idx, chave, larga in ((1, 't_seg', False), (2, 't_mt', True), (3, 't_pm', True), (5, 't_orto', False), (6, 't_rep', True), (30, 't_int', False)):
+            if fotos.get(chave):
+                _trocar_tabela_por_foto(S[idx], fotos[chave], larga)
+    if graficos:                                                    # slides 10, 20, 32 e 33: graficos no estilo do site (series do TOTVS)
+        for idx, chave in ((9, 'colchao'), (19, 'mi'), (31, 'me'), (32, 'me_mt')):
+            if graficos.get(chave):
+                if idx != 9:
+                    _textos(S[idx], mes, ano, agora)
+                _trocar_grafico_por_fotos(S[idx], [graficos[chave]])
     if fotos:                                                       # 8 e 9: iguais ao painel do site (cartoes + grafico com plano e ano anterior)
         if fotos.get('graf_receita'):
             _trocar_grafico_por_fotos(S[7], [fotos[k] for k in ('kpi_receita', 'graf_receita') if k in fotos])

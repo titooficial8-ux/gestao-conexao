@@ -246,11 +246,17 @@ def vendas_pptx():
     if not d:
         return Response('Ainda não há dados de faturamento carregados do TOTVS.', status=404, mimetype='text/plain; charset=utf-8')
     try:
-        try:
-            fotos = captura.capturar_blocos(_base_url(), _usuario_id(), d['ano'], d['mes'])       # paineis do BI Comercial, como aparecem no site
-        except Exception:  # noqa: BLE001
-            fotos = None                                                                      # sem o Chromium: usa os cartoes/graficos desenhados no proprio PowerPoint
-        corpo = vendas_deck.gerar(d, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), fotos)
+        fotos = graficos = None
+        if request.args.get('sem_fotos') != '1':                    # fotos dos paineis/tabelas do site e graficos no estilo do site (tudo do TOTVS, na hora)
+            from app import grafico_site
+            fotos = captura.capturar_blocos(_base_url(), _usuario_id(), d['ano'], d['mes'])
+            ms = [('colchao', 'Receita líquida colchão por mês', 'serie_colchao', 'rs'), ('mi', 'Receita líquida MI por mês', 'serie_mi', 'rs'),
+                  ('me', 'Receita líquida ME por mês', 'serie_me', 'rs'), ('me_mt', 'Volume ME em mts por mês', 'serie_me_mt', 'mts')]
+            ms = [m for m in ms if d.get(m[2])]
+            sub = lambda u: ('Milhares de R$ (R$ mil)' if u == 'rs' else 'Mts') + ' · linha verde = plano · linha cinza = '
+            pngs = grafico_site.renderizar([dict(titulo=t, sub=sub(u), unidade=u, S=d[k]) for _, t, k, u in ms], d['ano'], d['mes'])
+            graficos = {m[0]: png for m, png in zip(ms, pngs)}
+        corpo = vendas_deck.gerar(d, agenda.agora_brasilia().strftime('%d/%m/%Y %H:%M'), fotos, graficos)
     except Exception as e:  # noqa: BLE001
         return Response(f'Não foi possível gerar a apresentação de Vendas: {e}', status=500, mimetype='text/plain; charset=utf-8')
     nome = re.sub(r'[^A-Za-z0-9_]+', '_', f'VENDAS_{_norm(dados.MESES[d["mes"] - 1]).upper()}_{d["ano"]}') + '.pptx'
