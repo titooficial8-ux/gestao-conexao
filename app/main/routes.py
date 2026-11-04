@@ -2274,9 +2274,10 @@ def _api_movimentos(hub):
             dt_utc = ini_dia + timedelta(hours=12)                                                     # sem nenhuma hora na OP: meio do dia de producao da data do movimento
         desc = r.artigo_desc or ''
         kg = round(p.peso_kg, 2) if p.peso_kg else 0             # kg da baixa de fio ligada a peca (API do TOTVS)
+        metros_peca = r.metro_padrao or p.metros                     # metro da peca = DS.METROS (metragem padrao da OP: 42, 52, 32, 22...), nao a quantidade avulsa do movimento 23 -> 24
         saida.append({
             'id': 1_000_000_000 + p.id, 'cod_maquina': str(r.maquina) if r.maquina is not None else None, 'op': p.op, 'nr_item': str(p.item),
-            'cod_artigo': desc, 'qt_movimento': p.metros, 'qt_pesos': _peso_peca(desc, p.metros, kg, r.gramatura, r.largura),      # metros x gramatura x largura (como o Relatorio 32); a baixa so entra se faltar gramatura/largura
+            'cod_artigo': desc, 'qt_movimento': metros_peca, 'qt_pesos': _peso_peca(desc, metros_peca, kg, r.gramatura, r.largura),      # metros x gramatura x largura (como o Relatorio 32); a baixa so entra se faltar gramatura/largura
             'dt_real': _iso_utc(dt_utc), 'metro_padrao': r.metro_padrao or p.metros,
             'local_code': '23', 'cliente': hub['cliente_de'](desc) or clientes_op.get(p.op),
         })
