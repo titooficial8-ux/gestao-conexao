@@ -112,9 +112,12 @@ def exportar():
     if tipo == 'prorrogacao':
         nome, cab = 'Prorrogação de vencimento', ['Cliente', 'Regra de pagamento', 'Fatura / Duplicata', 'Parcela', 'Dt. emissão', 'Vencimento atual', 'Novo vencimento', 'Dias a prorrogar', 'Valor (R$)', 'Já vencido?', 'Banco', 'Nosso número']
         linhas = [[x['cliente'], x['regra'], x['doc'], x['parcela'], dia(x.get('emissao')), dia(x['venc']), dia(x['novo']), x['dias'], x['valor'], 'Sim' if x['vencido'] else 'Não', x['banco'], x['nosso']] for x in sorted(p['prorrogacao'], key=lambda x: (str(x['cliente']).lower(), x['venc'], str(x['doc']), str(x['parcela']))) if not mes or x['venc'][:7] == mes]
+    elif tipo == 'abertos':
+        nome, cab = 'Títulos em aberto', ['Cliente', 'Regra de pagamento', 'Fatura / Duplicata', 'Parcela', 'Dt. emissão', 'Vencimento', 'Situação do vencimento', 'Novo vencimento', 'Valor em aberto (R$)', 'Já vencido?', 'Banco', 'Nosso número']
+        linhas = [[x['cliente'], x['regra'], x['doc'], x['parcela'], dia(x.get('emissao')), dia(x['venc']), 'Cai em dia que não paga (prorrogar)' if x['novo'] else 'Dia permitido', dia(x['novo']), x['valor'], 'Sim' if x['vencido'] else 'Não', x['banco'], x['nosso']] for x in p['abertos_regra'] if not mes or x['venc'][:7] == mes]
     elif tipo == 'alteracoes':
-        nome, cab = 'Alterações nos títulos', ['Quando', 'Tipo', 'Cliente', 'Fatura / Duplicata', 'Parcela', 'Dt. emissão', 'Vencimento', 'De', 'Para', 'Valor (R$)']
-        linhas = [[x['em'].replace('T', ' '), x['tipo'], x['nome'], x['doc'], x['parcela'], dia(x.get('emissao')), dia(x.get('venc')), x['de'], x['para'], x['valor']] for x in sorted(p['alteracoes'], key=lambda x: (str(x['nome']).lower(), x['em'])) if not mes or x['em'][:7] == mes]
+        nome, cab = 'Alterações nos títulos', ['Quando', 'Tipo', 'Cliente', 'Fatura / Duplicata', 'Parcela', 'Dt. emissão', 'Vencimento', 'De', 'Para (conforme regra)', 'Valor (R$)']
+        linhas = [[x['em'].replace('T', ' '), x['tipo'], x['nome'], x['doc'], x['parcela'], dia(x.get('emissao')), dia(x.get('venc')), x['de'], (dia(x['para_regra']) if x.get('para_regra') and x['tipo'] not in ('Baixado / pago', 'Saldo alterado') else x['para']), x['valor']] for x in sorted(p['alteracoes'], key=lambda x: (str(x['nome']).lower(), x['em'])) if not mes or x['em'][:7] == mes]
     elif tipo == 'exportacao':
         nome, cab = 'Exportação', ['Cliente', 'Fatura / Duplicata', 'Parcela', 'Emissão', 'Vencimento', 'Situação', 'Valor original', 'Valor pago', 'Saldo em aberto', 'Pago em']
         lin = []
