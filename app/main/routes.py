@@ -1857,6 +1857,7 @@ def mover_pre_programacao():
         dt_cliente=dt_man if manual else (None if is_ortobom else dt_cliente),
         production_month=txt_man if manual else (item.production_month if is_ortobom else None),
         dt_cliente_manual=bool(manual),
+        origem_reg='gestao',
         estrutura=estrutura,
         region='BR',
     ))
@@ -2499,6 +2500,7 @@ def novo_registro_programacao():
         termino_malharia=parse_data('termino_malharia'),
         estrutura=estrutura or None,
         region='BR',
+        origem_reg='gestao',
     )
     db.session.add(seq)
     db.session.commit()
