@@ -419,11 +419,10 @@ def _enriquecer_alteracoes(alts: list, d: dict) -> list:
     base = {}
     for t in (d.get('receber') or []):
         base[(str(t.get('doc')), str(t.get('parcela')), str(t.get('nome')))] = t
-        base.setdefault((str(t.get('doc')), str(t.get('parcela')), ''), t)
     out = []
     for x in alts:
         if x.get('emissao') is None or x.get('venc') is None:
-            t = base.get((str(x.get('doc')), str(x.get('parcela')), str(x.get('nome')))) or base.get((str(x.get('doc')), str(x.get('parcela')), ''))
+            t = base.get((str(x.get('doc')), str(x.get('parcela')), str(x.get('nome'))))
             x = dict(x, emissao=(t or {}).get('emissao') or '', venc=(t or {}).get('venc') or (x.get('para') if str(x.get('para') or '')[:2] == '20' and len(str(x.get('para'))) == 10 else ''))
         out.append(x)
     return out
