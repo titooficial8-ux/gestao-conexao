@@ -986,7 +986,7 @@ def _corrigir_artigos_fila(cli) -> None:
 
 
 def fila_automatica(cli) -> int:
-    """OP gerada no TOTVS (PCPFP141) fica 'Aguardando liberacao' (status 10): entra sozinha na Pre-Programacao > Analisar sequencia
+    """OP gerada no TOTVS (PCPFP141) fica 'Aguardando liberacao' (status 10) ou 'Bloqueada' (status 5): entra sozinha na Pre-Programacao > Analisar sequencia
     (fila WAITING), a menos que ja esteja numa maquina da Programacao ou na fila. Quando a OP chega numa maquina, o item da fila vira MOVED."""
     from app import db
     from app.main.routes import normalize_client_name, resolve_metros_from_article
@@ -1007,7 +1007,7 @@ def fila_automatica(cli) -> int:
     limite = date.today() - timedelta(days=FILA_AUTO_DIAS)
     candidatas, pag = [], 1
     while True:
-        r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], statusList=[10]), expand='items', pageSize=500, page=pag))
+        r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], statusList=[5, 10]), expand='items', pageSize=500, page=pag))      # 5 = Bloqueada (ex.: OP 3150), 10 = Aguardando liberacao
         if r.status_code != 200:
             raise RuntimeError(f'Fila automatica: HTTP {r.status_code} {r.text[:160]}')
         j = r.json()
