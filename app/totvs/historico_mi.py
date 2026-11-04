@@ -37,6 +37,42 @@ def _gravar(d: dict) -> None:
     api.trocar_arquivo(tmp, ARQUIVO)
 
 
+def _buscar_itens(cli, ini: date, fim: date) -> list:
+    """Pedidos do periodo COM os itens (para saber o segmento: COLCHAO MI, CALCADO...)."""
+    out, pag = [], 1
+    while True:
+        r = cli.post(entrada.ORDERS_URL, dict(filter=dict(branchCodeList=[entrada.EMPRESA], startOrderDate=f'{ini}T00:00:00', endOrderDate=f'{fim}T23:59:59'), expand='items', pageSize=200, page=pag))
+        if r.status_code != 200:
+            raise RuntimeError(f'pedidos {ini}..{fim}: HTTP {r.status_code} {r.text[:200]}')
+        j = r.json()
+        out += j.get('items') or []
+        if not j.get('hasNext'):
+            return out
+        pag += 1
+
+
+def _segmentos(cli, produtos: set, cache: dict) -> None:
+    """Classificacao 504 (segmento) de cada produto, guardada em cache ({productCode: segmento})."""
+    from app.totvs.artigos import _em_lotes, _produtos
+    faltam = [c for c in produtos if c and c != 'None' and c not in cache]
+    for lote in _em_lotes([int(c) for c in faltam if c.isdigit()]):
+        achados = set()
+        for x in _produtos(cli, lote):
+            achados.add(str(x.get('productCode')))
+            cache[str(x.get('productCode'))] = next((str(c.get('code') or '').strip() for c in x.get('classifications') or [] if c.get('typeCode') == 504), '')
+        for c in lote:
+            cache.setdefault(str(c), '')
+
+
+def _segmento_do_pedido(p: dict, cache: dict) -> str:
+    """Segmento que domina o pedido (maior quantidade)."""
+    soma = {}
+    for it in p.get('items') or []:
+        seg = cache.get(str(it.get('productCode'))) or ''
+        soma[seg] = soma.get(seg, 0.0) + entrada._num(it.get('quantity'))
+    return max(soma, key=soma.get) if soma else ''
+
+
 def atualizar(rapida: bool = False) -> bool:
     global _ult_completa
     if not _trava.acquire(blocking=False):
@@ -48,25 +84,28 @@ def atualizar(rapida: bool = False) -> bool:
         dados = ler()
         pedidos, fantasia = dados.get('pedidos', {}), dados.get('clientes', {})
         hoje = date.today()
-        if not pedidos:
+        precisa_segmento = any(len(v) < 6 for v in pedidos.values())          # pedidos gravados antes do filtro de segmento: refaz tudo uma vez (os dados antigos continuam valendo ate terminar)
+        segmentos = dados.get('segmentos', {})
+        if not pedidos or precisa_segmento:
             ini = date(ANO_INICIAL, 1, 1)
         else:
             ini = hoje - timedelta(days=RAPIDA_DIAS if rapida else RECENTE_DIAS)
         for a, b in entrada._janelas(ini, hoje):
             ESTADO['msg'] = f'Pedidos de {a:%m/%Y}...'
-            novos = entrada._buscar(cli, a, b)
+            novos = _buscar_itens(cli, a, b)
+            _segmentos(cli, {str(it.get('productCode')) for p in novos for it in p.get('items') or []}, segmentos)
             for k in [k for k, v in pedidos.items() if a.isoformat() <= v[0] <= b.isoformat()]:
                 pedidos.pop(k)
             for p in novos:
                 entra, local = entrada.classificar(p)
                 if entra and local == 'MI' and p.get('orderDate'):
                     pedidos[str(p['orderCode'])] = [str(p['orderDate'])[:10], entrada._valor(p), round(entrada._num(p.get('quantity')), 2),
-                                                    p.get('customerCode'), str(p.get('customerName') or '')[:60]]
+                                                    p.get('customerCode'), str(p.get('customerName') or '')[:60], _segmento_do_pedido(p, segmentos)]
         try:
             fantasia = entrada._fantasias(cli, {v[3] for v in pedidos.values()}, fantasia)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
-        _gravar(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), pedidos=pedidos, clientes=fantasia))
+        _gravar(dict(versao=VERSAO, atualizado=datetime.now().isoformat(timespec='seconds'), pedidos=pedidos, clientes=fantasia, segmentos=segmentos))
         if not rapida:
             _ult_completa = time.time()
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), n=len(pedidos), msg=f'{len(pedidos)} pedidos')

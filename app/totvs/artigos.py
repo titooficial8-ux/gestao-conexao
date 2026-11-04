@@ -184,6 +184,23 @@ def artigos_de_produtos(cli, codigos_internos) -> dict:
     return saida
 
 
+def artigos_e_segmentos(cli, codigos_internos) -> dict:
+    """{productCode interno: (codigo do artigo, nome do artigo, segmento)}: o segmento e a classificacao 504 (ex.: COLCHAO MI, CALCADO)."""
+    saida = {}
+    for lote in _em_lotes([int(c) for c in codigos_internos if str(c).isdigit()]):
+        for x in _produtos(cli, lote):
+            cl = ler_classificacoes(x)
+            saida[str(x.get('productCode'))] = (cl.get('codigo_artigo') or str(x.get('productCode')), cl.get('nome_artigo') or cl.get('descricao') or '', str(cl.get('segmento') or '').strip())
+    return saida
+
+
+def eh_colchao_mi(segmento) -> bool:
+    """Segmento de colchao do mercado interno (COLCHAO / COLCHAO MI); fora COLCHAO M.E. (exportacao), calcado, automotivo etc."""
+    import unicodedata
+    n = ''.join(c for c in unicodedata.normalize('NFD', str(segmento or '')) if unicodedata.category(c) != 'Mn').upper().strip()
+    return n.startswith('COLCHAO') and 'M.E' not in n and not n.endswith(' ME') and 'EXPORT' not in n
+
+
 def codigos_de_artigo(cli, codigos_internos) -> dict:
     """{productCode interno: codigo do artigo (classificacao 506)}."""
     saida = {}
