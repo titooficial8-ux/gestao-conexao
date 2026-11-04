@@ -4,7 +4,7 @@ Autenticacao: cabecalho  Authorization: Bearer <token>  (ou  X-API-Key: <token>)
     GESTAO_API_TOKEN=<texto longo e secreto>
 Sem o token no .env a API fica desligada (503). Um administrador logado no navegador tambem pode abrir (para testar).
 
-GET /api/v1/programacao                 -> todas as maquinas e suas sequencias (nao finalizadas/canceladas)
+GET /api/v1/programacao                 -> TODAS as maquinas (inclusive as sem programacao) e suas sequencias (nao finalizadas/canceladas)
     ?maquina=48                         -> so uma maquina
     ?op=3135                            -> so uma OP
     ?status=PRODUZINDO|EM_SEQUENCIA|PCP -> filtra pelo status
@@ -72,6 +72,12 @@ def programacao(op=None):
         q = q.filter(db.or_(Sequencia.status.is_(None), Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])))
     linhas = q.order_by(Machine.number, Sequencia.sequence_order, Sequencia.id).all()
     maquinas = {}
+    if not op and not request.args.get('status'):                   # TODAS as maquinas, mesmo as sem nada programado (sequencias vazias)
+        qm = Machine.query.order_by(Machine.number)
+        if request.args.get('maquina', '').isdigit():
+            qm = qm.filter(Machine.number == int(request.args['maquina']))
+        for m in qm.all():
+            maquinas[m.number] = dict(maquina=m.number, status_maquina=m.status, sequencias=[])
     for s in linhas:
         m = s.machine
         g = maquinas.setdefault(m.number, dict(maquina=m.number, status_maquina=m.status, sequencias=[]))
