@@ -5,10 +5,12 @@
 .sg-mod{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:3000;padding:16px}.sg-mod[hidden]{display:none}
 .sg-box{background:#fff;border-radius:18px;width:min(560px,100%);padding:26px 28px;box-shadow:0 24px 70px rgba(15,23,42,.4);max-height:94vh;overflow:auto}
 .sg-box h2{margin:0 0 6px;font-size:21px;color:#0f2540}.sg-box p{margin:8px 0;font-size:14.5px;line-height:1.55;color:#334155}
-.sg-quem{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 4px}.sg-quem span{background:#eef4ff;border:1px solid #c7d8f7;color:#1e3a6e;border-radius:10px;padding:5px 12px;font-size:12.5px;font-weight:700}
+.sg-quem{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 4px}.sg-quem>span{background:#eef4ff;border:1px solid #c7d8f7;color:#1e3a6e;border-radius:10px;padding:5px 12px;font-size:12.5px;font-weight:700}
 .sg-box textarea{width:100%;box-sizing:border-box;min-height:130px;border:1px solid #cbd5e1;border-radius:12px;padding:12px;font:inherit;font-size:14px;color:#0f172a;margin-top:8px;resize:vertical}
 .sg-acoes{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}.sg-acoes button{border:0;border-radius:10px;padding:10px 20px;font-weight:800;cursor:pointer;font-size:14px}.sg-env{background:#0a4aa8;color:#fff}.sg-fecha{background:#e5e7eb;color:#334155}.sg-env:disabled{opacity:.6}
 .sg-msg{font-size:13px;min-height:18px;margin-top:6px}.sg-msg.err{color:#b91c1c}.sg-msg.ok{color:#166534;font-weight:700}
+.sg-anx{margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.sg-anx label{border:1px dashed #94a3b8;border-radius:10px;padding:7px 14px;font-size:13px;font-weight:700;color:#334155;cursor:pointer;background:#f8fafc}.sg-anx small{color:#64748b;font-size:12px}
+.sg-lista{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.sg-chip{position:relative;border:1px solid #cbd5e1;border-radius:10px;padding:4px;background:#fff;font-size:12px;max-width:150px}.sg-chip img{display:block;max-width:140px;max-height:90px;border-radius:7px}.sg-chip b{display:block;padding:6px 8px;word-break:break-all}.sg-chip i{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:#dc2626;color:#fff;font-style:normal;font-weight:900;text-align:center;line-height:20px;cursor:pointer}
 </style>
 <button type="button" class="sg-btn" id="sgAbrir">&#128161; Sugestão</button>
 <div class="sg-mod" id="sgMod" hidden><div class="sg-box">
@@ -17,12 +19,36 @@
   <p>Portanto, já manda sua <b>sugestão de melhoria interna</b> aqui do nosso Gestão Conexão, que nossa equipe de tecnologia irá tratar em breve.</p>
   <div class="sg-quem"><span>&#128100; <span id="sgNome2">…</span></span><span>&#127970; Setor: <span id="sgSetor">…</span></span></div>
   <textarea id="sgTexto" maxlength="3000" placeholder="Escreva aqui sua sugestão de melhoria ou reclamação…"></textarea>
+  <div class="sg-anx"><label for="sgArq">&#128206; Anexar arquivos</label><input type="file" id="sgArq" multiple hidden><small>ou cole um print aqui (Ctrl+V) · até 6 arquivos de 8 MB</small></div>
+  <div class="sg-lista" id="sgLista"></div>
   <div class="sg-msg" id="sgMsg"></div>
   <div class="sg-acoes"><button type="button" class="sg-fecha" id="sgFechar">Fechar</button><button type="button" class="sg-env" id="sgEnviar">Enviar sugestão</button></div>
 </div></div>
 <script>
 (function () {
   var $ = function (i) { return document.getElementById(i); };
+  var anexos = [];
+  function desenhaAnexos() {
+    var L = $('sgLista'); L.innerHTML = '';
+    anexos.forEach(function (f, i) {
+      var c = document.createElement('div'); c.className = 'sg-chip';
+      if (f.type.indexOf('image/') === 0) { var im = document.createElement('img'); im.src = URL.createObjectURL(f); c.appendChild(im); } else { var b = document.createElement('b'); b.textContent = '\u{1F4C4} ' + f.name; c.appendChild(b); }
+      var x = document.createElement('i'); x.textContent = '×'; x.title = 'Remover'; x.onclick = function () { anexos.splice(i, 1); desenhaAnexos(); }; c.appendChild(x); L.appendChild(c);
+    });
+  }
+  function addArqs(fs) {
+    Array.prototype.forEach.call(fs, function (f) {
+      if (anexos.length >= 6) { $('sgMsg').className = 'sg-msg err'; $('sgMsg').textContent = 'No máximo 6 anexos.'; return; }
+      if (f.size > 8 * 1024 * 1024) { $('sgMsg').className = 'sg-msg err'; $('sgMsg').textContent = '"' + f.name + '" passa de 8 MB.'; return; }
+      anexos.push(f);
+    });
+    desenhaAnexos();
+  }
+  $('sgArq').addEventListener('change', function () { addArqs(this.files); this.value = ''; });
+  $('sgMod').addEventListener('paste', function (e) {
+    var fs = []; Array.prototype.forEach.call((e.clipboardData && e.clipboardData.items) || [], function (it) { if (it.kind === 'file') { var f = it.getAsFile(); if (f) { if (!f.name || f.name === 'image.png') f = new File([f], 'print-' + Date.now() + '.png', { type: f.type }); fs.push(f); } } });
+    if (fs.length) { e.preventDefault(); addArqs(fs); }
+  });
   $('sgAbrir').addEventListener('click', function () {
     $('sgMsg').textContent = ''; $('sgMsg').className = 'sg-msg'; $('sgMod').hidden = false;
     fetch('/sugestoes/eu', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { $('sgNome').textContent = d.primeiro || d.nome; $('sgNome2').textContent = d.nome; $('sgSetor').textContent = d.setor; });
@@ -32,9 +58,10 @@
   $('sgMod').addEventListener('click', function (e) { if (e.target === $('sgMod')) $('sgMod').hidden = true; });
   $('sgEnviar').addEventListener('click', function () {
     var b = this, m = $('sgMsg'); b.disabled = true; m.className = 'sg-msg'; m.textContent = 'Enviando…';
-    fetch('/sugestoes/enviar', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: $('sgTexto').value }) })
+    var fd = new FormData(); fd.append('texto', $('sgTexto').value); anexos.forEach(function (f) { fd.append('arquivos', f, f.name); });
+    fetch('/sugestoes/enviar', { method: 'POST', credentials: 'same-origin', body: fd })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro'); return j; }); })
-      .then(function () { m.className = 'sg-msg ok'; m.textContent = 'Sugestão enviada! Nossa equipe de tecnologia já foi avisada. Obrigado! 💙'; $('sgTexto').value = ''; setTimeout(function () { $('sgMod').hidden = true; }, 2200); })
+      .then(function () { m.className = 'sg-msg ok'; m.textContent = 'Sugestão enviada! Nossa equipe de tecnologia já foi avisada. Obrigado! 💙'; $('sgTexto').value = ''; anexos = []; desenhaAnexos(); setTimeout(function () { $('sgMod').hidden = true; }, 2200); })
       .catch(function (e) { m.className = 'sg-msg err'; m.textContent = e.message; }).then(function () { b.disabled = false; });
   });
 })();

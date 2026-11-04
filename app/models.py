@@ -911,3 +911,14 @@ class ProjetosSnapshot(db.Model):
     usuario = db.Column(db.String(120))
     arquivo = db.Column(db.String(200))
     dados = db.Column(db.Text)                       # JSON do que foi lido da planilha
+
+
+class SugestaoAnexo(db.Model):
+    """Print colado ou arquivo anexado a uma Sugestao (guardado no proprio banco; ate 8 MB cada)."""
+    __tablename__ = 'sugestao_anexos'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sugestao_id = db.Column(db.Integer, index=True)
+    nome = db.Column(db.String(200))
+    mime = db.Column(db.String(100))
+    dados = db.Column(db.LargeBinary)
