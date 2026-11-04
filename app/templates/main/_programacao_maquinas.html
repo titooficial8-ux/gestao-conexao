@@ -1,14 +1,18 @@
 <style>
 @keyframes manutPisca{0%,100%{opacity:1}50%{opacity:.25}}
 .machine-card.em-manut{box-shadow:0 0 0 3px #dc2626,0 0 18px rgba(220,38,38,.55)}
+.machine-card.em-amostra{box-shadow:0 0 0 3px #7c3aed,0 0 18px rgba(124,58,237,.5)}
+.amostra-faixa{position:absolute;left:0;right:0;top:0;z-index:5;background:#7c3aed;color:#fff;font-weight:900;font-size:11px;letter-spacing:.06em;text-align:center;padding:3px 4px;border-radius:12px 12px 0 0;animation:manutPisca 1.4s infinite}
 .manut-faixa{position:absolute;left:0;right:0;top:0;z-index:5;background:#dc2626;color:#fff;font-weight:900;font-size:11px;letter-spacing:.06em;text-align:center;padding:3px 4px;border-radius:12px 12px 0 0;animation:manutPisca 1s infinite}
 </style>
+{% set amostras = amostras_ativas() %}
 {% if machines %}
 <div class="machines-grid">
   {% for m in machines %}
-  <a href="{{ url_for('main.maquina_detalhe', numero=m.number) }}" class="machine-card {{ 'em-manut' if (manut_ativas and m.number in manut_ativas) else '' }} {{ 'machine-card-gargalo' if (maquinas_gargalo and m.number in maquinas_gargalo) else '' }} {{ 'machine-card-manutencao' if m.status == 'manutencao' else ('machine-card-sem-programacao' if m.status == 'sem_programacao' else ('machine-card-inoperante' if m.status == 'inoperante' else '')) }}">
+  <a href="{{ url_for('main.maquina_detalhe', numero=m.number) }}" class="machine-card {{ 'em-manut' if (manut_ativas and m.number in manut_ativas) else ('em-amostra' if m.number in amostras else '') }} {{ 'machine-card-gargalo' if (maquinas_gargalo and m.number in maquinas_gargalo) else '' }} {{ 'machine-card-manutencao' if m.status == 'manutencao' else ('machine-card-sem-programacao' if m.status == 'sem_programacao' else ('machine-card-inoperante' if m.status == 'inoperante' else '')) }}">
     <span class="machine-status-dot"></span>
     {% if manut_ativas and m.number in manut_ativas %}<span class="manut-faixa" title="Manutenção em andamento {{ manut_ativas[m.number] }} (lider sinalizou no Acompanhamento de Produção)">&#128295; EM MANUTENÇÃO</span>{% endif %}
+    {% if m.number in amostras and not (manut_ativas and m.number in manut_ativas) %}<span class="amostra-faixa" title="Amostra em andamento {{ amostras[m.number] }} (lider sinalizou no Acompanhamento de Produção)">&#129514; EM AMOSTRA</span>{% endif %}
     {% set ind = ind_maquinas.get(m.id) if ind_maquinas else None %}
     <span class="machine-ind-row">
       {% if ind %}

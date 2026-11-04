@@ -219,6 +219,19 @@ def em_manutencao() -> dict:
 
 
 # ---------------------------------------------------------------- rotas
+def amostras_ativas() -> dict:
+    """{numero da maquina: 'desde dd/mm HH:MM'} das maquinas com AMOSTRA em andamento (faixa roxa na Programacao)."""
+    out = {}
+    try:
+        for a in AvisoManut.query.filter_by(tipo='AMOSTRA', status='EM_ANDAMENTO').all():
+            if a.maquina:
+                ini = a.inicio.replace(tzinfo=timezone.utc).astimezone(BRT) if a.inicio else None
+                out[a.maquina] = ('desde ' + ini.strftime('%d/%m %H:%M')) if ini else 'em andamento'
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
 def _json(a: AvisoManut) -> dict:
     br = lambda d: d.replace(tzinfo=timezone.utc).astimezone(BRT) if d else None
     ini, fim = br(a.inicio), br(a.fim)
