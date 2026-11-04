@@ -12,7 +12,7 @@ from datetime import datetime
 from app import db
 from app.models import ArtigoRodagem
 from app.totvs import api
-from app.totvs.artigos import artigos_de_produtos
+from app.totvs.artigos import artigos_e_segmentos
 from app.totvs.pedidos import CICLO, EMPRESA, OPS_URL, _paginar, configurado
 
 INTERVALO_MIN = float(os.getenv('RODAGEM_INTERVALO_MIN', '2'))
@@ -42,12 +42,13 @@ def buscar() -> dict:
                 continue
             produtos.add(pc)
             linhas.append((str(pc), data, _num(it.get('quantity')) or _num(o.get('quantity')), str(o.get('customerName') or '')[:60], str(o.get('orderCode'))))
-    mapa = artigos_de_produtos(cli, produtos)
+    mapa = artigos_e_segmentos(cli, produtos)
     por_artigo = {}
     for pc, data, qtd, cliente, op in linhas:
-        cod, nome = mapa.get(pc, (pc, ''))
-        d = por_artigo.setdefault(cod, dict(nome=nome, ops=[]))
+        cod, nome, seg = mapa.get(pc, (pc, '', ''))
+        d = por_artigo.setdefault(cod, dict(nome=nome, ops=[], segmento=''))
         d['nome'] = d['nome'] or nome
+        d['segmento'] = d['segmento'] or seg
         d['ops'].append([data, round(qtd, 1), cliente, op])
     ESTADO['n_ops'] = len(ops)
     return por_artigo
@@ -59,6 +60,7 @@ def gravar(por_artigo: dict) -> None:
     for cod, d in por_artigo.items():
         a = existentes.pop(cod, None) or ArtigoRodagem(cod_artigo=cod)
         a.descricao = (d['nome'] or '')[:200]
+        a.segmento = (d.get('segmento') or '')[:60]
         a.ops_json = json.dumps(sorted(d['ops'], key=lambda x: x[0]), ensure_ascii=False)
         a.atualizado_em = agora
         db.session.add(a)

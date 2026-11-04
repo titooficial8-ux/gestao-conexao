@@ -13,6 +13,7 @@ from flask_login import current_user, login_required
 
 from app import db
 from app.models import ArtigoRodagem, MotivoInativo, Sequencia, Tab
+from app.totvs.artigos import eh_colchao_mi
 
 cmi_bp = Blueprint('cmi', __name__, url_prefix='/comercial-mi')
 
@@ -40,8 +41,9 @@ def _registros_mi():
     from app.totvs import historico_mi
     dados = historico_mi.ler()
     fantasia = dados.get('clientes', {})
-    return [(d, valor, metros, normalize_client_name(fantasia.get(str(cod)) or razao) or 'SEM CLIENTE')
-            for d, valor, metros, cod, razao in (dados.get('pedidos') or {}).values()]
+    return [(v[0], v[1], v[2], normalize_client_name(fantasia.get(str(v[3])) or v[4]) or 'SEM CLIENTE')
+            for v in (dados.get('pedidos') or {}).values()
+            if len(v) < 6 or eh_colchao_mi(v[5])]                      # 6o campo = segmento do pedido (so COLCHAO MI; sem ele = ainda nao reclassificado)
 
 
 def _motivos(tipo: str) -> dict:
@@ -90,6 +92,8 @@ def artigos_parados(meses: int = 3) -> list:
             continue
         datas = [(date.fromisoformat(o[0]), o) for o in ops if o and o[0]]
         if not datas or a.cod_artigo in ativos:
+            continue
+        if a.segmento is not None and not eh_colchao_mi(a.segmento):       # so COLCHAO MI (fora calcado, automotivo, exportacao...); None = segmento ainda nao lido do TOTVS
             continue
         ultima = max(d for d, _ in datas)
         if not (limite <= ultima < corte):

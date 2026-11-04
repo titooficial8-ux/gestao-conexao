@@ -595,6 +595,7 @@ class ArtigoRodagem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     cod_artigo = db.Column(db.String(40), unique=True, index=True)
     descricao = db.Column(db.String(200))
+    segmento = db.Column(db.String(60), nullable=True)   # classificacao 504 do artigo (COLCHAO MI, CALCADO...); None = ainda nao lido
     ops_json = db.Column(db.Text)                      # [[data da OP, quantidade (m), cliente, numero da OP], ...]
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow)
 
