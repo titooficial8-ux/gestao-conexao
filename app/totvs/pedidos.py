@@ -139,6 +139,8 @@ def vincular_ops(ordenados: list, ops: list, fixos: dict = None) -> dict:
             sobra = _num(o.get('quantity')) - usado[o['orderCode']]
             if sobra <= 0.5 or (sobra < necessidade * 0.1):     # sobra minima de OP nao vira vinculo
                 continue
+            if usado[o['orderCode']] >= 0.5 * _num(o.get('quantity')):      # a OP ja foi quase toda reservada por outro pedido: a sobra (ex.: 48 m de 448) nao amarra um 2o pedido
+                continue
             usar = min(sobra, necessidade)
             usado[o['orderCode']] += usar
             necessidade -= usar
@@ -211,7 +213,7 @@ def buscar() -> list[dict]:
         ESTADO['amostra_item'] = {k: v for k, v in itens[0][1].items() if not isinstance(v, (list, dict))}
         ESTADO['amostra_pedido'] = {k: v for k, v in itens[0][0].items() if not isinstance(v, (list, dict))}      # campos do item do pedido (para conferir o preco)
     linhas = []
-    ordenados = sorted(itens, key=lambda t: (str(t[0].get('orderDate')), t[0].get('orderCode') or 0))
+    ordenados = sorted(itens, key=lambda t: (str(t[0].get('orderDate')), str(t[1].get('billingForecastDate') or t[0].get('billingForecastDate') or '9999'), t[0].get('orderCode') or 0))      # mesmo dia: o pedido de entrega mais proxima pega a OP primeiro
     fixos = {}                                                 # vinculo pedido <-> OP: so pelo TOTVS (regra por ordem de criacao); o PCP Hub nao entra mais aqui
     aloc = vincular_ops(ordenados, ops, fixos)
     for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
