@@ -233,6 +233,21 @@ def amostras_ativas() -> dict:
     return out
 
 
+def avisos_programados() -> dict:
+    """{maquina: [dict(tipo, data, termino, mecanico, horas)]} dos avisos PROGRAMADOS (ainda nao comecaram), do mais proximo ao mais distante."""
+    out = {}
+    try:
+        for a in AvisoManut.query.filter_by(status='PROGRAMADA').order_by(AvisoManut.data.asc()).all():
+            if a.maquina:
+                out.setdefault(a.maquina, []).append(dict(
+                    tipo=a.tipo, rotulo='Manutenção' if a.tipo == 'MANUTENCAO' else 'Amostra', icone='🔧' if a.tipo == 'MANUTENCAO' else '🧪',
+                    data=a.data.strftime('%d/%m') if a.data else '', data_completa=a.data.strftime('%d/%m/%Y') if a.data else '',
+                    termino=a.data_termino.strftime('%d/%m/%Y') if a.data_termino else '', mecanico=a.mecanico or '', horas=a.horas_estimadas))
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
 def _json(a: AvisoManut) -> dict:
     br = lambda d: d.replace(tzinfo=timezone.utc).astimezone(BRT) if d else None
     ini, fim = br(a.inicio), br(a.fim)
