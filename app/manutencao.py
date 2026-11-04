@@ -163,7 +163,11 @@ def sincronizar() -> dict:
         abertas[str(x['id'])] = (tipo, int(x['maquina']), x)
     criados = iniciados = 0
     for aid, (tipo, maq, x) in abertas.items():
-        if AvisoManut.query.filter_by(acomp_id=aid).first():
+        ja = AvisoManut.query.filter_by(acomp_id=aid).first()
+        if ja:
+            if ja.status == 'FINALIZADA' and ja.origem == 'acomp':     # o Acompanhamento ainda mostra a ocorrencia aberta: uma leitura ruim do passado a encerrou por engano -> reabre
+                ja.status, ja.fim = 'EM_ANDAMENTO', None
+                iniciados += 1
             continue
         ini = agora - timedelta(minutes=int(x.get('minutos') or 0))
         prog = AvisoManut.query.filter_by(tipo=tipo, maquina=maq, status='PROGRAMADA').order_by(AvisoManut.data).first()
