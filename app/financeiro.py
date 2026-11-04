@@ -3,7 +3,7 @@ import io
 import threading
 from datetime import date
 
-from flask import Blueprint, abort, jsonify, request, send_file
+from flask import Blueprint, Response, abort, jsonify, request, send_file
 from flask_login import current_user, login_required
 
 from app.models import Tab
@@ -57,6 +57,71 @@ def boleto_teste():
     if pdf:
         return Response(pdf, mimetype='application/pdf', headers={'Content-Disposition': f"attachment; filename=boleto_{j.get('doc')}_{j.get('parcela')}.pdf"})
     return jsonify(ok=False, log=log)
+
+
+@fin_bp.route('/previa-boleto')
+@login_required
+def previa_boleto():
+    """PRE-VISUALIZACAO no estilo da tela FCRFP098 do TOTVS (Impressao de Boleto Bancario). NAO e boleto e nada e gravado no TOTVS: mostra os boletos ainda nao gerados
+    com o VENCIMENTO SUGERIDO pela regra de pagamento do cliente. ?doc=69030&parcela=1 destaca uma parcela; ?cliente=MARANHAO filtra o cliente."""
+    _autorizar()
+    from html import escape as h
+    from app.totvs import financeiro as F
+    doc, parcela, cli = (request.args.get('doc') or '').strip(), (request.args.get('parcela') or '').strip(), (request.args.get('cliente') or '').strip().upper()
+    p = F.painel()
+    todos = p['abertos_regra']
+    if doc:                                                    # com ?doc= mostra o cliente dessa fatura e destaca a parcela
+        ref = next((x for x in todos if str(x['doc']) == doc and (not parcela or str(x['parcela']) == parcela)), None)
+        cli = str(ref['cliente']).upper() if ref else cli
+    itens = [x for x in todos if (not cli or cli in str(x['cliente']).upper())] if (not doc or cli) else []
+    if not itens:
+        return Response('<meta charset="utf-8"><p style="font:16px Arial;padding:30px">Nenhum boleto não gerado encontrado para esse filtro.</p>', status=404, mimetype='text/html')
+    dd = lambda s: date.fromisoformat(s).strftime('%d/%m/%Y') if s else ''
+    brl = lambda v: f"{v:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+    novo_de = lambda x: x['novo'] or x['venc']
+    emis = sorted(x['emissao'] for x in itens if x.get('emissao'))
+    codigos = {}
+    for t in F.ler().get('receber', []):
+        codigos[(str(t.get('doc')), str(t.get('parcela')))] = t.get('cod')
+    linhas = ''
+    for x in itens:
+        dest = bool(doc and str(x['doc']) == doc and (not parcela or str(x['parcela']) == parcela))
+        mudou = bool(x['novo'])
+        linhas += (f"<tr class=\"{'sel' if dest else ''}\"><td>001</td><td class=\"n\">{h(str(codigos.get((str(x['doc']), str(x['parcela']))) or ''))}</td><td>{h(str(x['cliente']))}</td>"
+                   f"<td class=\"n\">{h(str(x['doc']))}</td><td class=\"n\">{h(str(x['parcela']))}</td><td>{dd(x['emissao'])}</td><td class=\"{'mud' if mudou else ''}\">{dd(novo_de(x))}</td><td class=\"n\">1.020</td><td>Fatura</td>"
+                   f"<td class=\"n\">{brl(x['valor'])}</td><td></td><td class=\"o\"></td><td class=\"o\"></td><td class=\"o\">{dd(x['venc']) if mudou else ''}</td><td><span class=\"ck\"></span></td></tr>")
+    total = sum(x['valor'] for x in itens)
+    ex = ''
+    if doc:
+        ref = next((x for x in itens if str(x['doc']) == doc and (not parcela or str(x['parcela']) == parcela)), itens[0])
+        rg = F.regra_do_cliente(ref['cliente'])
+        if rg and ref['novo']:
+            passos = F.explicar_prorrogacao(rg, date.fromisoformat(ref['venc']))
+            ex = '<div class="ex"><b>Como a regra chegou na data</b> (' + h(rg['nome'] + ' — ' + rg['texto']) + ')<br>' + ' &rarr; '.join(
+                f"{d.strftime('%d/%m')} {F.SEMANA[d.weekday()][:3]}: " + ('<span class="okk">válido</span>' if not m else '<span class="nok">' + h(m.split(' (')[0]) + '</span>') for d, m in passos) + '</div>'
+    corpo = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>FCRFP098 – prévia</title><style>
+body{{margin:0;background:#c9d2e3;font:12px Arial,Helvetica,sans-serif;color:#000}}.jan{{max-width:1180px;margin:14px auto;background:#f0f0f0;border:1px solid #6b7a99;box-shadow:0 4px 18px rgba(0,0,0,.3)}}
+.tit{{background:linear-gradient(#b5c3de,#98aad0);padding:5px 8px;font-weight:700;display:flex;justify-content:space-between;border-bottom:1px solid #6b7a99}}.tit i{{font-style:normal;border:1px solid #333;background:#fff;padding:0 6px}}
+.tool{{padding:6px 12px;color:#444;font-size:15px;letter-spacing:10px}}.marca{{background:#dc2626;color:#fff;text-align:center;font-weight:900;padding:6px;margin:0 12px 8px;animation:pisca 1.2s infinite}}@keyframes pisca{{50%{{opacity:.55}}}}
+fieldset{{border:1px solid #9aa4b8;margin:6px 12px;padding:6px 10px;background:#f0f0f0}}legend{{font-weight:700;padding:0 4px}}
+.f{{display:grid;grid-template-columns:130px 1fr;gap:3px 6px;align-items:center}}.f label{{text-align:left}}.in{{background:#fff;border:1px solid #8a94a8;min-height:16px;padding:1px 4px}}.in.g{{background:#e4e4e4;color:#444}}.l2{{display:flex;gap:6px}}
+.sit{{display:flex;gap:14px;align-items:center;margin-top:4px;flex-wrap:wrap}}table{{border-collapse:collapse;width:100%;background:#fff}}th{{color:#1c2fa6;font-weight:400;border:1px solid #9aa4b8;border-bottom:2px solid #1c2fa6;padding:3px 5px;white-space:nowrap}}
+td{{border:1px solid #d0d4de;padding:2px 5px;white-space:nowrap}}td.n{{text-align:right}}tr.sel td{{background:#cdeefb}}td.mud{{background:#fff3b0;font-weight:700;color:#7a2e00}}th.o,td.o{{background:#fde8e8;color:#8a1c1c}}th.o{{color:#8a1c1c;border-bottom-color:#8a1c1c}}
+.ck{{display:inline-block;width:12px;height:12px;border:1px solid #666;background:#fff}}.rod{{display:flex;justify-content:flex-end;gap:10px;margin:6px 12px 0;align-items:center}}.rod span{{font-weight:700}}.rod .v{{background:#ffffd0;border:1px solid #9aa4b8;min-width:110px;text-align:right;padding:2px 6px}}
+.ex{{margin:8px 12px;padding:8px 10px;background:#fff;border:1px solid #9aa4b8;line-height:1.7}}.okk{{color:#166534;font-weight:700}}.nok{{color:#b91c1c}}.bt{{margin:10px 12px 12px;display:flex;gap:10px;align-items:center;color:#444}}.bt button{{border:1px solid #666;background:#e8e8e8;padding:4px 12px;cursor:pointer}}@media print{{.bt button{{display:none}}body{{background:#fff}}}}
+</style></head><body><div class="jan">
+<div class="tit"><span>FCRFP098 - Impressão de Boleto Bancário &nbsp;·&nbsp; PRÉVIA</span><i>×</i></div><div class="tool">&#8634; &#9906; &nbsp; &#9113; &#9638; &#9432; &#8677;</div>
+<div class="marca">PRÉ-VISUALIZAÇÃO PARA CONFERÊNCIA · NÃO É O TOTVS E NÃO É BOLETO · NADA FOI GRAVADO · vencimento = sugerido pela regra de pagamento do cliente</div>
+<fieldset><legend>Filtro</legend><div class="f"><label>Conta *</label><div class="l2"><div class="in" style="width:90px;text-align:right">13007732</div><div class="in g" style="flex:1">130077322</div></div>
+<label>Modalidade *</label><div class="in g">Cobrança simples direta</div><label>Empresa *</label><div class="l2"><div class="in g" style="width:50px">001</div><div class="in g" style="width:50px">001</div></div>
+<label>Cliente</label><div class="in">{h(cli)}</div><label>Portador</label><div class="in">1.020 — TITULO EM CARTEIRA</div><label>Nota fiscal</label><div class="in"></div><label>Transação</label><div class="in"></div>
+<label>Data emissão</label><div class="l2"><div class="in" style="width:90px">{dd(emis[0]) if emis else ''}</div><div class="in" style="width:90px">{dd(emis[-1]) if emis else ''}</div></div><label>Data vencimento</label><div class="in"></div></div>
+<div class="sit"><span>Situação impressão: <span class="in">Não impressa</span></span><span>Tipo de documento: <span class="in">Fatura e Nota de Débito</span></span><span>Tipo de impressão: <span class="in">Boleto</span></span></div></fieldset>
+<fieldset><legend>Documento</legend><div style="overflow-x:auto"><table><tr><th>Emp.</th><th>Cód.</th><th>Cliente</th><th>Fatura/Parc.</th><th>&raquo;</th><th>Emissão</th><th>Vencimento</th><th>Port.</th><th>Documento</th><th>Valor</th><th>Nosso número</th><th class="o">Operador</th><th class="o">Dt. impressão</th><th class="o">Venc. atual (TOTVS)</th><th>&#9632;</th></tr>
+{linhas}</table></div></fieldset>
+<div class="rod"><span>Valor total</span><div class="v">{brl(total)}</div><span>Quantidade</span><div class="v">{len(itens)}</div></div>{ex}
+<div class="bt"><button onclick="window.print()">Imprimir / salvar em PDF</button> Colunas em vermelho claro e a data amarela só existem nesta prévia: o <b>Vencimento</b> destacado é o sugerido pela regra; o atual no TOTVS está na última coluna.</div></div></body></html>"""
+    return Response(corpo, mimetype='text/html')
 
 
 @fin_bp.route('/diagnostico-titulo')

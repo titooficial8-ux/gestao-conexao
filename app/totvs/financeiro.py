@@ -81,6 +81,32 @@ def regra_do_cliente(nome: str):
     return next((r for r in REGRAS if r['chave'] in n), None)
 
 
+SEMANA = ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo']
+
+
+def motivo_dia_invalido(regra: dict, d: date) -> str:
+    """Por que `d` nao serve para pagar o boleto desse cliente (vazio = serve)."""
+    if regra['ok'](d):
+        return ''
+    if d.weekday() >= 5:
+        return 'fim de semana (banco fechado)'
+    if d in feriados_bancarios(d.year):
+        return 'feriado bancário'
+    return 'fora da regra de pagamento do cliente (' + regra['texto'] + ')'
+
+
+def explicar_prorrogacao(regra: dict, d: date) -> list:
+    """[(data, motivo ou '')] do vencimento original ate o primeiro dia valido, para mostrar o raciocinio da regra."""
+    passos, x = [], d
+    for _ in range(90):
+        m = motivo_dia_invalido(regra, x)
+        passos.append((x, m))
+        if not m:
+            break
+        x += timedelta(days=1)
+    return passos
+
+
 def proximo_valido(regra: dict, d: date) -> date:
     for i in range(0, 90):
         x = d + timedelta(days=i)
