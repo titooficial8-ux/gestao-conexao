@@ -2726,6 +2726,37 @@ def _manut_ativas() -> dict:
         return {}
 
 
+@main_bp.route('/aba/programacao/op-diagnostico')
+@login_required
+def op_diagnostico():
+    """So administrador: para onde foi (ou por que sumiu) uma OP da Programacao. ?op=3135 junta a sequencia atual, o historico de status, as movimentacoes entre maquinas e o que o TOTVS diz."""
+    if not current_user.is_admin:
+        abort(403)
+    import json as _json
+    from app.models import ArtigoMovimentacao, AuditoriaLog, HistoricoProducao, HubArquivo, PesagemResumo
+    op = (request.args.get('op') or '').strip()
+    br = lambda d: d.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=-3))).strftime('%d/%m/%Y %H:%M') if d else ''
+    seqs = Sequencia.query.filter_by(op=op).all()
+    hist = HistoricoProducao.query.filter_by(op=op).order_by(HistoricoProducao.changed_at.desc()).limit(30).all()
+    movs = ArtigoMovimentacao.query.filter_by(op=op).order_by(ArtigoMovimentacao.quando.desc()).limit(30).all() if True else []
+    aud = AuditoriaLog.query.filter_by(op=op).order_by(AuditoriaLog.criado_em.desc()).limit(30).all()
+    hub = [_json.loads(h.dados) for h in HubArquivo.query.filter_by(tabela='production_history').all() if f'"{op}"' in (h.dados or '')][-15:]
+    pes = PesagemResumo.query.filter_by(op=op).first()
+    if seqs:
+        conclusao = '; '.join(f'ainda existe na máquina {q.machine.number if q.machine else "?"} com status {q.status} / situação {q.situacao} (ordem {q.sequence_order}, última leitura do Hub {br(q.synced_at)})' for q in seqs)
+        if any(q.status in ('FINALIZADO', 'CANCELADO') for q in seqs):
+            conclusao += '. Status FINALIZADO/CANCELADO = a OP sai da fila da máquina e vai para o Histórico (vem do TOTVS: pesagem do cru concluída ou OP cancelada)'
+    else:
+        conclusao = 'não existe mais na Programação do Gestão: foi removida na leitura do PCP Hub (a OP saiu do Hub) — veja o histórico abaixo e Controle de Artigos > Movimentações (Logs)'
+    return jsonify(op=op, conclusao=conclusao,
+                   sequencias=[dict(maquina=q.machine.number if q.machine else None, status=q.status, situacao=q.situacao, ordem=q.sequence_order, artigo=q.artigo, cliente=q.cliente, maq_fixa=bool(q.maq_fixa), leitura_hub=br(q.synced_at)) for q in seqs],
+                   historico_status=[dict(quando=br(h.changed_at), maquina=h.machine, de=h.old_status, para=h.new_status, motivo=h.reason) for h in hist],
+                   movimentacoes=[dict(quando=br(m.quando), de=m.origem, para=m.destino, motivo=m.motivo, por=m.por, fonte=m.origem_registro) for m in movs],
+                   auditoria=[dict(quando=br(x.criado_em), acao=x.acao, maquina=x.maquina, de=x.origem, para=x.destino, usuario=x.usuario) for x in aud],
+                   hub_production_history=[{k: v for k, v in x.items() if k in ('machine', 'op', 'old_status', 'new_status', 'changed_at', 'reason', 'article')} for x in hub],
+                   totvs=dict(encontrada=bool(pes and pes.encontrada), maquina=pes.maquina if pes else None) if pes else None)
+
+
 @main_bp.route('/aba/programacao/story')
 @login_required
 def programacao_story():

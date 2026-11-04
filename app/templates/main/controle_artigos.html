@@ -103,7 +103,7 @@
     var q = $('mvBusca').value.trim().toLowerCase(), so = $('mvSoNaoRoda').checked;
     var vis = movs.filter(function (m) { return (!so || m.nao_roda) && (!q || [m.artigo, m.op, m.cliente, m.origem, m.destino, m.motivo, m.por].join(' ').toLowerCase().indexOf(q) >= 0); });
     $('mvCorpo').innerHTML = vis.length ? vis.map(function (m) {
-      return '<tr><td style="white-space:nowrap">' + esc(m.em) + '</td><td><b>' + esc(m.artigo) + '</b></td><td>' + esc(m.op) + '</td><td>' + esc(m.cliente) + '</td><td>' + (m.qt || '') + '</td><td>Máq. ' + esc(m.origem == null ? '?' : m.origem) + '</td><td>Máq. ' + esc(m.destino == null ? '?' : m.destino) + '</td><td>' + esc(m.motivo) + '</td><td>' + esc(m.por) + '</td><td>' +
+      return '<tr><td style="white-space:nowrap">' + esc(m.em) + '</td><td><b>' + esc(m.artigo) + '</b></td><td>' + esc(m.op) + '</td><td>' + esc(m.cliente) + '</td><td>' + (m.qt || '') + '</td><td>Máq. ' + esc(m.origem == null ? '?' : m.origem) + '</td><td>' + (m.destino == null ? '<i>removida</i>' : 'Máq. ' + esc(m.destino)) + '</td><td>' + esc(m.motivo) + '</td><td>' + esc(m.por) + '</td><td>' +
         (m.nao_roda ? '<span class="ca-tag nr">NÃO RODA</span> ' : '') + (m.fonte === 'hub' ? '<span class="ca-tag hub">PCP HUB</span>' : '') + '</td></tr>';
     }).join('') : '<tr><td colspan="10" class="ca-vazio" style="border:0">Nenhuma movimentação encontrada.</td></tr>';
     $('mvInfo').textContent = vis.length + ' movimentação(ões). Toda OP que o PCP move de máquina (no Gestão, com o motivo escrito, ou no PCP Hub) entra aqui; só vira "artigo não roda" quando o PCP marca essa opção.';
