@@ -684,7 +684,7 @@ def _atualizar_situacoes(info: dict, pecas_por_op: dict) -> int:
             pecas = pecas_por_op.get(str(s.op))
             if pecas is not None:
                 s.pecas_produzidas = pecas                          # pecas pesadas no local 23 (igual ao quantity_pieces do PCP Hub)
-            if s.status != novo:                                   # historico das trocas (Finalizadas, Canceladas...) como no PCP Hub
+            if s.status != novo and not (novo in ('FINALIZADO', 'CANCELADO') and HistoricoProducao.query.filter_by(op=s.op, new_status=novo).first()):   # historico das trocas (Finalizadas, Canceladas...) como no PCP Hub; uma OP so entra uma vez em Finalizadas/Canceladas
                 motivo = {'FINALIZADO': 'Pesagem do cru concluida no local 23 (automatico pelo TOTVS)', 'CANCELADO': 'Cancelada no TOTVS'}.get(
                     novo, 'Automatico pelo TOTVS (local da OP)')
                 db.session.add(HistoricoProducao(

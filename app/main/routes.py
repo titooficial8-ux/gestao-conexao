@@ -1446,6 +1446,30 @@ def programacao_historico():
     )
 
 
+@main_bp.route('/aba/programacao/historico/limpar-duplicados', methods=['GET', 'POST'])
+@login_required
+def programacao_historico_limpar_duplicados():
+    """So administrador: tira do historico as linhas repetidas que o proprio Gestao gerou (a mesma OP finalizada/cancelada varias vezes, a cada leitura). Fica a mais antiga de cada OP+status.
+    Sem ?aplicar=1 so conta (nao apaga)."""
+    if not current_user.is_admin:
+        abort(403)
+    gerados = ('Pesagem do cru concluida no local 23 (automatico pelo TOTVS)', 'Cancelada no TOTVS', 'Automatico pelo TOTVS (local da OP)')
+    grupos = {}
+    for h in HistoricoProducao.query.filter(HistoricoProducao.new_status.in_(['FINALIZADO', 'CANCELADO']), HistoricoProducao.reason.in_(gerados)).order_by(HistoricoProducao.changed_at.asc(), HistoricoProducao.id.asc()).all():
+        grupos.setdefault((h.op, h.new_status), []).append(h)
+    sobras = [h for g in grupos.values() for h in g[1:]]
+    por_status = {}
+    for h in sobras:
+        por_status[h.new_status] = por_status.get(h.new_status, 0) + 1
+    aplicado = request.values.get('aplicar') == '1'
+    if aplicado:
+        for h in sobras:
+            db.session.delete(h)
+        db.session.commit()
+    return jsonify(duplicadas=len(sobras), por_status=por_status, apagadas=len(sobras) if aplicado else 0, aplicado=aplicado, ops_afetadas=len({h.op for h in sobras}),
+                   exemplo=[dict(op=h.op, maquina=h.machine, status=h.new_status, em=str(h.changed_at)) for h in sobras[:5]])
+
+
 @main_bp.route('/aba/programacao/historico/<int:hid>/justificar', methods=['POST'])
 @login_required
 def programacao_historico_justificar(hid):
