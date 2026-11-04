@@ -2803,6 +2803,43 @@ def programacao_story():
     return r
 
 
+@main_bp.route('/aba/programacao/sequencia/<int:seq_id>/encerrar', methods=['POST'])
+@login_required
+def sequencia_encerrar(seq_id):
+    """Botao EXCLUIR da sequencia: o PCP encerra a OP (ex.: ja atingiu a quantidade mas falta 1 peca no TOTVS). Pede a justificativa, tira a OP da fila,
+    grava no historico de FINALIZADAS e avisa para conferir a OP no TOTVS (ela continua la)."""
+    if not _pode_dias_sem_producao():
+        return jsonify(erro='Só o PCP e administradores podem excluir/encerrar uma OP.'), 403
+    q = db.session.get(Sequencia, seq_id)
+    if not q or (q.status or '') in ('FINALIZADO', 'CANCELADO'):
+        return jsonify(erro='OP não encontrada ou já encerrada.'), 404
+    motivo = str((request.get_json(silent=True) or {}).get('motivo') or '').strip()
+    if len(motivo) < 10:
+        return jsonify(erro='Escreva a justificativa (mínimo de 10 caracteres).'), 400
+    agora = datetime.utcnow()
+    por = getattr(current_user, 'name', None) or 'PCP'
+    db.session.add(HistoricoProducao(
+        machine=str(q.machine.number) if q.machine else None, date=date.today(), artigo=q.artigo, cliente=q.cliente, op=q.op, quantity_pieces=q.pecas_produzidas or 0,
+        requested_quantity=q.qt_solicitada or 0, old_status=q.status, new_status='FINALIZADO', changed_at=agora, estimated_end_date=q.termino_malharia, client_date=q.dt_cliente,
+        total_pcs=q.total_pcs, reason=f'Encerrada manualmente no Gestão por {por} (excluída da fila) — conferir a OP no TOTVS', motivo_cancelamento=motivo[:500],
+        justificado_por=por, justificado_em=agora))
+    q.status, q.situacao, q.encerrada_manual = 'FINALIZADO', 'FINALIZADA', True
+    db.session.commit()
+    maquina = q.machine.number if q.machine else None
+    if maquina:
+        app = current_app._get_current_object()
+
+        def recalcular():
+            try:
+                with app.app_context():
+                    from app import previsao
+                    previsao.calcular(maquina=maquina, esperar=True)
+            except Exception:  # noqa: BLE001
+                pass
+        threading.Thread(target=recalcular, daemon=True, name='recalculo-encerrar').start()
+    return jsonify(ok=True)
+
+
 @main_bp.route('/aba/programacao/sequencia/<int:seq_id>/transferir', methods=['POST'])
 @login_required
 def sequencia_transferir(seq_id):
