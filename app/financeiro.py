@@ -1,5 +1,6 @@
 """Financeiro: titulos a receber/pagar, vencidos, exportacao, prorrogacao de vencimento e verificacao dos recursos do TOTVS (so leitura)."""
 import io
+import os
 import threading
 from datetime import date
 
@@ -121,6 +122,107 @@ td{{border:1px solid #d0d4de;padding:2px 5px;white-space:nowrap}}td.n{{text-alig
 {linhas}</table></div></fieldset>
 <div class="rod"><span>Valor total</span><div class="v">{brl(total)}</div><span>Quantidade</span><div class="v">{len(itens)}</div></div>{ex}
 <div class="bt"><button onclick="window.print()">Imprimir / salvar em PDF</button> Colunas em vermelho claro e a data amarela só existem nesta prévia: o <b>Vencimento</b> destacado é o sugerido pela regra; o atual no TOTVS está na última coluna.</div></div></body></html>"""
+    return Response(corpo, mimetype='text/html')
+
+
+_ENDERECOS = {}
+BENEF = dict(nome=os.getenv('BOLETO_BENEF_NOME', 'CONEXAO MALHAS'), cnpj=os.getenv('BOLETO_BENEF_CNPJ', '74.283.375/0001-42'), rua=os.getenv('BOLETO_BENEF_RUA', 'AV. BENEDITO QUINA DA SILVA'),
+             cep=os.getenv('BOLETO_BENEF_CEP', '13212-141'), agencia=os.getenv('BOLETO_BENEF_AGENCIA', '3853- / 0544684'), carteira=os.getenv('BOLETO_CARTEIRA', 'RCR'))
+
+
+def _endereco_cliente(cod, cnpj):
+    """Razao social e endereco do pagador, como o TOTVS imprime no boleto (consulta de leitura ao cadastro de pessoas)."""
+    if cod in _ENDERECOS:
+        return _ENDERECOS[cod]
+    out = dict(nome='', cnpj=cnpj or '', end='', cep_cidade='')
+    try:
+        from app.totvs import api
+        cli = api.TotvsModaClient()
+        cli.autenticar()
+        r = cli.post(api.LEGAL_URL, dict(filter=dict(personCodeList=[int(cod)]), expand='addresses', page=1, pageSize=5))
+        for x in (r.json().get('items') or []) if r.status_code == 200 else []:
+            ad = next((a for a in (x.get('addresses') or []) if a.get('addressType') == 'Commercial'), (x.get('addresses') or [None])[0]) or {}
+            cep = str(ad.get('cep') or '')
+            out = dict(nome=x.get('name') or '', cnpj=x.get('cnpj') or cnpj or '',
+                       end=f"{ad.get('publicPlace') or ''} {ad.get('address') or ''}, {ad.get('addressNumber') if ad.get('addressNumber') is not None else ''} - {ad.get('neighborhood') or ''}".strip(),
+                       cep_cidade=f"{cep[:5]}-{cep[5:]} - {ad.get('cityName') or ''} - {ad.get('stateAbbreviation') or ''}")
+    except Exception:  # noqa: BLE001
+        pass
+    _ENDERECOS[cod] = out
+    return out
+
+
+@fin_bp.route('/previa-boleto-santander')
+@login_required
+def previa_boleto_santander():
+    """PREVIA do boleto no layout do boleto Santander que o TOTVS emite (Recibo do Pagador + Ficha de compensacao), com o VENCIMENTO sugerido pela regra.
+    SIMULACAO: nao e boleto valido (sem nosso numero/codigo de barras) e nada e gravado no TOTVS. ?doc=69030&parcela=1"""
+    _autorizar()
+    from html import escape as h
+    from app.totvs import financeiro as F
+    doc, parcela = (request.args.get('doc') or '').strip(), (request.args.get('parcela') or '').strip()
+    t = next((x for x in F.ler().get('receber', []) if str(x.get('doc')) == doc and str(x.get('parcela')) == parcela), None)
+    if not t:
+        return Response('<meta charset="utf-8"><p style="font:16px Arial;padding:30px">Título não encontrado na base lida do TOTVS.</p>', status=404, mimetype='text/html')
+    dd = lambda d: d.strftime('%d/%m/%Y')
+    brl = lambda v: f"{v:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+    venc = date.fromisoformat(t['venc'])
+    rg = F.regra_do_cliente(t.get('nome'))
+    novo = F.proximo_valido(rg, venc) if rg else venc
+    valor = t['saldo'] or t['valor']
+    fator = 1614 + (novo - date(2026, 11, 5)).days                         # fator de vencimento (calibrado por um boleto Santander real: 05/11/2026 = 1614)
+    centavos = f"{int(round(valor * 100)):010d}"
+    linha = f"03399.05440 6840X.XXXXXX XXXXX.XXXXXX X {fator}{centavos}"
+    pag = _endereco_cliente(t.get('cod'), t.get('cnpj'))
+    cnpj = pag['cnpj'] or ''
+    cnpj_fmt = f"{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:]}" if len(cnpj) == 14 else cnpj
+    juros = round(valor * 0.002, 2)
+    ndoc = f"{int(doc):06d}/{int(parcela):03d}" if doc.isdigit() and parcela.isdigit() else f"{doc}/{parcela}"
+    emis = dd(date.fromisoformat(t['emissao'])) if t.get('emissao') else ''
+    hoje = dd(date.today())
+
+    def cel(span, rotulo, valor='', cinza=False, forte=False, dir_=False):
+        cls = 'c' + (' g' if cinza else '')
+        v = f'<span class="{"vf" if forte else "vv"}{" d" if dir_ else ""}">{valor}</span>' if valor != '' else ''
+        return f'<div class="{cls}" style="grid-column:span {span}"><small>{rotulo}</small>{v}</div>'
+
+    def benef():
+        return f'<div class="bf"><span><b>{h(BENEF["nome"])}</b></span><span>{h(BENEF["cnpj"])}</span></div><div class="bf"><span>{h(BENEF["rua"])}</span><span>{h(BENEF["cep"])}</span></div>'
+
+    def bloco(titulo, ficha):
+        linhas = []
+        if ficha:
+            linhas += [cel(8, 'Local de Pagamento', 'PAGAR PREFERENCIALMENTE NO GRUPO SANTANDER BANESPA - GC', forte=True), cel(2, 'Vencimento', dd(novo), True, True, True)]
+            linhas += [f'<div class="c" style="grid-column:span 8"><small>Beneficiário</small>{benef()}</div>', cel(2, 'Agência / Código do Beneficiário', h(BENEF['agencia']), dir_=True)]
+            linhas += [cel(2, 'Data do Documento', emis, True, True), cel(2, 'N° do Documento', ndoc, True, True), cel(1, 'Espécie documento', 'DM'), cel(1, 'Aceite', 'N'), cel(2, 'Data do Processamento', hoje, True, True), cel(2, 'Nosso - Número', 'gerado pelo TOTVS', dir_=True)]
+            linhas += [cel(2, 'Uso do Banco'), cel(1, 'Carteira', h(BENEF['carteira'])), cel(1, 'Espécie Moeda', 'R$'), cel(2, 'Quantidade moeda'), cel(2, 'Valor'), cel(2, '(=) Valor do Documento', brl(valor), True, True, True)]
+        else:
+            linhas += [f'<div class="c" style="grid-column:span 8"><small>Beneficiário</small>{benef()}</div>', cel(2, 'Vencimento', dd(novo), True, True, True)]
+            linhas += [cel(1, 'Carteira', h(BENEF['carteira'])), cel(1, 'Espécie Moeda', 'R$'), cel(3, 'Nosso - Número', 'gerado pelo TOTVS', dir_=True), cel(2, 'Quantidade moeda'), cel(1, 'Valor'), cel(2, 'Agência / Cód. Benef.', h(BENEF['agencia']), dir_=True)]
+            linhas += [cel(2, 'Data do Documento', emis, True, True), cel(2, 'N° do Documento', ndoc, True, True), cel(1, 'Espécie Documento', 'DM'), cel(1, 'Aceite', 'N'), cel(2, 'Data do Processamento', hoje, True, True), cel(2, 'Valor do Documento', brl(valor), True, True, True)]
+        linhas += [cel(2, '(-) Desconto / Abatimento'), cel(2, '(-) Outras Deduções / Abatimentos'), cel(2, '(+) Juros / Multa / Mora'), cel(2, '(+) Outros Acréscimos'), cel(2, '(=) Valor cobrado', '', True)]
+        info = ''
+        if ficha:
+            nf = f'Nota Fiscal: {int(doc):06d} .' if doc.isdigit() else ''
+            info = f'<div class="inf"><small>Informações de responsabilidade do beneficiário:</small>- APÓS {dd(venc)} COBRAR JUROS DE R${brl(juros)}, POR DIA DE ATRASO.<br><br>{nf}</div>'
+        return f"""<div class="bl"><div class="tt">{titulo}</div>
+<div class="cab"><span class="lg">&#9670; Santander</span><span class="bc">033 - 7</span><span class="ld">{linha}</span></div>
+<div class="gr">{''.join(linhas)}</div>{info}<div class="pg"><div><small>Pagador:</small>{h(pag['nome'] or t.get('nome') or '')}<br><span class="sub">{h(pag['end'])}</span><br><span class="sub">{h(pag['cep_cidade'])}</span></div><div class="cn"><small>CNPJ/CPF:</small>{h(cnpj_fmt)}</div></div>
+<div class="fin"><small>Beneficiário final:</small></div>{'<div class="barra">código de barras gerado pelo TOTVS na emissão do boleto</div>' if ficha else ''}</div>"""
+
+    corpo = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Prévia do boleto {h(doc)}/{h(parcela)}</title><style>
+body{{margin:0;background:#e5e7eb;font:12px Arial,Helvetica,sans-serif;color:#111}}.fl{{max-width:820px;margin:12px auto;background:#fff;padding:14px 22px 22px;position:relative;overflow:hidden}}
+.marca{{background:#dc2626;color:#fff;text-align:center;font-weight:900;padding:8px;border-radius:6px;margin-bottom:12px;animation:pi 1.2s infinite}}@keyframes pi{{50%{{opacity:.55}}}}
+.agua{{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:92px;font-weight:900;color:rgba(220,38,38,.13);transform:rotate(-28deg);white-space:nowrap}}
+.bl{{margin-bottom:26px;position:relative}}.tt{{text-align:right;font-weight:700;border-top:1px solid #000;padding:3px 0}}.cab{{display:flex;align-items:center;border-bottom:2px solid #000;padding:4px 0;gap:14px}}.lg{{color:#ec0000;font-weight:900;font-size:17px;min-width:128px}}.bc{{font-size:18px;font-weight:700;border-left:2px solid #000;border-right:2px solid #000;padding:0 12px}}.ld{{font-size:15px;font-weight:700;letter-spacing:.3px}}
+.gr{{display:grid;grid-template-columns:repeat(10,1fr);border-left:1px solid #000}}.bf{{display:flex;justify-content:space-between;gap:10px;font-size:12.5px}}.vv{{display:block;font-size:12px}}.vf{{display:block;font-weight:700;font-size:12.5px}}.d{{text-align:right}}.c{{border-right:1px solid #000;border-bottom:1px solid #000;padding:1px 4px 3px;min-height:26px;grid-column:span 1;position:relative}}.c.w2{{grid-column:span 2}}.c.w3{{grid-column:span 3}}.c.g{{background:#d9d9d9}}
+.c small,.pg small,.inf small,.fin small{{display:block;font-size:8.5px;color:#444}}.dir{{position:absolute;right:6px;top:11px}}.sub{{color:#222}}.venc{{display:block;text-align:right;font-size:15px}}.c b{{display:block;text-align:right}}
+.inf{{border:1px solid #000;border-top:0;padding:4px 6px;min-height:70px}}.pg{{display:flex;justify-content:space-between;padding:6px 4px;border-bottom:1px solid #000}}.cn{{min-width:150px}}.fin{{padding:4px;border-bottom:1px solid #000}}
+.barra{{margin-top:10px;height:52px;border:1px dashed #dc2626;color:#b91c1c;display:flex;align-items:center;justify-content:center;font-weight:700;background:repeating-linear-gradient(90deg,#fff 0 3px,#f3f4f6 3px 6px)}}
+.bt{{text-align:center;margin:10px}}.bt button{{padding:8px 16px;border:0;border-radius:8px;background:#0a4aa8;color:#fff;font-weight:800;cursor:pointer}}@media print{{.bt{{display:none}}body{{background:#fff}}}}
+</style></head><body><div class="bt"><button onclick="window.print()">Imprimir / salvar em PDF</button></div><div class="fl"><div class="agua">PRÉVIA · NÃO PAGAR</div>
+<div class="marca">PRÉ-VISUALIZAÇÃO · NÃO É BOLETO VÁLIDO · NADA FOI GRAVADO NO TOTVS · vencimento sugerido pela regra{(' (' + h(rg['nome']) + ')') if rg else ''}: {dd(venc)} → {dd(novo)}</div>
+{bloco('Recibo do Pagador', False)}{bloco('Ficha de compensação', True)}</div></body></html>"""
     return Response(corpo, mimetype='text/html')
 
 
