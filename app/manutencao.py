@@ -253,6 +253,7 @@ def amostras_ativas() -> dict:
     return out
 
 
+<<<<<<< HEAD
 def _impacto(a: AvisoManut) -> str:
     """Texto do que a parada tira da producao (usado no alerta da maquina)."""
     try:
@@ -271,6 +272,8 @@ def _impacto(a: AvisoManut) -> str:
         return ''
 
 
+=======
+>>>>>>> origin/main
 def avisos_programados() -> dict:
     """{maquina: [dict(tipo, data, termino, mecanico, horas)]} dos avisos PROGRAMADOS (ainda nao comecaram), do mais proximo ao mais distante."""
     out = {}
@@ -280,7 +283,11 @@ def avisos_programados() -> dict:
                 out.setdefault(a.maquina, []).append(dict(
                     tipo=a.tipo, rotulo='Manutenção' if a.tipo == 'MANUTENCAO' else 'Amostra', icone='🔧' if a.tipo == 'MANUTENCAO' else '🧪',
                     data=a.data.strftime('%d/%m') if a.data else '', data_completa=a.data.strftime('%d/%m/%Y') if a.data else '',
+<<<<<<< HEAD
                     termino=a.data_termino.strftime('%d/%m/%Y') if a.data_termino else '', mecanico=a.mecanico or '', horas=a.horas_estimadas, subtipo=a.subtipo or '', impacto=_impacto(a)))
+=======
+                    termino=a.data_termino.strftime('%d/%m/%Y') if a.data_termino else '', mecanico=a.mecanico or '', horas=a.horas_estimadas))
+>>>>>>> origin/main
     except Exception:  # noqa: BLE001
         pass
     return out
