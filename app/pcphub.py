@@ -246,6 +246,10 @@ def aplicar(linhas: list, agora=None) -> dict:
         for chave, s in atuais.items():
             if chave not in vistos:
                 saiu[str(s.op)] = (s, s.machine.number if s.machine else None)
+                if s.status not in ('FINALIZADO', 'CANCELADO'):          # historico: OP que sumiu da fila porque saiu do PCP Hub (fica em Controle de Artigos > Movimentacoes)
+                    from app.models import ArtigoMovimentacao
+                    db.session.add(ArtigoMovimentacao(artigo=s.artigo, op=s.op, cliente=s.cliente, qt_solicitada=float(s.qt_solicitada or 0), origem=s.machine.number if s.machine else None, destino=None,
+                                                      motivo='Removida da Programação: a OP deixou de aparecer no PCP Hub (excluída ou finalizada lá)', por='PCP Hub', origem_registro='hub'))
                 db.session.delete(s)
                 removidas += 1
         if movidas:                                     # historico: toda OP que mudou de maquina no PCP Hub entra no log de movimentacoes (Controle de Artigos)
