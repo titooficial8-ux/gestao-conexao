@@ -59,6 +59,34 @@ def boleto_teste():
     return jsonify(ok=False, log=log)
 
 
+@fin_bp.route('/diagnostico-titulo')
+@login_required
+def diagnostico_titulo():
+    """So administrador: ?doc=68830 mostra o titulo como o Gestao guardou (emissao/vencimento) e TODOS os campos de data que o TOTVS devolve para ele, para comparar com a tela FCRFP098."""
+    if not current_user.is_admin:
+        abort(403)
+    from datetime import timedelta
+    from app.totvs import api, financeiro
+    doc = (request.args.get('doc') or '').strip()
+    guardados = [t for t in financeiro.ler().get('receber', []) if str(t.get('doc')) == doc]
+    out = dict(doc=doc, guardado_no_gestao=[dict(parcela=t['parcela'], cliente=t['nome'], emissao=t['emissao'], vencimento=t['venc'], valor=t['valor'], tipo_doc=t.get('tipo_doc')) for t in guardados])
+    try:
+        cli = api.TotvsModaClient()
+        cli.autenticar()
+        vencs = sorted({t['venc'] for t in guardados if t.get('venc')})
+        bruto = []
+        if vencs:
+            ini, fim = vencs[0], vencs[-1]
+            hoje = date.today()
+            chg = dict(startDate=f'{hoje - timedelta(days=30)}T00:00:00', endDate=f'{hoje}T23:59:59', inCheck=False)
+            itens = financeiro._paginar(cli, financeiro.RECEBER_URL, dict(filter=dict(branchCodeList=[financeiro.EMPRESA], change=chg, startExpiredDate=f'{ini}T00:00:00', endExpiredDate=f'{fim}T23:59:59')), tam=100)
+            bruto = [x for x in itens if str(x.get('receivableCode')) == doc]
+        out['totvs_campos_de_data'] = [{k: v for k, v in x.items() if not isinstance(v, (list, dict)) and ('date' in k.lower() or k in ('installmentCode', 'receivableCode', 'customerCode', 'documentType'))} for x in bruto[:12]]
+    except Exception as e:  # noqa: BLE001
+        out['erro_totvs'] = str(e)[:300]
+    return jsonify(out)
+
+
 @fin_bp.route('/diagnostico')
 @login_required
 def diagnostico():
