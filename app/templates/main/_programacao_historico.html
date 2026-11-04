@@ -12,6 +12,8 @@
   <a href="{{ url_for('main.programacao_historico_download') }}" class="btn-small btn-primary">&#11015; {{ t('prod_historico_baixar_excel') }}</a>
   {% endif %}
 </div>
+<p class="hist-meta" style="margin-bottom:2px">Mostrando <strong>{{ itens|length }}</strong> de <strong>{{ total_filtro }}</strong> registro(s) {{ 'canceladas' if tipo == 'canceladas' else 'finalizadas' }}{% if busca or mes %} (com o filtro){% endif %}.
+{% if current_user.is_admin %}<button type="button" class="btn-small" style="margin-left:8px" onclick="var b=this;b.disabled=true;b.textContent='Sincronizando…';fetch('/pcp-hub/historicos',{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){var t=d.tabelas&&d.tabelas.production_history||{};alert('Histórico sincronizado com o PCP Hub.\nHub: '+(t.hub!=null?t.hub:'?')+' registros · Gestão: '+(t.gestao!=null?t.gestao:'?')+' · novos agora: '+(t.novas!=null?t.novas:'?')+(d.erro?'\n'+d.erro:''));location.reload()}).catch(function(){alert('Não consegui sincronizar.');b.disabled=false;b.textContent='Sincronizar com o PCP Hub'})">Sincronizar com o PCP Hub</button>{% endif %}</p>
 <p class="hist-meta">Finalizadas este mês: <strong>{{ finalizados_mes_count }}</strong> &bull; Canceladas (total): <strong>{{ cancelados_count }}</strong></p>
 <div class="hist-table-wrap">
   {% if tipo == 'finalizadas' %}

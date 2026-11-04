@@ -51,10 +51,10 @@ def _d(v):
     return x.date() if x else None
 
 
-def _ler(tabela: str, cab: dict) -> list:
+def _ler(tabela: str, cab: dict, filtro: dict | None = None) -> list:
     linhas, ini = [], 0
     while True:
-        r = requests.get(f'{pcphub.URL}/rest/v1/{tabela}', params=dict(select='*', order='id.asc'),
+        r = requests.get(f'{pcphub.URL}/rest/v1/{tabela}', params=dict(select='*', order='id.asc', **(filtro or {})),
                          headers=dict(cab, Range=f'{ini}-{ini + 999}', **{'Range-Unit': 'items'}), timeout=120)
         if r.status_code not in (200, 206):
             raise RuntimeError(f'{tabela}: HTTP {r.status_code} {r.text[:160]}')
@@ -148,3 +148,15 @@ def importar() -> dict:
 
 def conferir(res: dict) -> bool:
     return all('erro' not in r and r['hub'] == r['gestao'] for r in res.values())
+
+
+def importar_producao_recente(dias: int = 5) -> dict:
+    """Traz do Hub so as mudancas de status (production_history) dos ultimos `dias` dias: roda de hora em hora, sem duplicar, para o historico de OPs finalizadas/canceladas nao ficar para tras."""
+    from datetime import timedelta
+    token = pcphub._login()
+    cab = dict(apikey=pcphub.CHAVE, Authorization=f'Bearer {token}')
+    desde = (datetime.now(timezone.utc) - timedelta(days=dias)).isoformat()
+    linhas = _ler('production_history', cab, {'changed_at': f'gte.{desde}'})
+    novas = _arquivar('production_history', linhas)
+    tip = _tipadas('production_history', linhas)
+    return dict(lidas=len(linhas), novas=novas, tabela_propria=tip)

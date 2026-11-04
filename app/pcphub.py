@@ -355,6 +355,17 @@ def atualizar(app) -> bool:
         with app.app_context():
             res = aplicar(linhas)
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), n=len(linhas), msg=f'{len(linhas)} sequências · {res["criadas"]} novas, {res["removidas"]} removidas')
+        if time.time() - ESTADO.get('hist_prod_ts', 0) > 3600 and ESTADO.get('base_inicial_ok'):         # historico de OPs finalizadas/canceladas: traz as mudancas recentes do Hub de hora em hora
+            ESTADO['hist_prod_ts'] = time.time()
+
+            def hist():
+                try:
+                    with app.app_context():
+                        from app import hubhistorico
+                        ESTADO['hist_prod'] = hubhistorico.importar_producao_recente()
+                except Exception as e:  # noqa: BLE001
+                    ESTADO['hist_prod'] = dict(erro=str(e)[:200])
+            threading.Thread(target=hist, daemon=True, name='pcp-hub-historico').start()
         if not ESTADO.get('base_inicial_ok'):                      # importacoes de uma vez so (dias sem producao, impedimentos, paises, historicos) em segundo plano: nao seguram a programacao
             ESTADO['base_inicial_ok'] = True
 
