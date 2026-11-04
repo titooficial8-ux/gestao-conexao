@@ -504,10 +504,10 @@ def painel() -> dict:
         novo = proximo_valido(rg, v)
         pror.append(dict(cliente=t['nome'], regra=rg['nome'], doc=t['doc'], parcela=t['parcela'], emissao=t.get('emissao') or '', venc=t['venc'], novo=novo.isoformat(), dias=(novo - v).days, valor=t['saldo'], vencido=t['vencido'], deixa_de_ser_atraso=t['vencido'] and novo >= hoje, banco=t['banco'], nosso=t['nosso']))
     pror.sort(key=lambda x: x['venc'])
-    abertos_regra = []                                          # TODOS os titulos em aberto dos clientes com regra (nao so os que caem em dia proibido)
+    abertos_regra = []                                          # titulos em aberto dos clientes com regra AINDA SEM BOLETO (todas as emissoes/vencimentos)
     for t in rec:
         rg = regra_do_cliente(t['nome'])
-        if not rg:
+        if not rg or t.get('nosso') or 'BAIXAD' in str(t.get('banco') or '').upper():          # so BOLETO NAO GERADO: sem nosso numero (portador 'titulo em carteira'), como a FCRFP098 'nao impressa'
             continue
         v = date.fromisoformat(t['venc'])
         ok = rg['ok'](v)
