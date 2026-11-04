@@ -1427,7 +1427,8 @@ def programacao_historico():
         if h.changed_at
     }, reverse=True)
 
-    itens = _historico_query(tipo, busca, mes).limit(300).all()
+    total_filtro = _historico_query(tipo, busca, mes).count()
+    itens = _historico_query(tipo, busca, mes).limit(5000).all()
     for h in itens:
         h.ds_metros = resolve_metros_from_article(h.artigo)
 
@@ -1441,7 +1442,7 @@ def programacao_historico():
     return render_template(
         'main/_programacao_historico.html', itens=itens, busca=busca, mes=mes, tipo=tipo,
         meses_disponiveis=meses_disponiveis, finalizados_mes_count=finalizados_mes_count,
-        cancelados_count=cancelados_count, pode_justificar=_eh_pcp(),
+        cancelados_count=cancelados_count, pode_justificar=_eh_pcp(), total_filtro=total_filtro,
     )
 
 
