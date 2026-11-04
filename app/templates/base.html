@@ -18,6 +18,45 @@
         <img src="{{ url_for('static', filename='img/logo_conexao_wordmark_dark.png') }}" alt="Conexão" class="gc-header-logo-img">
       </a>
       <button type="button" class="gc-nav-toggle" id="gcNavToggle" aria-label="menu">&#9776;</button>
+      {% if current_user.is_admin or current_user.has_sector('TI/Sistema') %}
+      <style>
+      .sg-sino{position:relative;margin-right:12px;align-self:center}.sg-sino-bt{border:0;background:transparent;cursor:pointer;font-size:22px;line-height:1;padding:6px 8px;border-radius:10px;position:relative;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))}.sg-sino-bt:hover{background:rgba(255,255,255,.15)}
+      .sg-sino-n{position:absolute;top:-2px;right:-2px;background:#dc2626;color:#fff;font:800 11px/1 Arial,sans-serif;border-radius:999px;padding:3px 6px;min-width:16px;text-align:center}.sg-sino-n[hidden]{display:none}
+      .sg-sino-bt.toca{animation:sgToca 1s ease 2}@keyframes sgToca{0%,100%{transform:rotate(0)}20%{transform:rotate(18deg)}40%{transform:rotate(-16deg)}60%{transform:rotate(10deg)}80%{transform:rotate(-8deg)}}
+      .sg-pn{position:absolute;right:0;top:44px;width:min(420px,92vw);max-height:70vh;overflow:auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 18px 50px rgba(15,23,42,.25);z-index:3500;padding:8px}.sg-pn[hidden]{display:none}
+      .sg-pn h4{margin:6px 8px 8px;font-size:13px;color:#0f2540}.sg-it{border:1px solid #eef0f4;border-radius:10px;padding:9px 11px;margin:6px 0;font-size:13px;color:#1e293b;background:#fff}.sg-it.nova{border-left:4px solid #f97316;background:#fffaf5}
+      .sg-it small{color:#64748b;display:block;margin-bottom:3px}.sg-it .tx{white-space:pre-wrap}.sg-it .ac{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}.sg-it .ac button{border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:700;cursor:pointer}
+      .sg-st{display:inline-block;font-size:10px;font-weight:900;border-radius:6px;padding:1px 7px;margin-left:6px;background:#e5e7eb;color:#475569}.sg-st.NOVA{background:#ffedd5;color:#9a3412}.sg-st.EM_ANALISE{background:#dbeafe;color:#1e40af}.sg-st.CONCLUIDA{background:#dcfce7;color:#166534}
+      </style>
+      <div class="sg-sino" id="sgSino"><button type="button" class="sg-sino-bt" id="sgSinoBt" title="Sugestões dos usuários">&#128276;<span class="sg-sino-n" id="sgSinoN" hidden>0</span></button><div class="sg-pn" id="sgPn" hidden></div></div>
+      <script>
+      (function () {
+        var bt = document.getElementById('sgSinoBt'), pn = document.getElementById('sgPn'), n = document.getElementById('sgSinoN'), ultimo = null;
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+        var ROT = { NOVA: 'NOVA', EM_ANALISE: 'EM ANÁLISE', CONCLUIDA: 'CONCLUÍDA' };
+        function desenhar(d) {
+          pn.innerHTML = '<h4>&#128161; Sugestões de melhoria (' + d.novas + ' nova' + (d.novas === 1 ? '' : 's') + ')</h4>' + (d.itens.length ? d.itens.map(function (x) {
+            return '<div class="sg-it ' + (x.status === 'NOVA' ? 'nova' : '') + '"><small><b>' + esc(x.nome) + '</b> · ' + esc(x.setor) + ' · ' + esc(x.em) + '<span class="sg-st ' + x.status + '">' + ROT[x.status] + '</span></small><div class="tx">' + esc(x.texto) + '</div><div class="ac">' +
+              (x.status !== 'EM_ANALISE' ? '<button data-sg="' + x.id + '" data-st="EM_ANALISE">Em análise</button>' : '') + (x.status !== 'CONCLUIDA' ? '<button data-sg="' + x.id + '" data-st="CONCLUIDA">Concluída</button>' : '') + '</div></div>'; }).join('') : '<div class="sg-it">Nenhuma sugestão ainda.</div>');
+        }
+        function carregar() {
+          fetch('/sugestoes/notificacoes', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+            if (!d.pode) return;
+            n.hidden = !d.novas; n.textContent = d.novas;
+            if (ultimo !== null && d.novas > ultimo) { bt.classList.remove('toca'); void bt.offsetWidth; bt.classList.add('toca'); }
+            ultimo = d.novas; desenhar(d);
+          }).catch(function () {});
+        }
+        bt.addEventListener('click', function (e) { e.stopPropagation(); pn.hidden = !pn.hidden; });
+        document.addEventListener('click', function (e) { if (!pn.hidden && !document.getElementById('sgSino').contains(e.target)) pn.hidden = true; });
+        pn.addEventListener('click', function (e) {
+          var b = e.target.closest('[data-sg]'); if (!b) return;
+          fetch('/sugestoes/' + b.dataset.sg + '/status', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: b.dataset.st }) }).then(carregar);
+        });
+        carregar(); setInterval(carregar, 60000);
+      })();
+      </script>
+      {% endif %}
       <div class="gc-header-user">
         <button type="button" class="gc-header-user-btn" data-toggle="gcUserDropdown">
           <span class="gc-header-avatar"{% if current_user.foto_versao %} style="background:url('{{ url_for('perfil.imagem', user_id=current_user.id, tipo='foto') }}?v={{ current_user.foto_versao }}') center/cover;color:transparent"{% endif %}>{{ (current_user.name or '?')[0]|upper }}</span>
@@ -94,45 +133,6 @@
         {% endfor %}
         {% endblock %}
       </div>
-      {% if current_user.is_admin or current_user.has_sector('TI/Sistema') %}
-      <style>
-      .sg-sino{position:relative;margin-right:10px}.sg-sino-bt{border:0;background:transparent;cursor:pointer;font-size:22px;line-height:1;padding:6px 8px;border-radius:10px;position:relative}.sg-sino-bt:hover{background:#eef2f7}
-      .sg-sino-n{position:absolute;top:-2px;right:-2px;background:#dc2626;color:#fff;font:800 11px/1 Arial,sans-serif;border-radius:999px;padding:3px 6px;min-width:16px;text-align:center}.sg-sino-n[hidden]{display:none}
-      .sg-sino-bt.toca{animation:sgToca 1s ease 2}@keyframes sgToca{0%,100%{transform:rotate(0)}20%{transform:rotate(18deg)}40%{transform:rotate(-16deg)}60%{transform:rotate(10deg)}80%{transform:rotate(-8deg)}}
-      .sg-pn{position:absolute;right:0;top:44px;width:min(420px,92vw);max-height:70vh;overflow:auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 18px 50px rgba(15,23,42,.25);z-index:3500;padding:8px}.sg-pn[hidden]{display:none}
-      .sg-pn h4{margin:6px 8px 8px;font-size:13px;color:#0f2540}.sg-it{border:1px solid #eef0f4;border-radius:10px;padding:9px 11px;margin:6px 0;font-size:13px;color:#1e293b;background:#fff}.sg-it.nova{border-left:4px solid #f97316;background:#fffaf5}
-      .sg-it small{color:#64748b;display:block;margin-bottom:3px}.sg-it .tx{white-space:pre-wrap}.sg-it .ac{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}.sg-it .ac button{border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:700;cursor:pointer}
-      .sg-st{display:inline-block;font-size:10px;font-weight:900;border-radius:6px;padding:1px 7px;margin-left:6px;background:#e5e7eb;color:#475569}.sg-st.NOVA{background:#ffedd5;color:#9a3412}.sg-st.EM_ANALISE{background:#dbeafe;color:#1e40af}.sg-st.CONCLUIDA{background:#dcfce7;color:#166534}
-      </style>
-      <div class="sg-sino" id="sgSino"><button type="button" class="sg-sino-bt" id="sgSinoBt" title="Sugestões dos usuários">&#128276;<span class="sg-sino-n" id="sgSinoN" hidden>0</span></button><div class="sg-pn" id="sgPn" hidden></div></div>
-      <script>
-      (function () {
-        var bt = document.getElementById('sgSinoBt'), pn = document.getElementById('sgPn'), n = document.getElementById('sgSinoN'), ultimo = null;
-        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-        var ROT = { NOVA: 'NOVA', EM_ANALISE: 'EM ANÁLISE', CONCLUIDA: 'CONCLUÍDA' };
-        function desenhar(d) {
-          pn.innerHTML = '<h4>&#128161; Sugestões de melhoria (' + d.novas + ' nova' + (d.novas === 1 ? '' : 's') + ')</h4>' + (d.itens.length ? d.itens.map(function (x) {
-            return '<div class="sg-it ' + (x.status === 'NOVA' ? 'nova' : '') + '"><small><b>' + esc(x.nome) + '</b> · ' + esc(x.setor) + ' · ' + esc(x.em) + '<span class="sg-st ' + x.status + '">' + ROT[x.status] + '</span></small><div class="tx">' + esc(x.texto) + '</div><div class="ac">' +
-              (x.status !== 'EM_ANALISE' ? '<button data-sg="' + x.id + '" data-st="EM_ANALISE">Em análise</button>' : '') + (x.status !== 'CONCLUIDA' ? '<button data-sg="' + x.id + '" data-st="CONCLUIDA">Concluída</button>' : '') + '</div></div>'; }).join('') : '<div class="sg-it">Nenhuma sugestão ainda.</div>');
-        }
-        function carregar() {
-          fetch('/sugestoes/notificacoes', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
-            if (!d.pode) return;
-            n.hidden = !d.novas; n.textContent = d.novas;
-            if (ultimo !== null && d.novas > ultimo) { bt.classList.remove('toca'); void bt.offsetWidth; bt.classList.add('toca'); }
-            ultimo = d.novas; desenhar(d);
-          }).catch(function () {});
-        }
-        bt.addEventListener('click', function (e) { e.stopPropagation(); pn.hidden = !pn.hidden; });
-        document.addEventListener('click', function (e) { if (!pn.hidden && !document.getElementById('sgSino').contains(e.target)) pn.hidden = true; });
-        pn.addEventListener('click', function (e) {
-          var b = e.target.closest('[data-sg]'); if (!b) return;
-          fetch('/sugestoes/' + b.dataset.sg + '/status', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: b.dataset.st }) }).then(carregar);
-        });
-        carregar(); setInterval(carregar, 60000);
-      })();
-      </script>
-      {% endif %}
       <div class="gc-nav-region">
         {% if acesso_tipo == 'chamados' %}
         <a href="{{ url_for('main.dashboard') }}" class="gc-nav-region-btn">

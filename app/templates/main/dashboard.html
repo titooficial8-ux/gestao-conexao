@@ -2,8 +2,9 @@
 {% block page_title %}{{ t('dashboard_title') }}{% endblock %}
 {% block content %}
 <style>
+@keyframes sgFlut{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 .sg-topo{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}.sg-topo h1{margin:0}
-.sg-btn{border:0;border-radius:999px;background:linear-gradient(120deg,#f59e0b,#f97316);color:#fff;font-weight:800;font-size:14px;padding:10px 20px;cursor:pointer;box-shadow:0 4px 14px rgba(249,115,22,.35);display:inline-flex;align-items:center;gap:8px}.sg-btn:hover{filter:brightness(1.05)}
+.sg-btn{position:fixed;right:22px;bottom:90px;z-index:3000;animation:sgFlut 3s ease-in-out infinite;border:0;border-radius:999px;background:linear-gradient(120deg,#f59e0b,#f97316);color:#fff;font-weight:800;font-size:14px;padding:10px 20px;cursor:pointer;box-shadow:0 4px 14px rgba(249,115,22,.35);display:inline-flex;align-items:center;gap:8px}.sg-btn:hover{animation-play-state:paused;filter:brightness(1.05)}
 .sg-mod{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:3000;padding:16px}.sg-mod[hidden]{display:none}
 .sg-box{background:#fff;border-radius:18px;width:min(560px,100%);padding:26px 28px;box-shadow:0 24px 70px rgba(15,23,42,.4);max-height:94vh;overflow:auto}
 .sg-box h2{margin:0 0 6px;font-size:21px;color:#0f2540}.sg-box p{margin:8px 0;font-size:14.5px;line-height:1.55;color:#334155}
