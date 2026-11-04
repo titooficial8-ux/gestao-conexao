@@ -26,11 +26,49 @@ _trava = threading.Lock()
 _swagger_cache = {}
 
 # ---- regras de pagamento dos clientes (nao pagam em certos dias): chave = trecho do nome sem acento
+def _pascoa(ano: int) -> date:
+    a, b, c = ano % 19, ano // 100, ano % 100
+    d, e = b // 4, b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    mes, dia = divmod(h + l - 7 * m + 114, 31)
+    return date(ano, mes, dia + 1)
+
+
+def feriados_bancarios(ano: int) -> set:
+    """Dias em que os bancos nao funcionam: feriados nacionais, Carnaval (segunda e terca), Sexta-feira Santa e Corpus Christi."""
+    p = _pascoa(ano)
+    fixos = [(1, 1), (4, 21), (5, 1), (9, 7), (10, 12), (11, 2), (11, 15), (11, 20), (12, 25)]
+    return {date(ano, m, d) for m, d in fixos} | {p - timedelta(days=48), p - timedelta(days=47), p - timedelta(days=2), p + timedelta(days=60)}
+
+
+def dia_util(d: date) -> bool:
+    """Boleto so e pago em dia util bancario: segunda a sexta e nao feriado."""
+    return d.weekday() < 5 and d not in feriados_bancarios(d.year)
+
+
+def _dias_13_28(d: date) -> bool:
+    """Pikolin so paga nos dias 13 e 28; se o 13/28 cair em dia nao util, vale o proximo dia util."""
+    if not dia_util(d):
+        return False
+    if d.day in (13, 28):
+        return True
+    for k in (1, 2, 3, 4, 5):                                  # o 13/28 caiu em fim de semana/feriado: vale o 1o dia util depois dele
+        base = d - timedelta(days=k)
+        if base.day in (13, 28) and all(not dia_util(base + timedelta(days=j)) for j in range(0, k)):
+            return True
+    return False
+
+
 REGRAS = [
-    dict(chave='MARANHAO', nome='Maranhão', texto='não paga às segundas-feiras', ok=lambda d: d.weekday() != 0),
-    dict(chave='PIKOLIN', nome='Pikolin', texto='só paga nos dias 13 e 28', ok=lambda d: d.day in (13, 28)),
-    dict(chave='VIEIR', nome='Vieiro', texto='só paga às quintas-feiras', ok=lambda d: d.weekday() == 3),
-    dict(chave='PLUMATEX', nome='Plumatex', texto='não paga às segundas-feiras nem nos dias 04, 05, 06, 10, 20 e 25', ok=lambda d: d.weekday() != 0 and d.day not in (4, 5, 6, 10, 20, 25)),
+    dict(chave='MARANHAO', nome='Maranhão', texto='dia útil e não paga às segundas-feiras', ok=lambda d: dia_util(d) and d.weekday() != 0),
+    dict(chave='PIKOLIN', nome='Pikolin', texto='só paga nos dias 13 e 28 (se cair em dia não útil, vale o próximo dia útil)', ok=_dias_13_28),
+    dict(chave='VIEIR', nome='Vieiro', texto='dia útil, só às quintas-feiras', ok=lambda d: dia_util(d) and d.weekday() == 3),
+    dict(chave='PLUMATEX', nome='Plumatex', texto='dia útil; não paga às segundas-feiras nem nos dias 04, 05, 06, 10, 20 e 25', ok=lambda d: dia_util(d) and d.weekday() != 0 and d.day not in (4, 5, 6, 10, 20, 25)),
 ]
 
 
