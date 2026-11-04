@@ -424,6 +424,12 @@ def _enriquecer_alteracoes(alts: list, d: dict) -> list:
         if x.get('emissao') is None or x.get('venc') is None:
             t = base.get((str(x.get('doc')), str(x.get('parcela')), str(x.get('nome'))))
             x = dict(x, emissao=(t or {}).get('emissao') or '', venc=(t or {}).get('venc') or (x.get('para') if str(x.get('para') or '')[:2] == '20' and len(str(x.get('para'))) == 10 else ''))
+        rg = regra_do_cliente(x.get('nome'))
+        if rg and x.get('venc') and str(x['venc'])[:2] == '20':            # PARA = vencimento conforme a regra de dias do cliente (dias da semana/dia do mes configurados)
+            try:
+                x = dict(x, para_regra=proximo_valido(rg, date.fromisoformat(x['venc'])).isoformat(), regra=rg['nome'])
+            except ValueError:
+                pass
         out.append(x)
     return out
 
