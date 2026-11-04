@@ -14,7 +14,8 @@ BRT = timezone(timedelta(hours=-3))
 
 
 def _ve_sugestoes() -> bool:
-    return bool(current_user.is_admin or current_user.has_sector('TI/Sistema'))
+    """Somente o Christian trata as sugestoes (recebe o sino e muda o status)."""
+    return (current_user.email or '').strip().lower().startswith('christian.yarzon@')
 
 
 def _setor_do_usuario() -> str:
@@ -53,12 +54,25 @@ def _json(x: Sugestao) -> dict:
 @sugestoes_bp.route('/notificacoes')
 @login_required
 def notificacoes():
-    """Para o sino: quantas sugestoes novas e as ultimas 30 (so TI/Sistema e administradores)."""
-    if not _ve_sugestoes():
+    """Sino: o Christian ve todas (novas = NOVA); o autor ve so as proprias (novas = respostas ainda nao vistas)."""
+    if _ve_sugestoes():
+        novas = Sugestao.query.filter_by(status='NOVA').count()
+        itens = Sugestao.query.order_by(Sugestao.criada_em.desc()).limit(30).all()
+        return jsonify(pode=True, gestor=True, novas=novas, itens=[_json(x) for x in itens])
+    q = Sugestao.query.filter_by(usuario_id=current_user.id)
+    itens = q.order_by(Sugestao.criada_em.desc()).limit(30).all()
+    if not itens:
         return jsonify(pode=False, novas=0, itens=[])
-    novas = Sugestao.query.filter_by(status='NOVA').count()
-    itens = Sugestao.query.order_by(Sugestao.criada_em.desc()).limit(30).all()
-    return jsonify(pode=True, novas=novas, itens=[_json(x) for x in itens])
+    novas = sum(1 for x in itens if x.status != 'NOVA' and not x.vista_autor)
+    return jsonify(pode=True, gestor=False, novas=novas, itens=[_json(x) for x in itens])
+
+
+@sugestoes_bp.route('/vistas', methods=['POST'])
+@login_required
+def vistas():
+    Sugestao.query.filter(Sugestao.usuario_id == current_user.id, Sugestao.status != 'NOVA').update({'vista_autor': True})
+    db.session.commit()
+    return jsonify(ok=True)
 
 
 @sugestoes_bp.route('/<int:sid>/status', methods=['POST'])
@@ -70,6 +84,6 @@ def mudar_status(sid):
     st = str((request.get_json(silent=True) or {}).get('status') or '').upper()
     if st not in ('NOVA', 'EM_ANALISE', 'CONCLUIDA'):
         return jsonify(erro='Status inválido.'), 400
-    x.status, x.tratada_por, x.tratada_em = st, getattr(current_user, 'name', None), datetime.utcnow()
+    x.status, x.tratada_por, x.tratada_em, x.vista_autor = st, getattr(current_user, 'name', None), datetime.utcnow(), False
     db.session.commit()
     return jsonify(ok=True)

@@ -1,48 +1,7 @@
 {% extends 'base.html' %}
 {% block page_title %}{{ t('dashboard_title') }}{% endblock %}
 {% block content %}
-<style>
-@keyframes sgFlut{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-.sg-topo{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}.sg-topo h1{margin:0}
-.sg-btn{position:fixed;right:22px;bottom:90px;z-index:3000;animation:sgFlut 3s ease-in-out infinite;border:0;border-radius:999px;background:linear-gradient(120deg,#f59e0b,#f97316);color:#fff;font-weight:800;font-size:14px;padding:10px 20px;cursor:pointer;box-shadow:0 4px 14px rgba(249,115,22,.35);display:inline-flex;align-items:center;gap:8px}.sg-btn:hover{animation-play-state:paused;filter:brightness(1.05)}
-.sg-mod{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:3000;padding:16px}.sg-mod[hidden]{display:none}
-.sg-box{background:#fff;border-radius:18px;width:min(560px,100%);padding:26px 28px;box-shadow:0 24px 70px rgba(15,23,42,.4);max-height:94vh;overflow:auto}
-.sg-box h2{margin:0 0 6px;font-size:21px;color:#0f2540}.sg-box p{margin:8px 0;font-size:14.5px;line-height:1.55;color:#334155}
-.sg-quem{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 4px}.sg-quem span{background:#eef4ff;border:1px solid #c7d8f7;color:#1e3a6e;border-radius:10px;padding:5px 12px;font-size:12.5px;font-weight:700}
-.sg-box textarea{width:100%;box-sizing:border-box;min-height:130px;border:1px solid #cbd5e1;border-radius:12px;padding:12px;font:inherit;font-size:14px;color:#0f172a;margin-top:8px;resize:vertical}
-.sg-acoes{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}.sg-acoes button{border:0;border-radius:10px;padding:10px 20px;font-weight:800;cursor:pointer;font-size:14px}.sg-env{background:#0a4aa8;color:#fff}.sg-fecha{background:#e5e7eb;color:#334155}.sg-env:disabled{opacity:.6}
-.sg-msg{font-size:13px;min-height:18px;margin-top:6px}.sg-msg.err{color:#b91c1c}.sg-msg.ok{color:#166534;font-weight:700}
-</style>
-<div class="sg-topo"><h1 class="page-heading">{{ t('welcome') }}, {{ current_user.name }}</h1>
-  <button type="button" class="sg-btn" id="sgAbrir">&#128161; Sugestão</button></div>
-<div class="sg-mod" id="sgMod" hidden><div class="sg-box">
-  <h2>Olá, <span id="sgNome">…</span>! &#128075;</h2>
-  <p>Que bom ter você aqui com a gente! Acredito que sua vinda até aqui é para solicitar melhorias, certo? Ou até mesmo uma reclamação rsrsrs</p>
-  <p>Portanto, já manda sua <b>sugestão de melhoria interna</b> aqui do nosso Gestão Conexão, que nossa equipe de tecnologia irá tratar em breve.</p>
-  <div class="sg-quem"><span>&#128100; <span id="sgNome2">…</span></span><span>&#127970; Setor: <span id="sgSetor">…</span></span></div>
-  <textarea id="sgTexto" maxlength="3000" placeholder="Escreva aqui sua sugestão de melhoria ou reclamação…"></textarea>
-  <div class="sg-msg" id="sgMsg"></div>
-  <div class="sg-acoes"><button type="button" class="sg-fecha" id="sgFechar">Fechar</button><button type="button" class="sg-env" id="sgEnviar">Enviar sugestão</button></div>
-</div></div>
-<script>
-(function () {
-  var $ = function (i) { return document.getElementById(i); };
-  $('sgAbrir').addEventListener('click', function () {
-    $('sgMsg').textContent = ''; $('sgMsg').className = 'sg-msg'; $('sgMod').hidden = false;
-    fetch('/sugestoes/eu', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { $('sgNome').textContent = d.primeiro || d.nome; $('sgNome2').textContent = d.nome; $('sgSetor').textContent = d.setor; });
-    setTimeout(function () { $('sgTexto').focus(); }, 50);
-  });
-  $('sgFechar').addEventListener('click', function () { $('sgMod').hidden = true; });
-  $('sgMod').addEventListener('click', function (e) { if (e.target === $('sgMod')) $('sgMod').hidden = true; });
-  $('sgEnviar').addEventListener('click', function () {
-    var b = this, m = $('sgMsg'); b.disabled = true; m.className = 'sg-msg'; m.textContent = 'Enviando…';
-    fetch('/sugestoes/enviar', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: $('sgTexto').value }) })
-      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro'); return j; }); })
-      .then(function () { m.className = 'sg-msg ok'; m.textContent = 'Sugestão enviada! Nossa equipe de tecnologia já foi avisada. Obrigado! 💙'; $('sgTexto').value = ''; setTimeout(function () { $('sgMod').hidden = true; }, 2200); })
-      .catch(function (e) { m.className = 'sg-msg err'; m.textContent = e.message; }).then(function () { b.disabled = false; });
-  });
-})();
-</script>
+<h1 class="page-heading">{{ t('welcome') }}, {{ current_user.name }}</h1>
 <div class="category-grid">
   {% for cat in categories %}
   <div class="category-card">

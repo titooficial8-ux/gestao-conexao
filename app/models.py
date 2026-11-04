@@ -485,6 +485,7 @@ class Sugestao(db.Model):
     criada_em = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     tratada_por = db.Column(db.String(120))
     tratada_em = db.Column(db.DateTime, nullable=True)
+    vista_autor = db.Column(db.Boolean, default=False)
 
 
 class AvisoManut(db.Model):
