@@ -280,3 +280,29 @@ def exportar():
             w.writerow([x['nome'], x['ultima'], x['meses'], x['pedidos_12m'], x['valor_12m'], x['metros_12m'], x['motivo'], x['obs']])
     return Response('﻿' + buf.getvalue(), mimetype='text/csv; charset=utf-8',
                     headers={'Content-Disposition': f'attachment; filename=comercial_mi_{tipo}_{date.today():%Y-%m-%d}.csv'})
+
+
+@cmi_bp.route('/diagnostico-segmento')
+@login_required
+def diagnostico_segmento():
+    """So administrador: confere o filtro COLCHAO MI. ?cliente=SUGAR mostra os pedidos desse cliente e o segmento de cada um."""
+    if not current_user.is_admin:
+        abort(403)
+    from app.main.routes import normalize_client_name
+    from app.totvs import historico_mi
+    dados = historico_mi.ler()
+    pedidos, fantasia, segs = dados.get('pedidos') or {}, dados.get('clientes') or {}, dados.get('segmentos') or {}
+    dist, sem = {}, 0
+    for v in pedidos.values():
+        if len(v) < 6:
+            sem += 1
+            continue
+        dist[v[5] or '(vazio)'] = dist.get(v[5] or '(vazio)', 0) + 1
+    out = dict(pedidos=len(pedidos), ainda_sem_segmento=sem, por_segmento=dict(sorted(dist.items(), key=lambda kv: -kv[1])), produtos_classificados=len(segs),
+               leitura=historico_mi.ESTADO)
+    nome = (request.args.get('cliente') or '').strip().upper()
+    if nome:
+        out['cliente'] = [dict(pedido=k, data=v[0], valor=v[1], metros=v[2], cliente=normalize_client_name(fantasia.get(str(v[3])) or v[4]), razao=v[4], segmento=(v[5] if len(v) > 5 else '(não reclassificado ainda)'),
+                               entra_no_colchao_mi=(len(v) < 6 or eh_colchao_mi(v[5])))
+                          for k, v in pedidos.items() if nome in (normalize_client_name(fantasia.get(str(v[3])) or v[4]) or '').upper() or nome in str(v[4]).upper()][:40]
+    return jsonify(out)
