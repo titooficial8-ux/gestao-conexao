@@ -472,6 +472,21 @@ class NcEstado(db.Model):
     em = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class Sugestao(db.Model):
+    """Sugestao de melhoria/reclamacao enviada por qualquer usuario no botao 'Sugestao' do Painel; a equipe de TI/Sistema ve no sino de notificacao."""
+    __tablename__ = 'sugestoes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, index=True)
+    nome = db.Column(db.String(120))
+    setor = db.Column(db.String(120))
+    texto = db.Column(db.Text)
+    status = db.Column(db.String(12), default='NOVA', index=True)      # NOVA | EM_ANALISE | CONCLUIDA
+    criada_em = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    tratada_por = db.Column(db.String(120))
+    tratada_em = db.Column(db.DateTime, nullable=True)
+
+
 class AvisoManut(db.Model):
     """Aviso de manutencao ou de amostra de uma maquina (ex-PCP Hub): programado, em andamento ou finalizado. Quem entra em andamento/finaliza sozinho e a leitura do Acompanhamento de Producao."""
     __tablename__ = 'avisos_manut'
