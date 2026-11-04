@@ -12,7 +12,7 @@ import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, current_app, jsonify, request
 from flask_login import current_user, login_required
 
 from app import db
@@ -134,7 +134,7 @@ def _abertas_setups() -> tuple:
                 continue
             ini = ac._local(x.get('inicio') or x.get('inicioEm') or x.get('criadoEm'))
             mins = int(max((datetime.now() - ini).total_seconds() // 60, 0)) if ini else 0
-            itens.append(dict(id='s' + str(x.get('id')), maquina=str(int(maq)), tipo=str(x.get('tipo') or '').upper(), motivo=x.get('motivo') or x.get('descricao') or '', minutos=mins,
+            itens.append(dict(id='s' + str(x.get('id')), maquina=str(int(maq)), tipo=str(x.get('tipo') or '').upper(), subtipo=str(x.get('subtipo') or '').upper(), motivo=x.get('motivo') or x.get('descricao') or '', minutos=mins,
                               aberta_por=x.get('abertaPor') or x.get('responsavel') or '', revisor=False))
     return itens, bruto, erro
 
@@ -173,10 +173,11 @@ def sincronizar() -> dict:
         prog = AvisoManut.query.filter_by(tipo=tipo, maquina=maq, status='PROGRAMADA').order_by(AvisoManut.data).first()
         if prog:                                                    # havia manutencao/amostra programada: ela comeca quando o lider sinaliza
             prog.status, prog.inicio, prog.acomp_id = 'EM_ANDAMENTO', ini, aid
+            prog.subtipo = x.get('subtipo') or prog.subtipo
             iniciados += 1
         else:
             db.session.add(AvisoManut(tipo=tipo, maquina=maq, data=ini.replace(tzinfo=timezone.utc).astimezone(BRT).date(), inicio=ini, status='EM_ANDAMENTO', origem='acomp', acomp_id=aid,
-                                      obs=x.get('motivo') or None, mecanico=None, criado_por=x.get('aberta_por') or 'Acompanhamento'))
+                                      obs=x.get('motivo') or None, mecanico=None, subtipo=(x.get('subtipo') or None), criado_por=x.get('aberta_por') or 'Acompanhamento'))
             criados += 1
     finalizados = 0
     if not r.get('erro'):                                           # so finaliza com leitura boa: uma falha da API nao pode encerrar manutencao
@@ -186,6 +187,9 @@ def sincronizar() -> dict:
                 av.data_termino = av.data_termino or agora.replace(tzinfo=timezone.utc).astimezone(BRT).date()      # o lider finalizou: a data de termino e a de hoje
                 finalizados += 1
     db.session.commit()
+    if criados or iniciados or finalizados:
+        for m in {mq for (_t, mq, _x) in abertas.values()} | {av.maquina for av in AvisoManut.query.filter_by(status='FINALIZADA').order_by(AvisoManut.fim.desc()).limit(5).all()}:
+            _recalcular(m)
     return dict(ok=True, criados=criados, iniciados=iniciados, finalizados=finalizados, abertas=len(abertas))
 
 
@@ -220,6 +224,22 @@ def em_manutencao() -> dict:
 
 
 # ---------------------------------------------------------------- rotas
+def _recalcular(maquina) -> None:
+    """Refaz as previsoes de entrega da maquina (a parada de amostra/manutencao preventiva muda o termino das OPs). Roda em segundo plano."""
+    if not maquina:
+        return
+    app = current_app._get_current_object()
+
+    def tarefa():
+        try:
+            with app.app_context():
+                from app import previsao
+                previsao.calcular(maquina=int(maquina), esperar=True)
+        except Exception as e:  # noqa: BLE001
+            print(f'[manutencao] recalculo da maquina {maquina}: {e}', flush=True)
+    threading.Thread(target=tarefa, daemon=True, name='recalculo-parada').start()
+
+
 def amostras_ativas() -> dict:
     """{numero da maquina: 'desde dd/mm HH:MM'} das maquinas com AMOSTRA em andamento (faixa roxa na Programacao)."""
     out = {}
@@ -233,6 +253,24 @@ def amostras_ativas() -> dict:
     return out
 
 
+def _impacto(a: AvisoManut) -> str:
+    """Texto do que a parada tira da producao (usado no alerta da maquina)."""
+    try:
+        from app import previsao
+        j = previsao.janelas_parada(a.maquina, datetime.now() - timedelta(days=400))
+        mine = [x for x in j if x[0].date() == (a.data if a.tipo == 'AMOSTRA' else (a.data or a.data_termino))]
+        if not mine:
+            return 'Manutenção corretiva ou sem data de término: não entra no cálculo de entregas.' if a.tipo == 'MANUTENCAO' else ''
+        ini, fim = mine[0]
+        if a.tipo == 'AMOSTRA':
+            h = (fim - ini).total_seconds() / 3600
+            return f'Máquina sem produzir {int(h)}h{int(round((h - int(h)) * 60)):02d} (até {previsao.AMOSTRA_FIM_HORA}h) — entregas recalculadas.'
+        dias = int(round((fim - ini).total_seconds() / 86400))
+        return f'{dias} dia(s) sem produzir — entregas da máquina recalculadas.'
+    except Exception:  # noqa: BLE001
+        return ''
+
+
 def avisos_programados() -> dict:
     """{maquina: [dict(tipo, data, termino, mecanico, horas)]} dos avisos PROGRAMADOS (ainda nao comecaram), do mais proximo ao mais distante."""
     out = {}
@@ -242,7 +280,7 @@ def avisos_programados() -> dict:
                 out.setdefault(a.maquina, []).append(dict(
                     tipo=a.tipo, rotulo='Manutenção' if a.tipo == 'MANUTENCAO' else 'Amostra', icone='🔧' if a.tipo == 'MANUTENCAO' else '🧪',
                     data=a.data.strftime('%d/%m') if a.data else '', data_completa=a.data.strftime('%d/%m/%Y') if a.data else '',
-                    termino=a.data_termino.strftime('%d/%m/%Y') if a.data_termino else '', mecanico=a.mecanico or '', horas=a.horas_estimadas))
+                    termino=a.data_termino.strftime('%d/%m/%Y') if a.data_termino else '', mecanico=a.mecanico or '', horas=a.horas_estimadas, subtipo=a.subtipo or '', impacto=_impacto(a)))
     except Exception:  # noqa: BLE001
         pass
     return out
@@ -256,7 +294,7 @@ def _json(a: AvisoManut) -> dict:
     if ini and ref_fim and ref_fim >= ini:
         mins = int((ref_fim - ini).total_seconds() // 60)
         dur = f'{mins // 60}h{mins % 60:02d}'
-    return dict(id=a.id, tipo=a.tipo, maquina=a.maquina, mecanico=a.mecanico or '', data=a.data.strftime('%d/%m/%Y') if a.data else '', data_iso=a.data.isoformat() if a.data else '', termino=a.data_termino.strftime('%d/%m/%Y') if a.data_termino else '', termino_iso=a.data_termino.isoformat() if a.data_termino else '', horas=a.horas_estimadas,
+    return dict(id=a.id, tipo=a.tipo, maquina=a.maquina, mecanico=a.mecanico or '', data=a.data.strftime('%d/%m/%Y') if a.data else '', data_iso=a.data.isoformat() if a.data else '', subtipo=a.subtipo or '', termino=a.data_termino.strftime('%d/%m/%Y') if a.data_termino else '', termino_iso=a.data_termino.isoformat() if a.data_termino else '', horas=a.horas_estimadas,
                 inicio=ini.strftime('%d/%m/%Y %H:%M') if ini else '', inicio_iso=ini.strftime('%Y-%m-%dT%H:%M') if ini else '', fim=fim.strftime('%d/%m/%Y %H:%M') if fim else '', fim_iso=fim.strftime('%Y-%m-%dT%H:%M') if fim else '',
                 status=a.status, duracao=dur, obs=a.obs or '', origem=a.origem, anomalia=bool(ini and fim and fim < ini))
 
@@ -287,6 +325,9 @@ def _aplicar(a: AvisoManut, d: dict):
         a.horas_estimadas = _num(d.get('horas'))
     if 'data' in d and d.get('data'):
         a.data = date.fromisoformat(str(d['data'])[:10])
+    if 'subtipo' in d:
+        v = str(d.get('subtipo') or '').strip().upper()
+        a.subtipo = v if v in ('PREVENTIVA', 'CORRETIVA') else None
     if 'termino' in d:
         a.data_termino = date.fromisoformat(str(d['termino'])[:10]) if d.get('termino') else None
     for campo, k in (('inicio', 'inicio'), ('fim', 'fim')):
@@ -316,8 +357,11 @@ def criar():
         return jsonify(erro=str(e)), 400
     if not a.data:
         a.data = date.today()
+    if a.tipo == 'MANUTENCAO' and not a.subtipo and 'subtipo' not in d:
+        a.subtipo = 'PREVENTIVA'
     db.session.add(a)
     db.session.commit()
+    _recalcular(a.maquina)
     return jsonify(ok=True, id=a.id)
 
 
@@ -333,6 +377,7 @@ def editar(aid):
     except ValueError as e:
         return jsonify(erro=str(e)), 400
     db.session.commit()
+    _recalcular(a.maquina)
     return jsonify(ok=True)
 
 
@@ -343,8 +388,10 @@ def excluir(aid):
     if not _edita():
         return jsonify(erro='Sem permissão para excluir.'), 403
     a = db.session.get(AvisoManut, aid) or abort(404)
+    maq = a.maquina
     db.session.delete(a)
     db.session.commit()
+    _recalcular(maq)
     return jsonify(ok=True)
 
 

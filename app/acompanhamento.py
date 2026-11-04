@@ -73,7 +73,7 @@ def _normalizar(x: dict) -> dict:
     maq = x.get('maquina')
     revisor = 'revis' in texto or maq in (None, '', 0, '0')              # ocorrencia sem maquina = revisor (revisao cru)
     return dict(id=x.get('id'), maquina=str(maq).zfill(2) if str(maq or '').isdigit() and str(maq) != '0' else (str(maq) if maq else ''), tipo=str(x.get('tipo') or '').upper(), motivo=x.get('motivo') or '',
-                inicio=ini.strftime('%H:%M') if ini else '', dia=ini.strftime('%d/%m') if ini else '', minutos=mins, aberta_por=x.get('abertaPor') or '', status=x.get('status') or '',
+                inicio=ini.strftime('%H:%M') if ini else '', dia=ini.strftime('%d/%m') if ini else '', minutos=mins, subtipo=str(x.get('subtipo') or '').upper(), aberta_por=x.get('abertaPor') or '', status=x.get('status') or '',
                 turno=x.get('turnoInicio') or '', revisor=revisor, aguardando_peca=str(x.get('status') or '').upper() == 'AGUARDANDO_1A_PECA')
 
 

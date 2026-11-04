@@ -416,6 +416,61 @@ def estimativa_artigo(maquina: int, s):
                 min_por_peca=round(min_peca, 1), pecas_hora=round(por_dia / 24, 2), pecas_turno=round(por_dia / 3, 1), pecas_dia=round(por_dia, 1), metros_dia=round(por_dia * metros) if metros else None)
 
 
+AMOSTRA_FIM_HORA = int(os.getenv('AMOSTRA_FIM_HORA', '18'))                  # toda amostra termina no maximo as 18h
+AMOSTRA_INICIO_PADRAO = os.getenv('AMOSTRA_INICIO_PADRAO', '06:20')         # amostra programada sem horario: considera que a maquina para no comeco do dia de producao
+
+
+def janelas_parada(numero: int, agora: datetime) -> list:
+    """[(inicio, fim)] em que a maquina NAO produz por amostra ou manutencao PREVENTIVA (programadas ou em andamento), em horario de Brasilia.
+    - AMOSTRA: do inicio (ou 06:20 do dia programado) ate as 18h (AMOSTRA_FIM_HORA) do dia; se ja passou das 18h, nao segura mais a maquina.
+    - MANUTENCAO PREVENTIVA: do inicio (dia programado, 00:00) ate o fim do dia da DATA DE TERMINO. Sem data de termino nao da para calcular; corretiva nao entra."""
+    from app.models import AvisoManut
+    res = []
+    um_dia = timedelta(days=1)
+    for a in AvisoManut.query.filter(AvisoManut.maquina == numero, AvisoManut.status.in_(['PROGRAMADA', 'EM_ANDAMENTO'])).all():
+        ini_real = (a.inicio - timedelta(hours=3)) if a.inicio else None             # UTC -> Brasilia
+        if a.tipo == 'AMOSTRA':
+            if a.status == 'EM_ANDAMENTO' and ini_real:
+                ini = ini_real
+                fim = datetime.combine(ini.date(), datetime.min.time()) + timedelta(hours=AMOSTRA_FIM_HORA)
+                if ini >= fim:
+                    fim += um_dia                                                    # comecou de noite: vai ate as 18h do dia seguinte
+            elif a.data:
+                hh, mm = (int(x) for x in AMOSTRA_INICIO_PADRAO.split(':'))
+                ini = ini_real if (ini_real and ini_real.date() == a.data) else datetime.combine(a.data, datetime.min.time()) + timedelta(hours=hh, minutes=mm)
+                fim = datetime.combine(a.data, datetime.min.time()) + timedelta(hours=AMOSTRA_FIM_HORA)
+            else:
+                continue
+        elif a.tipo == 'MANUTENCAO' and (a.subtipo or '').upper() == 'PREVENTIVA' and a.data_termino:
+            ini = ini_real if (a.status == 'EM_ANDAMENTO' and ini_real) else datetime.combine(a.data or a.data_termino, datetime.min.time())
+            fim = datetime.combine(a.data_termino, datetime.min.time()) + um_dia
+        else:
+            continue
+        if fim > agora and fim > ini:
+            res.append((ini, fim))
+    return sorted(res)
+
+
+def _com_janelas(inicio: datetime, dias: float, parados: set, janelas: list) -> datetime:
+    """Como _pular_dias, mas tambem pausa a producao nas janelas de parada (amostra / manutencao preventiva)."""
+    t, resta = inicio, dias
+    desloc = timedelta(hours=6)
+    for ini, fim in janelas:
+        if fim <= t:
+            continue
+        if ini <= t:                                           # a maquina ja esta parada: so volta no fim da janela
+            t = fim
+            continue
+        sem_parada = _pular_dias(t, resta, parados)
+        if sem_parada <= ini:                                  # a OP termina antes da parada
+            return sem_parada
+        dias_parados = len({d for d in parados if (t - desloc).date() <= d <= (ini - desloc).date()})
+        trabalhado = max((ini - t).total_seconds() / 86400 - dias_parados, 0.0)
+        resta = max(resta - trabalhado, 0.0)
+        t = fim
+    return _pular_dias(t, resta, parados)
+
+
 def _pular_dias(inicio: datetime, dias: float, parados: set) -> datetime:
     """Termina `dias` de producao depois de `inicio`, pulando os dias sem producao. O dia de producao vai das 06:00 as 06:00 (a fabrica para no domingo 06:00 e volta na
     segunda 06:00), por isso as datas sao contadas com 6 h de deslocamento: um domingo sem producao cobre de domingo 06:00 a segunda 06:00."""
@@ -453,6 +508,7 @@ def calcular(agora=None, maquina: int = None, esperar: bool = False) -> int:
             seqs.sort(key=lambda s: (s.sequence_order if s.sequence_order is not None else 10 ** 6, s.id))      # a ordem da fila manda (o PCP pode trocar quem esta em 1o)
             primeiro_trocado = bool(seqs) and seqs[0].status != 'PRODUZINDO' and any(x.status == 'PRODUZINDO' for x in seqs)      # PCP pôs outra OP na frente da que o Hub diz estar produzindo
             cursor = agora
+            janelas = janelas_parada(m.number, agora)
             for pos, s in enumerate(seqs):
                 ref, fonte = referencia(idx, m.number, s.op, s.artigo)
                 rap = None if ref else previsao_raport(cfg, m.number, s, idx[2])
@@ -472,7 +528,7 @@ def calcular(agora=None, maquina: int = None, esperar: bool = False) -> int:
                 tempo_peca = voltas / rpm                               # minutos por peca
                 pecas_dia = minutos_dia / tempo_peca
                 restam = max((s.total_pcs or 0) - (s.pecas_produzidas or 0), 0)
-                fim = _pular_dias(cursor, restam / pecas_dia, parados)
+                fim = _com_janelas(cursor, restam / pecas_dia, parados, janelas) if janelas else _pular_dias(cursor, restam / pecas_dia, parados)
                 s.pecas_dia, s.prev_fonte, s.prev_rpm, s.prev_voltas = round(pecas_dia, 2), fonte, round(rpm, 3), round(voltas, 1)
                 s.termino_malharia, s.termino_calculado, s.prev_termino_em = fim.date(), True, fim
                 cursor = fim
