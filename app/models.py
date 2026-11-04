@@ -498,6 +498,7 @@ class AvisoManut(db.Model):
     mecanico = db.Column(db.String(120))
     data = db.Column(db.Date, nullable=True)                                # dia previsto/de referencia
     horas_estimadas = db.Column(db.Float, nullable=True)
+    data_termino = db.Column(db.Date, nullable=True)                        # data (sem hora) em que a manutencao/amostra termina; o lider que finaliza no Acompanhamento preenche sozinho se estiver vazia
     inicio = db.Column(db.DateTime, nullable=True)                          # UTC
     fim = db.Column(db.DateTime, nullable=True)                             # UTC
     status = db.Column(db.String(14), default='PROGRAMADA', index=True)     # PROGRAMADA | EM_ANDAMENTO | FINALIZADA
