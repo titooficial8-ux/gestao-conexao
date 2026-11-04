@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, jsonify, request, send_file
+import io
 from flask_login import current_user, login_required
 
 from app import db
-from app.models import Sugestao
+from app.models import Sugestao, SugestaoAnexo
 
 sugestoes_bp = Blueprint('sugestoes', __name__, url_prefix='/sugestoes')
 BRT = timezone(timedelta(hours=-3))
@@ -32,23 +33,53 @@ def eu():
     return jsonify(nome=nome, primeiro=nome.split(' - ')[0].split()[0] if nome else '', setor=_setor_do_usuario())
 
 
+MAX_ANEXO = 8 * 1024 * 1024
+MAX_ANEXOS = 6
+
+
 @sugestoes_bp.route('/enviar', methods=['POST'])
 @login_required
 def enviar():
-    d = request.get_json(silent=True) or {}
+    """Aceita multipart (texto + arquivos/prints colados) ou JSON so com texto."""
+    d = request.form if request.form or request.files else (request.get_json(silent=True) or {})
     texto = str(d.get('texto') or '').strip()
-    if len(texto) < 10:
-        return jsonify(erro='Conte um pouco mais da sua sugestão (mínimo de 10 caracteres).'), 400
+    arqs = [f for f in request.files.getlist('arquivos') if f and f.filename]
+    if len(texto) < (3 if arqs else 10):
+        return jsonify(erro='Conte um pouco mais da sua sugestão (mínimo de 10 caracteres).' if not arqs else 'Escreva ao menos uma frase sobre o anexo.'), 400
     if len(texto) > 3000:
         return jsonify(erro='Use no máximo 3000 caracteres.'), 400
-    db.session.add(Sugestao(usuario_id=current_user.id, nome=current_user.name, setor=_setor_do_usuario(), texto=texto))
+    if len(arqs) > MAX_ANEXOS:
+        return jsonify(erro=f'Anexe no máximo {MAX_ANEXOS} arquivos.'), 400
+    blobs = []
+    for f in arqs:
+        dados = f.read()
+        if len(dados) > MAX_ANEXO:
+            return jsonify(erro=f'"{f.filename}" passa de 8 MB.'), 400
+        blobs.append((f.filename[:200], (f.mimetype or 'application/octet-stream')[:100], dados))
+    x = Sugestao(usuario_id=current_user.id, nome=current_user.name, setor=_setor_do_usuario(), texto=texto)
+    db.session.add(x)
+    db.session.flush()
+    for nome, mime, dados in blobs:
+        db.session.add(SugestaoAnexo(sugestao_id=x.id, nome=nome, mime=mime, dados=dados))
     db.session.commit()
     return jsonify(ok=True)
 
 
+@sugestoes_bp.route('/anexo/<int:aid>')
+@login_required
+def anexo(aid):
+    a = db.session.get(SugestaoAnexo, aid) or abort(404)
+    x = db.session.get(Sugestao, a.sugestao_id) or abort(404)
+    if not (_ve_sugestoes() or x.usuario_id == current_user.id):
+        abort(403)
+    img = (a.mime or '').startswith('image/') and (a.mime or '') != 'image/svg+xml'
+    return send_file(io.BytesIO(a.dados or b''), mimetype=a.mime if img else 'application/octet-stream', as_attachment=not img, download_name=a.nome)
+
+
 def _json(x: Sugestao) -> dict:
+    anexos = [dict(id=a.id, nome=a.nome or 'arquivo', img=(a.mime or '').startswith('image/') and a.mime != 'image/svg+xml') for a in SugestaoAnexo.query.filter_by(sugestao_id=x.id).all()]
     em = x.criada_em.replace(tzinfo=timezone.utc).astimezone(BRT) if x.criada_em else None
-    return dict(id=x.id, nome=x.nome or '', setor=x.setor or '', texto=x.texto or '', status=x.status, em=em.strftime('%d/%m/%Y %H:%M') if em else '', por=x.tratada_por or '')
+    return dict(id=x.id, nome=x.nome or '', setor=x.setor or '', texto=x.texto or '', status=x.status, em=em.strftime('%d/%m/%Y %H:%M') if em else '', por=x.tratada_por or '', anexos=anexos)
 
 
 @sugestoes_bp.route('/notificacoes')

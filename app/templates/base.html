@@ -26,7 +26,7 @@
       .sg-pn{position:absolute;right:0;top:44px;width:min(420px,92vw);max-height:70vh;overflow:auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 18px 50px rgba(15,23,42,.25);z-index:3500;padding:8px}.sg-pn[hidden]{display:none}
       .sg-pn h4{margin:6px 8px 8px;font-size:13px;color:#0f2540}.sg-it{border:1px solid #eef0f4;border-radius:10px;padding:9px 11px;margin:6px 0;font-size:13px;color:#1e293b;background:#fff}.sg-it.nova{border-left:4px solid #f97316;background:#fffaf5}
       .sg-it small{color:#64748b;display:block;margin-bottom:3px}.sg-it .tx{white-space:pre-wrap}.sg-it .ac{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}.sg-it .ac button{border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:700;cursor:pointer}
-      .sg-st{display:inline-block;font-size:10px;font-weight:900;border-radius:6px;padding:1px 7px;margin-left:6px;background:#e5e7eb;color:#475569}.sg-st.NOVA{background:#ffedd5;color:#9a3412}.sg-st.EM_ANALISE{background:#dbeafe;color:#1e40af}.sg-st.CONCLUIDA{background:#dcfce7;color:#166534}
+      .sg-th{max-width:100%;max-height:150px;border-radius:8px;border:1px solid #e2e8f0;margin:6px 6px 0 0}.sg-ar{display:inline-block;margin:6px 8px 0 0;font-size:12px;font-weight:700;color:#0a4aa8}.sg-st{display:inline-block;font-size:10px;font-weight:900;border-radius:6px;padding:1px 7px;margin-left:6px;background:#e5e7eb;color:#475569}.sg-st.NOVA{background:#ffedd5;color:#9a3412}.sg-st.EM_ANALISE{background:#dbeafe;color:#1e40af}.sg-st.CONCLUIDA{background:#dcfce7;color:#166534}
       </style>
       <div class="sg-sino" id="sgSino" hidden><button type="button" class="sg-sino-bt" id="sgSinoBt" title="Sugestões dos usuários">&#128276;<span class="sg-sino-n" id="sgSinoN" hidden>0</span></button><div class="sg-pn" id="sgPn" hidden></div></div>
       <script>
@@ -36,7 +36,7 @@
         var ROT = { NOVA: 'NOVA', EM_ANALISE: 'EM ANÁLISE', CONCLUIDA: 'CONCLUÍDA' };
         function desenhar(d) {
           pn.innerHTML = '<h4>&#128161; ' + (EH ? 'Sugestões de melhoria (' + d.novas + ' nova' + (d.novas === 1 ? '' : 's') + ')' : 'Minhas sugestões') + '</h4>' + (d.itens.length ? d.itens.map(function (x) {
-            return '<div class="sg-it ' + (x.status === 'NOVA' ? 'nova' : '') + '"><small><b>' + esc(x.nome) + '</b> · ' + esc(x.setor) + ' · ' + esc(x.em) + '<span class="sg-st ' + x.status + '">' + ROT[x.status] + '</span></small><div class="tx">' + esc(x.texto) + '</div><div class="ac">' +
+            return '<div class="sg-it ' + (x.status === 'NOVA' ? 'nova' : '') + '"><small><b>' + esc(x.nome) + '</b> · ' + esc(x.setor) + ' · ' + esc(x.em) + '<span class="sg-st ' + x.status + '">' + ROT[x.status] + '</span></small><div class="tx">' + esc(x.texto) + '</div>' + (x.anexos || []).map(function (a) { return a.img ? '<a href="/sugestoes/anexo/' + a.id + '" target="_blank"><img class="sg-th" src="/sugestoes/anexo/' + a.id + '" alt=""></a>' : '<a class="sg-ar" href="/sugestoes/anexo/' + a.id + '">&#128206; ' + esc(a.nome) + '</a>'; }).join('') + '<div class="ac">' +
               (EH && x.status !== 'EM_ANALISE' ? '<button data-sg="' + x.id + '" data-st="EM_ANALISE">Em análise</button>' : '') + (EH && x.status !== 'CONCLUIDA' ? '<button data-sg="' + x.id + '" data-st="CONCLUIDA">Concluída</button>' : '') + '</div></div>'; }).join('') : '<div class="sg-it">Nenhuma sugestão ainda.</div>');
         }
         function carregar() {
