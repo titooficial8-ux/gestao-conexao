@@ -37,6 +37,7 @@
   <div class="am-r2"><div><label>Tipo</label><select id="fTipo"><option value="MANUTENCAO">Manutenção</option><option value="AMOSTRA">Amostra</option></select></div><div><label>Máquina</label><input type="text" id="fMaq" placeholder="ex.: 44"></div></div>
   <div class="am-r2"><div><label>Data prevista</label><input type="date" id="fData"></div><div><label>Data de término</label><input type="date" id="fTermino"></div></div>
   <label>Horas estimadas</label><input type="text" id="fHoras" placeholder="ex.: 4">
+  <div id="fSubBox"><label>Tipo de manutenção</label><select id="fSub"><option value="PREVENTIVA">Preventiva (tira os dias de produção do cálculo de entregas)</option><option value="CORRETIVA">Corretiva</option></select></div>
   <label>Mecânico(s)</label><input type="text" id="fMec" placeholder="ex.: Jose/Junior">
   <div class="am-r2"><div><label>Início</label><input type="datetime-local" id="fIni"></div><div><label>Encerramento</label><input type="datetime-local" id="fFim"></div></div>
   <label>Observação</label><textarea id="fObs" rows="3"></textarea>
@@ -52,7 +53,7 @@
   function card(a) {
     var s = stTxt(a), rot = a.tipo === 'AMOSTRA' ? 'Amostra' : 'Manutenção';
     return '<div class="am-card ' + s[0] + '"><span class="am-st ' + s[0] + '">' + s[1] + '</span><div class="am-maq">&#9881; ' + esc(a.maquina) + '</div>' +
-      '<div class="am-l">&#9201; ' + (a.horas != null ? esc(a.horas) + 'h estimadas' : '0h estimadas') + '</div>' + (a.data ? '<div class="am-l">&#128197; ' + esc(a.data) + '</div>' : '') + (a.termino ? '<div class="am-l">&#127937; Término: <b>' + esc(a.termino) + '</b></div>' : '') +
+      '<div class="am-l">&#9201; ' + (a.horas != null ? esc(a.horas) + 'h estimadas' : '0h estimadas') + '</div>' + (a.data ? '<div class="am-l">&#128197; ' + esc(a.data) + '</div>' : '') + (a.termino ? '<div class="am-l">&#127937; Término: <b>' + esc(a.termino) + '</b></div>' : '') + (a.subtipo ? '<div class="am-l">' + (a.subtipo === 'PREVENTIVA' ? 'Preventiva' : 'Corretiva') + '</div>' : '') +
       (a.mecanico ? '<div class="am-l">&#128295; Mecânico: <b>' + esc(a.mecanico) + '</b></div>' : '') + (a.inicio ? '<div class="am-l">Início: <b>' + esc(a.inicio) + '</b></div>' : '') +
       (a.fim ? '<div class="am-l">Encerrada: <b>' + esc(a.fim) + '</b></div>' : '') + (a.duracao ? '<div class="am-l">Duração' + (a.status === 'EM_ANDAMENTO' ? ' até agora' : ' real') + ': <b>' + esc(a.duracao) + '</b></div>' : '') +
       (a.anomalia ? '<div class="am-warn">&#9888; Encerramento anterior ao início — verificar as datas</div>' : '') + (a.obs ? '<div class="am-l" style="margin-top:6px">' + esc(a.obs) + '</div>' : '') +
@@ -75,15 +76,17 @@
   document.querySelectorAll('.am-aba').forEach(function (b) { b.addEventListener('click', function () { tipo = b.dataset.t; document.querySelectorAll('.am-aba').forEach(function (x) { x.classList.toggle('on', x === b); }); carregar(); }); });
   $('amAtu').addEventListener('click', carregar);
   $('amHist').addEventListener('click', function () { hist = !hist; $('amHist').classList.toggle('on', hist); carregar(); });
+  function mostraSub() { $('fSubBox').style.display = $('fTipo').value === 'MANUTENCAO' ? '' : 'none'; }
+  $('fTipo').addEventListener('change', mostraSub);
   function abrir(a) {
     editId = a ? a.id : null; $('amModT').textContent = a ? 'Editar aviso' : 'Novo aviso'; $('amErr').textContent = '';
-    $('fTipo').value = a ? a.tipo : tipo; $('fTipo').disabled = !!a; $('fMaq').value = a ? a.maquina : ''; $('fData').value = a ? a.data_iso : ''; $('fTermino').value = a ? a.termino_iso : ''; $('fHoras').value = a && a.horas != null ? a.horas : '';
+    $('fTipo').value = a ? a.tipo : tipo; $('fTipo').disabled = !!a; $('fMaq').value = a ? a.maquina : ''; $('fData').value = a ? a.data_iso : ''; $('fTermino').value = a ? a.termino_iso : ''; $('fSub').value = a && a.subtipo ? a.subtipo : 'PREVENTIVA'; mostraSub(); $('fHoras').value = a && a.horas != null ? a.horas : '';
     $('fMec').value = a ? a.mecanico : ''; $('fIni').value = a ? a.inicio_iso : ''; $('fFim').value = a ? a.fim_iso : ''; $('fObs').value = a ? a.obs : ''; $('amMod').hidden = false;
   }
   $('amNovo').addEventListener('click', function () { abrir(null); });
   $('amCn').addEventListener('click', function () { $('amMod').hidden = true; });
   $('amSalvar').addEventListener('click', function () {
-    var c = { tipo: $('fTipo').value, maquina: $('fMaq').value, data: $('fData').value, termino: $('fTermino').value, horas: $('fHoras').value, mecanico: $('fMec').value, inicio: $('fIni').value, fim: $('fFim').value, obs: $('fObs').value };
+    var c = { tipo: $('fTipo').value, maquina: $('fMaq').value, data: $('fData').value, termino: $('fTermino').value, subtipo: $('fTipo').value === 'MANUTENCAO' ? $('fSub').value : '', horas: $('fHoras').value, mecanico: $('fMec').value, inicio: $('fIni').value, fim: $('fFim').value, obs: $('fObs').value };
     post(editId ? '/manutencoes/avisos/' + editId : '/manutencoes/avisos', c).then(function () { $('amMod').hidden = true; carregar(); }).catch(function (e) { $('amErr').textContent = e.message; });
   });
   $('amLista').addEventListener('click', function (e) {
