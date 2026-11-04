@@ -3,9 +3,11 @@
 .machine-card.em-manut{box-shadow:0 0 0 3px #dc2626,0 0 18px rgba(220,38,38,.55)}
 .machine-card.em-amostra{box-shadow:0 0 0 3px #7c3aed,0 0 18px rgba(124,58,237,.5)}
 .amostra-faixa{position:absolute;left:0;right:0;top:0;z-index:5;background:#7c3aed;color:#fff;font-weight:900;font-size:11px;letter-spacing:.06em;text-align:center;padding:3px 4px;border-radius:12px 12px 0 0;animation:manutPisca 1.4s infinite}
+.prog-tags{position:absolute;left:6px;right:6px;bottom:6px;z-index:5;display:flex;gap:4px;flex-wrap:wrap;justify-content:center}.prog-tag{background:#fef3c7;border:1px solid #f59e0b;color:#92400e;font-weight:800;font-size:10.5px;border-radius:999px;padding:2px 8px}
 .manut-faixa{position:absolute;left:0;right:0;top:0;z-index:5;background:#dc2626;color:#fff;font-weight:900;font-size:11px;letter-spacing:.06em;text-align:center;padding:3px 4px;border-radius:12px 12px 0 0;animation:manutPisca 1s infinite}
 </style>
 {% set amostras = amostras_ativas() %}
+{% set programados = avisos_programados() %}
 {% if machines %}
 <div class="machines-grid">
   {% for m in machines %}
@@ -13,6 +15,7 @@
     <span class="machine-status-dot"></span>
     {% if manut_ativas and m.number in manut_ativas %}<span class="manut-faixa" title="Manutenção em andamento {{ manut_ativas[m.number] }} (lider sinalizou no Acompanhamento de Produção)">&#128295; EM MANUTENÇÃO</span>{% endif %}
     {% if m.number in amostras and not (manut_ativas and m.number in manut_ativas) %}<span class="amostra-faixa" title="Amostra em andamento {{ amostras[m.number] }} (lider sinalizou no Acompanhamento de Produção)">&#129514; EM AMOSTRA</span>{% endif %}
+    {% if m.number in programados %}<span class="prog-tags">{% for pg in programados[m.number] %}<span class="prog-tag" title="{{ pg.rotulo }} programada para {{ pg.data_completa }}">{{ pg.icone }} {{ pg.rotulo }} programada {{ pg.data }}</span>{% endfor %}</span>{% endif %}
     {% set ind = ind_maquinas.get(m.id) if ind_maquinas else None %}
     <span class="machine-ind-row">
       {% if ind %}
