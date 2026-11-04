@@ -23,7 +23,9 @@ _trava = threading.Lock()
 
 
 def configurado() -> bool:
-    return bool(os.getenv('PCPHUB_EMAIL') and os.getenv('PCPHUB_PASSWORD'))
+    """O PCP Hub foi DESATIVADO: o Gestao e a unica fonte (OPs novas, historico e relatorio 32 nao vem mais de la). So volta a ler se PCPHUB_ATIVO=1 no .env.
+    O que ja foi importado (historico de producao, manutencoes/amostras, pesagens do relatorio 32) fica guardado no banco."""
+    return os.getenv('PCPHUB_ATIVO') == '1' and bool(os.getenv('PCPHUB_EMAIL') and os.getenv('PCPHUB_PASSWORD'))
 
 
 _TOKEN = dict(v=None, ate=0.0)
@@ -387,7 +389,7 @@ def atualizar(app) -> bool:
 
 def iniciar_agendador(app) -> None:
     if not configurado():
-        ESTADO['msg'] = 'PCP Hub não configurado (PCPHUB_EMAIL e PCPHUB_PASSWORD no .env)'
+        ESTADO['msg'] = 'PCP Hub desativado (o Gestão é a fonte única)'
         return
 
     def loop():
