@@ -138,8 +138,48 @@ def limpar_cliente(nome):
     return _CORRECOES_CLIENTE.get(t.upper(), t) or None
 
 
+def _aplicar_so_novas(linhas: list, agora=None) -> dict:
+    """O Gestao e o coracao da Programacao: a leitura do PCP Hub NAO apaga, NAO move, NAO reordena e NAO altera nenhuma OP que ja existe aqui. So traz OP nova (numero que o Gestao ainda nao conhece)
+    e a coloca no fim da fila da maquina. (Para voltar ao espelho antigo, defina PCPHUB_ESPELHO=1 no .env.)"""
+    from app import db
+    from app.main.routes import resolve_estrutura_from_article
+    from app.models import Machine, Sequencia
+    agora = agora or datetime.utcnow()
+    maquinas = {m.number: m for m in Machine.query.all()}
+    ja = {str(s.op) for s in Sequencia.query.all() if s.op}              # inclui finalizadas/canceladas: nao ressuscita OP que o Gestao ja encerrou
+    prox, criadas = {}, 0
+    for r in linhas:
+        op = str(r.get('op') or '').strip()
+        if not op or op in ja:
+            continue
+        try:
+            numero = int(str(r.get('machine')).strip())
+        except (TypeError, ValueError):
+            continue
+        m = maquinas.get(numero)
+        if not m:
+            m = Machine(number=numero)
+            db.session.add(m)
+            db.session.flush()
+            maquinas[numero] = m
+        if m.id not in prox:
+            prox[m.id] = max([x.sequence_order or 0 for x in Sequencia.query.filter_by(machine_id=m.id).all()] or [0])
+        prox[m.id] += 1
+        db.session.add(Sequencia(machine_id=m.id, sequence_order=prox[m.id], artigo=r.get('article'), cliente=limpar_cliente(r.get('client')), op=op, status=r.get('status') or 'PCP', total_pcs=_int(r.get('total_pcs')),
+                                 qt_solicitada=_int(r.get('requested_quantity')), qt_avulsa=_int(r.get('qt_avulsa')), cod_segmento=r.get('cod_segmento'), dt_cliente=_data(r.get('client_date')),
+                                 production_month=r.get('production_month'), termino_malharia=_data(r.get('estimated_end_date')), estrutura=resolve_estrutura_from_article(r.get('article')),
+                                 region=r.get('region') or 'BR', synced_at=agora, pecas_produzidas=_int(r.get('quantity_pieces')), hub_ordem=_int(r.get('sequence_order')), origem_reg='hub'))
+        ja.add(op)
+        criadas += 1
+    db.session.commit()
+    return dict(criadas=criadas, atualizadas=0, removidas=0, movidas=0)
+
+
 def aplicar(linhas: list, agora=None) -> dict:
-    """Atualiza as Sequencias do banco com as linhas (mesmo formato do PCP Hub). Precisa estar dentro do app_context."""
+    """Atualiza as Sequencias do banco com as linhas (mesmo formato do PCP Hub). Precisa estar dentro do app_context.
+    Por padrao o Gestao manda: so entram OPs novas (ver _aplicar_so_novas). Com PCPHUB_ESPELHO=1 volta o espelho antigo (Hub manda: atualiza, move, reordena e remove)."""
+    if os.getenv('PCPHUB_ESPELHO') != '1':
+        return _aplicar_so_novas(linhas, agora)
     from app import db
     from app.main.routes import resolve_estrutura_from_article
     from app.models import Machine, Sequencia
