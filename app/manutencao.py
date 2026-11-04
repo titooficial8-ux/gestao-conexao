@@ -183,6 +183,7 @@ def sincronizar() -> dict:
         for av in AvisoManut.query.filter(AvisoManut.status == 'EM_ANDAMENTO', AvisoManut.acomp_id.isnot(None)).all():
             if av.acomp_id not in abertas:
                 av.status, av.fim = 'FINALIZADA', agora
+                av.data_termino = av.data_termino or agora.replace(tzinfo=timezone.utc).astimezone(BRT).date()      # o lider finalizou: a data de termino e a de hoje
                 finalizados += 1
     db.session.commit()
     return dict(ok=True, criados=criados, iniciados=iniciados, finalizados=finalizados, abertas=len(abertas))
@@ -240,7 +241,7 @@ def _json(a: AvisoManut) -> dict:
     if ini and ref_fim and ref_fim >= ini:
         mins = int((ref_fim - ini).total_seconds() // 60)
         dur = f'{mins // 60}h{mins % 60:02d}'
-    return dict(id=a.id, tipo=a.tipo, maquina=a.maquina, mecanico=a.mecanico or '', data=a.data.strftime('%d/%m/%Y') if a.data else '', data_iso=a.data.isoformat() if a.data else '', horas=a.horas_estimadas,
+    return dict(id=a.id, tipo=a.tipo, maquina=a.maquina, mecanico=a.mecanico or '', data=a.data.strftime('%d/%m/%Y') if a.data else '', data_iso=a.data.isoformat() if a.data else '', termino=a.data_termino.strftime('%d/%m/%Y') if a.data_termino else '', termino_iso=a.data_termino.isoformat() if a.data_termino else '', horas=a.horas_estimadas,
                 inicio=ini.strftime('%d/%m/%Y %H:%M') if ini else '', inicio_iso=ini.strftime('%Y-%m-%dT%H:%M') if ini else '', fim=fim.strftime('%d/%m/%Y %H:%M') if fim else '', fim_iso=fim.strftime('%Y-%m-%dT%H:%M') if fim else '',
                 status=a.status, duracao=dur, obs=a.obs or '', origem=a.origem, anomalia=bool(ini and fim and fim < ini))
 
@@ -271,6 +272,8 @@ def _aplicar(a: AvisoManut, d: dict):
         a.horas_estimadas = _num(d.get('horas'))
     if 'data' in d and d.get('data'):
         a.data = date.fromisoformat(str(d['data'])[:10])
+    if 'termino' in d:
+        a.data_termino = date.fromisoformat(str(d['termino'])[:10]) if d.get('termino') else None
     for campo, k in (('inicio', 'inicio'), ('fim', 'fim')):
         if k in d:
             v = str(d.get(k) or '').strip()
