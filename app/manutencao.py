@@ -111,6 +111,34 @@ def _tipo_da_ocorrencia(x: dict):
     return None
 
 
+def _abertas_setups() -> tuple:
+    """Eventos abertos em /setups (SETUP, MANUTENCAO, AMOSTRA...): o card do Acompanhamento 'MANUTENÇÃO PREVENTIVA - 0 pç - desde 23:41' vem daqui. Devolve (itens, bruto, erro)."""
+    from app import acompanhamento as ac
+    hoje = datetime.now(BRT).date()
+    itens, bruto, erro = [], [], None
+    for dia in (hoje, hoje - timedelta(days=1)):
+        try:
+            lista = ac._lista(ac.chamar('/setups', {'de': dia.isoformat(), 'ate': dia.isoformat()}))
+        except Exception as e:  # noqa: BLE001
+            erro = str(e)[:160]
+            continue
+        for x in lista:
+            if not isinstance(x, dict):
+                continue
+            bruto.append(x)
+            texto = ' '.join(str(x.get(k) or '') for k in ('tipo', 'motivo', 'descricao', 'tipoSetup', 'status')).upper()
+            st = str(x.get('status') or '').upper()
+            fechado = bool(x.get('fim') or x.get('termino') or x.get('fimEm') or x.get('encerradoEm')) or any(k in st for k in ('FINALIZ', 'ENCERR', 'CONCLU', 'FECHAD'))
+            maq = str(x.get('maquina') or x.get('machine') or x.get('maquina_id') or '')
+            if fechado or not maq.isdigit() or ('MANUT' not in texto and 'AMOSTR' not in texto):
+                continue
+            ini = ac._local(x.get('inicio') or x.get('inicioEm') or x.get('criadoEm'))
+            mins = int(max((datetime.now() - ini).total_seconds() // 60, 0)) if ini else 0
+            itens.append(dict(id='s' + str(x.get('id')), maquina=str(int(maq)), tipo=str(x.get('tipo') or '').upper(), motivo=x.get('motivo') or x.get('descricao') or '', minutos=mins,
+                              aberta_por=x.get('abertaPor') or x.get('responsavel') or '', revisor=False))
+    return itens, bruto, erro
+
+
 def sincronizar() -> dict:
     """Uma rodada: ocorrencias abertas no Acompanhamento -> avisos em andamento; as que fecharam -> finalizadas."""
     from app import acompanhamento
@@ -121,7 +149,14 @@ def sincronizar() -> dict:
         return dict(ok=False, msg=r['erro'])
     agora = datetime.utcnow()
     abertas = {}
-    for x in r.get('itens') or []:
+    extras, erro_setups = [], None
+    try:
+        extras, _b, erro_setups = _abertas_setups()
+    except Exception as e:  # noqa: BLE001
+        erro_setups = str(e)[:160]
+    if erro_setups:
+        r = dict(r, erro=r.get('erro') or erro_setups)           # leitura incompleta: nao finaliza nada nesta rodada
+    for x in list(r.get('itens') or []) + extras:
         tipo = _tipo_da_ocorrencia(x)
         if not tipo or x.get('revisor') or not str(x.get('maquina') or '').isdigit():
             continue
@@ -309,4 +344,9 @@ def diagnostico():
         sinc = sincronizar()
     except Exception as e:  # noqa: BLE001
         sinc = dict(erro=str(e)[:200])
-    return jsonify(hub=amostra, sincronizacao=sinc, avisos=AvisoManut.query.count())
+    try:
+        _i, bruto, erro = _abertas_setups()
+        setups = dict(erro=erro, lidos=len(bruto), abertos_manut_amostra=_i, exemplo=bruto[:3])
+    except Exception as e:  # noqa: BLE001
+        setups = dict(erro=str(e)[:200])
+    return jsonify(hub=amostra, sincronizacao=sinc, setups=setups, avisos=AvisoManut.query.count())
