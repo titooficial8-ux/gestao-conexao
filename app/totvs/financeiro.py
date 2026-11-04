@@ -301,14 +301,14 @@ def _diff(antes: dict, depois: list) -> list:
         a = antes.get(k)
         if a is None:
             if antes:
-                ch.append(dict(em=agora, tipo='Novo título', doc=t['doc'], parcela=t['parcela'], nome=t['nome'], de='', para=t['venc'], valor=t['valor']))
+                ch.append(dict(em=agora, tipo='Novo título', doc=t['doc'], parcela=t['parcela'], nome=t['nome'], de='', para=t['venc'], valor=t['valor'], emissao=t.get('emissao') or '', venc=t['venc']))
             continue
         if a['venc'] != t['venc']:
-            ch.append(dict(em=agora, tipo='Vencimento alterado', doc=t['doc'], parcela=t['parcela'], nome=t['nome'], de=a['venc'], para=t['venc'], valor=t['valor']))
+            ch.append(dict(em=agora, tipo='Vencimento alterado', doc=t['doc'], parcela=t['parcela'], nome=t['nome'], de=a['venc'], para=t['venc'], valor=t['valor'], emissao=t.get('emissao') or '', venc=t['venc']))
         if a['aberto'] and not t['aberto']:
-            ch.append(dict(em=agora, tipo='Baixado / pago', doc=t['doc'], parcela=t['parcela'], nome=t['nome'], de=a['venc'], para=t['pag_em'] or '', valor=t['valor']))
+            ch.append(dict(em=agora, tipo='Baixado / pago', doc=t['doc'], parcela=t['parcela'], nome=t['nome'], de=a['venc'], para=t['pag_em'] or '', valor=t['valor'], emissao=t.get('emissao') or '', venc=t['venc']))
         elif abs(a['saldo'] - t['saldo']) > 0.01 and t['aberto']:
-            ch.append(dict(em=agora, tipo='Saldo alterado', doc=t['doc'], parcela=t['parcela'], nome=t['nome'], de=str(a['saldo']), para=str(t['saldo']), valor=t['valor']))
+            ch.append(dict(em=agora, tipo='Saldo alterado', doc=t['doc'], parcela=t['parcela'], nome=t['nome'], de=str(a['saldo']), para=str(t['saldo']), valor=t['valor'], emissao=t.get('emissao') or '', venc=t['venc']))
     return ch
 
 
@@ -414,6 +414,21 @@ def _resumo_boletos(rec: list) -> dict:
                 exemplos_com=[cut(t) for t in sorted(com, key=lambda t: t['venc'] or '')[:8]], exemplos_sem=[cut(t) for t in sorted(sem, key=lambda t: t['venc'] or '')[:8]])
 
 
+def _enriquecer_alteracoes(alts: list, d: dict) -> list:
+    """Alteracoes antigas nao guardavam a emissao/vencimento do titulo: completa pela fatura+parcela (e nome) quando o titulo ainda esta na base lida."""
+    base = {}
+    for t in (d.get('receber') or []):
+        base[(str(t.get('doc')), str(t.get('parcela')), str(t.get('nome')))] = t
+        base.setdefault((str(t.get('doc')), str(t.get('parcela')), ''), t)
+    out = []
+    for x in alts:
+        if x.get('emissao') is None or x.get('venc') is None:
+            t = base.get((str(x.get('doc')), str(x.get('parcela')), str(x.get('nome')))) or base.get((str(x.get('doc')), str(x.get('parcela')), ''))
+            x = dict(x, emissao=(t or {}).get('emissao') or '', venc=(t or {}).get('venc') or (x.get('para') if str(x.get('para') or '')[:2] == '20' and len(str(x.get('para'))) == 10 else ''))
+        out.append(x)
+    return out
+
+
 def painel() -> dict:
     from app.models import ClientePais
     d = ler()
@@ -482,7 +497,7 @@ def painel() -> dict:
             continue
         dg['em_dia_proibido'] += 1
         novo = proximo_valido(rg, v)
-        pror.append(dict(cliente=t['nome'], regra=rg['nome'], doc=t['doc'], parcela=t['parcela'], venc=t['venc'], novo=novo.isoformat(), dias=(novo - v).days, valor=t['saldo'], vencido=t['vencido'], deixa_de_ser_atraso=t['vencido'] and novo >= hoje, banco=t['banco'], nosso=t['nosso']))
+        pror.append(dict(cliente=t['nome'], regra=rg['nome'], doc=t['doc'], parcela=t['parcela'], emissao=t.get('emissao') or '', venc=t['venc'], novo=novo.isoformat(), dias=(novo - v).days, valor=t['saldo'], vencido=t['vencido'], deixa_de_ser_atraso=t['vencido'] and novo >= hoje, banco=t['banco'], nosso=t['nosso']))
     pror.sort(key=lambda x: x['venc'])
     return dict(
         ok=True, atualizado=d.get('atualizado'), hoje=hoje.isoformat(),
@@ -497,7 +512,7 @@ def painel() -> dict:
         devedores=[dict(c, valor=r2(c['valor'])) for c in sorted(dev.values(), key=lambda c: -c['valor'])[:10]],
         vencidos_receber=sorted(rv, key=lambda t: -t['atraso'])[:800], vencidos_pagar=sorted(pv, key=lambda t: -t['atraso'])[:800], exportacao=sorted(exp, key=lambda t: t['venc'])[:800], exp_pagos=sorted(pagos, key=lambda t: t['pag_em'] or '', reverse=True)[:600], exp_clientes=exp_clientes, exp_pago_total=r2(sum(t['pago'] or t['valor'] for t in pagos)), pagos_dias=PAGOS_DIAS,
         boletos=_resumo_boletos(rec),
-        prorrogacao=pror[:800], pror_diag=[dict(d, clientes=sorted(d['clientes'])[:5]) for d in diag.values()], total_receber_aberto=len(rec), regras=[dict(nome=r['nome'], texto=r['texto']) for r in REGRAS], alteracoes=(d.get('alteracoes') or [])[:300], banco_teste=[dict(doc=t['doc'], parcela=t['parcela'], cod=t['cod'], cnpj=t['cnpj'], nome=t['nome'], venc=t['venc'], saldo=t['saldo'], banco=t['banco']) for t in rec if t['doc'] and t['banco']][:8])
+        prorrogacao=pror[:800], pror_diag=[dict(d, clientes=sorted(d['clientes'])[:5]) for d in diag.values()], total_receber_aberto=len(rec), regras=[dict(nome=r['nome'], texto=r['texto']) for r in REGRAS], alteracoes=_enriquecer_alteracoes((d.get('alteracoes') or [])[:300], d), banco_teste=[dict(doc=t['doc'], parcela=t['parcela'], cod=t['cod'], cnpj=t['cnpj'], nome=t['nome'], venc=t['venc'], saldo=t['saldo'], banco=t['banco']) for t in rec if t['doc'] and t['banco']][:8])
 
 
 BOLETO_URL = f'{BASE}/api/totvsmoda/accounts-receivable/v2/bank-slip'

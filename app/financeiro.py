@@ -82,11 +82,11 @@ def exportar():
     mes = request.args.get('mes', '')                      # AAAA-MM; vazio = tudo
     dia = lambda v: date.fromisoformat(v).strftime('%d/%m/%Y') if v else ''
     if tipo == 'prorrogacao':
-        nome, cab = 'Prorrogação de vencimento', ['Cliente', 'Regra de pagamento', 'Fatura / Duplicata', 'Parcela', 'Vencimento atual', 'Novo vencimento', 'Dias a prorrogar', 'Valor (R$)', 'Já vencido?', 'Banco', 'Nosso número']
-        linhas = [[x['cliente'], x['regra'], x['doc'], x['parcela'], dia(x['venc']), dia(x['novo']), x['dias'], x['valor'], 'Sim' if x['vencido'] else 'Não', x['banco'], x['nosso']] for x in p['prorrogacao'] if not mes or x['venc'][:7] == mes]
+        nome, cab = 'Prorrogação de vencimento', ['Cliente', 'Regra de pagamento', 'Fatura / Duplicata', 'Parcela', 'Dt. emissão', 'Vencimento atual', 'Novo vencimento', 'Dias a prorrogar', 'Valor (R$)', 'Já vencido?', 'Banco', 'Nosso número']
+        linhas = [[x['cliente'], x['regra'], x['doc'], x['parcela'], dia(x.get('emissao')), dia(x['venc']), dia(x['novo']), x['dias'], x['valor'], 'Sim' if x['vencido'] else 'Não', x['banco'], x['nosso']] for x in p['prorrogacao'] if not mes or x['venc'][:7] == mes]
     elif tipo == 'alteracoes':
-        nome, cab = 'Alterações nos títulos', ['Quando', 'Tipo', 'Cliente', 'Fatura / Duplicata', 'Parcela', 'De', 'Para', 'Valor (R$)']
-        linhas = [[x['em'].replace('T', ' '), x['tipo'], x['nome'], x['doc'], x['parcela'], x['de'], x['para'], x['valor']] for x in p['alteracoes'] if not mes or x['em'][:7] == mes]
+        nome, cab = 'Alterações nos títulos', ['Quando', 'Tipo', 'Cliente', 'Fatura / Duplicata', 'Parcela', 'Dt. emissão', 'Vencimento', 'De', 'Para', 'Valor (R$)']
+        linhas = [[x['em'].replace('T', ' '), x['tipo'], x['nome'], x['doc'], x['parcela'], dia(x.get('emissao')), dia(x.get('venc')), x['de'], x['para'], x['valor']] for x in p['alteracoes'] if not mes or x['em'][:7] == mes]
     elif tipo == 'exportacao':
         nome, cab = 'Exportação', ['Cliente', 'Fatura / Duplicata', 'Parcela', 'Emissão', 'Vencimento', 'Situação', 'Valor original', 'Valor pago', 'Saldo em aberto', 'Pago em']
         lin = []
