@@ -103,6 +103,8 @@ def create_app():
     app.register_blueprint(duimp_bp)
     from app.manutencao import manut_bp
     app.register_blueprint(manut_bp)
+    from app.manutencao import amostras_ativas
+    app.jinja_env.globals['amostras_ativas'] = amostras_ativas
     from app.comunicados import comunicados_bp
     app.register_blueprint(comunicados_bp)
     from app.sugestoes import sugestoes_bp
