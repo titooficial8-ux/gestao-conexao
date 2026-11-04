@@ -245,6 +245,8 @@ def aplicar(linhas: list, agora=None) -> dict:
         saiu = {}
         for chave, s in atuais.items():
             if chave not in vistos:
+                if s.origem_reg == 'gestao' and s.status not in ('FINALIZADO', 'CANCELADO'):     # OP criada no Gestao (Novo Registro / Pre-Programacao): o Hub nao a conhece, mas ela continua na maquina
+                    continue
                 saiu[str(s.op)] = (s, s.machine.number if s.machine else None)
                 if s.status not in ('FINALIZADO', 'CANCELADO'):          # historico: OP que sumiu da fila porque saiu do PCP Hub (fica em Controle de Artigos > Movimentacoes)
                     from app.models import ArtigoMovimentacao
