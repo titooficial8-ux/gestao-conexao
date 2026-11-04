@@ -103,7 +103,7 @@ def importar_do_hub() -> dict:
 
 # ---------------------------------------------------------------- ao vivo: Acompanhamento de Producao
 def _tipo_da_ocorrencia(x: dict):
-    t = (x.get('tipo') or '').upper()
+    t = ((x.get('tipo') or '') + ' ' + (x.get('motivo') or '')).upper()      # o lider pode sinalizar como tipo 'PARADA' com motivo 'MANUTENÇÃO PREVENTIVA'
     if 'MANUT' in t:
         return 'MANUTENCAO'
     if 'AMOSTR' in t:
