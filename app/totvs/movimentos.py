@@ -665,6 +665,8 @@ def _atualizar_situacoes(info: dict, pecas_por_op: dict) -> int:
         lista.sort(key=lambda s: (s.sequence_order if s.sequence_order is not None else 10 ** 6, s.id))
         produzindo = False
         for s in lista:
+            if s.encerrada_manual:
+                continue                                           # o PCP encerrou esta OP no Gestao (com justificativa): o TOTVS nao a reabre
             o = info.get(str(s.op))
             if not o:
                 continue                                           # OP que o TOTVS nao devolveu: nao mexe

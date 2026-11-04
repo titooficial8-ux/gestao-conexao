@@ -123,7 +123,7 @@
         <tr data-seq-id="{{ s.id }}" class="{{ 'seq-atraso ' if s.id in atrasadas else '' }}{{ 'seq-produzindo' if visual_produzindo else ('sit-fase1' if sit0 == 'PCP - Fase¹' else ('sit-fase2' if sit0 == 'PCP - Fase²' else ('sit-estoque' if sit0 == 'ESTOQUE' else ('sit-malharia' if sit0 == 'MALHARIA' else '')))) }}">
           <td>{% if s.status != 'PRODUZINDO' or pode_editar_dt %}<span class="seq-grip" title="Arraste para mudar a ordem; o término da malharia é recalculado">&#10303;</span>{% endif %}<span class="seq-num">{{ loop.index }}º</span><button type="button" class="info-i{{ ' tem-obs' if s.obs_pcp else '' }}" data-maq="{{ machine.number }}" data-seq="{{ s.id }}" title="{{ 'Observação do PCP: ' + s.obs_pcp[:120] if s.obs_pcp else 'Informações desta OP/artigo: observação do PCP, acompanhamento, etapas de liberação e últimas ocorrências' }}">i</button>
             <button type="button" class="au-gear {{ 'ok' if s.aud_ok else 'no' }}" data-seq="{{ s.id }}" {{ '' if aud_sessao else 'disabled' }} title="{{ ('Verificado na máquina pelo mecânico e PCP (clique para desmarcar)' if s.aud_ok else 'Ainda não verificado (clique para marcar)') if aud_sessao else 'Bloqueado: clique em Iniciar Auditoria para marcar' }}"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
-            {% if impedidos.get(s.id) %}<span class="au-bloq" title="{{ impedidos[s.id] }}">&#9940;</span>{% endif %}</td>
+            {% if impedidos.get(s.id) %}<span class="au-bloq" title="{{ impedidos[s.id] }}">&#9940;</span>{% endif %}{% if pode_editar_dt %}<button type="button" class="seq-excluir" data-seq="{{ s.id }}" data-op="{{ s.op }}" data-pc="{{ s.pecas_produzidas or 0 }}/{{ s.total_pcs or 0 }}" title="Excluir: encerra esta OP (vai para o histórico de Finalizadas, com justificativa)">&#128465;</button>{% endif %}</td>
           {% set pct = ((s.pecas_produzidas or 0) / s.total_pcs * 100) | round | int if s.total_pcs else 0 %}
           <td class="seq-prog">
             <strong>{{ s.pecas_produzidas }}</strong>
@@ -428,6 +428,12 @@
 <style>
 .au-btn{border:0;background:#0f2a4a;color:#fff;font-weight:700;font-size:12px;border-radius:8px;padding:5px 12px;cursor:pointer}.au-btn-fim{background:#b91c1c;margin-left:6px}
 .au-em-curso{font-weight:700;color:#166534;background:#dcfce7;border-radius:8px;padding:3px 10px}
+.seq-excluir{border:1px solid #fecaca;background:#fff;color:#b91c1c;border-radius:7px;padding:1px 6px;font-size:13px;line-height:1.3;cursor:pointer;margin-left:6px;vertical-align:middle}.seq-excluir:hover{background:#fef2f2}
+@keyframes exPisca{0%,100%{opacity:1}50%{opacity:.35}}
+.ex-mod{position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:4000;padding:16px}.ex-mod[hidden]{display:none}
+.ex-box{background:#fff;border-radius:16px;width:min(560px,100%);padding:22px 24px;box-shadow:0 24px 70px rgba(15,23,42,.45)}.ex-box h3{margin:0 0 6px;color:#0f2540}.ex-box p{margin:6px 0;font-size:14px;color:#334155}
+.ex-alerta{background:#dc2626;color:#fff;border-radius:10px;padding:11px 14px;margin:12px 0;font-weight:800;font-size:13.5px;line-height:1.45;animation:exPisca 1.1s infinite}
+.ex-box textarea{width:100%;box-sizing:border-box;min-height:90px;border:1px solid #cbd5e1;border-radius:10px;padding:10px;font:inherit;font-size:14px}.ex-acoes{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}.ex-acoes button{border:0;border-radius:10px;padding:10px 18px;font-weight:800;cursor:pointer}.ex-cn{background:#e5e7eb;color:#334155}.ex-ok{background:#dc2626;color:#fff}.ex-ok:disabled{opacity:.6}.ex-err{color:#b91c1c;font-size:13px;min-height:18px;margin-top:6px}
 .au-gear{border:0;background:transparent;padding:0;line-height:0;cursor:pointer;margin-left:6px;vertical-align:middle;transition:transform .25s}.au-gear.no{color:#dc2626 !important}.au-gear.ok{color:#16a34a !important}.au-gear svg{pointer-events:none}.au-gear[disabled]{cursor:not-allowed;opacity:1 !important;filter:none !important}.au-gear[disabled]:hover{transform:none}
 .au-gear:hover{transform:rotate(60deg) scale(1.15)}.au-bloq{font-size:20px;margin-left:4px;cursor:help}
 .au-lista{display:flex;flex-direction:column;gap:6px;margin:12px 0}.au-lista button{padding:9px 12px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;font-size:14px;cursor:pointer;text-align:left}.au-lista button:hover{background:#eff6ff}
@@ -601,6 +607,34 @@ tr.seq-arrastando{opacity:.45}tr.seq-alvo-antes td{box-shadow:inset 0 3px 0 #2f7
   });
 })();
 </script>
+<div class="ex-mod" id="exMod" hidden><div class="ex-box">
+  <h3>Excluir / encerrar a OP <span id="exOp"></span></h3>
+  <p>Peças produzidas: <b id="exPc"></b>. A OP sai da fila da máquina e vai para o histórico de <b>Finalizadas</b>.</p>
+  <div class="ex-alerta">&#9888; ATENÇÃO: ao encerrar aqui, a OP continuará existindo no sistema TOTVS. Peça ao responsável para verificar e baixar/encerrar esta OP no TOTVS depois.</div>
+  <label for="exMotivo"><b>Justificativa (obrigatória)</b></label>
+  <textarea id="exMotivo" placeholder="Ex.: OP já atingiu a quantidade; falta 1 peça só no sistema."></textarea>
+  <div class="ex-err" id="exErr"></div>
+  <div class="ex-acoes"><button type="button" class="ex-cn" id="exCn">Cancelar</button><button type="button" class="ex-ok" id="exOk">Encerrar OP</button></div>
+</div></div>
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); }, alvo = null;
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.seq-excluir'); if (!b) return;
+    alvo = b.dataset.seq; $('exOp').textContent = b.dataset.op; $('exPc').textContent = b.dataset.pc; $('exMotivo').value = ''; $('exErr').textContent = ''; $('exMod').hidden = false;
+    setTimeout(function () { $('exMotivo').focus(); }, 50);
+  });
+  $('exCn').addEventListener('click', function () { $('exMod').hidden = true; });
+  $('exOk').addEventListener('click', function () {
+    var btn = this; btn.disabled = true; $('exErr').textContent = '';
+    fetch('/aba/programacao/sequencia/' + alvo + '/encerrar', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: $('exMotivo').value }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro'); return j; }); })
+      .then(function () { location.reload(); })
+      .catch(function (e) { $('exErr').textContent = e.message; btn.disabled = false; });
+  });
+})();
+</script>
+
 {% include 'main/_info_maquina.html' %}
 {% with auto_maq=machine.number %}{% include 'main/_auto_atualizar.html' %}{% endwith %}
 {% endblock %}
