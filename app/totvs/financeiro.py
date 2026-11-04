@@ -512,7 +512,7 @@ def painel() -> dict:
         devedores=[dict(c, valor=r2(c['valor'])) for c in sorted(dev.values(), key=lambda c: -c['valor'])[:10]],
         vencidos_receber=sorted(rv, key=lambda t: -t['atraso'])[:800], vencidos_pagar=sorted(pv, key=lambda t: -t['atraso'])[:800], exportacao=sorted(exp, key=lambda t: t['venc'])[:800], exp_pagos=sorted(pagos, key=lambda t: t['pag_em'] or '', reverse=True)[:600], exp_clientes=exp_clientes, exp_pago_total=r2(sum(t['pago'] or t['valor'] for t in pagos)), pagos_dias=PAGOS_DIAS,
         boletos=_resumo_boletos(rec),
-        prorrogacao=pror[:800], pror_diag=[dict(d, clientes=sorted(d['clientes'])[:5]) for d in diag.values()], total_receber_aberto=len(rec), regras=[dict(nome=r['nome'], texto=r['texto']) for r in REGRAS], alteracoes=_enriquecer_alteracoes((d.get('alteracoes') or [])[:300], d), banco_teste=[dict(doc=t['doc'], parcela=t['parcela'], cod=t['cod'], cnpj=t['cnpj'], nome=t['nome'], venc=t['venc'], saldo=t['saldo'], banco=t['banco']) for t in rec if t['doc'] and t['banco']][:8])
+        prorrogacao=pror[:800], pror_diag=[dict(d, clientes=sorted(d['clientes'])[:5]) for d in diag.values()], total_receber_aberto=len(rec), regras=[dict(nome=r['nome'], texto=r['texto']) for r in REGRAS], alteracoes=_enriquecer_alteracoes([x for x in (d.get('alteracoes') or []) if regra_do_cliente(x.get('nome'))][:300], d), banco_teste=[dict(doc=t['doc'], parcela=t['parcela'], cod=t['cod'], cnpj=t['cnpj'], nome=t['nome'], venc=t['venc'], saldo=t['saldo'], banco=t['banco']) for t in rec if t['doc'] and t['banco']][:8])
 
 
 BOLETO_URL = f'{BASE}/api/totvsmoda/accounts-receivable/v2/bank-slip'
