@@ -105,6 +105,8 @@ def create_app():
     app.register_blueprint(manut_bp)
     from app.comunicados import comunicados_bp
     app.register_blueprint(comunicados_bp)
+    from app.sugestoes import sugestoes_bp
+    app.register_blueprint(sugestoes_bp)
     from app.indicadores.routes import ind_bp
     app.register_blueprint(ind_bp)
     from app.desenvolvimento.routes import dev_bp
