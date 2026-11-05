@@ -79,7 +79,7 @@ def anexo(aid):
 def _json(x: Sugestao) -> dict:
     anexos = [dict(id=a.id, nome=a.nome or 'arquivo', img=(a.mime or '').startswith('image/') and a.mime != 'image/svg+xml') for a in SugestaoAnexo.query.filter_by(sugestao_id=x.id).all()]
     em = x.criada_em.replace(tzinfo=timezone.utc).astimezone(BRT) if x.criada_em else None
-    return dict(id=x.id, nome=x.nome or '', setor=x.setor or '', texto=x.texto or '', status=x.status, em=em.strftime('%d/%m/%Y %H:%M') if em else '', por=x.tratada_por or '', anexos=anexos)
+    return dict(id=x.id, nome=x.nome or '', setor=x.setor or '', texto=x.texto or '', status=x.status, em=em.strftime('%d/%m/%Y %H:%M') if em else '', por=x.tratada_por or '', anexos=anexos, resposta=x.resposta or '', resposta_por=x.resposta_por or '', resposta_em=(x.resposta_em.replace(tzinfo=timezone.utc).astimezone(BRT).strftime('%d/%m/%Y %H:%M') if x.resposta_em else ''))
 
 
 @sugestoes_bp.route('/notificacoes')
@@ -112,9 +112,14 @@ def mudar_status(sid):
     if not _ve_sugestoes():
         abort(403)
     x = db.session.get(Sugestao, sid) or abort(404)
-    st = str((request.get_json(silent=True) or {}).get('status') or '').upper()
+    st = str((request.get_json(silent=True) or {}).get('status') or x.status or '').upper()
     if st not in ('NOVA', 'EM_ANALISE', 'CONCLUIDA'):
         return jsonify(erro='Status inválido.'), 400
     x.status, x.tratada_por, x.tratada_em, x.vista_autor = st, getattr(current_user, 'name', None), datetime.utcnow(), False
+    resp = (request.get_json(silent=True) or {}).get('resposta')
+    if resp is not None:
+        resp = str(resp).strip()[:2000]
+        if resp != (x.resposta or ''):
+            x.resposta, x.resposta_por, x.resposta_em = resp or None, getattr(current_user, 'name', None), datetime.utcnow()
     db.session.commit()
     return jsonify(ok=True)

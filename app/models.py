@@ -488,6 +488,9 @@ class Sugestao(db.Model):
     criada_em = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     tratada_por = db.Column(db.String(120))
     tratada_em = db.Column(db.DateTime, nullable=True)
+    resposta = db.Column(db.Text, nullable=True)                 # resposta do TI ao solicitante (aparece no sino de quem enviou)
+    resposta_por = db.Column(db.String(120), nullable=True)
+    resposta_em = db.Column(db.DateTime, nullable=True)
     vista_autor = db.Column(db.Boolean, default=False)
 
 
