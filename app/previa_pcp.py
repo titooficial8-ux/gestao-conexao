@@ -18,8 +18,8 @@ MAX_DIAS = 31
 
 
 def _autorizar():
-    tab = Tab.query.filter_by(slug='gestao-malharia').first_or_404()
-    if not tab.visible_to(current_user):
+    tabs = Tab.query.filter(Tab.slug.in_(['previa-pcp', 'gestao-malharia'])).all()
+    if not any(t.visible_to(current_user) for t in tabs):
         abort(403)
 
 

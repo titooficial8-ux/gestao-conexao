@@ -294,6 +294,22 @@ def garantir_aba_controle_mp() -> None:
         db.session.commit()
 
 
+def garantir_aba_previa_pcp() -> None:
+    """Aba 'Prévia PCP' em Gestao Planejamento (previsao de metros por maquina). Visivel a quem ve a Programacao e a Gestao da Malharia."""
+    cat = Category.query.filter_by(slug='planejamento').first()
+    if not cat:
+        return
+    tab = Tab.query.filter_by(slug='previa-pcp').first()
+    if not tab:
+        ordem = max([t.order or 0 for t in cat.tabs] or [0]) + 1
+        tab = Tab(category_id=cat.id, slug='previa-pcp', name_pt='Prévia PCP', name_es='Previa PCP', icon='\U0001F52E', icon_color='#8b5cf6', is_new=True, order=ordem)
+        db.session.add(tab)
+        db.session.flush()
+        origem = Tab.query.filter(Tab.slug.in_(['programacao', 'gestao-malharia'])).all()
+        tab.sectors = list({s_.id: s_ for t in origem for s_ in t.sectors}.values())
+        db.session.commit()
+
+
 def garantir_aba_gestao_projetos() -> None:
     """Aba 'Gestão Projetos' em Gestao Sistema: projetos e OKR da equipe de Tecnologia/Informacao. Visivel ao TI/Sistema e a Diretoria (e administradores)."""
     cat = Category.query.filter_by(slug='sistema').first()
