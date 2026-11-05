@@ -35,9 +35,11 @@
         var EH = false, bt = document.getElementById('sgSinoBt'), pn = document.getElementById('sgPn'), n = document.getElementById('sgSinoN'), ultimo = null;
         function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
         var ROT = { NOVA: 'NOVA', EM_ANALISE: 'EM ANÁLISE', CONCLUIDA: 'CONCLUÍDA' };
+        var ITENS = [];
         function desenhar(d) {
+          ITENS = d.itens || [];
           pn.innerHTML = '<h4>&#128161; ' + (EH ? 'Sugestões de melhoria (' + d.novas + ' nova' + (d.novas === 1 ? '' : 's') + ')' : 'Minhas sugestões') + '</h4>' + (d.itens.length ? d.itens.map(function (x) {
-            return '<div class="sg-it ' + (x.status === 'NOVA' ? 'nova' : '') + '"><small><b>' + esc(x.nome) + '</b> · ' + esc(x.setor) + ' · ' + esc(x.em) + '<span class="sg-st ' + x.status + '">' + ROT[x.status] + '</span></small><div class="tx">' + esc(x.texto) + '</div>' + (x.anexos || []).map(function (a) { return a.img ? '<a href="/sugestoes/anexo/' + a.id + '" target="_blank"><img class="sg-th" src="/sugestoes/anexo/' + a.id + '" alt=""></a>' : '<a class="sg-ar" href="/sugestoes/anexo/' + a.id + '">&#128206; ' + esc(a.nome) + '</a>'; }).join('') + '<div class="ac">' +
+            return '<div class="sg-it ' + (x.status === 'NOVA' ? 'nova' : '') + '" data-det="' + x.id + '" title="Clique para abrir"><small><b>' + esc(x.nome) + '</b> · ' + esc(x.setor) + ' · ' + esc(x.em) + '<span class="sg-st ' + x.status + '">' + ROT[x.status] + '</span></small><div class="tx">' + esc(x.texto) + '</div>' + (x.anexos || []).map(function (a) { return a.img ? '<a href="/sugestoes/anexo/' + a.id + '" target="_blank"><img class="sg-th" src="/sugestoes/anexo/' + a.id + '" alt=""></a>' : '<a class="sg-ar" href="/sugestoes/anexo/' + a.id + '">&#128206; ' + esc(a.nome) + '</a>'; }).join('') + '<div class="ac">' +
               (EH && x.status !== 'EM_ANALISE' ? '<button data-sg="' + x.id + '" data-st="EM_ANALISE">Em análise</button>' : '') + (EH && x.status !== 'CONCLUIDA' ? '<button data-sg="' + x.id + '" data-st="CONCLUIDA">Concluída</button>' : '') + '</div></div>'; }).join('') : '<div class="sg-it">Nenhuma sugestão ainda.</div>');
         }
         function carregar() {
@@ -50,7 +52,33 @@
         }
         bt.addEventListener('click', function (e) { e.stopPropagation(); pn.hidden = !pn.hidden; if (!pn.hidden && !EH && Number(n.textContent) > 0) { fetch('/sugestoes/vistas', { method: 'POST', credentials: 'same-origin' }); n.hidden = true; n.textContent = '0'; } });
         document.addEventListener('click', function (e) { if (!pn.hidden && !document.getElementById('sgSino').contains(e.target)) pn.hidden = true; });
+        function detalhe(x) {
+          var old = document.getElementById('sgDet'); if (old) old.remove();
+          var m = document.createElement('div'); m.id = 'sgDet'; m.className = 'sg-det';
+          var anx = (x.anexos || []).map(function (a) { return a.img ? '<a href="/sugestoes/anexo/' + a.id + '" target="_blank"><img class="sg-th big" src="/sugestoes/anexo/' + a.id + '" alt=""></a>' : '<a class="sg-ar" href="/sugestoes/anexo/' + a.id + '">&#128206; ' + esc(a.nome) + '</a>'; }).join('');
+          var st = ['NOVA', 'EM_ANALISE', 'CONCLUIDA'].map(function (k) { return EH ? '<button type="button" class="sg-stb ' + (x.status === k ? 'on ' + k : '') + '" data-k="' + k + '">' + ROT[k] + '</button>' : ''; }).join('');
+          m.innerHTML = '<div class="sg-dbox"><button type="button" class="sg-dx" title="Fechar">&times;</button><h3>&#128161; Sugestão #' + x.id + '<span class="sg-st ' + x.status + '">' + ROT[x.status] + '</span></h3>' +
+            '<div class="sg-dq"><b>' + esc(x.nome) + '</b> · ' + esc(x.setor) + ' · ' + esc(x.em) + '</div><div class="sg-dt">' + esc(x.texto) + '</div>' + (anx ? '<div class="sg-da">' + anx + '</div>' : '') +
+            (EH ? '<div class="sg-dsts">' + st + '</div><label class="sg-dl">Resposta ao solicitante (ele vê no sino dele)</label><textarea class="sg-dr" maxlength="2000" placeholder="Ex.: já estamos tratando; previsão para sexta…"></textarea><div class="sg-dmsg"></div><div class="sg-dac"><button type="button" class="sg-ds">Salvar</button></div>'
+                 : (x.resposta ? '<div class="sg-rsp"><small>Resposta da equipe' + (x.resposta_por ? ' (' + esc(x.resposta_por) + (x.resposta_em ? ' · ' + esc(x.resposta_em) : '') + ')' : '') + ':</small><div>' + esc(x.resposta) + '</div></div>' : '<div class="sg-rsp vazio">Ainda sem resposta da equipe.</div>')) +
+            '</div>';
+          document.body.appendChild(m);
+          var sel = x.status, ta = m.querySelector('.sg-dr'); if (ta) ta.value = x.resposta || '';
+          function fechar() { m.remove(); }
+          m.addEventListener('click', function (e) {
+            if (e.target === m || e.target.closest('.sg-dx')) return fechar();
+            var kb = e.target.closest('.sg-stb'); if (kb) { sel = kb.dataset.k; m.querySelectorAll('.sg-stb').forEach(function (b) { b.className = 'sg-stb' + (b.dataset.k === sel ? ' on ' + sel : ''); }); }
+            if (e.target.closest('.sg-ds')) {
+              var msg = m.querySelector('.sg-dmsg'); msg.textContent = 'Salvando…';
+              fetch('/sugestoes/' + x.id + '/status', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: sel, resposta: ta.value }) })
+                .then(function (r) { if (!r.ok) throw new Error('Erro'); return r.json(); }).then(function () { msg.style.color = '#166534'; msg.textContent = 'Salvo!'; carregar(); setTimeout(fechar, 700); })
+                .catch(function () { msg.style.color = '#b91c1c'; msg.textContent = 'Não consegui salvar.'; });
+            }
+          });
+        }
         pn.addEventListener('click', function (e) {
+          var it = e.target.closest('[data-det]');
+          if (it && !e.target.closest('[data-sg]') && !e.target.closest('a')) { var x = ITENS.filter(function (v) { return String(v.id) === it.dataset.det; })[0]; if (x) { pn.hidden = true; detalhe(x); } return; }
           var b = e.target.closest('[data-sg]'); if (!b) return;
           fetch('/sugestoes/' + b.dataset.sg + '/status', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: b.dataset.st }) }).then(carregar);
         });
