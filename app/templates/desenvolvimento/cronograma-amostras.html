@@ -2,6 +2,21 @@
 {% block page_title %}{{ tab.name_pt if lang == 'pt' else tab.name_es }}{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dev.css') }}">
+<style>
+.al-abas{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}.al-aba{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 18px;font-weight:800;font-size:13.5px;cursor:pointer;color:#334155}.al-aba.on{background:#2672c4;border-color:#2672c4;color:#fff}
+.al-topo{background:#2672c4;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.al-topo b{font-size:20px}.al-topo small{font-size:12px}
+.al-barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}.al-barra select,.al-barra input{padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px}.al-barra a{color:#fff;background:#0f766e;border-radius:999px;padding:7px 14px;font-weight:800;font-size:12.5px;text-decoration:none}
+.al-cards{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}.al-card{flex:1;min-width:300px;border-radius:8px;padding:10px 14px}.al-card h4{margin:0 0 4px;font-size:13px}.al-n{display:flex;gap:20px;flex-wrap:wrap}.al-n div b{display:block;font-size:26px}.al-n div small{font-size:11px}
+.al-pais{border-left:8px solid;padding:9px 14px;margin-top:22px;font-weight:700;font-size:15px}.al-pes{margin-top:12px;font-weight:700;font-size:14px}.al-pes small{font-weight:400;color:#8a949c;font-size:12px}
+.al-tb{width:100%;border-collapse:collapse}.al-tb th{text-align:left;font-size:11px;color:#8a949c;padding:6px 8px;border-bottom:1px solid #d5d9de}.al-tb td{padding:7px 8px;border-bottom:1px solid #eceef0;font-size:13px;color:#1f2933}
+.al-chip{display:inline-block;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;white-space:nowrap}.al-faixa{background:#eef0f2;border-left:6px solid;padding:7px 12px;margin-top:14px;font-weight:700;font-size:13px}
+.al-aviso{border-radius:6px;padding:7px 12px;margin:8px 0;font-size:12px}.al-ord{color:#2672c4;font-weight:800;font-size:15px}.al-rod{font-size:12px;color:#5b6770;margin-top:16px}.al-vazio{padding:30px;text-align:center;color:#64748b;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;margin-top:10px}
+</style>
+<div class="al-abas" id="alAbas"><button type="button" class="al-aba on" data-v="lib">🧪 Amostras liberadas · ordem de trabalho</button><button type="button" class="al-aba" data-v="ped">📦 Pedidos de amostra (TOTVS)</button></div>
+<div id="vLib"><div class="al-topo"><div><b>Amostras liberadas e ordem de trabalho</b></div><small id="alSit"></small></div>
+<div class="al-barra"><label>Dia <select id="alDia"></select></label><label>País <select id="alPais"><option value="">Todos</option><option value="BR">Brasil</option><option value="GT">Guatemala</option></select></label><label>Responsável <select id="alResp"><option value="">Todos</option></select></label><input id="alBusca" type="search" placeholder="Buscar ID, cliente ou artigo"><a id="alXls" href="#">⬇ Excel</a></div>
+<div id="alConteudo"></div></div>
+<div id="vPed" hidden>
 <div class="dv">
   <div class="dv-topo">
     <div><h1>Cronograma de Amostras</h1><div class="dv-sub" id="amSub">Pedidos de amostra direto do TOTVS · prazo = previsão de faturamento</div></div>
@@ -13,6 +28,7 @@
   <div class="dv-grupo" id="amFiltros"></div>
   <div class="dv-card" id="amLista"></div>
   <div class="dv-card"><h3>Clientes com mais pedidos de amostra</h3><div id="amCli"></div></div>
+</div>
 </div>
 <script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
 <script src="{{ url_for('static', filename='js/dev.js') }}"></script>
@@ -55,6 +71,96 @@
   }
   document.getElementById('amAtualizar').onclick = function () { carregar(true); };
   carregar(false);
+})();
+</script>
+<script>
+(function () {
+  var COR = { v: ['#c0392b', '#fbe9e7'], a: ['#9a6700', '#fff4d6'], g: ['#1e8449', '#e3f4ea'], c: ['#5b6770', '#eef0f2'], b: ['#2672c4', '#e6f1fb'], r: ['#5b3fa0', '#ece7f8'] };
+  var ETAPA = { 'Novo': 'c', 'Preço OK': 'b', 'Inicio de Desenho': 'a', 'Liberado produção': 'b', 'Cadastro OK': 'b', 'Produção OK': 'g', 'Revisao OK': 'g', 'Enviado': 'g', 'Convertido': 'g', 'Cancelado': 'v' };
+  var NOME = { BR: ['BRASIL', 'g'], GT: ['GUATEMALA', 'b'], OUT: ['OUTROS / SEM PAÍS', 'c'] };
+  var DADOS = null, DIA = '';
+  function $(i) { return document.getElementById(i); }
+  function h(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined && txt !== null) e.textContent = txt; return e; }
+  function chip(txt, c) { var e = h('span', 'al-chip', txt); e.style.color = COR[c][0]; e.style.background = COR[c][1]; return e; }
+  function dm(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : ''; }
+  function prazo(f) { if (f === null || f === undefined) return null; if (f < 0) return [Math.abs(f) + ' d.u. atrasada', 'v']; if (f === 0) return ['vence hoje', 'a']; return ['em ' + f + ' d.u.', f <= 3 ? 'a' : 'g']; }
+  function cel(tr, conteudo, extra) { var td = h('td'); if (conteudo && conteudo.nodeType) td.appendChild(conteudo); else td.textContent = conteudo === undefined || conteudo === null ? '' : conteudo; if (extra) td.colSpan = extra; tr.appendChild(td); return td; }
+  function tabela(linhas) { var t = h('table', 'al-tb'), th = h('thead'), r = h('tr'); ['Ordem', 'Tipo', 'ID', 'Cliente', 'Artigo', 'Etapa (Timeline)', 'OS', 'Amostra', 'Cat.', 'Limite', 'Prazo'].forEach(function (c) { r.appendChild(h('th', null, c)); }); th.appendChild(r); t.appendChild(th); var tb = h('tbody'); linhas.forEach(function (l) { tb.appendChild(l); }); t.appendChild(tb); return t; }
+  function linhaProduto(x, ordem) {
+    var tr = h('tr'); var o = h('span', 'al-ord', ordem === null || ordem === undefined ? '' : String(ordem)); cel(tr, o); cel(tr, chip('Produto', 'b')); var b = h('b', null, x.id); cel(tr, b); cel(tr, (x.cliente || '').slice(0, 28)); cel(tr, x.artigo);
+    cel(tr, x.etapa ? chip(x.etapa, ETAPA[x.etapa] || 'c') : chip('sem Timeline', 'v')); cel(tr, x.os); cel(tr, x.amostra); cel(tr, h('b', null, x.cat === null ? '' : String(x.cat))); cel(tr, dm(x.limite));
+    var pz = x.grupo === 'corrigir' ? ['a corrigir', 'c'] : prazo(x.folga); cel(tr, pz ? chip(pz[0], pz[1]) : ''); return tr;
+  }
+  function linhaTarefa(t) {
+    var tr = h('tr'); cel(tr, h('span', 'al-ord', t.ordem === null ? '' : String(t.ordem))); cel(tr, chip('Tarefa', 'r')); var td = h('td'); td.colSpan = 9; var b = h('b', null, (t.descricao || '').split('\n').map(function (x) { return x.replace(/^[\s*-]+|[\s*-]+$/g, ''); }).filter(Boolean).join(' · ').slice(0, 150));
+    td.appendChild(b); var meta = [t.desde ? 'desde ' + dm(t.desde) : '', t.prioridade ? 'prioridade ' + t.prioridade : '', t.status || ''].filter(Boolean).join(' · '); var sp = h('span', null, ' ' + meta); sp.style.cssText = 'color:#5b6770;font-size:12px'; td.appendChild(sp); tr.appendChild(td); return tr;
+  }
+  function faixa(txt, c, extra) { var f = h('div', 'al-faixa', txt + (extra || '')); f.style.borderLeftColor = COR[c][0]; f.style.color = COR[c][0]; return f; }
+  function aviso(txt, c) { var a = h('div', 'al-aviso', txt); a.style.color = COR[c || 'a'][0]; a.style.background = COR[c || 'a'][1]; return a; }
+  function filtrado() {
+    var pais = $('alPais').value, resp = $('alResp').value, q = $('alBusca').value.trim().toLowerCase();
+    var it = DADOS.itens.filter(function (x) { return (!pais || x.pais === pais) && (!resp || x.resp === resp) && (!q || (x.id + ' ' + x.cliente + ' ' + x.artigo).toLowerCase().indexOf(q) >= 0); });
+    var ta = DADOS.tarefas.filter(function (t) { return (!pais || t.pais === pais) && (!resp || t.responsavel === resp) && (!q || (t.descricao || '').toLowerCase().indexOf(q) >= 0); });
+    return { itens: it, tarefas: ta };
+  }
+  function desenha() {
+    var box = $('alConteudo'); box.textContent = '';
+    if (!DADOS || DADOS.vazio) { box.appendChild(h('div', 'al-vazio', 'Ainda não chegou nenhum relatório do agente. Ele envia sozinho todo dia útil às 7h30 (veja a configuração [gestao] do agente).')); $('alSit').textContent = ''; return; }
+    var f = filtrado(), all = DADOS.itens, ab = all.filter(function (x) { return x.grupo !== 'entregue'; });
+    var paises = ['BR', 'GT'].concat(all.some(function (x) { return x.pais === 'OUT' && x.grupo !== 'entregue'; }) ? ['OUT'] : []);
+    var cards = h('div', 'al-cards');
+    paises.forEach(function (p) {
+      var a = ab.filter(function (x) { return x.pais === p; }), n = NOME[p], c = COR[n[1]], card = h('div', 'al-card'); card.style.background = c[1]; var t = h('h4', null, n[0]); t.style.color = c[0]; card.appendChild(t);
+      var g = h('div', 'al-n'); [[a.length, 'em aberto', c[0]], [a.filter(function (x) { return x.grupo === 'atrasada'; }).length, 'atrasadas', COR.v[0]], [a.filter(function (x) { return x.grupo === 'vence'; }).length, 'vencem em 3 d.u.', COR.a[0]], [a.filter(function (x) { return x.grupo === 'corrigir'; }).length, 'a corrigir', COR.c[0]]].forEach(function (z) { var d = h('div'); var b = h('b', null, String(z[0])); b.style.color = z[2]; var s = h('small', null, z[1]); s.style.color = z[2]; d.appendChild(b); d.appendChild(s); g.appendChild(d); });
+      card.appendChild(g); cards.appendChild(card);
+    });
+    box.appendChild(cards);
+    var pf = $('alPais').value;
+    paises.filter(function (p) { return !pf || p === pf; }).forEach(function (p) {
+      var a = f.itens.filter(function (x) { return x.pais === p && x.grupo !== 'entregue'; }), tp = f.tarefas.filter(function (t) { return t.pais === p; });
+      if (!a.length && !tp.length) return;
+      var n = NOME[p], c = COR[n[1]], tit = h('div', 'al-pais', n[0] + ': ordem de trabalho, produtos e tarefas na ordem definida'); tit.style.background = c[1]; tit.style.borderLeftColor = c[0]; tit.style.color = c[0]; box.appendChild(tit);
+      var seqRows = a.filter(function (x) { return x.resp; }), pessoas = Array.from(new Set(seqRows.map(function (x) { return x.resp; }).concat(tp.map(function (t) { return t.responsavel; }).filter(Boolean)))).sort();
+      pessoas.forEach(function (pes) {
+        var lst = seqRows.filter(function (x) { return x.resp === pes; }).map(function (x) { return [x.ordem, 0, x]; }).concat(tp.filter(function (t) { return t.responsavel === pes; }).map(function (t) { return [t.ordem, 1, t]; }));
+        lst.sort(function (u, v) { return ((u[0] === null ? 9999 : u[0]) - (v[0] === null ? 9999 : v[0])) || (u[1] - v[1]); });
+        var hd = h('div', 'al-pes', pes + ' '); hd.appendChild(h('small', null, lst.length + ' na fila')); box.appendChild(hd);
+        box.appendChild(tabela(lst.map(function (z) { return z[1] === 0 ? linhaProduto(z[2], z[0]) : linhaTarefa(z[2]); })));
+      });
+      var velhas = (DADOS.seq_velhas || {})[p]; if (velhas) box.appendChild(aviso(velhas + ' itens da sequência de ' + n[0].charAt(0) + n[0].slice(1).toLowerCase() + ' já não são liberados em aberto (concluídos ou antigos): limpar no app.'));
+      var sem = a.filter(function (x) { return !x.resp; });
+      if (sem.length) {
+        var hs = h('div', 'al-pes', 'Sem sequência definida '); hs.appendChild(h('small', null, sem.length + ' produtos: definir a ordem no app')); box.appendChild(hs);
+        [['atrasada', 'ATRASADAS', 'v'], ['vence', 'VENCEM EM ATÉ 3 DIAS ÚTEIS', 'a'], ['prazo', 'NO PRAZO', 'g']].forEach(function (g) {
+          var sub = sem.filter(function (x) { return x.grupo === g[0]; }).sort(function (u, v) { return (u.folga === null ? 9999 : u.folga) - (v.folga === null ? 9999 : v.folga); });
+          if (sub.length) { box.appendChild(faixa(g[1], g[2], ' (' + sub.length + ')')); box.appendChild(tabela(sub.map(function (x) { return linhaProduto(x, null); }))); }
+        });
+      }
+      var cor = a.filter(function (x) { return x.grupo === 'corrigir'; });
+      if (cor.length) {
+        box.appendChild(faixa('DADOS A CORRIGIR (sem isso o prazo não é calculado)', 'c', ' (' + cor.length + ')'));
+        var cont = {}; cor.forEach(function (x) { var k = (x.problema || '').replace('; Sem linha na Timeline', ''); cont[k] = (cont[k] || 0) + 1; });
+        var ul = h('ul'); ul.style.cssText = 'margin:6px 0 0 20px;padding:0;font-size:12px;color:#5b6770'; Object.keys(cont).forEach(function (k) { var li = h('li'); li.appendChild(h('b', null, cont[k])); li.appendChild(document.createTextNode(' - ' + k)); ul.appendChild(li); }); box.appendChild(ul);
+        box.appendChild(tabela(cor.slice(0, 25).map(function (x) { return linhaProduto(x, null); }))); if (cor.length > 25) box.appendChild(h('p', 'al-rod', '... e mais ' + (cor.length - 25) + ' no Excel.'));
+      }
+    });
+    var sp = f.tarefas.filter(function (t) { return t.pais !== 'BR' && t.pais !== 'GT'; });
+    if (sp.length && !pf) { box.appendChild(faixa('TAREFAS SEM PAÍS (preencher o País para entrarem em Brasil ou Guatemala)', 'r')); box.appendChild(tabela(sp.sort(function (u, v) { return (u.responsavel || '').localeCompare(v.responsavel || '') || ((u.ordem || 9999) - (v.ordem || 9999)); }).map(linhaTarefa))); }
+    var nEnt = all.filter(function (x) { return x.grupo === 'entregue'; }).length;
+    box.appendChild(h('p', 'al-rod', 'Prazo pela categoria da OS (1 = 10, 2 = 15, 3 = 30 dias úteis), contado da entrada da OS até o envio ao comercial. D.u. = dias úteis. A ordem e as tarefas vêm da sequência definida no app (sequenciaD e tarefasD). Total: ' + all.length + ' liberadas (' + nEnt + ' já entregues, só no Excel).'));
+  }
+  function carregar(dia) {
+    fetch('/dev/amostras-liberadas/dados' + (dia ? '?dia=' + encodeURIComponent(dia) : ''), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      DADOS = d; DIA = d.dia || ''; var sel = $('alDia'); sel.textContent = ''; (d.dias || []).forEach(function (x) { var o = h('option', null, x.slice(8, 10) + '/' + x.slice(5, 7) + '/' + x.slice(0, 4)); o.value = x; if (x === DIA) o.selected = true; sel.appendChild(o); });
+      var rs = $('alResp'), atual = rs.value; rs.textContent = ''; var o0 = h('option', null, 'Todos'); o0.value = ''; rs.appendChild(o0);
+      Array.from(new Set(((d.itens || []).map(function (x) { return x.resp; }).concat((d.tarefas || []).map(function (t) { return t.responsavel; }))).filter(Boolean))).sort().forEach(function (n) { var o = h('option', null, n); o.value = n; if (n === atual) o.selected = true; rs.appendChild(o); });
+      var g = d.gerado_em || ''; $('alSit').textContent = d.vazio ? '' : 'Situação em ' + (d.dia ? d.dia.slice(8, 10) + '/' + d.dia.slice(5, 7) + '/' + d.dia.slice(0, 4) : '') + (g.length >= 16 ? ', ' + g.slice(11, 16) : '');
+      $('alXls').href = '/dev/amostras-liberadas/excel' + (DIA ? '?dia=' + DIA : ''); $('alXls').style.display = d.vazio ? 'none' : ''; desenha();
+    });
+  }
+  ['alPais', 'alResp'].forEach(function (i) { $(i).addEventListener('change', desenha); }); $('alBusca').addEventListener('input', desenha); $('alDia').addEventListener('change', function () { carregar(this.value); });
+  $('alAbas').addEventListener('click', function (e) { var b = e.target.closest('.al-aba'); if (!b) return; document.querySelectorAll('.al-aba').forEach(function (x) { x.classList.toggle('on', x === b); }); $('vLib').hidden = b.dataset.v !== 'lib'; $('vPed').hidden = b.dataset.v !== 'ped'; });
+  carregar('');
 })();
 </script>
 {% endblock %}
