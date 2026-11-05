@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block page_title %}Prévia PCP{% endblock %}
+{% block content %}
+<style>
+.pv{max-width:1500px;margin:0 auto;padding:6px 4px 40px}.pv h1{margin:0;font-size:26px;color:#0f2540}.pv .sub{color:#64748b;font-size:13.5px;margin:4px 0 14px}
+.pv-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}.pv-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0 16px}.pv-bar select,.pv-bar a{padding:8px 12px;border:1px solid #cbd5e1;border-radius:9px;font-size:13px;background:#fff;color:#0f172a;text-decoration:none;font-weight:700}
+.pv-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px}.pv-kc{border-radius:14px;padding:16px 18px;color:#fff}.pv-kc small{display:block;font-size:11.5px;letter-spacing:.06em;font-weight:800;opacity:.9;text-transform:uppercase}.pv-kc b{display:block;font-size:30px;margin-top:6px;font-family:'JetBrains Mono',monospace}.pv-kc span{font-size:12px;opacity:.9}
+.pv-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px 18px;margin-bottom:16px}.pv-card h3{margin:0 0 10px;font-size:16px;color:#0f2540}.pv-graf{height:300px}
+.pv-tw{overflow:auto}.pv-tb{border-collapse:collapse;width:100%;font-size:12.5px}.pv-tb th{position:sticky;top:0;background:#f1f5f9;color:#334155;padding:7px 8px;border:1px solid #e2e8f0;white-space:nowrap}.pv-tb td{padding:6px 8px;border:1px solid #eef0f4;text-align:right;white-space:nowrap}.pv-tb td.l{text-align:left;font-weight:700}.pv-tb tr.tot td{background:#eef4ff;font-weight:800}.pv-av{color:#9a6700;font-size:11.5px;text-align:left;white-space:normal;max-width:260px}
+.pv-nota{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:10px;padding:10px 14px;font-size:12.5px;margin-bottom:14px}
+</style>
+<div class="pv">
+  <div class="pv-top"><div><h1>🔮 Prévia PCP</h1><div class="sub" id="pvSub">Previsão de metros por máquina, em cima da fila da Programação e da metragem padrão (DS.METROS)</div></div><a href="{{ url_for('main.view_tab', slug='gestao-malharia') }}" class="pv-voltar" style="font-weight:700;color:#0a4aa8;text-decoration:none">← Voltar para a Gestão da Malharia</a></div>
+  <div class="pv-bar"><label>Horizonte <select id="pvDias"><option value="7">7 dias</option><option value="14" selected>14 dias</option><option value="21">21 dias</option><option value="30">30 dias</option></select></label><label>Máquina <select id="pvMaq"><option value="">Todas</option></select></label></div>
+  <div class="pv-nota">Estimativa para planejar, <b>não é o realizado</b>: peças por dia de cada OP (voltas/RPM com a eficiência) × DS.METROS, hora a hora, descontando troca de artigo, domingos e dias sem produção, amostras (até 18h) e manutenção preventiva programada. Se mudar a fila, a previsão muda.</div>
+  <div class="pv-k" id="pvK"></div>
+  <div class="pv-card"><h3>Metros previstos por dia (todas as máquinas)</h3><div class="pv-graf"><canvas id="pvG"></canvas></div></div>
+  <div class="pv-card"><h3>Por máquina e por dia (metros)</h3><div class="pv-tw" id="pvT"></div></div>
+</div>
+<script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
+<script>
+(function () {
+  var G = null, DADOS = null;
+  function $(i) { return document.getElementById(i); }
+  function h(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.textContent = x; return e; }
+  function nf(v) { return Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 }); }
+  function dm(iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7); }
+  var SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  function cor(v, mx) { if (!v) return ''; var a = Math.min(v / (mx || 1), 1); return 'rgba(37,99,235,' + (0.08 + 0.4 * a).toFixed(2) + ')'; }
+  function kpi(t, v, s, bg) { var c = h('div', 'pv-kc'); c.style.background = bg; c.appendChild(h('small', null, t)); c.appendChild(h('b', null, v)); c.appendChild(h('span', null, s)); return c; }
+  function desenha() {
+    var d = DADOS, datas = d.datas.slice(0, d.dias), k = $('pvK'); k.textContent = '';
+    var pior = null, melhor = null; datas.forEach(function (x) { var v = d.total_por_dia[x] || 0; if (v > 0 && (melhor === null || v > d.total_por_dia[melhor])) melhor = x; if (v > 0 && (pior === null || v < d.total_por_dia[pior])) pior = x; });
+    k.appendChild(kpi('Metros previstos no período', nf(d.total) + ' m', d.dias + ' dias a partir de agora', 'linear-gradient(120deg,#0a3d8f,#2f7fe0)'));
+    k.appendChild(kpi('Média por dia útil', nf(d.media_dia_util) + ' m', d.meta_dia ? 'meta diária: ' + nf(d.meta_dia) + ' m (' + Math.round(100 * d.media_dia_util / d.meta_dia) + '%)' : 'sem meta cadastrada', d.meta_dia && d.media_dia_util >= d.meta_dia * 0.85 ? 'linear-gradient(120deg,#15803d,#22c55e)' : 'linear-gradient(120deg,#b45309,#f59e0b)'));
+    k.appendChild(kpi('Melhor dia', melhor ? nf(d.total_por_dia[melhor]) + ' m' : '—', melhor ? dm(melhor) : '', 'linear-gradient(120deg,#0f766e,#14b8a6)'));
+    k.appendChild(kpi('Máquinas projetadas', String(d.maquinas_projetadas), 'de ' + d.maquinas.length + ' cadastradas', 'linear-gradient(120deg,#6d28d9,#8b5cf6)'));
+    $('pvSub').textContent = 'Gerada em ' + d.gerado_em.slice(8, 10) + '/' + d.gerado_em.slice(5, 7) + ' às ' + d.gerado_em.slice(11, 16) + ' · metragem padrão (DS.METROS) × peças por dia da OP';
+    if (G) G.destroy();
+    var ds = [{ type: 'bar', label: 'Metros previstos', data: datas.map(function (x) { return d.total_por_dia[x] || 0; }), backgroundColor: '#2f7fe0' }];
+    if (d.meta_dia) ds.push({ type: 'line', label: 'Meta diária', data: datas.map(function () { return d.meta_dia; }), borderColor: '#dc2626', borderDash: [6, 4], pointRadius: 0, borderWidth: 2 });
+    G = new Chart($('pvG'), { data: { labels: datas.map(function (x) { return SEM[new Date(x + 'T12:00:00').getDay()] + ' ' + dm(x); }), datasets: ds }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } } });
+    var box = $('pvT'); box.textContent = ''; var t = h('table', 'pv-tb'), th = h('thead'), r = h('tr'); r.appendChild(h('th', null, 'Máquina')); datas.forEach(function (x) { r.appendChild(h('th', null, SEM[new Date(x + 'T12:00:00').getDay()] + ' ' + dm(x))); }); r.appendChild(h('th', null, 'Total')); r.appendChild(h('th', null, 'OP atual → próximas')); th.appendChild(r); t.appendChild(th);
+    var tb = h('tbody'), mx = 0; d.maquinas.forEach(function (m) { Object.keys(m.metros_dia).forEach(function (k2) { mx = Math.max(mx, m.metros_dia[k2]); }); });
+    d.maquinas.forEach(function (m) {
+      var tr = h('tr'); tr.appendChild(h('td', 'l', 'Máq. ' + m.maquina)); datas.forEach(function (x) { var v = m.metros_dia[x] || 0, td = h('td', null, v ? nf(v) : '–'); if (v) td.style.background = cor(v, mx); tr.appendChild(td); });
+      tr.appendChild(h('td', 'l', m.total ? nf(m.total) : '–')); var info = h('td', 'pv-av'); info.textContent = m.aviso || (m.fila.length ? m.fila.map(function (f) { return f.op + ' (' + (f.artigo || '').split(' ')[0] + ', ' + nf(f.restam) + ' pç)'; }).join(' → ') : ''); tr.appendChild(info); tb.appendChild(tr);
+    });
+    var tt = h('tr', 'tot'); tt.appendChild(h('td', 'l', 'TOTAL')); datas.forEach(function (x) { tt.appendChild(h('td', null, nf(d.total_por_dia[x] || 0))); }); tt.appendChild(h('td', 'l', nf(d.total))); tt.appendChild(h('td')); tb.appendChild(tt); t.appendChild(tb); box.appendChild(t);
+  }
+  function carregar() {
+    $('pvSub').textContent = 'Calculando…';
+    fetch('/malharia/previa-pcp/dados?dias=' + $('pvDias').value + ($('pvMaq').value ? '&maquina=' + $('pvMaq').value : ''), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      DADOS = d; var s = $('pvMaq'); if (s.options.length <= 1) { d.maquinas.forEach(function (m) { var o = h('option', null, 'Máq. ' + m.maquina); o.value = m.maquina; s.appendChild(o); }); } desenha();
+    });
+  }
+  $('pvDias').addEventListener('change', carregar); $('pvMaq').addEventListener('change', carregar); carregar();
+})();
+</script>
+{% endblock %}
