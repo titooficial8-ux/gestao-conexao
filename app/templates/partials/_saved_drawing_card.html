@@ -17,7 +17,8 @@
 
   {% if i.seq_info %}
   <div class="sd-card-position">
-    <span class="sd-badge sd-badge-position">{{ i.seq_info.position }}º {{ t('saved_drawing_na_maquina') }} {{ i.obj.machine }}</span>
+    <span class="sd-badge sd-badge-position">{{ i.seq_info.position }}º{% if i.seq_info.total %} de {{ i.seq_info.total }}{% endif %} {{ t('saved_drawing_na_maquina') }} {{ i.obj.machine }}</span>
+    {% if i.seq_info.situacao %}<span class="sd-muted">· {{ i.seq_info.situacao }}</span>{% endif %}
     <span class="sd-muted">
       {% if i.seq_info.position == 1 %}{{ t('saved_drawing_ja_em_maquina') }}
       {% elif i.seq_info.entry %}{{ t('saved_drawing_prev_entrada') }}: {{ i.seq_info.entry.split('-')[2] }}/{{ i.seq_info.entry.split('-')[1] }}/{{ i.seq_info.entry.split('-')[0] }}
