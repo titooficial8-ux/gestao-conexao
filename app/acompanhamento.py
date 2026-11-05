@@ -158,3 +158,8 @@ def avisar_lider(mensagem: str, maquina=None, ref_id: str = None, titulo: str = 
         corpo['refId'] = ref_id
     r = requests.post(f'{_url()}/notificacoes', json=corpo, headers={'Accept': 'application/json', 'Authorization': f'Bearer {_token()}'}, timeout=(5, 20))
     return r.status_code in (200, 201)
+
+
+def rl_producao_todas(de: str) -> dict:
+    """Pecas avaliadas pelos revisores (RL.PRODUCAO) de todas as maquinas desde `de` (AAAA-MM-DD)."""
+    return _cached(f'rl_todas_{de}', 30, lambda: [_rl_item(x) for x in _lista(chamar('/rlproducao', {'de': de}))])

@@ -6,7 +6,7 @@
 .prog-tags{position:absolute;left:6px;right:6px;bottom:6px;z-index:5;display:flex;gap:4px;flex-wrap:wrap;justify-content:center}.prog-tag{background:#fef3c7;border:1px solid #f59e0b;color:#92400e;font-weight:800;font-size:10.5px;border-radius:999px;padding:2px 8px}
 .manut-faixa{position:absolute;left:0;right:0;top:0;z-index:5;background:#dc2626;color:#fff;font-weight:900;font-size:11px;letter-spacing:.06em;text-align:center;padding:3px 4px;border-radius:12px 12px 0 0;animation:manutPisca 1s infinite}
 .maq-layout{display:flex;gap:14px;align-items:flex-start}.maq-main{flex:1;min-width:0}
-.revcru{flex:0 0 112px;margin-left:36px;display:flex;flex-direction:column;gap:14px}
+.revcru{flex:0 0 112px;margin-left:36px;display:flex;flex-direction:column;gap:14px}.revcru-maq:nth-child(2){margin-top:190px}.revcru-maq{cursor:pointer;transition:transform .12s,box-shadow .12s}.revcru-maq:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(47,127,224,.22)}
 .revcru-maq{background:linear-gradient(180deg,#fff,#f1f5f9);border:1px solid #cbd5e1;border-top:3px solid #0ea5e9;border-radius:10px;padding:10px 6px 10px;box-shadow:0 2px 8px rgba(15,23,42,.08);text-align:center}
 .revcru-maq b{display:block;font-size:9.5px;font-weight:900;letter-spacing:.08em;color:#0369a1;margin-bottom:4px}
 .rc-svg{width:100px;height:auto;display:block;margin:0 auto;overflow:visible}
@@ -67,22 +67,54 @@
     <span class="machine-est {{ 'presel-est-' + est if est else 'presel-est-none' }}" title="{{ 'Estrutura rodando agora' if est else 'Nenhuma OP produzindo' }}">{{ est or '–' }}</span>
   </a>
   {% if loop.index0 == 8 %}
-  <div class="factory-corridor-row"><span class="factory-robot">&#129302;</span></div>
+  <div class="factory-corridor-row"></div>
   {% elif loop.index0 == 17 %}
-  <div class="factory-corridor-row"><span class="factory-robot">&#129302;</span></div>
+  <div class="factory-corridor-row"></div>
   {% elif loop.index0 == 23 %}
   <div class="machine-card-spacer"></div>
   <div class="machine-card-spacer"></div>
   <div class="machine-card-spacer"></div>
-  <div class="factory-corridor-row"><span class="factory-robot">&#129302;</span></div>
+  <div class="factory-corridor-row"></div>
   {% endif %}
   {% endfor %}
 </div>
 </div>
 <aside class="revcru" title="Revisão Cru (ao lado da máquina 45)">
-  <div class="revcru-maq"><b>REVISÃO CRU</b>{% set rid = 1 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 1</span></div>
-  <div class="revcru-maq"><b>REVISÃO CRU</b>{% set rid = 2 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 2</span></div>
+  <div class="revcru-maq" role="button" tabindex="0" data-rc="1"><b>REVISÃO CRU</b>{% set rid = 1 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 1</span></div>
+  <div class="revcru-maq" role="button" tabindex="0" data-rc="2"><b>REVISÃO CRU</b>{% set rid = 2 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 2</span></div>
 </aside>
+<div class="modal-backdrop" id="rcModal" hidden><div class="modal-box" style="max-width:920px;width:96%">
+  <div class="modal-head"><h3 class="section-subtitle" id="rcTit">Revisão Cru</h3><button type="button" class="modal-close" id="rcFechar">&times;</button></div>
+  <div id="rcCorpo" style="max-height:70vh;overflow:auto;font-size:13px">Carregando…</div></div></div>
+<script>
+(function () {
+  var M = document.getElementById('rcModal'), C = document.getElementById('rcCorpo'), T = document.getElementById('rcTit');
+  if (!M) return;
+  function e(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+  function abrir(n) {
+    T.textContent = 'Revisão Cru ' + n + ' · RL.PRODUÇÃO'; C.textContent = 'Carregando…'; M.hidden = false;
+    fetch('/revisao-cru/' + n + '/dados', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) { C.textContent = d.erro || 'Não foi possível ler o Acompanhamento.'; return; }
+      var h = '';
+      if (d.erros && d.erros.length) h += '<p style="color:#b91c1c">' + e(d.erros.join(' · ')) + '</p>';
+      if (!d.identificada) h += '<p style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:6px 10px">A API ainda não diz qual é a Revisão Cru 1 ou 2: estão aparecendo os dados de <b>todos os revisores</b>.</p>';
+      h += '<h4>Quem está revisando agora</h4>';
+      h += d.revisando.length ? '<ul>' + d.revisando.map(function (o) { return '<li><b>' + e(o.nome || 'Revisor') + '</b> · ' + e(o.tipo) + (o.motivo ? ' (' + e(o.motivo) + ')' : '') + ' desde ' + e(o.desde) + (o.minutos != null ? ' · ' + e(o.minutos) + ' min' : '') + (o.turno ? ' · turno ' + e(o.turno) : '') + '</li>'; }).join('') + '</ul>' : '<p>Nenhuma ocorrência de revisor em andamento.</p>';
+      var r = d.resumo;
+      h += '<h4>Hoje (' + e(d.dia) + ')</h4><p><b>' + r.pecas + '</b> peças avaliadas · <b>' + e(r.metros) + ' m</b>' + (r.revisores.length ? ' · revisores: ' + e(r.revisores.join(', ')) : '') + '</p>';
+      var res = Object.keys(r.resultados || {}); if (res.length) h += '<p>' + res.map(function (k) { return e(k) + ': <b>' + r.resultados[k] + '</b>'; }).join(' · ') + '</p>';
+      if (d.pecas.length) {
+        h += '<table class="data-table" style="width:100%"><thead><tr><th>Quando</th><th>Revisor</th><th>Máq.</th><th>OP</th><th>Artigo</th><th>Peça</th><th>Resultado</th><th>Metros</th><th>Defeitos</th></tr></thead><tbody>' +
+          d.pecas.map(function (p) { return '<tr><td>' + e(p.quando) + '</td><td>' + e(p.revisor) + '</td><td>' + e(p.maquina) + '</td><td>' + e(p.op) + '</td><td>' + e(p.artigo) + '</td><td>' + e(p.peca) + '</td><td>' + e(p.resultado) + '</td><td>' + e(p.metros) + '</td><td>' + e(p.defeitos) + '</td></tr>'; }).join('') + '</tbody></table>';
+      }
+      C.innerHTML = h;
+    }).catch(function () { C.textContent = 'Falha ao consultar o Acompanhamento de Produção.'; });
+  }
+  document.querySelectorAll('.revcru-maq').forEach(function (b) { b.addEventListener('click', function () { abrir(b.getAttribute('data-rc')); }); b.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') abrir(b.getAttribute('data-rc')); }); });
+  document.getElementById('rcFechar').addEventListener('click', function () { M.hidden = true; });
+  M.addEventListener('click', function (ev) { if (ev.target === M) M.hidden = true; });
+})();
+</script>
 </div>
 {% else %}
 <p class="machines-empty">{{ t('nenhuma_maquina_encontrada') if (busca or filtro_cliente or filtro_mes) else t('nenhuma_maquina') }}</p>
