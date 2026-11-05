@@ -27,6 +27,21 @@ from app.models import (ArtigoTamanho, FichaArtigo, Machine, MaquinaRpm, NonWork
 EFICIENCIA = min(max(float(os.getenv('EFICIENCIA_MAQUINA', '0.75') or 0.75), 0.3), 1.0)      # a maquina rende 75 % do teorico (RPM instalado x eficiencia); EFICIENCIA_MAQUINA=0.85 no .env volta para 85 %
 INEFICIENCIA = 1 - EFICIENCIA
 MIN_DIA = 1440 * EFICIENCIA
+# Eficiencia propria de algumas maquinas (o resto usa EFICIENCIA, 75 %). Maquinas 41, 44, 51, 52 e 53 rendem 61 %. Pelo .env: EFICIENCIA_MAQUINAS=41:0.61,44:0.61 (substitui a lista abaixo).
+EFICIENCIA_POR_MAQUINA = {41: 0.61, 44: 0.61, 51: 0.61, 52: 0.61, 53: 0.61}
+if os.getenv('EFICIENCIA_MAQUINAS'):
+    try:
+        EFICIENCIA_POR_MAQUINA = {int(k): min(max(float(v), 0.3), 1.0) for k, v in (p.split(':') for p in os.getenv('EFICIENCIA_MAQUINAS').replace(';', ',').split(',') if ':' in p)}
+    except ValueError:
+        pass
+
+
+def eficiencia_da(maquina) -> float:
+    """Eficiencia (0-1) usada nas contas de peças/dia da maquina: a propria dela, se houver, senao a geral."""
+    try:
+        return EFICIENCIA_POR_MAQUINA.get(int(maquina), EFICIENCIA)
+    except (TypeError, ValueError):
+        return EFICIENCIA
 TROCA_HORAS = float(os.getenv('TROCA_HORAS', '2'))      # tempo de troca de artigo somado antes de cada OP que ainda nao esta produzindo (padrao 2 h)
 ATIVAS = ('PRODUZINDO', 'EM_SEQUENCIA', 'PCP')
 _trava = threading.Lock()
@@ -349,7 +364,7 @@ def previsao_raport(cfg, maquina: int, s, idx_art):
     metros = _ds_metros(s) or (tam.metros_peca if tam else None)       # DS.METROS da OP (METRO IDEAL LOTE do TOTVS); a medida da planilha so entra se o TOTVS nao informar
     if not (estr and rpm and raport and metros):
         return None
-    return metros * 100 / raport, rpm * EFICIENCIA, raport              # voltas = metragem padrao (m) x 100 / raport (cm); RPM = RPM instalado da maquina x eficiencia (75 %)
+    return metros * 100 / raport, rpm * eficiencia_da(maquina), raport              # voltas = metragem padrao (m) x 100 / raport (cm); RPM = RPM instalado da maquina x eficiencia (75 %)
 
 
 class _RefFicha:
@@ -402,7 +417,7 @@ def estimativa_artigo(maquina: int, s):
     ref, fonte = referencia(idx, maquina, s.op, s.artigo)
     rap = None if ref else previsao_raport(_cfg_leve(maquina, s), maquina, s, idx[2])
     if ref:
-        voltas, rpm, min_dia, raport = ref.voltas, ref.rpm, MIN_DIA, None
+        voltas, rpm, min_dia, raport = ref.voltas, ref.rpm, 1440 * eficiencia_da(maquina), None
     elif rap:
         (voltas, rpm, raport), min_dia, fonte = rap, 1440, 'raport'
     else:
@@ -412,7 +427,7 @@ def estimativa_artigo(maquina: int, s):
     min_peca = voltas / rpm
     por_dia = min_dia / min_peca
     metros = _ds_metros(s) or (round(voltas * raport / 100, 1) if raport else None)      # sem DS.METROS no TOTVS: a metragem da planilha (voltas x raport)
-    return dict(fonte=fonte, ds_metros=metros, voltas=round(voltas, 1), rpm=round(rpm, 2), rpm_instalado=round(rpm / EFICIENCIA, 1) if fonte == 'raport' else None, raport=raport, eficiencia=round(EFICIENCIA * 100),
+    return dict(fonte=fonte, ds_metros=metros, voltas=round(voltas, 1), rpm=round(rpm, 2), rpm_instalado=round(rpm / eficiencia_da(maquina), 1) if fonte == 'raport' else None, raport=raport, eficiencia=round(eficiencia_da(maquina) * 100),
                 min_por_peca=round(min_peca, 1), pecas_hora=round(por_dia / 24, 2), pecas_turno=round(por_dia / 3, 1), pecas_dia=round(por_dia, 1), metros_dia=round(por_dia * metros) if metros else None)
 
 
@@ -522,7 +537,7 @@ def calcular(agora=None, maquina: int = None, esperar: bool = False) -> int:
                 if not ja_rodando and TROCA_HORAS:
                     cursor = cursor + timedelta(hours=TROCA_HORAS)
                 if ref:
-                    voltas, rpm, minutos_dia, s.prev_raport = ref.voltas, ref.rpm, MIN_DIA, None
+                    voltas, rpm, minutos_dia, s.prev_raport = ref.voltas, ref.rpm, 1440 * eficiencia_da(m.number), None
                 else:                                                   # raport x RPM instalado (ja com a eficiencia aplicada no RPM, sem desconto extra)
                     (voltas, rpm, s.prev_raport), minutos_dia, fonte = rap, 1440, 'raport'
                 tempo_peca = voltas / rpm                               # minutos por peca
