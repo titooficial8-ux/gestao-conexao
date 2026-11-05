@@ -6,11 +6,12 @@
 .prog-tags{position:absolute;left:6px;right:6px;bottom:6px;z-index:5;display:flex;gap:4px;flex-wrap:wrap;justify-content:center}.prog-tag{background:#fef3c7;border:1px solid #f59e0b;color:#92400e;font-weight:800;font-size:10.5px;border-radius:999px;padding:2px 8px}
 .manut-faixa{position:absolute;left:0;right:0;top:0;z-index:5;background:#dc2626;color:#fff;font-weight:900;font-size:11px;letter-spacing:.06em;text-align:center;padding:3px 4px;border-radius:12px 12px 0 0;animation:manutPisca 1s infinite}
 .maq-layout{display:flex;gap:14px;align-items:flex-start}.maq-main{flex:1;min-width:0}
-.revcru{flex:0 0 112px;margin-left:36px;background:linear-gradient(180deg,#fff,#f1f5f9);border:1px solid #cbd5e1;border-top:3px solid #0ea5e9;border-radius:10px;padding:6px 6px 8px;box-shadow:0 2px 8px rgba(15,23,42,.08)}
-.revcru-tit{text-align:center;font-size:9.5px;font-weight:900;letter-spacing:.08em;color:#0369a1;margin-bottom:4px}
-.revcru-pilha{display:flex;flex-direction:column;gap:6px}.revcru-maq:nth-child(2){margin-top:190px}
-.revcru-maq{text-align:center}.rc-svg{width:100px;height:auto;display:block;margin:0 auto;overflow:visible}
-.revcru-maq span{display:block;font-size:9.5px;font-weight:800;color:#0f172a;line-height:1.1}.revcru-maq small{display:none}
+.revcru{flex:0 0 112px;margin-left:36px;display:flex;flex-direction:column;gap:14px}
+.revcru-maq{background:linear-gradient(180deg,#fff,#f1f5f9);border:1px solid #cbd5e1;border-top:3px solid #0ea5e9;border-radius:10px;padding:10px 6px 10px;box-shadow:0 2px 8px rgba(15,23,42,.08);text-align:center}
+.revcru-maq b{display:block;font-size:9.5px;font-weight:900;letter-spacing:.08em;color:#0369a1;margin-bottom:4px}
+.rc-svg{width:100px;height:auto;display:block;margin:0 auto;overflow:visible}
+.revcru-maq span{display:block;font-size:10.5px;font-weight:800;color:#0f172a;line-height:1.1;margin-top:2px}
+.prog-tags{position:static!important;order:99;margin-top:8px;justify-content:center}.machine-card.em-manut,.machine-card.em-amostra{padding-top:30px}
 @media (max-width:900px){.maq-layout{flex-direction:column}.revcru{flex:none;width:100%;margin-left:0}}
 @keyframes rcPano{from{transform:translateY(0)}to{transform:translateY(8px)}}
 @keyframes rcGira{to{transform:rotate(360deg)}}
@@ -79,11 +80,8 @@
 </div>
 </div>
 <aside class="revcru" title="Revisão Cru (ao lado da máquina 45)">
-  <div class="revcru-tit">REVISÃO CRU</div>
-  <div class="revcru-pilha">
-    <div class="revcru-maq">{% set rid = 1 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 1<small>frente</small></span></div>
-    <div class="revcru-maq">{% set rid = 2 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 2<small>atrás</small></span></div>
-  </div>
+  <div class="revcru-maq"><b>REVISÃO CRU</b>{% set rid = 1 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 1</span></div>
+  <div class="revcru-maq"><b>REVISÃO CRU</b>{% set rid = 2 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 2</span></div>
 </aside>
 </div>
 {% else %}
