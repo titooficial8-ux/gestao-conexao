@@ -49,4 +49,6 @@ def dados(n):
                    revisando=[dict(nome=o.get('aberta_por'), tipo=o.get('tipo'), motivo=o.get('motivo'), desde=o.get('inicio'), minutos=o.get('minutos'), turno=o.get('turno')) for o in rev],
                    resumo=dict(pecas=len(pecas), metros=metros, resultados=dict(res), revisores=sorted({p.get('revisor') for p in pecas if p.get('revisor')})),
                    pecas=[dict(quando=p.get('quando'), revisor=p.get('revisor'), maquina=p.get('maquina'), op=p.get('op'), artigo=p.get('artigo'), peca=p.get('peca'), resultado=p.get('resultado'),
-                               metros=p.get('metros_reais'), defeitos=', '.join(p.get('defeitos') or []), turno=p.get('turno')) for p in pecas[:40]])
+                               metros=p.get('metros_reais'), reprovados=p.get('metros_reprovados'), defeitos=', '.join(p.get('defeitos') or []), turno=p.get('turno')) for p in pecas[:40]],
+                   reprovas=[dict(quando=p.get('quando'), revisor=p.get('revisor'), maquina=p.get('maquina'), op=p.get('op'), artigo=p.get('artigo'), peca=p.get('peca'), metros=p.get('metros_reais'),
+                                  reprovados=p.get('metros_reprovados'), defeitos=', '.join(p.get('defeitos') or [])) for p in pecas if 'REPROV' in (p.get('resultado') or '').upper()][:40])
