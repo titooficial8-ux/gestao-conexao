@@ -10,6 +10,10 @@ GET /api/v1/programacao                 -> TODAS as maquinas (inclusive as sem p
     ?status=PRODUZINDO|EM_SEQUENCIA|PCP -> filtra pelo status
     ?incluir_finalizadas=1              -> inclui FINALIZADO/CANCELADO
 GET /api/v1/programacao/<op>            -> uma OP
+GET /api/v1/pesagens                    -> pecas que passaram do local 23 para o 24 (a mesma fonte do Controle de Producao), por dia de producao (06h20 -> 06h19)
+    ?dia=AAAA-MM-DD                     -> um dia de producao (padrao: o dia de producao de agora)
+    ?de=AAAA-MM-DD&ate=AAAA-MM-DD       -> intervalo de dias de producao
+    ?maquina=48  ?op=3135               -> filtros opcionais
 """
 from __future__ import annotations
 
@@ -84,3 +88,60 @@ def programacao(op=None):
         g['sequencias'].append(_linha(s))
     lista = [maquinas[k] for k in sorted(maquinas)]
     return jsonify(total_maquinas=len(lista), total_sequencias=len(linhas), maquinas=lista)
+
+
+def _janela_producao(de, ate):
+    """[inicio, fim) em UTC dos dias de producao `de`..`ate` (cada dia vai das 06:20 as 06:19 de Brasilia)."""
+    from datetime import datetime, timedelta
+    ini = datetime.combine(de, datetime.min.time()) + timedelta(hours=6, minutes=20) + timedelta(hours=3)
+    fim = datetime.combine(ate + timedelta(days=1), datetime.min.time()) + timedelta(hours=6, minutes=20) + timedelta(hours=3)
+    return ini, fim
+
+
+@api_prog_bp.route('/pesagens')
+def pesagens():
+    """Pecas pesadas (movimento 23 -> 24): uma linha por peca, com maquina, OP, artigo, cliente, metros (DS.METROS), kg estimado e hora."""
+    import json
+    from datetime import date, datetime, timedelta, timezone
+    if not (os.getenv('GESTAO_API_TOKEN') or '').strip() and not (current_user.is_authenticated and current_user.is_admin):
+        return jsonify(erro='API desligada: defina GESTAO_API_TOKEN no .env do servidor.'), 503
+    if not _autorizado():
+        return jsonify(erro='Não autorizado: envie Authorization: Bearer <token>.'), 401
+    brt = timezone(timedelta(hours=-3))
+    agora = datetime.now(brt)
+    try:
+        if request.args.get('de') or request.args.get('ate'):
+            de = date.fromisoformat(request.args.get('de') or request.args['ate'])
+            ate = date.fromisoformat(request.args.get('ate') or request.args['de'])
+        else:
+            base = date.fromisoformat(request.args['dia']) if request.args.get('dia') else (agora - timedelta(hours=6, minutes=20)).date()
+            de = ate = base
+    except ValueError:
+        return jsonify(erro='Datas no formato AAAA-MM-DD.'), 400
+    if (ate - de).days > 31:
+        return jsonify(erro='Intervalo máximo de 31 dias.'), 400
+    ini, fim = _janela_producao(de, ate)
+    from app.main.routes import _movimentos_atual, _preparar_resposta
+    hub, api_txt = _movimentos_atual()
+    _etag, resp = _preparar_resposta(hub, api_txt)
+    maq, opf = (request.args.get('maquina') or '').strip().lstrip('0'), (request.args.get('op') or '').strip()
+    saida = []
+    for x in json.loads(resp['plano']):
+        try:
+            d = datetime.fromisoformat(str(x.get('dt_real')).replace('Z', '+00:00'))
+        except ValueError:
+            continue
+        d = (d.astimezone(timezone.utc) if d.tzinfo else d.replace(tzinfo=timezone.utc)).replace(tzinfo=None)
+        if not (ini <= d < fim):
+            continue
+        if maq and str(x.get('cod_maquina') or '').lstrip('0') != maq or opf and str(x.get('op')) != opf:
+            continue
+        local = d + timedelta(hours=-3)
+        prod = (local - timedelta(hours=6, minutes=20)).date()
+        minutos = local.hour * 60 + local.minute
+        turno = 1 if 6 * 60 + 20 <= minutos < 14 * 60 + 20 else 2 if 14 * 60 + 20 <= minutos < 22 * 60 + 20 else 3
+        saida.append(dict(maquina=x.get('cod_maquina'), op=x.get('op'), item=x.get('nr_item'), artigo=x.get('cod_artigo'), cliente=x.get('cliente'), metros=x.get('qt_movimento'),
+                          metro_padrao=x.get('metro_padrao'), kg=x.get('qt_pesos'), local_origem=x.get('local_code') or '23', local_destino='24',
+                          hora=local.strftime('%Y-%m-%dT%H:%M:%S'), dia_producao=prod.isoformat(), turno=turno))
+    saida.sort(key=lambda r: (r['hora'], str(r['maquina']), str(r['op'])))
+    return jsonify(de=de.isoformat(), ate=ate.isoformat(), total=len(saida), metros=round(sum(r['metros'] or 0 for r in saida), 2), kg=round(sum(r['kg'] or 0 for r in saida), 2), pesagens=saida)
