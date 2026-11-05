@@ -22,6 +22,11 @@
     <p class="presel-panel-sub">{{ t('analisar_sequencia_subtitulo') }}</p>
   </div>
 
+  <form method="POST" action="{{ url_for('main.puxar_op_pre_programacao') }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 8px">
+    <label for="puxarOp" style="font-weight:700;font-size:13px">Puxar OP do TOTVS:</label>
+    <input type="text" id="puxarOp" name="op" inputmode="numeric" pattern="[0-9]*" placeholder="nº da OP (ex.: 2550)" style="padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;width:190px">
+    <button type="submit" class="btn-small" title="Traz para a fila uma OP que a leitura automática não pegou (ex.: criada há mais de 30 dias)">Puxar para a fila</button>
+  </form>
   <div class="table-scroll" style="margin-top:6px;">
     <table class="data-table prod-table">
       <thead>
