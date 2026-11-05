@@ -447,6 +447,23 @@ def historicos():
     return jsonify(completo=hubhistorico.conferir(res), tabelas=res)
 
 
+@pcphub_bp.route('/migrar-saved-drawing')
+@login_required
+def migrar_saved_drawing():
+    """So administrador, UMA VEZ: copia do PCP Hub para o Gestao todo o Saved Drawing (desenhos de cada OP com quem salvou/quando/observacao, historico maquina+artigo e log de marcacoes).
+    Nao precisa religar o Hub (PCPHUB_ATIVO): basta PCPHUB_EMAIL/PCPHUB_PASSWORD no .env. Pode rodar de novo sem duplicar."""
+    if not current_user.is_admin:
+        abort(403)
+    if not (os.getenv('PCPHUB_EMAIL') and os.getenv('PCPHUB_PASSWORD')):
+        return jsonify(ok=False, erro='PCPHUB_EMAIL e PCPHUB_PASSWORD não estão no .env da VPS (precisam estar só para essa migração).'), 400
+    from app import hubhistorico
+    try:
+        res = hubhistorico.importar(['saved_drawings', 'saved_drawings_history', 'saved_drawings_save_log'])
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, erro=f'Não consegui ler o PCP Hub: {str(e)[:250]}'), 502
+    return jsonify(ok=True, completo=hubhistorico.conferir(res), tabelas=res)
+
+
 @pcphub_bp.route('/relatorio32')
 @login_required
 def relatorio32():
