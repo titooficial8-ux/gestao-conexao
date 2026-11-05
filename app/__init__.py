@@ -225,7 +225,7 @@ def create_app():
         from sqlalchemy import inspect, text
         tabelas = set(inspect(db.engine).get_table_names())
         for tabela, novas in (('users', (('setor_id', 'INTEGER'), ('verificado', 'BOOLEAN DEFAULT 0'), ('deve_trocar_senha', 'BOOLEAN DEFAULT 0'), ('foto_versao', 'INTEGER DEFAULT 0'), ('capa_versao', 'INTEGER DEFAULT 0'), ('capa_x', 'INTEGER DEFAULT 50'), ('capa_y', 'INTEGER DEFAULT 50'), ('segundos_acesso', 'INTEGER DEFAULT 0'), ('selo_parabens_pendente', 'BOOLEAN DEFAULT 0'))), ('pedidos_relatorio', (('unidade', 'VARCHAR(120)'), ('ops_extra', 'VARCHAR(200)'), ('vl_unitario', 'FLOAT DEFAULT 0'))), ('pesagens_malharia', (('visto_em', 'DATETIME'), ('hora_real', 'DATETIME'), ('hora_origem', 'VARCHAR(10)'), ('trx_codigo', 'INTEGER'), ('peso_kg', 'FLOAT'))), ('pesagens_malharia_resumo', (('artigo_desc', 'VARCHAR(200)'), ('gramatura', 'FLOAT'), ('largura', 'FLOAT'), ('metro_ideal', 'FLOAT'), ('cliente_cod', 'INTEGER'))), ('baixas_fio', (('gramatura', 'FLOAT'), ('largura', 'FLOAT'))), ('artigo_impedimentos', (('origem_registro', "VARCHAR(10) DEFAULT 'hub'"),)), ('sequencias', (('situacao', 'VARCHAR(20)'), ('pecas_dia', 'FLOAT'), ('termino_calculado', 'BOOLEAN DEFAULT 0'), ('prev_fonte', 'VARCHAR(30)'), ('prev_rpm', 'FLOAT'), ('prev_voltas', 'FLOAT'), ('prev_raport', 'FLOAT'), ('qt_plan', 'FLOAT'), ('dt_cliente_manual', 'BOOLEAN DEFAULT 0'), ('aud_ok', 'BOOLEAN DEFAULT 0'), ('aud_em', 'DATETIME'), ('prev_termino_em', 'DATETIME'), ('qt_ult', 'FLOAT'), ('hub_ordem', 'INTEGER'), ('pecas_extra', 'INTEGER DEFAULT 0'), ('maq_fixa', 'BOOLEAN DEFAULT 0'), ('obs_pcp', 'TEXT'), ('obs_pcp_por', 'VARCHAR(120)'), ('obs_pcp_em', 'DATETIME'), ('origem_reg', 'VARCHAR(10)'), ('encerrada_manual', 'BOOLEAN DEFAULT 0'))), ('sugestoes', (('vista_autor', 'BOOLEAN DEFAULT 0'), ('resposta', 'TEXT'), ('resposta_por', 'VARCHAR(120)'), ('resposta_em', 'DATETIME'))), ('artigos_rodagem', (('segmento', 'VARCHAR(60)'),)), ('avisos_manut', (('data_termino', 'DATE'), ('subtipo', 'VARCHAR(12)'))), ('saved_drawings', (('aviso_em', 'DATETIME'), ('aviso_por', 'VARCHAR(120)'))), ('ajustes_quantidade', (('origem', "VARCHAR(10) DEFAULT 'totvs'"),)),
-                                ('historico_producao', (('motivo_cancelamento', 'VARCHAR(500)'), ('justificado_por', 'VARCHAR(120)'), ('justificado_em', 'DATETIME')))):
+                                ('fila_pre_programacao', (('movido_por', 'VARCHAR(120)'),)), ('historico_producao', (('motivo_cancelamento', 'VARCHAR(500)'), ('justificado_por', 'VARCHAR(120)'), ('justificado_em', 'DATETIME')))):
             if tabela not in tabelas:
                 continue
             colunas = {c['name'] for c in inspect(db.engine).get_columns(tabela)}
@@ -324,6 +324,8 @@ def create_app():
         garantir_setor_e_cargos_estoque()                                # setor Estoque/Almoxarifado + cargos Líder Produção e Estoquista
         from app.seed import garantir_aba_nf_xml
         garantir_aba_nf_xml()                                            # aba NF XML (Financeiro): DUIMP no layout do TOTVS
+        from app.seed import remover_maquinas_desativadas
+        remover_maquinas_desativadas()                                   # maquina 11 nao existe mais
         from app.seed import garantir_aba_previa_pcp
         garantir_aba_previa_pcp()                                        # aba Prévia PCP (Gestão Planejamento)
         from app.seed import garantir_aba_amostras_no_planejamento

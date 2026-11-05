@@ -304,6 +304,7 @@ class FilaPreProgramacao(db.Model):
     status = db.Column(db.String(20))  # WAITING, MOVED
     moved_to_machine = db.Column(db.String(10), nullable=True)
     moved_at = db.Column(db.DateTime, nullable=True)
+    movido_por = db.Column(db.String(120), nullable=True)        # quem destinou a OP para a maquina (Pre-Programacao)
     is_avulsa = db.Column(db.Boolean, default=False)
     cod_segmento = db.Column(db.String(60))
     production_month = db.Column(db.String(20), nullable=True)
