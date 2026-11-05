@@ -1053,6 +1053,56 @@ def fila_automatica(cli) -> int:
     return novas
 
 
+def puxar_op_para_fila(op) -> tuple:
+    """Puxa UMA OP do TOTVS para a Pre-Programacao (fila WAITING), mesmo que a regra automatica a deixe de fora (ex.: criada ha mais de FILA_AUTO_DIAS dias).
+    Devolve (ok, mensagem). Nao mexe no TOTVS: so le a OP."""
+    import re
+    from app import db
+    from app.main.routes import normalize_client_name, resolve_metros_from_article
+    from app.models import ArtigoTotvs, FilaPreProgramacao, Sequencia
+    op = str(op or '').strip()
+    if not op.isdigit():
+        return False, 'Informe o número da OP (só dígitos).'
+    ativa = next((x for x in Sequencia.query.filter_by(op=op).all() if (x.status or '') not in ('FINALIZADO', 'CANCELADO')), None)
+    if ativa and ativa.machine:
+        return False, f'A OP {op} já está na máquina {ativa.machine.number} da Programação.'
+    existente = FilaPreProgramacao.query.filter_by(op=op).order_by(FilaPreProgramacao.id.desc()).first()
+    if existente and existente.status == 'WAITING':
+        return False, f'A OP {op} já está na Pré-Programação (Analisar sequência).'
+    cli = _cliente()
+    r = cli.post(OPS_URL, dict(filter=dict(branchCodeList=[EMPRESA], cycleCodeList=[13], orderCodeList=[int(op)]), expand='items', pageSize=5, page=1))
+    if r.status_code != 200:
+        return False, f'TOTVS respondeu HTTP {r.status_code}.'
+    achadas = r.json().get('items') or []
+    if not achadas:
+        return False, f'A OP {op} não foi encontrada no TOTVS (ciclo 13).'
+    o = achadas[0]
+    if o.get('status') in (30, 40):
+        return False, f'A OP {op} está {"finalizada" if o.get("status") == 30 else "cancelada"} no TOTVS.'
+    it = (o.get('items') or [{}])[0]
+    from app.totvs.artigos import codigos_de_artigo
+    cod = codigos_de_artigo(cli, [it.get('productCode')]).get(str(it.get('productCode')))
+    m = re.match(r'\s*(\d{3,})\b', str(it.get('productName') or ''))
+    artigo = (m.group(1) if m else None) or cod or str(it.get('productCode') or '')            # o codigo do ARTIGO e o numero que inicia o nome do produto (ex.: 300005 TP ML ...)
+    art = ArtigoTotvs.query.filter_by(cod_produto=artigo).first()
+    metro = _campos_artigo(o).get('metro_ideal')
+    if not metro:
+        try:
+            metro = float(str(resolve_metros_from_article(artigo) or '').replace(',', '.'))
+        except ValueError:
+            metro = 0
+    qtd = _num(o.get('quantity'))
+    agora = datetime.utcnow()
+    if existente:                                                # ja foi movida antes (MOVED) e nao esta mais em maquina: volta para a fila
+        existente.status, existente.moved_to_machine, existente.moved_at, existente.synced_at = 'WAITING', None, None, agora
+        existente.artigo, existente.requested_quantity, existente.total_pcs = artigo, qtd, pecas_totais(qtd, metro)
+    else:
+        db.session.add(FilaPreProgramacao(op=op, artigo=artigo, cliente=normalize_client_name(o.get('customerName') or ''), requested_quantity=qtd, total_pcs=pecas_totais(qtd, metro),
+                                          status='WAITING', cod_segmento=(art.segmento if art else None), created_at=agora, synced_at=agora))
+    db.session.commit()
+    return True, f'OP {op} (artigo {artigo}, {normalize_client_name(o.get("customerName") or "")}, {qtd:g} m) puxada do TOTVS para a Pré-Programação.'
+
+
 def situacoes_rapido(app) -> int:
     """Rodada leve: so le o cabecalho das OPs da Programacao (status, locais, quantidade) e atualiza a situacao (PCP Fase¹/Fase², MALHARIA...) e a quantidade.
     O ciclo completo (pesagens, baixas) e demorado; assim uma OP que muda de local no TOTVS aparece aqui em poucos segundos."""

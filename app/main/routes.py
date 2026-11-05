@@ -1912,6 +1912,23 @@ def mover_pre_programacao():
     return redirect(url_for('main.view_tab', slug='pre-programacao', aba='analisar'))
 
 
+@main_bp.route('/aba/pre-programacao/puxar-op', methods=['GET', 'POST'])
+@login_required
+def puxar_op_pre_programacao():
+    """PCP/administrador: puxa uma OP especifica do TOTVS para a Pre-Programacao (ex.: OP antiga que a fila automatica nao pegou). ?op=2550"""
+    tab = Tab.query.filter_by(slug='pre-programacao').first_or_404()
+    if not tab.visible_to(current_user) or not _pode_dias_sem_producao():
+        abort(403)
+    from app.totvs import movimentos
+    try:
+        ok, msg = movimentos.puxar_op_para_fila(request.values.get('op'))
+    except Exception as e:  # noqa: BLE001
+        db.session.rollback()
+        ok, msg = False, f'Não consegui ler a OP no TOTVS: {str(e)[:160]}'
+    flash(msg, 'success' if ok else 'error')
+    return redirect(url_for('main.view_tab', slug='pre-programacao', aba='analisar'))
+
+
 @main_bp.route('/aba/pre-programacao/excluir/<int:item_id>', methods=['POST'])
 @login_required
 def excluir_pre_programacao(item_id):
