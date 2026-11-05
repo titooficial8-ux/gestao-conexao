@@ -2778,6 +2778,11 @@ def sequencia_dt_cliente(seq_id):
     return jsonify(ok=True, exibe=exibe, edita=(q.dt_cliente.strftime('%d/%m/%Y') if q.dt_cliente else (q.production_month or '')))
 
 
+def _rpm_real_da_maquina(numero):
+    from app import rpm_real
+    return rpm_real.da_maquina(numero)
+
+
 def _manut_ativas() -> dict:
     """{maquina: 'desde dd/mm HH:MM'} das maquinas com manutencao em andamento (Acompanhamento de Producao ou aviso do Gestao)."""
     try:
@@ -3129,7 +3134,7 @@ def maquina_detalhe(numero):
     return render_template(
         'main/maquina_detalhe.html',
         pode_editar_dt=_pode_dias_sem_producao(), dt_editavel={q.id for q in sequencias if q.qt_avulsa or q.id in avulsa_cli or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper() or q.dt_cliente_manual or (not q.dt_cliente and not q.production_month)}, atrasadas={q.id for q in sequencias if sequencia_atrasada(q)}, aud_sessao=sessao_aberta(machine.number), manut_ativas=_manut_ativas(), maquinas_destino=[m.number for m in Machine.query.order_by(Machine.number).all() if m.number != machine.number], impedidos=impedidos_por_sequencia(sequencias, machine.number), mecanicos=MECANICOS,
-        artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, avulsa_cli=avulsa_cli, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h,
+        artigos=artigos, ds_metros=ds_metros, pedidos_op=pedidos_op, avulsa_cli=avulsa_cli, pecas_24h=pecas_24h, metros_24h=metros_24h, origem_24h=origem_24h, rpm_real=_rpm_real_da_maquina(machine.number),
         tab=tab,
         machine=machine,
         sequencias=sequencias,
