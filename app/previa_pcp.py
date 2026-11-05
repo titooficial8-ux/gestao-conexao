@@ -38,7 +38,7 @@ def _ds_metros(s) -> float:
     return float(v or 0)
 
 
-def projetar(dias: int = 14, agora: datetime | None = None, so_maquina: int | None = None, inicio=None, fim=None) -> dict:
+def projetar(dias: int = 14, agora: datetime | None = None, so_maquina=None, inicio=None, fim=None) -> dict:
     from app import previsao
     from app.dias_producao import domingos
     agora = (agora or datetime.now()).replace(minute=0, second=0, microsecond=0)
@@ -55,10 +55,12 @@ def projetar(dias: int = 14, agora: datetime | None = None, so_maquina: int | No
     horas_sim = int(((datetime.combine(fim, datetime.min.time()) + timedelta(days=1) + desloc) - agora).total_seconds() // 3600)
     sim_dias = [dia0 + timedelta(days=i) for i in range((fim - dia0).days + 2)]
     parados_g = {d.date for d in NonWorkingDay.query.filter(NonWorkingDay.date >= dia0).all() if d.machine_id is None} | domingos(dia0, fim + timedelta(days=2))
+    if isinstance(so_maquina, int):
+        so_maquina = {so_maquina}
     maquinas, tot_dia = [], {d: 0.0 for d in datas}
     dset = set(datas)
     for m in Machine.query.order_by(Machine.number).all():
-        if so_maquina and m.number != so_maquina:
+        if so_maquina and m.number not in so_maquina:
             continue
         info = dict(maquina=m.number, status=m.status, metros_dia={}, total=0.0, pecas=0.0, fila=[], aviso='')
         if m.status in Machine.STATUS_FORA_DE_OPERACAO:
@@ -150,5 +152,5 @@ def dados():
             return datetime.strptime(request.args.get(nome, ''), '%Y-%m-%d').date()
         except ValueError:
             return None
-    maq = request.args.get('maquina', type=int)
+    maq = {int(x) for x in request.args.get('maquina', '').split(',') if x.strip().isdigit()} or None
     return jsonify(ok=True, **projetar(dias, so_maquina=maq, inicio=_d('de'), fim=_d('ate')))
