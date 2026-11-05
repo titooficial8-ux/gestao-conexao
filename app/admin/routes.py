@@ -34,6 +34,15 @@ def users():
 @admin_required
 def update_user(user_id):
     user = User.query.get_or_404(user_id)
+    novo_email = (request.form.get('email') or '').strip().lower()
+    if novo_email and novo_email != (user.email or '').lower():
+        if '@' not in novo_email or ' ' in novo_email:
+            flash('E-mail inválido.', 'error')
+            return redirect(url_for('admin.users'))
+        if User.query.filter(db.func.lower(User.email) == novo_email, User.id != user.id).first():
+            flash('Já existe outro usuário com esse e-mail.', 'error')
+            return redirect(url_for('admin.users'))
+        user.email = novo_email                                       # o e-mail e o login: a pessoa passa a entrar com o novo
     user.status = request.form.get('status', user.status)
     user.is_admin = request.form.get('is_admin') == 'on'
     sector_ids = request.form.getlist('sectors')
