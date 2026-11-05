@@ -102,10 +102,15 @@
       h += d.revisando.length ? '<ul>' + d.revisando.map(function (o) { return '<li><b>' + e(o.nome || 'Revisor') + '</b> · ' + e(o.tipo) + (o.motivo ? ' (' + e(o.motivo) + ')' : '') + ' desde ' + e(o.desde) + (o.minutos != null ? ' · ' + e(o.minutos) + ' min' : '') + (o.turno ? ' · turno ' + e(o.turno) : '') + '</li>'; }).join('') + '</ul>' : '<p>Nenhuma ocorrência de revisor em andamento.</p>';
       var r = d.resumo;
       h += '<h4>Hoje (' + e(d.dia) + ')</h4><p><b>' + r.pecas + '</b> peças avaliadas · <b>' + e(r.metros) + ' m</b>' + (r.revisores.length ? ' · revisores: ' + e(r.revisores.join(', ')) : '') + '</p>';
-      var res = Object.keys(r.resultados || {}); if (res.length) h += '<p>' + res.map(function (k) { return e(k) + ': <b>' + r.resultados[k] + '</b>'; }).join(' · ') + '</p>';
+      var res = Object.keys(r.resultados || {}); if (res.length) h += '<p>' + res.map(function (k) { return '<span' + (/REPROV/i.test(k) ? ' style="color:#b91c1c"' : '') + '>' + e(k) + ': <b>' + r.resultados[k] + '</b></span>'; }).join(' · ') + '</p>';
+      if (d.reprovas && d.reprovas.length) {
+        h += '<details style="margin:8px 0;border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:6px 10px"><summary style="cursor:pointer;font-weight:800;color:#b91c1c">Reprovas / NC (' + d.reprovas.length + ') · ver detalhes</summary>' +
+          '<table class="data-table" style="width:100%;margin-top:6px"><thead><tr><th>Quando</th><th>Revisor</th><th>Máq.</th><th>OP</th><th>Artigo</th><th>Peça</th><th>m reprov.</th><th>Defeitos</th></tr></thead><tbody>' +
+          d.reprovas.map(function (p) { return '<tr><td>' + e(p.quando) + '</td><td>' + e(p.revisor) + '</td><td>' + e(p.maquina) + '</td><td>' + e(p.op) + '</td><td>' + e(p.artigo) + '</td><td>' + e(p.peca) + '</td><td>' + e(p.reprovados) + '</td><td>' + e(p.defeitos || '—') + '</td></tr>'; }).join('') + '</tbody></table></details>';
+      }
       if (d.pecas.length) {
         h += '<table class="data-table" style="width:100%"><thead><tr><th>Quando</th><th>Revisor</th><th>Máq.</th><th>OP</th><th>Artigo</th><th>Peça</th><th>Resultado</th><th>Metros</th><th>Defeitos</th></tr></thead><tbody>' +
-          d.pecas.map(function (p) { return '<tr><td>' + e(p.quando) + '</td><td>' + e(p.revisor) + '</td><td>' + e(p.maquina) + '</td><td>' + e(p.op) + '</td><td>' + e(p.artigo) + '</td><td>' + e(p.peca) + '</td><td>' + e(p.resultado) + '</td><td>' + e(p.metros) + '</td><td>' + e(p.defeitos) + '</td></tr>'; }).join('') + '</tbody></table>';
+          d.pecas.map(function (p) { return '<tr' + (/REPROV/i.test(p.resultado || '') ? ' style="background:#fef2f2"' : '') + '><td>' + e(p.quando) + '</td><td>' + e(p.revisor) + '</td><td>' + e(p.maquina) + '</td><td>' + e(p.op) + '</td><td>' + e(p.artigo) + '</td><td>' + e(p.peca) + '</td><td>' + e(p.resultado) + '</td><td>' + e(p.metros) + '</td><td>' + e(p.defeitos) + '</td></tr>'; }).join('') + '</tbody></table>';
       }
       C.innerHTML = h;
     }).catch(function () { C.textContent = 'Falha ao consultar o Acompanhamento de Produção.'; });
