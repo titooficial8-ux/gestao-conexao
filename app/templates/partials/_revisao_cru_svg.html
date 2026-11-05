@@ -1,0 +1,47 @@
+<svg class="rc-svg" viewBox="0 -8 164 130" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Máquina de revisão de cru">
+  <defs>
+    <linearGradient id="rcMet{{ rid }}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f6f8"/><stop offset="1" stop-color="#bcc6d1"/></linearGradient>
+    <linearGradient id="rcLado{{ rid }}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b3bdc9"/><stop offset="1" stop-color="#8d99a8"/></linearGradient>
+    <linearGradient id="rcTela{{ rid }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6f1fb"/><stop offset="1" stop-color="#b9d6ef"/></linearGradient>
+    <linearGradient id="rcRolo{{ rid }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#eceae4"/><stop offset="1" stop-color="#c9c6bd"/></linearGradient>
+    <linearGradient id="rcLuz{{ rid }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff7c2" stop-opacity=".85"/><stop offset="1" stop-color="#fff7c2" stop-opacity="0"/></linearGradient>
+    <clipPath id="rcClip{{ rid }}"><polygon points="50,38 108,30 108,60 50,68"/></clipPath>
+  </defs>
+  <ellipse cx="86" cy="108" rx="72" ry="8" fill="#0f172a" opacity=".13"/>
+  <g class="rc-bob">
+    <!-- base (3D) -->
+    <polygon points="20,88 140,70 152,64 32,82" fill="#eef2f6" stroke="#aab4bf" stroke-width=".8"/>
+    <polygon points="20,88 140,70 140,82 20,100" fill="url(#rcMet{{ rid }})" stroke="#9aa6b3" stroke-width=".8"/>
+    <polygon points="140,70 152,64 152,76 140,82" fill="url(#rcLado{{ rid }})" stroke="#8d99a8" stroke-width=".8"/>
+    <polygon points="20,88 32,82 32,94 20,100" fill="#f2b705" stroke="#b78600" stroke-width=".8"/>
+    <polygon points="132,71.5 140,70 140,82 132,83.5" fill="#f2b705" stroke="#b78600" stroke-width=".6"/>
+    <!-- torre esquerda -->
+    <polygon points="22,30 40,24 40,86 22,92" fill="url(#rcMet{{ rid }})" stroke="#9aa6b3" stroke-width=".8"/>
+    <polygon points="40,24 47,27 47,82 40,86" fill="url(#rcLado{{ rid }})" stroke="#8d99a8" stroke-width=".8"/>
+    <circle cx="31" cy="42" r="2.2" fill="#f2b705"/><circle cx="31" cy="49" r="2.2" fill="#f2b705"/>
+    <circle class="rc-led" cx="31" cy="56" r="2.2" fill="#22c55e"/>
+    <!-- braco e lampada -->
+    <polyline points="30,28 30,10 120,0" fill="none" stroke="#dfe4ea" stroke-width="5" stroke-linecap="round"/>
+    <polyline points="30,28 30,10 120,0" fill="none" stroke="#9aa6b3" stroke-width="1" stroke-linecap="round"/>
+    <polygon points="68,8 134,-1 136,5 70,14" fill="#f3f5f7" stroke="#9aa6b3" stroke-width=".8"/>
+    <polygon class="rc-luz" points="70,14 136,5 112,34 56,42" fill="url(#rcLuz{{ rid }})"/>
+    <!-- painel de revisao -->
+    <polygon points="46,34 112,25 112,64 46,73" fill="url(#rcTela{{ rid }})" stroke="#8fa3b8" stroke-width="1.2"/>
+    <g clip-path="url(#rcClip{{ rid }})">
+      <rect x="40" y="26" width="76" height="52" fill="#fff" opacity=".92"/>
+      <g class="rc-pano" stroke="#c7d2de" stroke-width="1" opacity=".9">
+        <line x1="44" y1="30" x2="116" y2="20"/><line x1="44" y1="38" x2="116" y2="28"/><line x1="44" y1="46" x2="116" y2="36"/>
+        <line x1="44" y1="54" x2="116" y2="44"/><line x1="44" y1="62" x2="116" y2="52"/><line x1="44" y1="70" x2="116" y2="60"/><line x1="44" y1="78" x2="116" y2="68"/>
+      </g>
+    </g>
+    <!-- pano descendo do painel ate o rolo -->
+    <path class="rc-fita" d="M58,69 C60,80 78,78 90,64 L104,60 C96,74 76,90 58,84 Z" fill="#ffffff" stroke="#d3d8de" stroke-width=".8"/>
+    <!-- rolo de tecido -->
+    <polygon points="90,52 128,45 128,71 90,78" fill="url(#rcRolo{{ rid }})" stroke="#b9b6ad" stroke-width=".8"/>
+    <ellipse cx="128" cy="58" rx="7" ry="13" fill="#f7f6f2" stroke="#b9b6ad" stroke-width=".8"/>
+    <ellipse cx="90" cy="65" rx="7" ry="13" fill="#fbfaf7" stroke="#b9b6ad" stroke-width=".8"/>
+    <g class="rc-gira" style="transform-origin:90px 65px"><line x1="90" y1="54" x2="90" y2="76" stroke="#c4c0b6" stroke-width="1.2"/><line x1="83" y1="65" x2="97" y2="65" stroke="#c4c0b6" stroke-width="1.2"/><circle cx="90" cy="65" r="2.4" fill="#9aa6b3"/></g>
+    <!-- cavalete do rolo -->
+    <polygon points="104,56 112,54 112,72 104,74" fill="#2b3340" opacity=".85"/>
+  </g>
+</svg>
