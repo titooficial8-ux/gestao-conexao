@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import requests
 
 from app import db
-from app.models import ArticleDailyCycle, HistoricoProducao, HubArquivo, SavedDrawingHistory, SavedDrawingSaveLog
+from app.models import ArticleDailyCycle, HistoricoProducao, HubArquivo, SavedDrawing, SavedDrawingHistory, SavedDrawingSaveLog
 from app import pcphub
 
 # tabela do Hub -> coluna de data usada como referencia
@@ -24,6 +24,7 @@ TABELAS = {
     'sample_notices': 'created_at',
     'sample_notices_history': 'changed_at',
     'weekend_machine_runs': 'created_at',
+    'saved_drawings': 'created_at',                 # desenhos de cada OP (salvo ou pendente, quem salvou, quando, observacao)
     'saved_drawings_history': 'created_at',
     'saved_drawings_save_log': 'saved_at',
     'article_alerts_history': 'created_at',
@@ -105,6 +106,22 @@ def _tipadas(tabela: str, linhas: list) -> int:
             ja.add(k)
             db.session.add(ArticleDailyCycle(article=x.get('article'), machine=x.get('machine'), op=x.get('op'), cycle_date=k[3], pieces=x.get('pieces') or 0, meters=float(x.get('meters') or 0)))
             n += 1
+    elif tabela == 'saved_drawings':
+        chave = lambda m, o, a: f"{(m or '').strip()}|{(o or '').strip()}|{(a or '').strip().upper()}"
+        ja = {chave(r.machine, r.op, r.article): r for r in SavedDrawing.query.all()}
+        for x in linhas:
+            k = chave(x.get('machine'), x.get('op'), x.get('article'))
+            r = ja.get(k)
+            salvo = bool(x.get('is_saved'))
+            if r is None:
+                r = SavedDrawing(machine=x.get('machine'), op=x.get('op'), article=x.get('article'), client=x.get('client'), created_at=_dt(x.get('created_at')) or datetime.utcnow())
+                db.session.add(r)
+                ja[k] = r
+                n += 1
+            elif not salvo or r.is_saved:
+                continue                                   # o Gestao ja tem a marcacao (ou o Hub nao tinha): nao sobrescreve
+            r.is_saved, r.saved_by_name, r.saved_by_email, r.saved_at = salvo, x.get('saved_by_name'), x.get('saved_by_email'), _dt(x.get('saved_at'))
+            r.observation = x.get('observation') or r.observation
     elif tabela == 'saved_drawings_history':
         ja = {(h.machine, h.article) for h in SavedDrawingHistory.query.all()}
         for x in linhas:
@@ -129,12 +146,12 @@ def _tipadas(tabela: str, linhas: list) -> int:
     return n
 
 
-def importar() -> dict:
+def importar(tabelas=None) -> dict:
     """Le tudo do Hub e grava no Gestao. Devolve, por tabela, quantas linhas o Hub tem, quantas entraram agora e quantas o Gestao tem no total."""
     token = pcphub._login()
     cab = dict(apikey=pcphub.CHAVE, Authorization=f'Bearer {token}')
     res = {}
-    for tabela in TABELAS:
+    for tabela in (tabelas or TABELAS):
         try:
             linhas = _ler(tabela, cab)
             novas = _arquivar(tabela, linhas)
