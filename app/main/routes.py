@@ -1936,7 +1936,8 @@ def puxar_op_pre_programacao():
 @login_required
 def excluir_pre_programacao(item_id):
     item = FilaPreProgramacao.query.get_or_404(item_id)
-    db.session.delete(item)
+    item.status = 'EXCLUIDA'                    # nao apaga a linha: a leitura automatica do TOTVS reconhece a OP como 'ja vista' e nao a traz de volta (para voltar, use 'Puxar OP do TOTVS')
+    item.synced_at = datetime.utcnow()
     db.session.commit()
     flash('pre_selecao_excluida_sucesso', 'success')
     return redirect(url_for('main.view_tab', slug='pre-programacao', aba='analisar'))
