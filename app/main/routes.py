@@ -1590,12 +1590,21 @@ def programacao_download():
             n = max((len(str(c.value)) for c in col if c.value is not None), default=10)
             ws.column_dimensions[col[0].column_letter].width = min(max(n + 2, 11), 45)
 
+    from app.models import PesagemResumo
+    real_m = {str(x.op): float(x.metros or 0) for x in PesagemResumo.query.all()}      # metros realmente pesados (local 23) por OP, atualizados do TOTVS
+
+    def _m_prev(x):
+        return round((x.total_pcs or 0) * float(resolve_metros_from_article(x.artigo) or 0), 1)
+
+    def _m_prod(x):
+        return round(real_m[str(x.op)], 1) if str(x.op) in real_m else round((x.pecas_produzidas or 0) * float(resolve_metros_from_article(x.artigo) or 0), 1)
+
     wb = Workbook()
     ws = wb.active
     ws.title = 'Resumo'
-    ws.append(['Máquina', 'OPs na programação', 'Qt Solicitada', 'Total Peças', 'Peças Produzidas', 'PÇ.PRODUZIR'])
+    ws.append(['Máquina', 'OPs na programação', 'Qt Solicitada', 'Total Peças', 'Peças Produzidas', 'PÇ.PRODUZIR', 'Metros Previstos', 'Metros Produzidos', 'Metros a Produzir'])
     _cabecalho(ws, '1E40AF')
-    tot = dict(ops=0, sol=0, pcs=0, prod=0, falta=0)
+    tot = dict(ops=0, sol=0, pcs=0, prod=0, falta=0, mp=0.0, mpr=0.0)
     com_ops = 0
     for n in todas:
         lista = por_maquina.get(n, [])
@@ -1603,24 +1612,26 @@ def programacao_download():
         pcs = sum(x.total_pcs or 0 for x in lista)
         prod = sum(x.pecas_produzidas or 0 for x in lista)
         falta = sum(max(0, (x.total_pcs or 0) - (x.pecas_produzidas or 0)) for x in lista)
-        ws.append([f'MÁQ {n}', len(lista), sol, pcs, prod, falta])
+        mp, mpr = sum(_m_prev(x) for x in lista), sum(_m_prod(x) for x in lista)
+        ws.append([f'MÁQ {n}', len(lista), sol, pcs, prod, falta, round(mp, 1), round(mpr, 1), round(max(mp - mpr, 0), 1)])
         if not lista:
             for c in ws[ws.max_row]:
                 c.font = Font(color='94A3B8')
         else:
             com_ops += 1
-        for k, v in (('ops', len(lista)), ('sol', sol), ('pcs', pcs), ('prod', prod), ('falta', falta)):
+        for k, v in (('ops', len(lista)), ('sol', sol), ('pcs', pcs), ('prod', prod), ('falta', falta), ('mp', mp), ('mpr', mpr)):
             tot[k] += v
-    ws.append(['TOTAL', tot['ops'], tot['sol'], tot['pcs'], tot['prod'], tot['falta']])
+    ws.append(['TOTAL', tot['ops'], tot['sol'], tot['pcs'], tot['prod'], tot['falta'], round(tot['mp'], 1), round(tot['mpr'], 1), round(max(tot['mp'] - tot['mpr'], 0), 1)])
     for c in ws[ws.max_row]:
         c.font = Font(bold=True)
         c.fill = PatternFill('solid', fgColor='DBEAFE')
     ws.append([])
     ws.append(['Máquinas com programação', com_ops, 'de', len(todas)])
+    ws.append(['Dados do TOTVS até', (datetime.utcnow() - timedelta(hours=3)).strftime('%d/%m/%Y %H:%M:%S')])
     _larguras(ws)
 
     pr = wb.create_sheet('Programação')
-    pr.append(['Máquina', 'Seq.', 'Status', 'OP', 'Artigo', 'Cliente', 'Estrutura', 'DS.Metros', 'Qt Solicitada', 'Total Peças', 'Peças Produzidas', 'PÇ.PRODUZIR', 'Início Malharia', 'Término Malharia', 'Prazo Cliente', 'Em Atraso'])
+    pr.append(['Máquina', 'Seq.', 'Status', 'OP', 'Artigo', 'Cliente', 'Estrutura', 'DS.Metros', 'Qt Solicitada', 'Total Peças', 'Peças Produzidas', 'PÇ.PRODUZIR', 'Metros Previstos', 'Metros Produzidos', 'Início Malharia', 'Término Malharia', 'Prazo Cliente', 'Em Atraso'])
     _cabecalho(pr, '0EA5E9')
     hoje_br = (datetime.utcnow() - timedelta(hours=3)).date()
     for n in sorted(por_maquina):
@@ -1629,18 +1640,19 @@ def programacao_download():
         for x in lista:
             atrasado = bool(x.termino_malharia and x.dt_cliente and x.termino_malharia > x.dt_cliente)
             pr.append([f'MÁQ {n}', x.sequence_order, STATUS_LABEL.get(x.status, x.status), x.op, x.artigo, x.cliente, resolve_estrutura_from_article(x.artigo), resolve_metros_from_article(x.artigo), x.qt_solicitada or 0,
-                       x.total_pcs or 0, x.pecas_produzidas or 0, max(0, (x.total_pcs or 0) - (x.pecas_produzidas or 0)), _fmt(inicio), _fmt(x.termino_malharia), _fmt(x.dt_cliente), 'SIM' if atrasado else 'NÃO'])
-            c = pr.cell(row=pr.max_row, column=16)
+                       x.total_pcs or 0, x.pecas_produzidas or 0, max(0, (x.total_pcs or 0) - (x.pecas_produzidas or 0)), _m_prev(x), _m_prod(x), _fmt(inicio), _fmt(x.termino_malharia), _fmt(x.dt_cliente), 'SIM' if atrasado else 'NÃO'])
+            c = pr.cell(row=pr.max_row, column=18)
             c.fill = PatternFill('solid', fgColor='DC2626' if atrasado else '16A34A')
             c.font = Font(bold=True, color='FFFFFF')
             inicio = x.termino_malharia or inicio
         pr.append([f'TOTAL MÁQ {n}', None, None, None, None, None, None, None, sum(x.qt_solicitada or 0 for x in lista), sum(x.total_pcs or 0 for x in lista), sum(x.pecas_produzidas or 0 for x in lista),
-                   sum(max(0, (x.total_pcs or 0) - (x.pecas_produzidas or 0)) for x in lista)])
+                   sum(max(0, (x.total_pcs or 0) - (x.pecas_produzidas or 0)) for x in lista),
+                   round(sum(_m_prev(x) for x in lista), 1), round(sum(_m_prod(x) for x in lista), 1)])
         for c in pr[pr.max_row]:
             c.font = Font(bold=True)
             c.fill = PatternFill('solid', fgColor='E2E8F0')
     _larguras(pr)
-    pr.auto_filter.ref = f'A1:{get_column_letter(16)}{pr.max_row}'
+    pr.auto_filter.ref = f'A1:{get_column_letter(18)}{pr.max_row}'
 
     buf = BytesIO()
     wb.save(buf)
@@ -1651,7 +1663,7 @@ def programacao_download():
     else:
         nome = f'programacao_maquinas_{hoje}.xlsx'
     return Response(buf.read(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    headers={'Content-Disposition': f'attachment; filename={nome}'})
+                    headers={'Content-Disposition': f'attachment; filename={nome}', 'Cache-Control': 'no-store'})
 
 
 def _pode_dias_sem_producao() -> bool:
