@@ -1290,6 +1290,9 @@ def view_tab(slug):
     if slug == 'controle-producao':
         return render_template('main/controle_producao.html', tab=tab)
 
+    if slug == 'previa-pcp':
+        return render_template('main/previa_pcp.html', tab=tab)
+
     if slug == 'saved-drawing':
         rows, status_map, seq_info_map, seq_key = _sync_saved_drawings()
 
