@@ -572,7 +572,7 @@ DASHBOARD_ESTOQUE_MODELO = {
 }
 
 DRAWING_SAVE_EMAILS = {
-    'gustavo.bonfim@conexaomalhas.com.br', 'gustavo.bonfim@conexaoplanning.com.br',
+    'mauricio@conexaomalhas.com.br', 'gustavo.bonfim@conexaomalhas.com.br', 'gustavo.bonfim@conexaoplanning.com.br',
     'gustavo.bonfim@conexao.com.br',
 }
 DRAWING_DELETE_EMAILS = {'mauricio@conexaomalhas.com.br', 'christian.yarzon@conexaomalhas.com.br'}
@@ -592,16 +592,20 @@ def _drawing_hist_key(machine, article):
 
 
 def _sync_saved_drawings():
-    """Cruza a Sequencia atual (EM_SEQUENCIA/PRODUZINDO) com a tabela
-    saved_drawings: cria automaticamente uma linha pendente pra toda OP nova
-    nessas situacoes, e remove as que ja sairam da sequencia (OP mudou de
-    maquina, finalizou, foi cancelada etc) — mesma logica do PCP Hub."""
-    seq_rows = (
+    """Cruza a Sequencia atual com a tabela saved_drawings: cria uma linha pendente para toda OP que esta na MALHARIA (local 23) ou PRODUZINDO, e remove as que ja
+    sairam da fila (OP mudou de maquina, finalizou, foi cancelada etc). Linhas criadas pelo AVISO de desenho (OP destinada/transferida sem desenho salvo na maquina,
+    ou ja em ESTOQUE) ficam enquanto a OP estiver ativa na fila."""
+    ativas = (
         Sequencia.query.join(Machine)
-        .filter(Sequencia.status.in_(['EM_SEQUENCIA', 'PRODUZINDO']))
+        .filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO']))
         .order_by(Sequencia.sequence_order.asc())
         .all()
     )
+
+    def conta(r):
+        return (r.situacao or '') in ('MALHARIA', 'PRODUZINDO') or r.status == 'PRODUZINDO'
+
+    seq_rows = [r for r in ativas if conta(r)]
 
     def seq_key(machine, op, article):
         return f"{(machine or '').strip()}|{(op or '').strip()}|{(article or '').strip().upper()}"
@@ -611,8 +615,9 @@ def _sync_saved_drawings():
     for r in seq_rows:
         machine = str(r.machine.number)
         key = seq_key(machine, r.op, r.artigo)
-        seq_set[key] = r.status
+        seq_set[key] = (r.situacao or r.status)
         by_machine.setdefault(machine, []).append(r)
+    ativas_keys = {seq_key(str(r.machine.number), r.op, r.artigo): (r.situacao or r.status) for r in ativas}
 
     existing = SavedDrawing.query.all()
     existing_keys = {seq_key(r.machine, r.op, r.article) for r in existing}
@@ -628,14 +633,16 @@ def _sync_saved_drawings():
             existing_keys.add(key)
             novos += 1
 
-    stale = [r for r in existing if seq_key(r.machine, r.op, r.article) not in seq_set]
+    stale = [r for r in existing if seq_key(r.machine, r.op, r.article) not in seq_set and not (r.aviso_em and seq_key(r.machine, r.op, r.article) in ativas_keys)]
     for r in stale:
         db.session.delete(r)
 
     if novos or stale:
         db.session.commit()
 
-    status_map = seq_set
+    status_map = dict(seq_set)
+    for k, v in ativas_keys.items():
+        status_map.setdefault(k, v)
     seq_info_map = {}
     for machine, items in by_machine.items():
         items.sort(key=lambda r: r.sequence_order or 0)
@@ -1291,7 +1298,7 @@ def view_tab(slug):
             key = seq_key(r.machine, r.op, r.article)
             status = status_map.get(key, '')
             in_history = _drawing_hist_key(r.machine, r.article) in hist_keys
-            pendente = (not r.is_saved) and status in ('EM_SEQUENCIA', 'PRODUZINDO') and not in_history
+            pendente = (not r.is_saved) and (status in ('MALHARIA', 'PRODUZINDO') or bool(r.aviso_em)) and not in_history
             itens.append({
                 'obj': r,
                 'status': status,
@@ -1890,9 +1897,13 @@ def mover_pre_programacao():
     item.status = 'MOVED'
     item.moved_to_machine = str(numero)
     item.moved_at = datetime.utcnow()
+    from app import saved_drawing
+    aviso_desenho = saved_drawing.alerta(numero, item.op, item.artigo, cliente, getattr(current_user, 'name', None))
     db.session.commit()
 
     flash('pre_selecao_movida_sucesso', 'success')
+    if aviso_desenho:
+        flash(aviso_desenho, 'aviso_desenho')
     return redirect(url_for('main.view_tab', slug='pre-programacao', aba='analisar'))
 
 
@@ -2881,6 +2892,8 @@ def sequencia_transferir(seq_id):
     resto = Sequencia.query.filter_by(machine_id=origem.id).filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).order_by(Sequencia.sequence_order).all()
     for pos, x in enumerate(resto, 1):
         x.sequence_order = pos
+    from app import saved_drawing
+    aviso_desenho = saved_drawing.alerta(destino.number, q.op, q.artigo, q.cliente, getattr(current_user, 'name', None))
     db.session.commit()
     from app import previsao
     for n in (origem.number, destino.number):
@@ -2888,7 +2901,7 @@ def sequencia_transferir(seq_id):
             previsao.calcular(maquina=n, esperar=True)
         except Exception:  # noqa: BLE001
             pass
-    return jsonify(ok=True, destino=destino.number)
+    return jsonify(ok=True, destino=destino.number, aviso_desenho=aviso_desenho)
 
 
 @main_bp.route('/aba/programacao/maquina/<int:numero>/reordenar', methods=['POST'])

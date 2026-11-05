@@ -564,7 +564,12 @@ tr.seq-arrastando{opacity:.45}tr.seq-alvo-antes td{box-shadow:inset 0 3px 0 #2f7
     bt.disabled = true; er.textContent = 'Transferindo…';
     fetch('/aba/programacao/sequencia/' + alvo.dataset.seqId + '/transferir', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
       .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.erro || 'Erro'); return d; }); })
-      .then(function () { location.reload(); }).catch(function (x) { er.textContent = x.message; bt.disabled = false; });
+      .then(function (d) {
+        if (d && d.aviso_desenho) { modal.hidden = true; var al = document.createElement('div'); al.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.65);z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px';
+          al.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:520px;padding:22px 24px"><div style="background:#dc2626;color:#fff;font-weight:800;padding:12px 14px;border-radius:10px;animation:exPisca 1.1s infinite;line-height:1.45"></div><p style="margin:12px 0 0;color:#334155">Avise o Desenvolvimento antes de a OP rodar nessa máquina.</p><div style="text-align:right;margin-top:14px"><button type="button" style="border:0;border-radius:10px;background:#0a4aa8;color:#fff;font-weight:800;padding:9px 18px;cursor:pointer">Entendi</button></div></div>';
+          al.querySelector('div > div').textContent = d.aviso_desenho; al.querySelector('button').addEventListener('click', function () { location.reload(); }); document.body.appendChild(al); return; }
+        location.reload();
+      }).catch(function (x) { er.textContent = x.message; bt.disabled = false; });
   });
 })();
 </script>

@@ -695,6 +695,12 @@ def _atualizar_situacoes(info: dict, pecas_por_op: dict) -> int:
                     changed_at=datetime.utcnow(), reason=motivo, estimated_end_date=s.termino_malharia,
                     client_date=s.dt_cliente, total_pcs=s.total_pcs))
             if s.situacao != sit or s.status != novo:
+                if sit in ('MALHARIA', 'ESTOQUE', 'PRODUZINDO') and s.machine and s.situacao != sit:          # OP chegou na malharia/estoque: sem desenho salvo na maquina, vai para a aba Saved Drawing
+                    try:
+                        from app import saved_drawing
+                        saved_drawing.alerta(s.machine.number, s.op, s.artigo, s.cliente, 'TOTVS (automático)')
+                    except Exception:  # noqa: BLE001
+                        traceback.print_exc()
                 s.situacao, s.status = sit, novo
     db.session.commit()
     return alteradas
