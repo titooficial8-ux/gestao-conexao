@@ -1020,7 +1020,7 @@ def fila_automatica(cli) -> int:
         for o in j.get('items') or []:
             op = str(o.get('orderCode'))
             ins = _data(o.get('insertDate'))
-            if op in em_maquina or op in na_fila or (ins and ins < limite) or _num(o.get('quantity')) <= 0:
+            if op in em_maquina or op in na_fila or (ins and ins < limite and not o.get('machineCode')) or _num(o.get('quantity')) <= 0:      # OP antiga so vem se o TOTVS ja tem maquina nela (ex.: OP 2550)
                 continue
             candidatas.append(o)
         if not j.get('hasNext'):
