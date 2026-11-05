@@ -931,3 +931,14 @@ class SugestaoAnexo(db.Model):
     nome = db.Column(db.String(200))
     mime = db.Column(db.String(100))
     dados = db.Column(db.LargeBinary)
+
+
+class AmostrasLiberadasSnapshot(db.Model):
+    """Relatorio diario 'Amostras liberadas e ordem de trabalho' gerado pelo agente (7h30) e enviado ao Gestao: uma foto por dia (a ultima do dia vale)."""
+    __tablename__ = 'amostras_liberadas_snapshots'
+
+    id = db.Column(db.Integer, primary_key=True)
+    dia = db.Column(db.Date, index=True, unique=True)
+    gerado_em = db.Column(db.String(40))                       # horario de Brasilia em que o agente gerou o relatorio
+    recebido_em = db.Column(db.DateTime, default=datetime.utcnow)
+    dados = db.Column(db.Text)                                  # JSON enviado pelo agente (itens, tarefas, avisos)
