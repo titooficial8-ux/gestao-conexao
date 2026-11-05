@@ -253,6 +253,30 @@ def seed_machine_capacities():
     db.session.commit()
 
 
+SETOR_ESTOQUE = 'Estoque/Almoxarifado'
+
+
+def garantir_setor_e_cargos_estoque() -> None:
+    """Setor 'Estoque/Almoxarifado' (acessa as abas de Gestao Estoque) e os cargos 'Líder Produção' e 'Estoquista'. Idempotente: roda a cada inicio e so cria o que falta."""
+    setor = Sector.query.filter_by(name=SETOR_ESTOQUE).first()
+    if not setor:
+        setor = Sector(name=SETOR_ESTOQUE)
+        db.session.add(setor)
+        db.session.flush()
+    cat_estoque = Category.query.filter_by(slug='estoque').first()
+    if cat_estoque:
+        for t in cat_estoque.tabs:
+            if setor not in t.sectors:
+                t.sectors.append(setor)
+    cats = {c.slug: c for c in Category.query.all()}
+    for nome, slugs in (('Líder Produção', ['producao']), ('Estoquista', ['estoque'])):
+        if not Role.query.filter_by(name=nome).first():
+            r = Role(name=nome)
+            r.edit_categories = [cats[x] for x in slugs if x in cats]
+            db.session.add(r)
+    db.session.commit()
+
+
 def garantir_aba_controle_mp() -> None:
     """Aba 'Controle MP' em Gestao Estoque (Supply Chain): o antigo Dashboard de materia-prima da Programacao. Quem via a Programacao ou o Supply Chain continua vendo."""
     cat = Category.query.filter_by(slug='estoque').first()
