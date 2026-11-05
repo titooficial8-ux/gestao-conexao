@@ -27,8 +27,8 @@ from app.models import (ArtigoTamanho, FichaArtigo, Machine, MaquinaRpm, NonWork
 EFICIENCIA = min(max(float(os.getenv('EFICIENCIA_MAQUINA', '0.75') or 0.75), 0.3), 1.0)      # a maquina rende 75 % do teorico (RPM instalado x eficiencia); EFICIENCIA_MAQUINA=0.85 no .env volta para 85 %
 INEFICIENCIA = 1 - EFICIENCIA
 MIN_DIA = 1440 * EFICIENCIA
-# Eficiencia propria de algumas maquinas (o resto usa EFICIENCIA, 75 %). Maquinas 41 e 44 rendem 69 % e 51, 52 e 53 rendem 65 %. Pelo .env: EFICIENCIA_MAQUINAS=41:0.69,44:0.69 (substitui a lista abaixo).
-EFICIENCIA_POR_MAQUINA = {41: 0.69, 44: 0.69, 51: 0.65, 52: 0.65, 53: 0.65}
+# Eficiencia propria de algumas maquinas (o resto usa EFICIENCIA, 75 %). Maquinas 41, 44, 51, 52 e 53 rendem 65 %. Pelo .env: EFICIENCIA_MAQUINAS=41:0.69,44:0.69 (substitui a lista abaixo).
+EFICIENCIA_POR_MAQUINA = {41: 0.65, 44: 0.65, 51: 0.65, 52: 0.65, 53: 0.65}
 if os.getenv('EFICIENCIA_MAQUINAS'):
     try:
         EFICIENCIA_POR_MAQUINA = {int(k): min(max(float(v), 0.3), 1.0) for k, v in (p.split(':') for p in os.getenv('EFICIENCIA_MAQUINAS').replace(';', ',').split(',') if ':' in p)}
