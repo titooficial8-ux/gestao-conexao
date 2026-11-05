@@ -316,6 +316,8 @@ def create_app():
         garantir_controle_artigos()                                      # aba Controle de Artigos (Planejamento)
         from app.seed import garantir_aba_gestao_projetos
         garantir_aba_gestao_projetos()                                   # aba Gestao Projetos (Sistema)
+        from app.seed import garantir_setor_e_cargos_estoque
+        garantir_setor_e_cargos_estoque()                                # setor Estoque/Almoxarifado + cargos Líder Produção e Estoquista
         from app.seed import garantir_aba_nf_xml
         garantir_aba_nf_xml()                                            # aba NF XML (Financeiro): DUIMP no layout do TOTVS
         from app.seed import garantir_aba_amostras_no_planejamento
