@@ -3,6 +3,7 @@
 {% block content %}
 <style>
 .pv{max-width:1500px;margin:0 auto;padding:6px 4px 40px}.pv h1{margin:0;font-size:26px;color:#0f2540}.pv .sub{color:#64748b;font-size:13.5px;margin:4px 0 14px}
+.pv-ms{position:relative}.pv-ms summary{padding:8px 12px;border:1px solid #cbd5e1;border-radius:9px;font-size:13px;background:#fff;cursor:pointer;list-style:none;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pv-msb{position:absolute;z-index:20;background:#fff;border:1px solid #cbd5e1;border-radius:9px;padding:8px 12px;max-height:300px;overflow:auto;min-width:160px;box-shadow:0 6px 18px rgba(0,0,0,.15)}.pv-msb label{display:block;font-size:13px;padding:2px 0;cursor:pointer}.pv-all{font-weight:700;border-bottom:1px solid #e2e8f0;margin-bottom:4px}
 .pv-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}.pv-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0 16px}.pv-bar select,.pv-bar a{padding:8px 12px;border:1px solid #cbd5e1;border-radius:9px;font-size:13px;background:#fff;color:#0f172a;text-decoration:none;font-weight:700}
 .pv-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px}.pv-kc{border-radius:14px;padding:16px 18px;color:#fff}.pv-kc small{display:block;font-size:11.5px;letter-spacing:.06em;font-weight:800;opacity:.9;text-transform:uppercase}.pv-kc b{display:block;font-size:30px;margin-top:6px;font-family:'JetBrains Mono',monospace}.pv-kc span{font-size:12px;opacity:.9}
 .pv-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px 18px;margin-bottom:16px}.pv-card h3{margin:0 0 10px;font-size:16px;color:#0f2540}.pv-graf{height:300px}
@@ -11,7 +12,7 @@
 </style>
 <div class="pv">
   <div class="pv-top"><div><h1>🔮 Prévia PCP</h1><div class="sub" id="pvSub">Previsão de metros por máquina, em cima da fila da Programação e da metragem padrão (DS.METROS)</div></div><a href="{{ url_for('main.view_tab', slug='gestao-malharia') }}" class="pv-voltar" style="font-weight:700;color:#0a4aa8;text-decoration:none">← Voltar para a Gestão da Malharia</a></div>
-  <div class="pv-bar"><label>Data início <input type="date" id="pvDe"></label><label>Data término <input type="date" id="pvAte"></label><label>Máquina <select id="pvMaq"><option value="">Todas</option></select></label></div>
+  <div class="pv-bar"><label>Data início <input type="date" id="pvDe"></label><label>Data término <input type="date" id="pvAte"></label><details id="pvMaqD" class="pv-ms"><summary id="pvMaqS">Máquinas: todas</summary><div class="pv-msb"><label class="pv-all"><input type="checkbox" id="pvMaqAll" checked> Todas</label><div id="pvMaq"></div></div></details></div>
   <div class="pv-nota">Estimativa para planejar, <b>não é o realizado</b>: peças por dia de cada OP (voltas/RPM com a eficiência) × DS.METROS, hora a hora, descontando troca de artigo, domingos e dias sem produção, amostras (até 18h) e manutenção preventiva programada. Se mudar a fila, a previsão muda.</div>
   <div class="pv-k" id="pvK"></div>
   <div class="pv-card"><h3>Metros previstos por dia (todas as máquinas)</h3><div class="pv-graf"><canvas id="pvG"></canvas></div></div>
@@ -48,13 +49,14 @@
     });
     var tt = h('tr', 'tot'); tt.appendChild(h('td', 'l', 'TOTAL')); datas.forEach(function (x) { tt.appendChild(h('td', null, nf(d.total_por_dia[x] || 0))); }); tt.appendChild(h('td', 'l', nf(d.total))); tt.appendChild(h('td')); tb.appendChild(tt); t.appendChild(tb); box.appendChild(t);
   }
+  function maqSel() { return Array.prototype.filter.call($('pvMaq').querySelectorAll('input'), function (c) { return c.checked; }).map(function (c) { return c.value; }); }
   function carregar() {
     $('pvSub').textContent = 'Calculando…';
-    fetch('/malharia/previa-pcp/dados?de=' + $('pvDe').value + '&ate=' + $('pvAte').value + ($('pvMaq').value ? '&maquina=' + $('pvMaq').value : ''), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
-      DADOS = d; if (!$('pvDe').value) { $('pvDe').value = d.datas[0]; $('pvAte').value = d.datas[d.dias - 1]; $('pvDe').min = d.datas[0]; } var s = $('pvMaq'); if (s.options.length <= 1) { d.maquinas.forEach(function (m) { var o = h('option', null, 'Máq. ' + m.maquina); o.value = m.maquina; s.appendChild(o); }); } desenha();
+    fetch('/malharia/previa-pcp/dados?de=' + $('pvDe').value + '&ate=' + $('pvAte').value + (maqSel().length ? '&maquina=' + maqSel().join(',') : ''), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      DADOS = d; if (!$('pvDe').value) { $('pvDe').value = d.datas[0]; $('pvAte').value = d.datas[d.dias - 1]; $('pvDe').min = d.datas[0]; } var s = $('pvMaq'); if (!s.children.length) { d.maquinas.forEach(function (m) { var l = h('label'), c = h('input'); c.type = 'checkbox'; c.value = m.maquina; c.addEventListener('change', function () { $('pvMaqAll').checked = !maqSel().length; carregar(); }); l.appendChild(c); l.appendChild(document.createTextNode(' Máq. ' + m.maquina)); s.appendChild(l); }); } $('pvMaqS').textContent = maqSel().length ? 'Máquinas: ' + maqSel().join(', ') : 'Máquinas: todas'; desenha();
     });
   }
-  $('pvDe').addEventListener('change', carregar); $('pvAte').addEventListener('change', carregar); $('pvMaq').addEventListener('change', carregar); carregar();
+  $('pvDe').addEventListener('change', carregar); $('pvAte').addEventListener('change', carregar); $('pvMaqAll').addEventListener('change', function () { Array.prototype.forEach.call($('pvMaq').querySelectorAll('input'), function (c) { c.checked = false; }); $('pvMaqAll').checked = true; carregar(); }); carregar();
 })();
 </script>
 {% endblock %}
