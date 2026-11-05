@@ -94,11 +94,14 @@
 <div class="table-card">
   <h3 class="section-subtitle">{{ t('sequencias_producao') }}</h3>
   <div class="seq-legenda"><span style="color:#a87400">PCP fase 1 (aguardando liberação)</span><span style="color:#3aa3f2">PCP fase 2</span><span style="color:#36b85e">Estoque (local 34)</span><span style="color:#0f5c32">Malharia (local 23)</span><span style="color:#17325c">Produzindo (padrão)</span></div>
+  {% set bloqueadas = sequencias|selectattr('situacao','equalto','BLOQUEADA')|list %}
+  {% if bloqueadas %}<div class="sit-bloq-banner">&#9940; OP COM SITUAÇÃO BLOQUEADA &ndash; PCP VERIFICAR: {% for q in bloqueadas %}<b>OP {{ q.op }}</b> ({{ q.artigo }}){{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
   <div class="table-scroll">
     <table class="data-table prod-table tab-centro seq-table">
       <thead>
         <tr>
           <th>{{ t('sequencia') }}</th>
+          <th>{{ t('status') }}</th>
           <th>{{ t('pecas_produzidas') }}</th>
           <th>{{ t('total_pcs') }}</th>
           <th>{{ t('pc_produzir') }}</th>
@@ -113,7 +116,6 @@
           <th>OP</th>
           <th>PEDIDO</th>
           <th>{{ t('cod_segmento') }}</th>
-          <th>{{ t('status') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -125,6 +127,20 @@
           <td>{% if s.status != 'PRODUZINDO' or pode_editar_dt %}<span class="seq-grip" title="Arraste para mudar a ordem; o término da malharia é recalculado">&#10303;</span>{% endif %}<span class="seq-num">{{ loop.index }}º</span><button type="button" class="info-i{{ ' tem-obs' if s.obs_pcp else '' }}" data-maq="{{ machine.number }}" data-seq="{{ s.id }}" title="{{ 'Observação do PCP: ' + s.obs_pcp[:120] if s.obs_pcp else 'Informações desta OP/artigo: observação do PCP, acompanhamento, etapas de liberação e últimas ocorrências' }}">i</button>
             <button type="button" class="au-gear {{ 'ok' if s.aud_ok else 'no' }}" data-seq="{{ s.id }}" {{ '' if aud_sessao else 'disabled' }} title="{{ ('Verificado na máquina pelo mecânico e PCP (clique para desmarcar)' if s.aud_ok else 'Ainda não verificado (clique para marcar)') if aud_sessao else 'Bloqueado: clique em Iniciar Auditoria para marcar' }}"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
             {% if impedidos.get(s.id) %}<span class="au-bloq" title="{{ impedidos[s.id] }}">&#9940;</span>{% endif %}{% if pode_editar_dt %}<button type="button" class="seq-excluir" data-seq="{{ s.id }}" data-op="{{ s.op }}" data-pc="{{ s.pecas_produzidas or 0 }}/{{ s.total_pcs or 0 }}" title="Excluir: encerra esta OP (vai para o histórico de Finalizadas, com justificativa)">&#128465;</button>{% endif %}</td>
+                    <td class="seq-sit">
+            {% set sit = s.situacao or ('PRODUZINDO' if s.status == 'PRODUZINDO' else ('PCP - Fase¹' if s.status == 'PCP' else 'MALHARIA')) %}
+            {% if sit == 'PRODUZINDO' %}
+            <span class="badge-ok">PRODUZINDO</span>
+            {% elif sit == 'MALHARIA' %}
+            <span class="badge-info">MALHARIA</span>
+            {% elif sit == 'ESTOQUE' %}
+            <span class="badge-warn">ESTOQUE</span>
+            {% elif sit == 'BLOQUEADA' %}
+            <span class="sit-bloq-alerta" title="Esta OP está BLOQUEADA no TOTVS">&#9940; OP COM SITUAÇÃO BLOQUEADA<br>PCP VERIFICAR</span>
+            {% else %}
+            <span class="badge-neutral">{{ sit }}</span>
+            {% endif %}
+          </td>
           {% set pct = ((s.pecas_produzidas or 0) / s.total_pcs * 100) | round | int if s.total_pcs else 0 %}
           <td class="seq-prog">
             <strong>{{ s.pecas_produzidas }}</strong>
@@ -158,20 +174,6 @@
             {% endif %}
           </td>
           <td>{{ s.cod_segmento or '–' }}</td>
-          <td>
-            {% set sit = s.situacao or ('PRODUZINDO' if s.status == 'PRODUZINDO' else ('PCP - Fase¹' if s.status == 'PCP' else 'MALHARIA')) %}
-            {% if sit == 'PRODUZINDO' %}
-            <span class="badge-ok">PRODUZINDO</span>
-            {% elif sit == 'MALHARIA' %}
-            <span class="badge-info">MALHARIA</span>
-            {% elif sit == 'ESTOQUE' %}
-            <span class="badge-warn">ESTOQUE</span>
-            {% elif sit == 'BLOQUEADA' %}
-            <span class="badge-danger">BLOQUEADA</span>
-            {% else %}
-            <span class="badge-neutral">{{ sit }}</span>
-            {% endif %}
-          </td>
         </tr>
         {% else %}
         <tr>
@@ -550,7 +552,7 @@ tr.seq-arrastando{opacity:.45}tr.seq-alvo-antes td{box-shadow:inset 0 3px 0 #2f7
     document.body.appendChild(menu);
     menu.firstChild.addEventListener('click', function (ev) {
       ev.stopPropagation(); fecha();
-      var op = (tr.querySelector('.seq-op') || {}).textContent || '', art = (tr.children[8] || {}).textContent || '';
+      var op = (tr.querySelector('.seq-op') || {}).textContent || '', art = (tr.children[9] || {}).textContent || '';
       document.getElementById('mvInfo').textContent = 'Máquina {{ machine.number }} · Artigo ' + art.trim() + ' · OP ' + op.trim();
       ['mvDestino', 'mvJust'].forEach(function (i) { document.getElementById(i).value = ''; }); document.getElementById('mvNaoRoda').checked = false; document.getElementById('mvErro').textContent = '';
       modal.hidden = false;

@@ -591,6 +591,20 @@ def _drawing_hist_key(machine, article):
     return f"{(machine or '').strip()}|{artigo_base}"
 
 
+def _quem_moveu(ops):
+    """Quem colocou a OP em cada maquina: destinacao pela Pre-Programacao ou transferencia entre maquinas. Devolve {(op, maquina): dict(por, quando, origem)} com o ultimo registro."""
+    from app.models import ArtigoMovimentacao
+    ops = {str(o) for o in ops if o}
+    res = {}
+    if not ops:
+        return res
+    for f in FilaPreProgramacao.query.filter(FilaPreProgramacao.op.in_(ops), FilaPreProgramacao.moved_to_machine.isnot(None)).all():
+        res[(str(f.op), str(f.moved_to_machine))] = dict(por=f.movido_por, quando=f.moved_at, origem=None)
+    for m in ArtigoMovimentacao.query.filter(ArtigoMovimentacao.op.in_(ops)).order_by(ArtigoMovimentacao.quando).all():
+        res[(str(m.op), str(m.destino))] = dict(por=m.por, quando=m.quando, origem=m.origem)
+    return res
+
+
 def _sync_saved_drawings():
     """Cruza a Sequencia atual com a tabela saved_drawings: cria uma linha pendente para toda OP que esta na MALHARIA (local 23) ou PRODUZINDO, e remove as que ja
     sairam da fila (OP mudou de maquina, finalizou, foi cancelada etc). Linhas criadas pelo AVISO de desenho (OP destinada/transferida sem desenho salvo na maquina,
@@ -858,7 +872,8 @@ def view_tab(slug):
         abort(403)
 
     if slug == 'programacao':
-        machines = Machine.query.order_by(Machine.order.is_(None), Machine.order, Machine.number).all()
+        from app.seed import MAQUINAS_REMOVIDAS
+        machines = [m for m in Machine.query.order_by(Machine.order.is_(None), Machine.order, Machine.number).all() if m.number not in MAQUINAS_REMOVIDAS]
         total_maquinas_cadastradas = len(machines)
         maquinas_ativas = sum(1 for m in machines if m.esta_ativa)
         total_sequencias = Sequencia.query.filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).count()
@@ -1301,6 +1316,7 @@ def view_tab(slug):
             for h in SavedDrawingHistory.query.with_entities(SavedDrawingHistory.machine, SavedDrawingHistory.article).all()
         }
 
+        movs = _quem_moveu([r.op for r in rows])
         itens = []
         for r in rows:
             key = seq_key(r.machine, r.op, r.article)
@@ -1313,6 +1329,7 @@ def view_tab(slug):
                 'in_history': in_history,
                 'pendente': pendente,
                 'seq_info': seq_info_map.get(key),
+                'mov': movs.get((str(r.op), str(r.machine))),
             })
 
         machine_options = sorted({i['obj'].machine for i in itens if i['obj'].machine}, key=lambda m: (len(m), m))
@@ -1917,6 +1934,7 @@ def mover_pre_programacao():
     item.status = 'MOVED'
     item.moved_to_machine = str(numero)
     item.moved_at = datetime.utcnow()
+    item.movido_por = getattr(current_user, 'name', None)
     from app import saved_drawing
     aviso_desenho = saved_drawing.alerta(numero, item.op, item.artigo, cliente, getattr(current_user, 'name', None))
     db.session.commit()

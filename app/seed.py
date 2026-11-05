@@ -199,6 +199,26 @@ def seed_data():
     seed_machine_capacities()
 
 
+MAQUINAS_REMOVIDAS = {11}                                     # maquinas que nao existem mais na fabrica (nao recriar pelo seed)
+
+
+def remover_maquinas_desativadas() -> None:
+    """Tira da lista as maquinas que nao existem mais (ex.: 11). Se nao ha nenhum registro ligado a ela, apaga; se houver historico, so marca como inoperante (a Programacao a esconde)."""
+    from app.models import MachineCapacity, NonWorkingDay, Programacao, Sequencia
+    for numero in MAQUINAS_REMOVIDAS:
+        m = Machine.query.filter_by(number=numero).first()
+        if not m:
+            continue
+        ligados = sum(M.query.filter_by(machine_id=m.id).count() for M in (Sequencia, Programacao, NonWorkingDay))
+        if ligados:
+            if m.status != Machine.STATUS_INOPERANTE:
+                m.status = Machine.STATUS_INOPERANTE
+        else:
+            MachineCapacity.query.filter_by(machine_id=m.id).delete()
+            db.session.delete(m)
+        db.session.commit()
+
+
 def _parse_bool(value):
     return str(value).strip().lower() == 'true'
 
@@ -225,6 +245,8 @@ def seed_machine_capacities():
                 continue
             maq_field, estrutura, l1, l2, l3, gmin, gmax, ativa = row[:8]
             numero = int(maq_field.split(';')[-1])
+            if numero in MAQUINAS_REMOVIDAS:
+                continue
 
             machine = machines_by_number.get(numero)
             if not machine:

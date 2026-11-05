@@ -27,6 +27,12 @@
   </div>
   {% endif %}
 
+  {% if i.mov and i.mov.por %}
+  <div class="sd-moved" title="Quem colocou esta OP na máquina">&#128100; {% if i.mov.origem %}Transferida da máq. {{ i.mov.origem }}{% else %}Destinada{% endif %} por <strong>{{ i.mov.por }}</strong>{% if i.mov.quando %} · {{ (i.mov.quando|local).strftime('%d/%m %H:%M') }}{% endif %}</div>
+  {% elif i.obj.aviso_por %}
+  <div class="sd-moved">&#128100; Movida por <strong>{{ i.obj.aviso_por }}</strong></div>
+  {% endif %}
+
   {% if i.in_history %}
   <div class="sd-note sd-note-info">&#8505;&#65039; {{ t('maquina') }} <strong>{{ i.obj.machine }}</strong> {{ t('saved_drawing_ja_no_historico') }}</div>
   {% else %}
