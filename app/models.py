@@ -411,6 +411,8 @@ class SavedDrawing(db.Model):
     saved_at = db.Column(db.DateTime, nullable=True)
     observation = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    aviso_em = db.Column(db.DateTime, nullable=True)           # o Gestao avisou o PCP (destinou/transferiu a OP sem desenho salvo na maquina): fica na lista enquanto a OP estiver na fila
+    aviso_por = db.Column(db.String(120), nullable=True)
 
 
 class SavedDrawingHistory(db.Model):
