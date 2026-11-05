@@ -6,7 +6,7 @@
 .prog-tags{position:absolute;left:6px;right:6px;bottom:6px;z-index:5;display:flex;gap:4px;flex-wrap:wrap;justify-content:center}.prog-tag{background:#fef3c7;border:1px solid #f59e0b;color:#92400e;font-weight:800;font-size:10.5px;border-radius:999px;padding:2px 8px}
 .manut-faixa{position:absolute;left:0;right:0;top:0;z-index:5;background:#dc2626;color:#fff;font-weight:900;font-size:11px;letter-spacing:.06em;text-align:center;padding:3px 4px;border-radius:12px 12px 0 0;animation:manutPisca 1s infinite}
 .maq-layout{display:flex;gap:10px;align-items:stretch}.maq-main{flex:1;min-width:0}
-.revcru{flex:0 0 104px;margin-left:14px;display:flex;flex-direction:column;justify-content:space-between;gap:14px}.revcru-maq{cursor:pointer;transition:transform .12s,box-shadow .12s}.revcru-maq:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(47,127,224,.22)}
+.revcru{flex:0 0 104px;margin-left:14px;display:flex;flex-direction:column;justify-content:flex-start;gap:14px}.revcru-maq{cursor:pointer;transition:transform .12s,box-shadow .12s}.revcru-maq:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(47,127,224,.22)}
 .revcru-maq{background:linear-gradient(180deg,#fff,#f1f5f9);border:1px solid #cbd5e1;border-top:3px solid #0ea5e9;border-radius:10px;padding:10px 6px 10px;box-shadow:0 2px 8px rgba(15,23,42,.08);text-align:center}
 .revcru-maq b{display:block;font-size:9.5px;font-weight:900;letter-spacing:.08em;color:#0369a1;margin-bottom:4px}
 .rc-svg{width:88px;height:auto;display:block;margin:0 auto;overflow:visible}
@@ -110,6 +110,14 @@
       C.innerHTML = h;
     }).catch(function () { C.textContent = 'Falha ao consultar o Acompanhamento de Produção.'; });
   }
+  function alinhar() {                                   // Revisão Cru 2 na altura da 2ª fileira de máquinas
+    var aside = document.querySelector('.revcru'), cards = document.querySelectorAll('.machines-grid .machine-card');
+    if (!aside || cards.length < 10 || window.innerWidth <= 900) return;
+    var q = aside.querySelectorAll('.revcru-maq'); q[1].style.marginTop = '0px';
+    var falta = cards[9].getBoundingClientRect().top - q[1].getBoundingClientRect().top;
+    q[1].style.marginTop = Math.max(falta, 0) + 'px';
+  }
+  alinhar(); window.addEventListener('resize', alinhar); window.addEventListener('load', alinhar);
   document.querySelectorAll('.revcru-maq').forEach(function (b) { b.addEventListener('click', function () { abrir(b.getAttribute('data-rc')); }); b.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') abrir(b.getAttribute('data-rc')); }); });
   document.getElementById('rcFechar').addEventListener('click', function () { M.hidden = true; });
   M.addEventListener('click', function (ev) { if (ev.target === M) M.hidden = true; });
