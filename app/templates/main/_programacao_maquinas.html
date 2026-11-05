@@ -79,9 +79,9 @@
   {% endfor %}
 </div>
 </div>
-<aside class="revcru" title="Revisão Cru (ao lado da máquina 45)">
-  <div class="revcru-maq" role="button" tabindex="0" data-rc="1"><b>REVISÃO CRU</b>{% set rid = 1 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 1</span></div>
-  <div class="revcru-maq" role="button" tabindex="0" data-rc="2"><b>REVISÃO CRU</b>{% set rid = 2 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 2</span></div>
+<aside class="revcru">
+  <div class="revcru-maq" role="button" tabindex="0" data-rc="1" title="Clique aqui para conferir como está a produção de revisão cru"><b>REVISÃO CRU</b>{% set rid = 1 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 1</span></div>
+  <div class="revcru-maq" role="button" tabindex="0" data-rc="2" title="Clique aqui para conferir como está a produção de revisão cru"><b>REVISÃO CRU</b>{% set rid = 2 %}{% include 'partials/_revisao_cru_svg.html' %}<span>REVISÃO CRU 2</span></div>
 </aside>
 <div class="modal-backdrop" id="rcModal" hidden><div class="modal-box" style="max-width:920px;width:96%">
   <div class="modal-head"><h3 class="section-subtitle" id="rcTit">Revisão Cru</h3><button type="button" class="modal-close" id="rcFechar">&times;</button></div>
