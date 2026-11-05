@@ -117,6 +117,8 @@ def create_app():
     app.register_blueprint(am_lib_bp)
     from app.previa_pcp import previa_bp
     app.register_blueprint(previa_bp)
+    from app.revisao_cru import revisao_bp
+    app.register_blueprint(revisao_bp)
     from app.indicadores.routes import ind_bp
     app.register_blueprint(ind_bp)
     from app.desenvolvimento.routes import dev_bp
