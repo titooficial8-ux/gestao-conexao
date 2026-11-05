@@ -1915,6 +1915,24 @@ def mover_pre_programacao():
     return redirect(url_for('main.view_tab', slug='pre-programacao', aba='analisar'))
 
 
+_INICIO_SERVIDOR = datetime.now()
+
+
+@main_bp.route('/versao')
+def versao():
+    """Qual versao do Gestao esta rodando neste servidor (para conferir se a atualizacao entrou): ultimo commit da pasta, hora em que o servidor subiu e recursos recentes."""
+    import subprocess
+    raiz = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    commit = ''
+    try:
+        commit = subprocess.run(['git', 'log', '-3', '--pretty=%h %ad %s', '--date=format:%d/%m %H:%M'], cwd=raiz, capture_output=True, text=True, timeout=5).stdout.strip().splitlines()
+    except Exception:  # noqa: BLE001
+        commit = ['(git indisponível nesta pasta)']
+    recursos = dict(previa_pcp=current_app.view_functions.get('previa_pcp.pagina') is not None, api_pesagens=current_app.view_functions.get('api_prog.pesagens') is not None,
+                    eficiencia_69_41_44_51_52_53=__import__('app.previsao', fromlist=['x']).EFICIENCIA_POR_MAQUINA.get(41) if hasattr(__import__('app.previsao', fromlist=['x']), 'EFICIENCIA_POR_MAQUINA') else None)
+    return jsonify(pasta=raiz, servidor_iniciou_em=_INICIO_SERVIDOR.strftime('%d/%m/%Y %H:%M:%S'), ultimos_commits=commit, recursos=recursos)
+
+
 @main_bp.route('/aba/pre-programacao/puxar-op', methods=['GET', 'POST'])
 @login_required
 def puxar_op_pre_programacao():
