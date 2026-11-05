@@ -16,6 +16,7 @@
   <div class="pv-nota">Estimativa para planejar, <b>não é o realizado</b>: peças por dia de cada OP (voltas/RPM com a eficiência) × DS.METROS, hora a hora, descontando troca de artigo, domingos e dias sem produção, amostras (até 18h) e manutenção preventiva programada. Se mudar a fila, a previsão muda.</div>
   <div class="pv-k" id="pvK"></div>
   <div class="pv-card"><h3>Metros previstos por dia (todas as máquinas)</h3><div class="pv-graf"><canvas id="pvG"></canvas></div></div>
+  <div class="pv-card"><h3>Prévia de trocas (SETUP) no período</h3><div class="pv-tw" id="pvS"></div></div>
   <div class="pv-card"><h3>Por máquina e por dia (metros)</h3><div class="pv-tw" id="pvT"></div></div>
 </div>
 <script src="{{ url_for('static', filename='js/vendor/chart.umd.js') }}"></script>
@@ -50,10 +51,21 @@
     var tt = h('tr', 'tot'); tt.appendChild(h('td', 'l', 'TOTAL')); datas.forEach(function (x) { tt.appendChild(h('td', null, nf(d.total_por_dia[x] || 0))); }); tt.appendChild(h('td', 'l', nf(d.total))); tt.appendChild(h('td')); tb.appendChild(tt); t.appendChild(tb); box.appendChild(t);
   }
   function maqSel() { return Array.prototype.filter.call($('pvMaq').querySelectorAll('input'), function (c) { return c.checked; }).map(function (c) { return c.value; }); }
+  function desenhaTrocas() {
+    var box = $('pvS'); box.textContent = ''; var L = [];
+    DADOS.maquinas.forEach(function (m) { (m.trocas || []).forEach(function (x) { L.push({ m: m.maquina, x: x }); }); });
+    L.sort(function (a, b) { return a.x.quando < b.x.quando ? -1 : 1; });
+    if (!L.length) { box.appendChild(h('p', 'pv-nota', 'Nenhuma troca de artigo prevista no período.')); return; }
+    var t = h('table', 'pv-tb'), th = h('thead'), r = h('tr'); ['Máquina', 'Início do setup', 'Fim do setup', 'Sai (OP · artigo)', 'Entra (OP · artigo)'].forEach(function (c) { r.appendChild(h('th', null, c)); }); th.appendChild(r); t.appendChild(th);
+    var tb = h('tbody'); function hr(q) { return SEM[new Date(q).getDay()] + ' ' + q.slice(8, 10) + '/' + q.slice(5, 7) + ' ' + q.slice(11, 16); }
+    L.forEach(function (o) { var tr = h('tr'); tr.appendChild(h('td', 'l', 'Máq. ' + o.m)); tr.appendChild(h('td', null, hr(o.x.quando))); tr.appendChild(h('td', null, hr(o.x.fim)));
+      tr.appendChild(h('td', 'l', o.x.sai_op ? o.x.sai_op + ' · ' + (o.x.sai_artigo || '') : 'início (parada atual)')); tr.appendChild(h('td', 'l', o.x.entra_op + ' · ' + (o.x.entra_artigo || ''))); tb.appendChild(tr); });
+    t.appendChild(tb); box.appendChild(t); box.appendChild(h('p', 'pv-nota', L.length + ' troca(s) · cada setup considera ' + L[0].x.horas + 'h de parada'));
+  }
   function carregar() {
     $('pvSub').textContent = 'Calculando…';
     fetch('/malharia/previa-pcp/dados?de=' + $('pvDe').value + '&ate=' + $('pvAte').value + (maqSel().length ? '&maquina=' + maqSel().join(',') : ''), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
-      DADOS = d; if (!$('pvDe').value) { $('pvDe').value = d.datas[0]; $('pvAte').value = d.datas[d.dias - 1]; $('pvDe').min = d.datas[0]; } var s = $('pvMaq'); if (!s.children.length) { d.maquinas.forEach(function (m) { var l = h('label'), c = h('input'); c.type = 'checkbox'; c.value = m.maquina; c.addEventListener('change', function () { $('pvMaqAll').checked = !maqSel().length; carregar(); }); l.appendChild(c); l.appendChild(document.createTextNode(' Máq. ' + m.maquina)); s.appendChild(l); }); } $('pvMaqS').textContent = maqSel().length ? 'Máquinas: ' + maqSel().join(', ') : 'Máquinas: todas'; desenha();
+      DADOS = d; if (!$('pvDe').value) { $('pvDe').value = d.datas[0]; $('pvAte').value = d.datas[d.dias - 1]; $('pvDe').min = d.datas[0]; } var s = $('pvMaq'); if (!s.children.length) { d.maquinas.forEach(function (m) { var l = h('label'), c = h('input'); c.type = 'checkbox'; c.value = m.maquina; c.addEventListener('change', function () { $('pvMaqAll').checked = !maqSel().length; carregar(); }); l.appendChild(c); l.appendChild(document.createTextNode(' Máq. ' + m.maquina)); s.appendChild(l); }); } $('pvMaqS').textContent = maqSel().length ? 'Máquinas: ' + maqSel().join(', ') : 'Máquinas: todas'; desenha(); desenhaTrocas();
     });
   }
   $('pvDe').addEventListener('change', carregar); $('pvAte').addEventListener('change', carregar); $('pvMaqAll').addEventListener('change', function () { Array.prototype.forEach.call($('pvMaq').querySelectorAll('input'), function (c) { c.checked = false; }); $('pvMaqAll').checked = true; carregar(); }); carregar();

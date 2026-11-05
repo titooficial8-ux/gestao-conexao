@@ -83,6 +83,9 @@ def projetar(dias: int = 14, agora: datetime | None = None, so_maquina=None, ini
         i, troca = 0, (0.0 if (seqs[0].status == 'PRODUZINDO') else previsao.TROCA_HORAS)
         por_dia = {d: 0.0 for d in sim_dias}
         pecas = 0.0
+        trocas = []
+        if troca > 0:
+            trocas.append(dict(quando=agora, fim=agora + timedelta(hours=troca), sai=None, entra=fila[0]['s']))
         for h in range(max(horas_sim, 0)):
             t = agora + timedelta(hours=h)
             if i >= len(fila):
@@ -108,9 +111,16 @@ def projetar(dias: int = 14, agora: datetime | None = None, so_maquina=None, ini
                 if f['restam'] <= 1e-6:
                     i += 1
                     troca = previsao.TROCA_HORAS
+                    fim_op = t + timedelta(hours=(1 - livre) + prod * 24 / f['pd'])
+                    prox = next((x for x in fila[i:] if x['pd'] > 0 and x['metro'] > 0), None)
+                    if prox:
+                        trocas.append(dict(quando=fim_op, fim=fim_op + timedelta(hours=previsao.TROCA_HORAS), sai=f['s'], entra=prox['s']))
         info['metros_dia'] = {k.isoformat(): round(v, 1) for k, v in por_dia.items() if k in dset}
         info['total'] = round(sum(v for k, v in por_dia.items() if k in dset), 1)
         info['pecas'] = round(pecas, 1)
+        info['trocas'] = [dict(quando=x['quando'].isoformat(timespec='minutes'), fim=x['fim'].isoformat(timespec='minutes'), horas=previsao.TROCA_HORAS,
+                               sai_op=x['sai'].op if x['sai'] else None, sai_artigo=x['sai'].artigo if x['sai'] else None, entra_op=x['entra'].op, entra_artigo=x['entra'].artigo)
+                          for x in trocas if (x['quando'] - desloc).date() in dset]
         for d, v in por_dia.items():
             if d in tot_dia:
                 tot_dia[d] += v
