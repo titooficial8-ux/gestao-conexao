@@ -644,12 +644,17 @@ def _sync_saved_drawings():
     for k, v in ativas_keys.items():
         status_map.setdefault(k, v)
     seq_info_map = {}
-    for machine, items in by_machine.items():
-        items.sort(key=lambda r: r.sequence_order or 0)
+    fila = {}
+    for r in ativas:                                                  # sequenciamento = lugar na fila COMPLETA da maquina (todas as OPs ativas), nao so entre as que contam para o desenho
+        fila.setdefault(str(r.machine.number), []).append(r)
+    for machine, items in fila.items():
+        items.sort(key=lambda r: (r.sequence_order if r.sequence_order is not None else 10 ** 6, r.id))
         for i, r in enumerate(items):
             prev = items[i - 1] if i > 0 else None
             seq_info_map[seq_key(machine, r.op, r.artigo)] = {
                 'position': i + 1,
+                'total': len(items),
+                'situacao': r.situacao or r.status,
                 'entry': prev.termino_malharia.isoformat() if (prev and prev.termino_malharia) else None,
             }
 
