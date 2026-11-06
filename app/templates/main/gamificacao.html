@@ -120,18 +120,19 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 <script>
 (function () {
   var $ = function (i) { return document.getElementById(i); }, ROOT = $('gmRoot');
-  var ROTULO = { gcMetros24: 'Deveria entregar (24 h)', ontem: 'Entregou ontem', cliente: 'Cliente', op: 'OP', manutencoes: 'Manutenções', divergencias: 'Divergências', maquina: 'Máquina', maquinas: 'Máquinas', celula: 'Célula', turno: 'Turno', indice: 'Índice', nome: 'Nome', pontos: 'Pontos', posicao: 'Posição', cincoS: '5S', producao: 'Produção', meta: 'Meta', eficiencia: 'Eficiência', data: 'Data', dia: 'Dia' };
+  var ROTULO = { maquinasInfo: 'Máquinas da célula', detalhe: 'Detalhe do turno', pecas: 'Peças', metros: 'Metros', dadosAte: 'Dados até', lancamento: 'Lançamento', inicio: 'Início', fim: 'Fim', eficiencia: 'Eficiência', gcMetros24: 'Deveria entregar (24 h)', ontem: 'Entregou ontem', cliente: 'Cliente', op: 'OP', manutencoes: 'Manutenções', divergencias: 'Divergências', maquina: 'Máquina', maquinas: 'Máquinas', celula: 'Célula', turno: 'Turno', indice: 'Índice', nome: 'Nome', pontos: 'Pontos', posicao: 'Posição', cincoS: '5S', producao: 'Produção', meta: 'Meta', eficiencia: 'Eficiência', data: 'Data', dia: 'Dia' };
   var OCULTOS = { metros24: 1, detalhe: 1, celulas: 1, turnos: 1, maquinasInfo: 1, ok: 1 };
   function h(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined && txt !== null) e.textContent = txt; return e; }
   function rotulo(k) { if (ROTULO[k]) return ROTULO[k]; return String(k).replace(/([A-Z])/g, ' $1').replace(/[_-]+/g, ' ').replace(/^./, function (c) { return c.toUpperCase(); }); }
   var RX_Z = /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?Z$/;
   function brt(s) { var d = new Date(s); if (isNaN(d)) return s; d = new Date(d.getTime() - 3 * 3600 * 1000); var p = function (n) { return String(n).padStart(2, '0'); }; return p(d.getUTCDate()) + '/' + p(d.getUTCMonth() + 1) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()); }
   function nome(o) { return o && (o.nome || o.name || o.celula || o.cell || o.titulo || o.label || o.turno || o.codigo || o.id); }
-  function fmt(v) {
+  function fmt(v, k) {
     if (v === null || v === undefined || v === '') return '—';
+    if (typeof v === 'number' && k && /^(op|ops|maquina|id|turno|cod\w*|numero)$/i.test(k)) return String(v);
     if (typeof v === 'number') return Math.abs(v) >= 100 ? Math.round(v).toLocaleString('pt-BR') : (Math.round(v * 100) / 100).toLocaleString('pt-BR');
     if (typeof v === 'boolean') return v ? 'Sim' : 'Não';
-    if (typeof v === 'string') return RX_Z.test(v) ? brt(v) : v;
+    if (typeof v === 'string') { if (/^\d{4}-\d\d-\d\d$/.test(v)) return v.slice(8, 10) + '/' + v.slice(5, 7) + '/' + v.slice(0, 4); if (v === 'andamento') return 'Em andamento'; return RX_Z.test(v) ? brt(v) : v; }
     if (Array.isArray(v)) { if (!v.length) return '—'; return v.every(function (x) { return x === null || typeof x !== 'object'; }) ? v.map(fmt).join(', ') : v.length + ' item(ns): ' + v.map(function (x) { return nome(x) || ''; }).filter(Boolean).join(', '); }
     return Object.keys(v).map(function (k) { return rotulo(k) + ': ' + fmt(v[k]); }).join(' · ');
   }
@@ -139,36 +140,53 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
     var w = h('div', 'gm-chips');
     Object.keys(o || {}).forEach(function (k) {
       var v = o[k]; if (OCULTOS[k] || (pular && pular[k])) return; if (v !== null && typeof v === 'object' && !Array.isArray(v)) return; if (Array.isArray(v) && v.some(function (x) { return x && typeof x === 'object'; })) return;
-      var c = h('div', 'gm-chip' + (v === null || v === undefined ? ' vazio' : '')); c.appendChild(h('span', null, rotulo(k))); c.appendChild(h('b', null, fmt(v))); w.appendChild(c);
+      var c = h('div', 'gm-chip' + (v === null || v === undefined ? ' vazio' : '')); c.appendChild(h('span', null, rotulo(k))); c.appendChild(h('b', null, fmt(v, k))); w.appendChild(c);
     });
     return w.children.length ? w : null;
   }
   function tabela(linhas) {
     var cols = []; linhas.forEach(function (l) { Object.keys(l).forEach(function (k) { if (cols.indexOf(k) < 0 && !OCULTOS[k] && (l[k] === null || typeof l[k] !== 'object' || Array.isArray(l[k]))) cols.push(k); }); });
     var t = h('table', 'gm-tb'), th = h('tr'); cols.forEach(function (k) { th.appendChild(h('th', null, rotulo(k))); }); t.appendChild(th);
-    linhas.forEach(function (l) { var tr = h('tr'); cols.forEach(function (k) { tr.appendChild(h('td', null, fmt(l[k]))); }); t.appendChild(tr); });
+    linhas.forEach(function (l) { var tr = h('tr'); cols.forEach(function (k) { tr.appendChild(h('td', null, fmt(l[k], k))); }); t.appendChild(tr); });
     var box = h('div'); box.style.overflowX = 'auto'; box.appendChild(t); return box;
   }
-  function comoLista(x) {                                  // maquinas pode vir como lista ou como objeto {numero: dados}
+  function comoLista(x) {                                  // objeto {chave: dados} vira lista [{id: chave, ...dados}]
     if (!x) return []; if (Array.isArray(x)) return x;
     return Object.keys(x).map(function (k) { var v = x[k]; return (v && typeof v === 'object' && !Array.isArray(v)) ? Object.assign({ maquina: k }, v) : { maquina: k, valor: v }; });
   }
-  function celula(c, pos) {
-    var card = h('div', 'gm-card'), t = h('h3'); t.appendChild(h('span', null, String(nome(c) || ('Célula ' + (pos + 1))))); if (c.posicao || c.rank) t.appendChild(h('span', 'gm-pos', (c.posicao || c.rank) + 'º')); card.appendChild(t);
-    var ch = chips(c, { nome: 1, posicao: 1, rank: 1 }); if (ch) card.appendChild(ch);
-    (c.turnos || []).forEach(function (tt) {
-      card.appendChild(h('div', 'gm-sec', 'Turno ' + (nome(tt) || '')));
-      var c2 = chips(tt, { nome: 1, turno: 1 }); if (c2) card.appendChild(c2);
-      var mq = comoLista(tt.detalhe && tt.detalhe.maquinas); if (mq.length) card.appendChild(tabela(mq));
+  function escalar(v) { return v === null || v === undefined || typeof v !== 'object' || (Array.isArray(v) && v.every(function (x) { return x === null || typeof x !== 'object'; })); }
+  function plano(o) { return o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).every(function (k) { return escalar(o[k]); }); }
+  function titulo(o, i) {
+    if (o && o.turno !== undefined && o.turno !== null && typeof o.turno !== 'object') return 'Turno ' + o.turno;
+    var n = nome(o); if (n === undefined || n === null || n === '') return '#' + (i + 1);
+    n = String(n); return n.charAt(0).toUpperCase() + n.slice(1);
+  }
+  // mostra TUDO que a API devolveu em 'o': campos simples em chips; listas planas em tabela; o resto, em blocos aninhados
+  function conteudo(o, pai, pular) {
+    var w = h('div'); var ch = chips(o, pular); if (ch) w.appendChild(ch);
+    Object.keys(o || {}).forEach(function (k) {
+      var v = o[k]; if (OCULTOS_AUX[k] || (pular && pular[k]) || escalar(v)) return;
+      var sec = h('div'); sec.appendChild(h('div', 'gm-sec', rotulo(k)));
+      var lista = Array.isArray(v) ? v : (v && typeof v === 'object' && Object.keys(v).every(function (kk) { return plano(v[kk]); }) && Object.keys(v).length ? comoLista(v) : null);
+      if (lista) {
+        if (!lista.length) { sec.appendChild(h('div', 'gm-vazio', '—')); }
+        else if (lista.every(plano)) { sec.appendChild(tabela(lista)); }
+        else { lista.forEach(function (it, n) { var sub = h('div', 'gm-card'); sub.style.marginTop = '8px'; sub.appendChild(h('h3', null, titulo(it, n))); sub.appendChild(conteudo(it, k, { turno: 1, nome: 1 })); sec.appendChild(sub); }); }
+      } else { sec.appendChild(conteudo(v, k)); }
+      w.appendChild(sec);
     });
-    var inf = comoLista(c.maquinasInfo);
-    if (inf.length) { card.appendChild(h('div', 'gm-sec', 'Máquinas da célula')); card.appendChild(tabela(inf)); }
-    return card;
+    return w;
+  }
+  var OCULTOS_AUX = { metros24: 1 };
+  function celula(c, pos) {
+    var card = h('div', 'gm-card'), t = h('h3'); t.appendChild(h('span', null, 'Célula ' + titulo(c, pos)));
+    if (c.posicao || c.rank) t.appendChild(h('span', 'gm-pos', (c.posicao || c.rank) + 'º')); card.appendChild(t);
+    card.appendChild(conteudo(c, 'celula', { id: 1, nome: 1, posicao: 1, rank: 1 })); return card;
   }
   function turno(t, i) {
     var w = h('div', 'gm-turno'), tt = h('h2'), medalha = ['🥇', '🥈', '🥉'][i];
-    if (medalha) tt.appendChild(h('span', 'gm-medal', medalha)); tt.appendChild(h('span', null, String(nome(t) || ('Turno ' + (i + 1))))); w.appendChild(tt);
-    var ch = chips(t, { nome: 1 }); if (ch) w.appendChild(ch);
+    if (medalha) tt.appendChild(h('span', 'gm-medal', medalha)); tt.appendChild(h('span', null, titulo(t, i))); w.appendChild(tt);
+    var ch = chips(t, { turno: 1, nome: 1 }); if (ch) w.appendChild(ch);
     var cel = t.celulas || []; if (!cel.length) { w.appendChild(h('div', 'gm-vazio', 'Sem células neste turno ainda.')); return w; }
     var g = h('div', 'gm-cel'); cel.forEach(function (c, k) { g.appendChild(celula(c, k)); }); w.appendChild(g); return w;
   }
