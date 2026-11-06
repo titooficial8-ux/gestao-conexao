@@ -668,7 +668,7 @@ def gamificacao_liberada(user) -> bool:
     """Quem entra na aba Gamificacao: lideres e gestao da producao (cargos), o PCP (setor) e as pessoas listadas pelo PCP (primeiro nome)."""
     import unicodedata
     nome_cargo = (getattr(getattr(user, 'role', None), 'name', '') or '').strip()
-    if nome_cargo in ('Líder Produção', 'Gestão Produção'):
+    if nome_cargo in ('Líder Produção', 'Gestão Produção') or nome_cargo.lower().startswith('administrador'):      # inclui o cargo 'Administrador Geral'
         return True
     setores = {x.name for x in (user.sectors or [])} | ({user.setor.name} if getattr(user, 'setor', None) else set())
     if 'PCP' in setores:

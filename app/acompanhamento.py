@@ -163,3 +163,26 @@ def avisar_lider(mensagem: str, maquina=None, ref_id: str = None, titulo: str = 
 def rl_producao_todas(de: str) -> dict:
     """Pecas avaliadas pelos revisores (RL.PRODUCAO) de todas as maquinas desde `de` (AAAA-MM-DD)."""
     return _cached(f'rl_todas_{de}', 30, lambda: [_rl_item(x) for x in _lista(chamar('/rlproducao', {'de': de}))])
+
+
+def chamar_gamificacao(params: dict = None):
+    """GET /gamificacao. A API pode pedir um token proprio (GAMIFICACAO_TOKEN no .env) ou aceitar o mesmo do Acompanhamento; tenta os dois, no cabecalho Bearer e em X-API-Key."""
+    tokens = []
+    for t in (os.getenv('GAMIFICACAO_TOKEN', '').strip(), _token()):
+        if t and t not in tokens:
+            tokens.append(t)
+    if not tokens:
+        raise RuntimeError('Nenhum token configurado (GAMIFICACAO_TOKEN ou ACOMP_TOKEN).')
+    ultimo = None
+    for t in tokens:
+        for cab in ({'Authorization': f'Bearer {t}'}, {'X-API-Key': t}, {'x-api-key': t, 'Authorization': t}):
+            r = requests.get(f'{_url()}/gamificacao', params=params, headers={'Accept': 'application/json', **cab}, timeout=(5, 25))
+            if r.status_code == 200:
+                try:
+                    return r.json()
+                except ValueError:
+                    raise RuntimeError('A API devolveu uma pagina em vez de JSON (servidor do Acompanhamento fora do ar?)')
+            ultimo = r
+            if r.status_code not in (401, 403):
+                break
+    raise RuntimeError(f'HTTP {ultimo.status_code}: {ultimo.text[:160]}' + (' — a API da Gamificação pediu outro token: coloque GAMIFICACAO_TOKEN=<token> no .env do servidor.' if ultimo.status_code in (401, 403) else ''))
