@@ -196,7 +196,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 
   // ---- Introducao do jogo ----
   var FALA = $('gmFala'), BAL = $('gmBalao'), FIO = $('gmFio'), SET = $('gmSetores'), digitando = 0;
-  var SUPORTADOS = ['Produção', 'PCP'], LIBERADOS = {{ gm_setores|tojson }};
+  var SUPORTADOS = ['Produção', 'PCP'], LIBERADOS = {{ gm_setores|tojson }}, MEUS = {{ gm_meus|tojson }};
   var BOAS_VINDAS = 'Olá, bem-vindo ao Projeto de Gamificação da Conexão Malhas e Desenvolvimento! É um prazer ter você aqui com a gente. Para iniciarmos o game, escolha o seu setor.';
   function digitar(texto, fim) {
     var id = ++digitando, i = 0; FALA.textContent = ''; FALA.className = 'gm-cursor';
@@ -206,6 +206,11 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
   Array.prototype.forEach.call(document.querySelectorAll('.gm-setor'), function (b) {
     b.addEventListener('click', function () {
       var setor = b.getAttribute('data-s');
+      if (MEUS.indexOf(setor) < 0) {                                  // trava de setor: so abre o setor a que a pessoa pertence
+        FIO.classList.add('triste'); BAL.classList.add('erro');
+        digitar('Poxa, você não faz parte deste setor, contate seu administrador');
+        return;
+      }
       if (SUPORTADOS.indexOf(setor) < 0) {
         FIO.classList.add('triste'); BAL.classList.add('erro');
         digitar('POXA, NÃO TEMOS SUPORTE PARA O SEU SETOR AINDA, MAS NÃO FIQUE TRISTE, EM BREVE VOCÊ VAI OBTER TODO NOSSO ACESSO');
