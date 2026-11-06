@@ -356,6 +356,8 @@ def create_app():
         threading.Thread(target=_aquecer_slide, daemon=True, name='aquecer-slide').start()
         from app.totvs.pedidos import iniciar_agendador as iniciar_pedidos
         iniciar_pedidos(app)      # Relatorio Pedidos: a cada 2 min
+        from app.totvs.pacotes import iniciar_agendador as iniciar_pacotes
+        iniciar_pacotes(app)      # pacote de saida do TOTVS (relatorio 038 com Nr. Op): so liga com DATAPKG_TARGET no .env
         from app.totvs.rodagem import iniciar_agendador as iniciar_rodagem
         iniciar_rodagem(app)      # OPs por artigo (artigos que nao rodam): a cada 2 min
         from app.totvs.financeiro import iniciar_agendador as iniciar_financeiro
