@@ -11,6 +11,8 @@ from app.models import VinculoOpPedido
 
 
 def _num(v) -> float:
+    if isinstance(v, (int, float)):
+        return float(v)
     try:
         return float(str(v or '0').strip().replace('.', '').replace(',', '.') or 0)
     except ValueError:
@@ -26,14 +28,37 @@ def _decodificar(dados: bytes) -> str:
     return dados.decode('latin-1', errors='replace')
 
 
+def _texto(v) -> str:
+    if v is None:
+        return ''
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
+    return str(v).strip()
+
+
+def _linhas_xlsx(dados: bytes) -> list:
+    """Primeira planilha do Excel que tenha o cabecalho do relatorio (Cod. Pedido ...), como lista de linhas de texto/numero."""
+    from openpyxl import load_workbook
+    wb = load_workbook(io.BytesIO(dados), read_only=True, data_only=True)
+    for ws in wb.worksheets:
+        linhas = [list(r) for r in ws.iter_rows(values_only=True)]
+        for i, r in enumerate(linhas[:15]):                                   # o cabecalho pode nao ser a 1a linha
+            if any(str(c or '').strip().lower() == 'cod. pedido' for c in r):
+                return linhas[i:]
+    return []
+
+
 def importar_csv(dados: bytes, por: str | None = None) -> dict:
     """Le o CSV do relatorio de pedidos (separador ;) e troca o vinculo guardado. Levanta ValueError se o arquivo nao tiver as colunas esperadas."""
-    texto = _decodificar(dados)
-    linhas = list(csv.reader(io.StringIO(texto), delimiter=';'))
+    if dados[:2] == b'PK':                                                    # Excel (.xlsx)
+        linhas = _linhas_xlsx(dados)
+    elif dados[:4] == b'\xd0\xcf\x11\xe0':
+        raise ValueError('Esse é um Excel antigo (.xls). Salve como .xlsx ou CSV e suba de novo.')
+    else:
+        linhas = list(csv.reader(io.StringIO(_decodificar(dados)), delimiter=';'))
     if not linhas:
         raise ValueError('Arquivo vazio.')
-    cab = [c.strip().lower() for c in linhas[0]]
-
+    cab = [str(c or '').strip().lower() for c in linhas[0]]
     def col(*nomes):
         for n in nomes:
             if n in cab:
@@ -48,7 +73,7 @@ def importar_csv(dados: bytes, por: str | None = None) -> dict:
     for r in linhas[1:]:
         if len(r) <= max(i_ped, i_prod, i_cic, i_op):
             continue
-        ped, prod, cic, op = r[i_ped].strip(), r[i_prod].strip(), r[i_cic].strip(), r[i_op].strip()
+        ped, prod, cic, op = _texto(r[i_ped]), _texto(r[i_prod]), _texto(r[i_cic]), _texto(r[i_op])
         if not ped or not prod:
             continue
         chave = (ped, prod, op)
