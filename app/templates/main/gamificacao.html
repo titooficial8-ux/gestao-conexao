@@ -52,22 +52,19 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 .gm-setor span{display:block;font-size:26px;margin-bottom:4px}
 .gm-setores[hidden]{display:none}
 
-.gm-maqs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:8px}
-.gm-m{background:#fff;border:1px solid #e2e8f0;border-top:5px solid #94a3b8;border-radius:14px;padding:12px 12px 10px;text-align:center;box-shadow:0 2px 8px rgba(15,23,42,.05)}
-.gm-m.ok{border-top-color:#16a34a}.gm-m.aten{border-top-color:#d97706}.gm-m.ruim{border-top-color:#dc2626;background:#fff7f7}
-.gm-m small{display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#64748b}
-.gm-m .n{font-size:26px;font-weight:900;color:#0f172a;line-height:1.1}
-.gm-m .est{display:inline-block;background:#fef3c7;color:#92400e;border-radius:999px;padding:1px 10px;font-size:11px;font-weight:900;margin:3px 0}
-.gm-m .ef{font-size:30px;font-weight:900;margin:2px 0 6px}.gm-m .ef.ok{color:#15803d}.gm-m .ef.aten{color:#b45309}.gm-m .ef.ruim{color:#b91c1c}
-.gm-m .g4{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
-.gm-m .t{border:1px solid #e2e8f0;border-radius:8px;padding:4px 2px}.gm-m .t b{display:block;font-size:17px;color:#0f172a}
-.gm-m .box{border:1px dashed #cbd5e1;border-radius:8px;padding:6px;background:#f8fafc;font-size:11.5px;color:#475569;margin-bottom:6px}
-.gm-m .box b{font-size:17px;color:#0f172a;display:block}
-.gm-m .pill{display:block;border-radius:999px;padding:3px 8px;font-size:11.5px;font-weight:800;margin:4px 0}
+.gm-maqs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:8px}
+@media(max-width:1250px){.gm-maqs{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:950px){.gm-maqs{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:650px){.gm-maqs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.gm-m{background:#fff;border:1px solid #e2e8f0;border-top:4px solid #94a3b8;border-radius:10px;padding:7px 9px 8px;box-shadow:0 1px 5px rgba(15,23,42,.05);font-size:12px;color:#475569;min-width:0}
+.gm-m.ok{border-top-color:#16a34a}.gm-m.aten{border-top-color:#d97706}.gm-m.ruim{border-top-color:#dc2626;background:#fff9f9}
+.gm-m .top{display:flex;align-items:center;justify-content:space-between;gap:6px}.gm-m .esq{display:flex;align-items:center;gap:5px;min-width:0}
+.gm-m .n{font-size:22px;font-weight:900;color:#0f172a;line-height:1}
+.gm-m .est{background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 6px;font-size:10.5px;font-weight:900}
+.gm-m .ef{font-size:22px;font-weight:900;line-height:1}.gm-m .ef.ok{color:#15803d}.gm-m .ef.aten{color:#b45309}.gm-m .ef.ruim{color:#b91c1c}
+.gm-ating{margin:5px 0 6px}.gm-ating .tr{display:block;height:5px;background:#e2e8f0;border-radius:999px;overflow:hidden}.gm-ating .tr i{display:block;height:100%}.gm-ating small{display:block;font-size:10px;color:#64748b;margin-top:2px;font-weight:700}
+.gm-m .l{display:flex;justify-content:space-between;gap:6px;border-top:1px solid #f1f5f9;padding:3px 0}.gm-m .l .r{color:#64748b;font-size:11px}.gm-m .l b{color:#0f172a;font-size:12.5px;text-align:right}.gm-m .l b i{font-style:normal;color:#94a3b8;font-weight:700}
+.gm-m .pill{display:block;border-radius:999px;padding:2px 7px;font-size:10.5px;font-weight:800;margin:4px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gm-m .pill.man{background:#fef3c7;border:1px solid #f59e0b;color:#92400e}.gm-m .pill.div{background:#ffedd5;border:1px solid #fb923c;color:#9a3412}
-.gm-ating{margin:0 0 6px;text-align:left}.gm-ating .tr{display:block;height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden}.gm-ating .tr i{display:block;height:100%}
-.gm-m .rod{font-size:11.5px;color:#64748b;margin-top:4px}
-.gm-m .out{text-align:left;font-size:10.5px;color:#94a3b8;margin-top:5px}
+.gm-m .rod{font-size:10.5px;color:#94a3b8;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .gx-live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#15803d;font-weight:800}.gx-live i{width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:gxPulso 1.6s infinite}
 @keyframes gxPulso{70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
@@ -239,28 +236,22 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
     var ating = pega(d, ['ating', 'atingimento'], u), cap = pega(d, ['capacidade'], u), ds = pega(d, ['ds24', 'dsmetros', 'ds'], u), pmq = pega(d, ['paradasmq', 'paradasmaquina'], u), pmin = pega(d, ['paradomin', 'minutosparados'], u), p24 = pega(d, ['peca24', 'pecas24'], u), r24 = pega(d, ['ritmo24'], u);
     var nef = ef === null || ef === undefined ? null : Number(ef), nmeta = efMeta === null || efMeta === undefined ? 75 : Number(efMeta);
     var cls = nef === null || isNaN(nef) ? '' : (nef >= nmeta ? 'ok' : (nef >= nmeta * 0.8 ? 'aten' : 'ruim'));
-    var c = h('div', 'gm-m ' + cls); c.appendChild(h('small', null, 'Máquina')); c.appendChild(h('div', 'n', num === undefined || num === null ? '—' : String(num).padStart(2, '0')));
-    if (est) c.appendChild(h('span', 'est', String(est)));
-    c.appendChild(h('div', 'ef ' + cls, nef === null || isNaN(nef) ? '—' : numTxt(nef) + '%'));
-    if (ating !== undefined && ating !== null && !isNaN(Number(ating))) { var at = Number(ating) * (Number(ating) <= 3 ? 100 : 1); var br = h('div', 'gm-ating'); br.appendChild(h('small', null, 'Atingimento da meta: ' + numTxt(at, 0) + '%')); var tr = h('span', 'tr'), bi = h('i'); bi.style.width = Math.max(0, Math.min(at, 100)) + '%'; bi.style.background = at >= 100 ? '#16a34a' : at >= 80 ? '#f59e0b' : '#dc2626'; tr.appendChild(bi); br.appendChild(tr); c.appendChild(br); }
-    var g = h('div', 'g4'); [['Peças', pc], ['Meta peças', mpc], ['Metros', mt], ['Meta metros', mmt]].forEach(function (x) { var t = h('div', 't'); t.appendChild(h('small', null, x[0])); t.appendChild(h('b', null, numTxt(x[1], 1))); g.appendChild(t); }); c.appendChild(g);
+    var c = h('div', 'gm-m ' + cls), top = h('div', 'top'), esq = h('div', 'esq');
+    esq.appendChild(h('span', 'n', num === undefined || num === null ? '—' : String(num).padStart(2, '0'))); if (est) esq.appendChild(h('span', 'est', String(est)));
+    top.appendChild(esq); top.appendChild(h('span', 'ef ' + cls, nef === null || isNaN(nef) ? '—' : numTxt(nef) + '%')); c.appendChild(top);
+    if (ating !== undefined && ating !== null && !isNaN(Number(ating))) { var at = Number(ating) * (Number(ating) <= 3 ? 100 : 1); var br = h('div', 'gm-ating'); var tr = h('span', 'tr'), bi = h('i'); bi.style.width = Math.max(0, Math.min(at, 100)) + '%'; bi.style.background = at >= 100 ? '#16a34a' : at >= 80 ? '#f59e0b' : '#dc2626'; tr.appendChild(bi); br.appendChild(tr); br.appendChild(h('small', null, 'meta ' + numTxt(at, 0) + '% atingida' + (efMeta !== undefined && efMeta !== null ? ' · ef. meta ' + numTxt(efMeta, 0) + '%' : ''))); c.appendChild(br); }
+    function lin(rot, val, sub) { var l = h('div', 'l'); l.appendChild(h('span', 'r', rot)); var v = h('b', null, val); if (sub) v.appendChild(h('i', null, ' / ' + sub)); l.appendChild(v); c.appendChild(l); }
+    lin('Peças', numTxt(pc, 1), numTxt(mpc, 1)); lin('Metros', numTxt(mt, 0), numTxt(mmt, 0));
     var dsN = ds !== undefined && ds !== null ? Number(ds) : null;
-    if (dev !== undefined && dev !== null) {
-      var bx = h('div', 'box'); bx.appendChild(h('span', null, 'Deveria entregar em 24 h' + (efMeta !== undefined && efMeta !== null ? ' · EF. ' + numTxt(efMeta, 0) + '%' : ''))); bx.appendChild(h('b', null, numTxt(dev, 0) + ' m'));
-      if (dsN) bx.appendChild(h('span', null, numTxt(Number(dev) / dsN, 0) + ' peças × ' + numTxt(dsN, 0) + ' m (DS.METROS)' + (cap !== undefined && cap !== null ? ' · Capacidade: ' + numTxt(cap, 1) + ' pç' : ''))); c.appendChild(bx);
-    }
-    if (ont !== undefined && ont !== null && ont !== '') {
-      var ob = h('div', 'box'); var mOnt = typeof ont === 'object' ? pega(ont, ['metros', 'mt']) : ont, pOnt = typeof ont === 'object' ? pega(ont, ['pecas', 'pcs']) : undefined;
-      ob.appendChild(h('span', null, 'Entregou em 24 h' + (DIA_ANT ? ' (dia ' + DIA_ANT + ')' : ''))); ob.appendChild(h('b', null, (mOnt === undefined ? fmt(ont) : numTxt(mOnt, 0) + ' m') + (pOnt !== undefined ? ' · ' + numTxt(pOnt, 0) + ' peças' : ''))); c.appendChild(ob);
-    }
-    var l3 = []; if (p24 !== undefined && p24 !== null) l3.push('Peças 24 h: ' + numTxt(p24, 0)); if (r24 !== undefined && r24 !== null) l3.push('Ritmo 24 h: ' + numTxt(r24, 0) + ' m'); if (pmin !== undefined && pmin !== null) l3.push('Parado: ' + numTxt(pmin, 0) + ' min'); if (pmq !== undefined && pmq !== null) l3.push('Paradas: ' + fmt(pmq));
-    if (l3.length) c.appendChild(h('div', 'rod', l3.join(' · ')));
-    if (efMeta !== undefined && efMeta !== null) c.appendChild(h('div', 'rod', 'meta de eficiência ' + numTxt(efMeta, 0) + '%'));
+    if (dev !== undefined && dev !== null) lin('Deveria 24 h', numTxt(dev, 0) + ' m');
+    if (ont !== undefined && ont !== null && ont !== '') { var mOnt = typeof ont === 'object' ? pega(ont, ['metros', 'mt']) : ont, pOnt = typeof ont === 'object' ? pega(ont, ['pecas', 'pcs']) : undefined; lin('Entregou 24 h', (mOnt === undefined ? fmt(ont) : numTxt(mOnt, 0) + ' m') + (pOnt !== undefined ? ' · ' + numTxt(pOnt, 0) + ' pç' : '')); }
     if (man && (!Array.isArray(man) || man.length)) c.appendChild(h('span', 'pill man', '🔧 ' + (/manuten/i.test(fmt(man)) ? fmt(man) : 'Manutenção: ' + fmt(man))));
     if (div && (!Array.isArray(div) || div.length)) c.appendChild(h('span', 'pill div', '⚠ Divergência' + (Array.isArray(div) ? ' (' + div.length + ')' : ': ' + fmt(div))));
-    if (art || op || cli) c.appendChild(h('div', 'rod', [art, op ? 'OP ' + op : null, cli].filter(Boolean).join(' · ')));
-    var resto = Object.keys(d).filter(function (k) { return !u[k] && escalar(d[k]) && d[k] !== null; });
-    if (resto.length) c.appendChild(h('div', 'out', resto.map(function (k) { return rotulo(k) + ': ' + fmt(d[k], k); }).join(' · ')));
+    var qm = [cli, art].filter(Boolean).join(' · '); if (op || qm) { var fo = h('div', 'rod', (op ? 'OP ' + op + ' · ' : '') + qm); fo.title = fo.textContent; c.appendChild(fo); }
+    var ex = []; if (dev !== undefined && dev !== null && dsN) ex.push('Deveria 24 h: ' + numTxt(Number(dev) / dsN, 0) + ' peças × ' + numTxt(dsN, 0) + ' m (DS.METROS)' + (cap !== undefined && cap !== null ? ' · capacidade ' + numTxt(cap, 1) + ' pç' : ''));
+    if (p24 !== undefined && p24 !== null) ex.push('Peças 24 h: ' + numTxt(p24, 0)); if (r24 !== undefined && r24 !== null) ex.push('Ritmo 24 h: ' + numTxt(r24, 0) + ' m'); if (pmin !== undefined && pmin !== null) ex.push('Parado: ' + numTxt(pmin, 0) + ' min'); if (pmq !== undefined && pmq !== null) ex.push('Paradas: ' + fmt(pmq));
+    var resto = Object.keys(d).filter(function (k) { return !u[k] && escalar(d[k]) && d[k] !== null; }); resto.forEach(function (k) { ex.push(rotulo(k) + ': ' + fmt(d[k], k)); });
+    if (ex.length) c.title = ex.join('\n');
     return c;
   }
   function celula(c, pos) {
