@@ -245,10 +245,20 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
   }
   function desenha(d) {
     ROOT.textContent = '';
-    var topo = chips(d && !Array.isArray(d) ? d : {}); if (topo) ROOT.appendChild(topo);
-    var turnos = Array.isArray(d) ? d : (d && d.turnos) || [];
-    if (!turnos.length) { ROOT.appendChild(h('div', 'gm-vazio', 'O Acompanhamento ainda não devolveu turnos hoje.')); return; }
-    turnos.forEach(function (t, i) { ROOT.appendChild(turno(t, i)); });
+    var raiz = d && !Array.isArray(d) ? d : {};
+    var topo = chips(raiz); if (topo) ROOT.appendChild(topo);
+    // 1) celulas no nivel de cima: aqui estao as maquinas (detalhe.maquinas), cliente, OP, manutencoes, divergencias, ontem e gcMetros24
+    var cels = Array.isArray(raiz.celulas) ? raiz.celulas : comoLista(raiz.celulas).filter(function (x) { return !escalar(x); });
+    if (cels.length) {
+      var sec = h('div', 'gm-turno'); sec.appendChild(h('h2', null, 'Células')); var g = h('div', 'gm-cel');
+      cels.forEach(function (c, k) { g.appendChild(celula(c, k)); }); sec.appendChild(g); ROOT.appendChild(sec);
+    }
+    // 2) outros blocos que a API mande (ex.: resumo do dia), sem repetir o que ja foi mostrado
+    var resto = conteudo(raiz, 'raiz', { turnos: 1, celulas: 1 }); var rc = resto.querySelectorAll('.gm-sec'); if (rc.length) ROOT.appendChild(resto);
+    // 3) ranking geral do dia (turnos, no final da resposta)
+    var turnos = Array.isArray(d) ? d : raiz.turnos || [];
+    if (turnos.length) { var rk = h('h2', null, 'Ranking geral do dia'); rk.style.cssText = 'margin:18px 0 8px;font-size:18px'; ROOT.appendChild(rk); turnos.forEach(function (t, i) { ROOT.appendChild(turno(t, i)); }); }
+    if (!cels.length && !turnos.length) ROOT.appendChild(h('div', 'gm-vazio', 'O Acompanhamento ainda não devolveu dados hoje.'));
   }
   function carregar() {
     $('gmSub').textContent = 'Atualizando…';
