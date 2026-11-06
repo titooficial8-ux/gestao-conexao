@@ -944,3 +944,19 @@ class AmostrasLiberadasSnapshot(db.Model):
     gerado_em = db.Column(db.String(40))                       # horario de Brasilia em que o agente gerou o relatorio
     recebido_em = db.Column(db.DateTime, default=datetime.utcnow)
     dados = db.Column(db.Text)                                  # JSON enviado pelo agente (itens, tarefas, avisos)
+
+
+class VinculoOpPedido(db.Model):
+    """Ligacao real pedido <-> OP importada do relatorio de pedidos do TOTVS (Nr. Cicloop / Nr. Op). op vazia = o TOTVS mostra o pedido sem OP."""
+    __tablename__ = 'vinculos_op_pedido'
+
+    id = db.Column(db.Integer, primary_key=True)
+    cod_pedido = db.Column(db.String(30), index=True)
+    cod_produto = db.Column(db.String(30), index=True)
+    ciclo = db.Column(db.String(10), nullable=True)
+    op = db.Column(db.String(30), nullable=True, index=True)
+    qt_estimada = db.Column(db.Float, default=0)
+    qt_finalizada = db.Column(db.Float, default=0)
+    qt_pendenteop = db.Column(db.Float, default=0)
+    importado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    importado_por = db.Column(db.String(120), nullable=True)
