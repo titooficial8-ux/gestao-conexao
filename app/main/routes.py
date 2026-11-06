@@ -2990,6 +2990,36 @@ def sequencia_transferir(seq_id):
     return jsonify(ok=True, destino=destino.number, aviso_desenho=aviso_desenho)
 
 
+@main_bp.route('/aba/programacao/maquina/<int:numero>/eficiencia', methods=['POST'])
+@login_required
+def maquina_eficiencia(numero):
+    """Botao 'Alterar eficiência' da maquina: grava a eficiencia propria (30 a 100 %; vazio volta ao padrao) e recalcula as datas dela na hora."""
+    if not _pode_dias_sem_producao():
+        abort(403)
+    from app import previsao
+    machine = Machine.query.filter_by(number=numero).first_or_404()
+    d = request.get_json(silent=True) or {}
+    bruto = d.get('pct')
+    if bruto in (None, ''):
+        nova = None
+    else:
+        try:
+            pct = float(str(bruto).replace('%', '').replace(',', '.'))
+        except ValueError:
+            return jsonify(ok=False, erro='Valor inválido.'), 400
+        if not 30 <= pct <= 100:
+            return jsonify(ok=False, erro='A eficiência deve ficar entre 30% e 100%.'), 400
+        nova = round(pct / 100, 4)
+    machine.eficiencia = nova
+    db.session.commit()
+    previsao.invalidar_eficiencias()
+    try:
+        previsao.calcular(maquina=numero, esperar=True)
+    except Exception:  # noqa: BLE001
+        pass
+    return jsonify(ok=True, maquina=numero, pct=round(previsao.eficiencia_da(numero) * 100))
+
+
 @main_bp.route('/aba/programacao/maquina/<int:numero>/reordenar', methods=['POST'])
 @login_required
 def maquina_reordenar(numero):

@@ -83,6 +83,7 @@
   <div class="machine-summary-stats">
     <span class="machine-stat" title="{% if origem_24h %}{% if origem_24h.fonte == 'raport' %}OP {{ origem_24h.op }} pelo Raport: {{ origem_24h.voltas }} voltas (metragem padrão × 100 ÷ raport {{ origem_24h.raport|string|replace('.', ',') }} cm) / RPM {{ origem_24h.rpm|string|replace('.', ',') }} (RPM instalado × {{ efic_pct }}%), 1440 min por dia{% else %}Voltas ÷ RPM da OP {{ origem_24h.op }}: {{ origem_24h.voltas }} voltas / {{ origem_24h.rpm|string|replace('.', ',') }} RPM, com {{ ineficiencia_pct }}% de ineficiência ({{ min_dia }} min por dia){% endif %}{% else %}Sem voltas/RPM na base para as OPs desta máquina{% endif %}"><strong>{{ t('media_pcs_24h') }}:</strong> {{ pecas_24h|round(1)|string|replace('.', ',') if pecas_24h else '—' }}{% if origem_24h %} <small class="machine-stat-fonte">(OP {{ origem_24h.op }} · {{ origem_24h.voltas }} v / {{ origem_24h.rpm|string|replace('.', ',') }} rpm)</small>{% endif %}</span>
     {% if rpm_real and rpm_real.rpm %}<span class="machine-stat" title="RPM real das últimas 24 h: {{ rpm_real.pecas_com_voltas }} peças que passaram do local 23 para o 24 × voltas de cada peça ÷ 1440 min. Já inclui paradas, trocas e baixa eficiência. É o resultado medido; o RPM entre parênteses ao lado é o de cadastro × eficiência usado na previsão."><strong>RPM real 24h:</strong> {{ rpm_real.rpm|string|replace('.', ',') }} <small class="machine-stat-fonte">({{ rpm_real.pecas }} pç · {{ rpm_real.metros }} m)</small></span>{% endif %}
+    <span class="machine-stat"><strong>Eficiência:</strong> {{ efic_pct }}%{% if pode_editar_dt %} <button type="button" class="prod-btn" id="btnEfic" style="padding:2px 8px;font-size:11px;margin-left:6px" title="Muda a eficiência desta máquina e recalcula todas as datas dela">Alterar eficiência</button>{% endif %}</span>
     <span class="machine-stat"><strong>{{ t('mt_24h') }}:</strong> {{ metros_24h if metros_24h else '—' }}</span>
     {% if origem_24h and origem_24h.sem_base_producao %}<span class="machine-stat machine-stat-aviso" title="A OP que está produzindo ({{ origem_24h.op_produzindo }}) ainda não tem voltas/RPM na base; o valor acima é da OP {{ origem_24h.op }}">&#9888; OP {{ origem_24h.op_produzindo }} sem voltas/RPM na base</span>{% endif %}
     <span class="machine-stat"><strong>{{ t('total_pcs') }}:</strong> {{ total_pcs_maquina }}</span>
@@ -451,6 +452,15 @@
 <script>
 (function () {
   var MAQ = {{ machine.number }};
+  var btnEfic = document.getElementById('btnEfic');
+  if (btnEfic) btnEfic.addEventListener('click', function () {
+    var v = prompt('Nova eficiência da máquina {{ machine.number }} (de 30 a 100, em %).\nAtual: {{ efic_pct }}%.\nDeixe em branco para voltar ao padrão.', '{{ efic_pct }}');
+    if (v === null) return;
+    btnEfic.disabled = true; btnEfic.textContent = 'Recalculando…';
+    fetch('{{ url_for("main.maquina_eficiencia", numero=machine.number) }}', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pct: v }) })
+      .then(function (r) { return r.json(); }).then(function (d) { if (d.ok) location.reload(); else { alert(d.erro || 'Não foi possível alterar.'); btnEfic.disabled = false; btnEfic.textContent = 'Alterar eficiência'; } })
+      .catch(function () { alert('Falha ao alterar a eficiência.'); btnEfic.disabled = false; btnEfic.textContent = 'Alterar eficiência'; });
+  });
   function post(url, corpo) { return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)}).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.erro || 'Erro'); return d; }); }); }
   var modal = document.getElementById('modalMecanico'), ini = document.getElementById('btnIniciarAud'), fim = document.getElementById('btnEncerrarAud');
   function iniciar(nome) { post('{{ url_for("auditoria.iniciar") }}', {maquina: MAQ, mecanico: nome}).then(function () { location.reload(); }).catch(function (e) { alert(e.message); }); }
