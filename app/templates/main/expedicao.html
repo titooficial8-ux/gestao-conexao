@@ -204,6 +204,7 @@
     var a = sv('text', { x: 65, y: 66, 'text-anchor': 'middle', 'font-size': 22, 'font-weight': 800, fill: '#16283c' }); a.textContent = centro; svg.appendChild(a);
     var b = sv('text', { x: 65, y: 82, 'text-anchor': 'middle', 'font-size': 9.5, fill: '#8494a6' }); b.textContent = sub; svg.appendChild(b); return svg;
   }
+  function descArt(x) { var n = x.nome || ''; return n.indexOf(x.cod) === 0 || !x.cliente ? (n || x.cod) : x.cod + ' · ' + n; }
   function ranking(lista) {
     var w = el('div'); if (!lista.length) { w.appendChild(el('div', 'xp-vazio', 'Sem dados ainda.')); return w; }
     var max = Math.max.apply(null, lista.map(function (x) { return x.barra; }).concat([1]));
@@ -281,10 +282,10 @@
       if (E.idade_cobertura < 95) f.appendChild(el('div', 'xp-nota', 'Tempo parado calculado para ' + E.idade_cobertura + '% dos artigos (os demais ainda estão sendo lidos). "Mais de 180 dias" = sem movimento nos últimos 180 dias (limite do TOTVS).'));
     }
     var pa = card('Parados há mais tempo', 'artigos com mais dias sem movimentação');
-    pa.appendChild(E.idade_pronta ? ranking(E.parados.map(function (x) { return { cod: x.cod, nome: x.nome, val: x.dias > 180 ? '+180 dias' : x.dias + ' dias', sub: mt(x.saldo) + (x.ult_entrada ? ' · última entrada ' + dia(x.ult_entrada) : ''), barra: x.dias, cor: x.dias > 90 ? '#dc2626' : x.dias > 60 ? '#f97316' : '#f59e0b', chip: x.segunda ? '2ª QUALIDADE' : '' }; })) : el('div', 'xp-vazio', 'Calculando…'));
+    pa.appendChild(E.idade_pronta ? ranking(E.parados.map(function (x) { return { cod: x.cliente || x.cod, nome: descArt(x), val: x.dias > 180 ? '+180 dias' : x.dias + ' dias', sub: mt(x.saldo) + (x.ult_entrada ? ' · última entrada ' + dia(x.ult_entrada) : ''), barra: x.dias, cor: x.dias > 90 ? '#dc2626' : x.dias > 60 ? '#f97316' : '#f59e0b', chip: x.segunda ? '2ª QUALIDADE' : '' }; })) : el('div', 'xp-vazio', 'Calculando…'));
     g3.appendChild(f); g3.appendChild(pa); c.appendChild(g3);
     var m = card('Artigos com mais metros em estoque', 'os 8 maiores · juntos os 10 maiores somam ' + E.top10_pct + '% do saldo');
-    m.appendChild(ranking(E.maiores.map(function (x) { return { cod: x.cod, nome: x.nome, val: mt(x.saldo), sub: x.pct + '% do estoque · ' + nf(x.lotes) + (x.lotes === 1 ? ' peça' : ' peças'), barra: x.saldo, chip: x.segunda ? '2ª QUALIDADE' : '' }; }))); c.appendChild(m);
+    m.appendChild(ranking(E.maiores.map(function (x) { return { cod: x.cliente || x.cod, nome: descArt(x), val: mt(x.saldo), sub: x.pct + '% do estoque · ' + nf(x.lotes) + (x.lotes === 1 ? ' peça' : ' peças'), barra: x.saldo, chip: x.segunda ? '2ª QUALIDADE' : '' }; }))); c.appendChild(m);
   }
   function corDias(d) { return d === null || d === undefined ? '#94a3b8' : d > 90 ? '#dc2626' : d > 60 ? '#f97316' : d > 30 ? '#f59e0b' : '#16a34a'; }
   function pillDias(d) { return { t: d === null || d === undefined ? '–' : d > 180 ? '+180 dias' : d + ' dias', c: corDias(d) }; }
