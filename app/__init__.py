@@ -117,6 +117,8 @@ def create_app():
     app.register_blueprint(am_lib_bp)
     from app.previa_pcp import previa_bp
     app.register_blueprint(previa_bp)
+    from app.gamificacao import gamificacao_bp
+    app.register_blueprint(gamificacao_bp)
     from app.revisao_cru import revisao_bp
     app.register_blueprint(revisao_bp)
     from app.indicadores.routes import ind_bp
@@ -328,6 +330,8 @@ def create_app():
         garantir_aba_nf_xml()                                            # aba NF XML (Financeiro): DUIMP no layout do TOTVS
         from app.seed import remover_maquinas_desativadas
         remover_maquinas_desativadas()                                   # maquina 11 nao existe mais
+        from app.seed import garantir_aba_gamificacao
+        garantir_aba_gamificacao()                                       # aba Gamificação (Gestão Produção): só líderes e gestão
         from app.seed import garantir_aba_previa_pcp
         garantir_aba_previa_pcp()                                        # aba Prévia PCP (Gestão Planejamento)
         from app.seed import garantir_aba_amostras_no_planejamento

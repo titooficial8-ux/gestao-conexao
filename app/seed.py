@@ -332,6 +332,16 @@ def garantir_aba_previa_pcp() -> None:
         db.session.commit()
 
 
+def garantir_aba_gamificacao() -> None:
+    """Aba 'Gamificação' em Gestao Producao (ranking dos turnos e celulas, vindo do Acompanhamento de Producao). A visibilidade e por cargo: Líder Produção e Gestão Produção (Tab.visible_to)."""
+    cat = Category.query.filter_by(slug='producao').first()
+    if not cat or Tab.query.filter_by(slug='gamificacao').first():
+        return
+    ordem = max([t.order or 0 for t in cat.tabs] or [0]) + 1
+    db.session.add(Tab(category_id=cat.id, slug='gamificacao', name_pt='Gamificação', name_es='Gamificación', icon='\U0001F3C6', icon_color='#f59e0b', is_new=True, order=ordem))
+    db.session.commit()
+
+
 def garantir_aba_gestao_projetos() -> None:
     """Aba 'Gestão Projetos' em Gestao Sistema: projetos e OKR da equipe de Tecnologia/Informacao. Visivel ao TI/Sistema e a Diretoria (e administradores)."""
     cat = Category.query.filter_by(slug='sistema').first()
