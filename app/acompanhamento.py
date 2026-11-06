@@ -17,8 +17,22 @@ def _url() -> str:
     return (os.getenv('ACOMP_URL') or os.getenv('SETUPS_URL') or 'http://108.165.179.201:8090/api/v1').rstrip('/')
 
 
+_BOM = []                                                      # token que ja funcionou neste processo (fica na frente nas proximas chamadas)
+
+
+def _tokens() -> list:
+    """Tokens possiveis do Acompanhamento, sem repetir: o que ja funcionou, ACOMP_TOKEN, GAMIFICACAO_TOKEN, SETUPS_TOKEN, SETUPS_PIN. Se o Acompanhamento trocar o token, basta o novo estar em qualquer um deles."""
+    out = []
+    for t in (_BOM[0] if _BOM else '', os.getenv('ACOMP_TOKEN', ''), os.getenv('GAMIFICACAO_TOKEN', ''), os.getenv('SETUPS_TOKEN', ''), os.getenv('SETUPS_PIN', '')):
+        t = (t or '').strip()
+        if t and t not in out:
+            out.append(t)
+    return out
+
+
 def _token() -> str:
-    return (os.getenv('ACOMP_TOKEN') or os.getenv('SETUPS_TOKEN') or os.getenv('SETUPS_PIN') or '').strip()
+    t = _tokens()
+    return t[0] if t else ''
 
 
 def configurado() -> bool:
@@ -26,7 +40,13 @@ def configurado() -> bool:
 
 
 def chamar(caminho: str = '', params: dict = None):
-    r = requests.get(f'{_url()}{caminho}', params=params, headers={'Accept': 'application/json', 'Authorization': f'Bearer {_token()}'}, timeout=(5, 20))
+    r = None
+    for t in _tokens() or ['']:                                # token recusado (401/403): tenta o proximo
+        r = requests.get(f'{_url()}{caminho}', params=params, headers={'Accept': 'application/json', 'Authorization': f'Bearer {t}'}, timeout=(5, 20))
+        if r.status_code not in (401, 403):
+            if r.status_code == 200 and t:
+                _BOM[:] = [t]
+            break
     if r.status_code != 200:
         raise RuntimeError(f'HTTP {r.status_code}: {r.text[:160]}')
     try:
