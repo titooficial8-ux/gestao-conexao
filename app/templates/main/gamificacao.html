@@ -14,7 +14,7 @@
 .gm-chip{background:#f1f5f9;border-radius:10px;padding:6px 10px;font-size:12px;color:#475569;line-height:1.25}
 .gm-chip b{display:block;font-size:15px;color:#0f172a}
 .gm-chip.vazio b{color:#94a3b8}
-.gm-cel{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.gm-cel{display:grid;grid-template-columns:1fr;gap:14px}
 .gm-card{border:1px solid #e2e8f0;border-radius:14px;padding:12px 14px;background:linear-gradient(180deg,#fff,#f8fafc)}
 .gm-card h3{margin:0 0 6px;font-size:15px;color:#0f172a;display:flex;justify-content:space-between;gap:8px}
 .gm-pos{background:#fef3c7;color:#92400e;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:800}
@@ -50,6 +50,22 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 .gm-setor:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 #0f172a;background:#fef9c3}
 .gm-setor span{display:block;font-size:26px;margin-bottom:4px}
 .gm-setores[hidden]{display:none}
+
+.gm-maqs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:8px}
+.gm-m{background:#fff;border:1px solid #e2e8f0;border-top:5px solid #94a3b8;border-radius:14px;padding:12px 12px 10px;text-align:center;box-shadow:0 2px 8px rgba(15,23,42,.05)}
+.gm-m.ok{border-top-color:#16a34a}.gm-m.aten{border-top-color:#d97706}.gm-m.ruim{border-top-color:#dc2626;background:#fff7f7}
+.gm-m small{display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#64748b}
+.gm-m .n{font-size:26px;font-weight:900;color:#0f172a;line-height:1.1}
+.gm-m .est{display:inline-block;background:#fef3c7;color:#92400e;border-radius:999px;padding:1px 10px;font-size:11px;font-weight:900;margin:3px 0}
+.gm-m .ef{font-size:30px;font-weight:900;margin:2px 0 6px}.gm-m .ef.ok{color:#15803d}.gm-m .ef.aten{color:#b45309}.gm-m .ef.ruim{color:#b91c1c}
+.gm-m .g4{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+.gm-m .t{border:1px solid #e2e8f0;border-radius:8px;padding:4px 2px}.gm-m .t b{display:block;font-size:17px;color:#0f172a}
+.gm-m .box{border:1px dashed #cbd5e1;border-radius:8px;padding:6px;background:#f8fafc;font-size:11.5px;color:#475569;margin-bottom:6px}
+.gm-m .box b{font-size:17px;color:#0f172a;display:block}
+.gm-m .pill{display:block;border-radius:999px;padding:3px 8px;font-size:11.5px;font-weight:800;margin:4px 0}
+.gm-m .pill.man{background:#fef3c7;border:1px solid #f59e0b;color:#92400e}.gm-m .pill.div{background:#ffedd5;border:1px solid #fb923c;color:#9a3412}
+.gm-m .rod{font-size:11.5px;color:#64748b;margin-top:4px}
+.gm-m .out{text-align:left;font-size:10.5px;color:#94a3b8;margin-top:5px}
 </style>
 <div id="gmIntro" class="gm-intro">
   <div class="gm-palco">
@@ -114,7 +130,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 <div class="gm-nota">Horários em horário de Brasília. Campo em “—” = ainda sem dado (turno futuro, célula sem máquinas ou 5S ainda não lançado). “Deveria entregar” usa o cálculo do próprio Gestão (24 h).</div>
 <div id="gmErro" class="gm-erro" hidden></div>
 <div id="gmRoot"></div>
-{% if current_user.is_admin %}<details class="gm-raw"><summary>Ver dados brutos (administrador)</summary><pre id="gmRaw"></pre></details>{% endif %}
+{% if current_user.is_admin %}<details class="gm-raw"><summary>Ver dados brutos (administrador)</summary><button type="button" class="btn-small" id="gmCopiar">Copiar dados brutos</button><pre id="gmRaw"></pre></details>{% endif %}
 
 </div>
 <script>
@@ -178,10 +194,47 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
     return w;
   }
   var OCULTOS_AUX = { metros24: 1 };
+  function nrm(k) { return String(k).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function pega(o, nomes, usados) { if (!o) return undefined; var ks = Object.keys(o); for (var a = 0; a < nomes.length; a++) { for (var b = 0; b < ks.length; b++) { if (nrm(ks[b]) === nomes[a]) { if (usados) usados[ks[b]] = 1; return o[ks[b]]; } } } return undefined; }
+  function numTxt(v, dec) { if (v === null || v === undefined || v === '') return '—'; var n = Number(v); if (isNaN(n)) return String(v); return n.toLocaleString('pt-BR', { maximumFractionDigits: dec === undefined ? 1 : dec }); }
+  function cartaoMaquina(m, info) {
+    var u = {}, d = Object.assign({}, info || {}, m || {});
+    var num = pega(d, ['maquina', 'numero', 'machine', 'id', 'cod'], u), est = pega(d, ['estrutura', 'tipo', 'tipomaquina'], u);
+    var ef = pega(d, ['eficiencia', 'efreal', 'eficienciareal', 'ef'], u), meta = pega(d, ['metaeficiencia', 'metaef', 'metadeeficiencia'], u);
+    var pc = pega(d, ['pecas', 'pcs', 'pecasproduzidas'], u), mpc = pega(d, ['metapecas', 'pecasmeta'], u), mt = pega(d, ['metros', 'mt', 'metrosproduzidos'], u), mmt = pega(d, ['metametros', 'metrosmeta'], u);
+    var dev = pega(d, ['gcmetros24'], u), ont = pega(d, ['ontem'], u), cli = pega(d, ['cliente'], u), op = pega(d, ['op'], u), art = pega(d, ['artigo', 'produto'], u);
+    var man = pega(d, ['manutencoes', 'manutencao'], u), div = pega(d, ['divergencias', 'divergencia'], u); pega(d, ['metros24'], u);
+    var nef = ef === null || ef === undefined ? null : Number(ef), nmeta = meta === null || meta === undefined ? 75 : Number(meta);
+    var cls = nef === null || isNaN(nef) ? '' : (nef >= nmeta ? 'ok' : (nef >= nmeta * 0.8 ? 'aten' : 'ruim'));
+    var c = h('div', 'gm-m ' + cls); c.appendChild(h('small', null, 'Máquina')); c.appendChild(h('div', 'n', num === undefined ? '—' : String(num).padStart(2, '0')));
+    if (est) c.appendChild(h('span', 'est', String(est)));
+    c.appendChild(h('div', 'ef ' + cls, nef === null || isNaN(nef) ? '—' : numTxt(nef) + '%'));
+    var g = h('div', 'g4'); [['Peças', pc], ['Meta peças', mpc], ['Metros', mt], ['Meta metros', mmt]].forEach(function (x) { var t = h('div', 't'); t.appendChild(h('small', null, x[0])); t.appendChild(h('b', null, numTxt(x[1], 1))); g.appendChild(t); }); c.appendChild(g);
+    if (dev !== undefined || ont !== undefined) { var bx = h('div', 'box'); bx.appendChild(h('span', null, 'Deveria entregar em 24 h')); bx.appendChild(h('b', null, dev === undefined ? '—' : numTxt(dev, 0) + ' m'));
+      var o2 = h('span', null, 'Entregou ontem: '); var ob = h('b', null, ont === undefined || ont === null ? '—' : (typeof ont === 'object' ? ((pega(ont, ['metros', 'mt']) !== undefined ? numTxt(pega(ont, ['metros', 'mt']), 0) + ' m' : '') + (pega(ont, ['pecas', 'pcs']) !== undefined ? ' · ' + numTxt(pega(ont, ['pecas', 'pcs']), 0) + ' peças' : '') || fmt(ont)) : numTxt(ont, 0) + ' m')); ob.style.display = 'inline'; ob.style.fontSize = '13px'; o2.appendChild(ob); bx.appendChild(o2); c.appendChild(bx); }
+    if (man && (!Array.isArray(man) || man.length)) c.appendChild(h('span', 'pill man', '🔧 ' + (/manuten/i.test(fmt(man)) ? fmt(man) : 'Manutenção: ' + fmt(man))));
+    if (div && (!Array.isArray(div) || div.length)) c.appendChild(h('span', 'pill div', '⚠ Divergência' + (Array.isArray(div) ? ' (' + div.length + ')' : ': ' + fmt(div))));
+    if (art || op || cli) c.appendChild(h('div', 'rod', [art, op ? 'OP ' + op : null, cli].filter(Boolean).join(' · ')));
+    var resto = Object.keys(d).filter(function (k) { return !u[k] && escalar(d[k]) && d[k] !== null; });
+    if (resto.length) c.appendChild(h('div', 'out', resto.map(function (k) { return rotulo(k) + ': ' + fmt(d[k], k); }).join(' · ')));
+    return c;
+  }
   function celula(c, pos) {
     var card = h('div', 'gm-card'), t = h('h3'); t.appendChild(h('span', null, 'Célula ' + titulo(c, pos)));
     if (c.posicao || c.rank) t.appendChild(h('span', 'gm-pos', (c.posicao || c.rank) + 'º')); card.appendChild(t);
-    card.appendChild(conteudo(c, 'celula', { id: 1, nome: 1, posicao: 1, rank: 1 })); return card;
+    var pular = { id: 1, nome: 1, posicao: 1, rank: 1, turnos: 1, maquinasInfo: 1 };
+    card.appendChild(conteudo(c, 'celula', pular));
+    var info = {}; comoLista(c.maquinasInfo).forEach(function (m) { var k = pega(m, ['maquina', 'numero', 'machine', 'id']); if (k !== undefined) info[String(k)] = m; });
+    var usadas = {};
+    (c.turnos || []).forEach(function (tt) {
+      var mq = comoLista(tt.detalhe && tt.detalhe.maquinas); if (!mq.length) return;
+      card.appendChild(h('div', 'gm-sec', 'Turno ' + (tt.turno !== undefined ? tt.turno : '') + (tt.indice !== undefined && tt.indice !== null ? ' · índice ' + numTxt(tt.indice) : '')));
+      var grid = h('div', 'gm-maqs'); mq.forEach(function (m) { var k = pega(m, ['maquina', 'numero', 'machine', 'id']); if (k !== undefined) usadas[String(k)] = 1; grid.appendChild(cartaoMaquina(m, info[String(k)])); }); card.appendChild(grid);
+    });
+    var sobras = Object.keys(info).filter(function (k) { return !usadas[k]; });
+    if (sobras.length) { card.appendChild(h('div', 'gm-sec', 'Máquinas da célula')); var g2 = h('div', 'gm-maqs'); sobras.forEach(function (k) { g2.appendChild(cartaoMaquina(info[k], null)); }); card.appendChild(g2); }
+    (c.turnos || []).forEach(function (tt) { var resto = conteudo(tt, 'turno', { turno: 1, indice: 1, detalhe: 1, nome: 1 }); if (resto.children.length) { card.appendChild(h('div', 'gm-sec', 'Turno ' + (tt.turno !== undefined ? tt.turno : '') + ' · outros dados')); card.appendChild(resto); } });
+    return card;
   }
   function turno(t, i) {
     var w = h('div', 'gm-turno'), tt = h('h2'), medalha = ['🥇', '🥈', '🥉'][i];
@@ -211,6 +264,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
   function iniciarPainel() { carregar(); if (!timer) timer = setInterval(carregar, 60000); }
   function pararPainel() { if (timer) { clearInterval(timer); timer = null; } }
   $('gmAtualizar').addEventListener('click', carregar);
+  if ($('gmCopiar')) $('gmCopiar').addEventListener('click', function () { var t = $('gmRaw').textContent; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { alert('Dados copiados. Cole na conversa com o desenvolvedor.'); }, function () { var r = document.createRange(); r.selectNodeContents($('gmRaw')); var se = getSelection(); se.removeAllRanges(); se.addRange(r); alert('Selecionei o texto: aperte Ctrl+C.'); }); });
 
   // ---- Introducao do jogo ----
   var FALA = $('gmFala'), BAL = $('gmBalao'), FIO = $('gmFio'), SET = $('gmSetores'), digitando = 0;
