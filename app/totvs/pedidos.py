@@ -274,6 +274,23 @@ def gravar(linhas: list[dict]) -> None:
         raise
 
 
+def sincronizar_dt_cliente() -> int:
+    """Dt.Cliente das OPs da Programacao = Prev. Faturamento do pedido ligado a OP (Relatorio Pedidos). Roda depois de cada atualizacao do relatorio,
+    para a data acompanhar quando a ligacao OP <-> pedido muda. Nao mexe em data digitada a mao, em Ortobom (que usa o mes de producao) nem em OP sem pedido (avulsa)."""
+    from app.main.routes import normalize_client_name, resolve_dt_cliente_from_pedidos
+    from app.models import Sequencia
+    n = 0
+    for q in Sequencia.query.filter(Sequencia.status.notin_(['FINALIZADO', 'CANCELADO'])).all():
+        if q.dt_cliente_manual or q.qt_avulsa or not q.op or 'ORTOBOM' in normalize_client_name(q.cliente or '').upper():
+            continue
+        d = resolve_dt_cliente_from_pedidos(q.op, q.artigo)
+        if d and d != q.dt_cliente:
+            q.dt_cliente, n = d, n + 1
+    if n:
+        db.session.commit()
+    return n
+
+
 def atualizar(app) -> bool:
     """Uma rodada completa. Devolve False se ja houver outra em andamento."""
     if not _trava.acquire(blocking=False):
@@ -286,6 +303,11 @@ def atualizar(app) -> bool:
             raise RuntimeError('O TOTVS nao devolveu pedidos; mantive os dados anteriores.')
         with app.app_context():
             gravar(linhas)
+            try:
+                ESTADO['dt_cliente_atualizadas'] = sincronizar_dt_cliente()
+            except Exception:  # noqa: BLE001
+                db.session.rollback()
+                traceback.print_exc()
         ESTADO.update(ultima=datetime.now().isoformat(timespec='seconds'), n=len(linhas), msg=f'{len(linhas)} itens de pedido atualizados')
         try:
             ARQUIVO.parent.mkdir(parents=True, exist_ok=True)
