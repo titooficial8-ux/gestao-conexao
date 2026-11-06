@@ -129,10 +129,13 @@ def vincular_ops(ordenados: list, ops: list, fixos: dict = None) -> dict:
     for lista in por_chave.values():
         lista.sort(key=lambda o: (str(o.get('insertDate') or ''), o.get('orderCode') or 0))
     usado = defaultdict(float)                                 # quantidade de cada OP ja destinada a pedidos
+    dono = {}                                                  # OP -> pedido dono dela: uma OP pertence a UM so pedido (pedido grande pode ter varias OPs, mas a mesma OP nunca aparece em dois pedidos)
 
     def alocar(p, pid, necessidade, dt_pedido, ate=None):
         achadas = []
         for o in por_chave.get((p['customerCode'], pid), []):
+            if dono.get(o['orderCode'], p.get('orderCode')) != p.get('orderCode'):
+                continue                                       # essa OP ja e de outro pedido
             criada = _data(o.get('insertDate')) or date.min
             if criada < (dt_pedido or date.min) or necessidade <= 0.5 or (ate and criada > ate):
                 continue
@@ -142,6 +145,7 @@ def vincular_ops(ordenados: list, ops: list, fixos: dict = None) -> dict:
             if usado[o['orderCode']] >= 0.5 * _num(o.get('quantity')):      # a OP ja foi quase toda reservada por outro pedido: a sobra (ex.: 48 m de 448) nao amarra um 2o pedido
                 continue
             usar = min(sobra, necessidade)
+            dono[o['orderCode']] = p.get('orderCode')
             usado[o['orderCode']] += usar
             necessidade -= usar
             achadas.append(o)
@@ -152,6 +156,8 @@ def vincular_ops(ordenados: list, ops: list, fixos: dict = None) -> dict:
         real = [idx_op[(str(c), str(n))] for c, n in (fixos or {}).get((str(p.get('orderCode')), str(it.get('productCode'))), []) if (str(c), str(n)) in idx_op]
         if real and p.get('statusOrder') != 'Canceled':
             aloc[k] = real
+            for o in real:
+                dono.setdefault(o['orderCode'], p.get('orderCode'))
             falta = solicitada if pendente > 0.5 else max(solicitada - _num(it.get('canceledQuantity')), 0.0)
             for o in real:
                 usa = min(max(_num(o.get('quantity')) - usado[o['orderCode']], 0.0), falta)
