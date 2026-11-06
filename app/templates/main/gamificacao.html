@@ -67,6 +67,33 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 .gm-m .pill.man{background:#fef3c7;border:1px solid #f59e0b;color:#92400e}.gm-m .pill.div{background:#ffedd5;border:1px solid #fb923c;color:#9a3412}
 .gm-m .rod{font-size:11.5px;color:#64748b;margin-top:4px}
 .gm-m .out{text-align:left;font-size:10.5px;color:#94a3b8;margin-top:5px}
+
+.gx-live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#15803d;font-weight:800}.gx-live i{width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:gxPulso 1.6s infinite}
+@keyframes gxPulso{70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+.gx-rank{background:#0f1f3d;border-radius:22px;padding:20px 22px;margin:6px 0 18px;color:#fff}
+.gx-rank h2{margin:0;font-size:12px;letter-spacing:.14em;color:#93c5fd;text-transform:uppercase}.gx-rank h1{margin:2px 0 14px;font-size:28px}
+.gx-turnos{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.gx-t{background:#fff;color:#0f172a;border-radius:18px;padding:16px 18px}
+.gx-t .top{display:flex;gap:12px;align-items:center;margin-bottom:6px}.gx-t .pos{width:46px;height:46px;border-radius:50%;border:2px dashed #cbd5e1;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-weight:900}
+.gx-t .tt{font-size:21px;font-weight:900;line-height:1.1}.gx-t .hr{font-size:12.5px;color:#64748b}
+.gx-badge{margin-left:auto;border-radius:999px;padding:3px 12px;font-size:12px;font-weight:800;background:#e2e8f0;color:#475569}.gx-badge.and{background:#dbeafe;color:#1d4ed8}.gx-badge.fech{background:#dcfce7;color:#166534}
+.gx-idx{font-size:56px;font-weight:900;line-height:1;margin:8px 0 6px;font-family:ui-monospace,Menlo,Consolas,monospace}.gx-idx small{font-size:20px}
+.gx-barra{height:12px;border-radius:999px;background:#e2e8f0;overflow:hidden}.gx-barra i{display:block;height:100%;border-radius:999px}
+.gx-nota{font-size:12px;color:#64748b;margin:6px 0 10px}
+.gx-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.gx-tile{background:#f8fafc;border:1px solid #e2e8f0;border-top:3px solid #cbd5e1;border-radius:10px;padding:7px 8px}
+.gx-tile small{display:block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#475569}.gx-tile b{font-size:17px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.gx-tile.ok{border-top-color:#16a34a}.gx-tile.ok b{color:#15803d}.gx-tile.ruim{border-top-color:#dc2626}.gx-tile.ruim b{color:#b91c1c}
+.gx-tabs{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0 10px}.gx-tabs h3{margin:0 auto 0 0;font-size:12px;letter-spacing:.14em;color:#64748b;text-transform:uppercase}
+.gx-tab{border:1px solid #cbd5e1;background:#fff;border-radius:12px;padding:10px 16px;font-weight:800;cursor:pointer;font-family:inherit}.gx-tab.on{background:#0f1f3d;color:#fff;border-color:#0f1f3d}
+.gx-cel{background:#fff;border:1px solid #e2e8f0;border-left:8px solid #94a3b8;border-radius:18px;padding:16px 18px;margin-bottom:16px}
+.gx-cel .cab{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}.gx-cel h3{margin:0;font-size:20px;letter-spacing:.02em}.gx-cel .sub{font-size:13px;color:#475569}
+.gx-cel .big{font-size:34px;font-weight:900;font-family:ui-monospace,Menlo,Consolas,monospace;text-align:right;line-height:1}.gx-cel .big small{display:block;font-size:12px;color:#64748b;font-family:inherit;font-weight:600}
+.gx-eq{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:12px 0}.gx-eq div{background:#fef7ec;border:1px solid #f3e3c7;border-radius:10px;padding:8px 10px}
+.gx-eq small{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#334155}.gx-eq i{font-size:15px;color:#64748b}.gx-eq b{font-size:15px;color:#0f172a}
+.gx-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:10px 0 12px}
+.gx-ind{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:16px 18px;margin-bottom:16px;overflow-x:auto}.gx-ind h3{margin:0 0 8px}
+.gx-tb{width:100%;border-collapse:collapse;font-size:14px}.gx-tb th{text-align:left;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:#475569;padding:8px;border-bottom:2px solid #e2e8f0}.gx-tb td{padding:9px 8px;border-bottom:1px solid #eef2f6}
+.gx-tb .ok{color:#15803d;font-weight:800}.gx-tb .ruim{color:#b91c1c;font-weight:800}.gx-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}
 </style>
 <div id="gmIntro" class="gm-intro">
   <div class="gm-palco">
@@ -125,9 +152,9 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 <div class="gm-top">
   <div>
     <h1 class="page-heading">&#127942; {{ tab.name_pt if lang == 'pt' else tab.name_es }}</h1>
-    <p class="gm-sub" id="gmSub">Carregando do Acompanhamento de Produção…</p>
+    <p class="gm-sub"><span class="gx-live"><i></i>Ao vivo</span> · <span id="gmSub">Carregando do Acompanhamento de Produção…</span></p>
   </div>
-  <div class="gm-bar"><button type="button" class="btn-small" id="gmTrocar">&#8592; Trocar de setor</button><button type="button" class="btn-small" id="gmAtualizar">&#10227; Atualizar agora</button></div>
+  <div class="gm-bar"><button type="button" class="btn-small" id="gmTrocar">&#8592; Trocar de setor</button><button type="button" class="btn-small" id="gmAtualizar">&#10227; Atualizar agora</button><button type="button" class="btn-small" id="gmTela">&#9974; Tela cheia</button></div>
 </div>
 <div class="gm-nota">Horários em horário de Brasília. Campo em “—” = ainda sem dado (turno futuro, célula sem máquinas ou 5S ainda não lançado). “Deveria entregar” usa o cálculo do próprio Gestão (24 h).</div>
 <div id="gmErro" class="gm-erro" hidden></div>
@@ -247,37 +274,118 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
     var cel = t.celulas || []; if (!cel.length) { w.appendChild(h('div', 'gm-vazio', 'Sem células neste turno ainda.')); return w; }
     var g = h('div', 'gm-cel'); cel.forEach(function (c, k) { g.appendChild(celula(c, k)); }); w.appendChild(g); return w;
   }
+  // ===== Layout no estilo do Acompanhamento: ranking dos turnos, celulas por turno e indicadores =====
+  var CORCEL = { azul: '#2563eb', verde: '#16a34a', laranja: '#f97316', acabamento: '#7c6bb0' }, ORDEM = { azul: 1, verde: 2, laranja: 3, acabamento: 4 };
+  var turnoSel = null, ULT = null;
+  function busca(o, nomes, prof, pular) {                    // procura um valor simples pelo nome do campo, em qualquer nivel (ate 'prof')
+    if (!o || typeof o !== 'object' || prof < 0) return undefined; var ks = Object.keys(o), a, b;
+    for (a = 0; a < nomes.length; a++) for (b = 0; b < ks.length; b++) if (nrm(ks[b]) === nomes[a] && escalar(o[ks[b]])) return o[ks[b]];
+    for (b = 0; b < ks.length; b++) { var v = o[ks[b]]; if (v && typeof v === 'object' && !(pular && pular[ks[b]]) && !Array.isArray(v)) { var r = busca(v, nomes, prof - 1, pular); if (r !== undefined) return r; } }
+    return undefined;
+  }
+  function brtData(v, menosMin) { var d = new Date(v); if (isNaN(d)) return null; return new Date(d.getTime() - 3 * 3600000 - (menosMin || 0) * 60000); }
+  function hhmm(v, menosMin) { var d = brtData(v, menosMin); if (!d) return String(v || '—'); var p = function (n) { return String(n).padStart(2, '0'); }; return p(d.getUTCHours()) + 'h' + p(d.getUTCMinutes()); }
+  function pct(v) { return v === null || v === undefined || isNaN(Number(v)) ? '—' : numTxt(Number(v), 1) + '%'; }
+  function statusT(t) { var st = nrm(String(t.status || '')); if (/andamento/.test(st)) return ['em andamento', 'and']; if (/fech|encerr|lanc|final/.test(st)) return ['fechado', 'fech']; return ['não começou', '']; }
+  function cinco(t, nomes, meta, menor) {
+    var v = busca(t, nomes, 2, { celulas: 1 }), n = v === null || v === undefined ? null : Number(v); var ok = n === null || isNaN(n) ? '' : (menor ? (n <= meta ? 'ok' : 'ruim') : (n >= meta ? 'ok' : 'ruim')); return [n === null || isNaN(n) ? null : n, ok];
+  }
+  var META = { ef: 75, parado: 90, qual: 95, cs: 80 };
+  function tile(rot, v, ok, suf) { var t = h('div', 'gx-tile ' + (ok || '')); t.appendChild(h('small', null, rot)); t.appendChild(h('b', null, v === null ? '—' : numTxt(v, 1) + (suf || ''))); return t; }
+  function tilesIndicadores(t, comMeta) {
+    var w = h('div', 'gx-tiles'), e = cinco(t, ['eficienciareal', 'eficiencia', 'efreal'], META.ef), p = cinco(t, ['minutosparados', 'parado', 'paradas', 'minparados'], META.parado, true), q = cinco(t, ['primeiraqualidade', 'qualidade1a', 'qualidade', 'q1', 'primqualidade'], META.qual), c = cinco(t, ['cincos', '5s', 'cinco_s'], META.cs);
+    [['Eficiência', e, '%'], ['Parado', p, ' min'], ['1ª Qualid.', q, '%'], ['5S', c, '%']].forEach(function (x) { w.appendChild(tile(x[0], x[1][0], x[1][1], x[2])); }); return w;
+  }
+  function cartaoTurno(t, i) {
+    var st = statusT(t), c = h('div', 'gx-t'), top = h('div', 'top'), pos = h('div', 'pos', t.posicao || t.rank || '—'); top.appendChild(pos);
+    var bloco = h('div'); bloco.appendChild(h('div', 'tt', (t.turno !== undefined ? t.turno : i + 1) + 'º turno')); bloco.appendChild(h('div', 'hr', t.inicio ? hhmm(t.inicio) + ' às ' + hhmm(t.fim, 1) : '')); top.appendChild(bloco);
+    top.appendChild(h('span', 'gx-badge ' + st[1], st[0])); c.appendChild(top);
+    var idx = t.indice === undefined ? busca(t, ['indice'], 1, { celulas: 1 }) : t.indice, n = idx === null || idx === undefined ? null : Number(idx);
+    var ix = h('div', 'gx-idx'); ix.style.color = n === null ? '#94a3b8' : (n >= 90 ? '#15803d' : n >= 75 ? '#b45309' : '#b91c1c'); ix.textContent = n === null ? '—' : numTxt(n, 1); if (n !== null) ix.appendChild(h('small', null, '%')); c.appendChild(ix);
+    var bar = h('div', 'gx-barra'), bi = h('i'); bi.style.width = (n === null ? 0 : Math.max(0, Math.min(n, 100))) + '%'; bi.style.background = n === null ? '#cbd5e1' : (n >= 90 ? '#16a34a' : n >= 75 ? '#f59e0b' : '#dc2626'); bar.appendChild(bi); c.appendChild(bar);
+    c.appendChild(h('div', 'gx-nota', st[1] === 'and' && n !== null ? 'parcial, turno em andamento' : (n === null ? 'sem dados ainda' : '')));
+    c.appendChild(tilesIndicadores(t)); return c;
+  }
+  function equipe(c, tt) {
+    var w = h('div', 'gx-eq'), papeis = [['Mecânico', ['mecanico'], 'Especialista 3, 2 ou Trainee'], ['Tecelão SR / Pleno', ['tecelao', 'tecelaosrpleno'], 'Operador 3 ou 2'], ['Ajudante', ['ajudante'], 'Operador 1'], ['Revisor JR / PL', ['revisor', 'revisorjrpl'], 'Operador 4 ou 3']], algum = false;
+    papeis.forEach(function (p) {
+      var v = busca(tt, p[1], 3) !== undefined ? busca(tt, p[1], 3) : busca(c, p[1], 3), d = h('div'); d.appendChild(h('small', null, p[0]));
+      if (v === null || v === undefined || v === '') d.appendChild(h('i', null, 'a definir')); else { algum = true; d.appendChild(h('b', null, typeof v === 'object' ? fmt(v) : String(v))); }
+      d.appendChild(h('small', null, p[2])).style.cssText = 'font-weight:500;text-transform:none;letter-spacing:0;color:#64748b'; w.appendChild(d);
+    }); return w;
+  }
+  function blocoCelula(c, tt, turnosRank) {
+    var id = String(c.id || c.nome || '').toLowerCase(), cor = CORCEL[id] || '#64748b', ord = ORDEM[id] ? String(ORDEM[id]).padStart(2, '0') : '';
+    var box = h('div', 'gx-cel'); box.style.borderLeftColor = cor;
+    var cab = h('div', 'cab'), esq = h('div'), t = h('h3', null, (ord ? ord + ' · ' : '') + id.toUpperCase()); t.style.color = cor; esq.appendChild(t);
+    var mq = comoLista(tt && tt.detalhe && tt.detalhe.maquinas), info = {}; comoLista(c.maquinasInfo).forEach(function (m) { var k = pega(m, ['maquina', 'numero', 'machine', 'id']); if (k !== undefined) info[String(k)] = m; });
+    var totM = 0; mq.forEach(function (m) { var v = Number(pega(m, ['metros', 'mt', 'metrosproduzidos'])); if (!isNaN(v)) totM += v; });
+    var compl = busca(tt, ['complexidade', 'nivelcomplexidade'], 3) || busca(c, ['complexidade', 'nivelcomplexidade'], 3);
+    esq.appendChild(h('div', 'sub', (mq.length || Object.keys(info).length) + ' máquinas · ' + numTxt(totM, 0) + ' m produzidos no turno' + (compl ? ' · ' + compl : ''))); cab.appendChild(esq);
+    var rank = turnosRank && (turnosRank.celulas || []).filter(function (x) { return String(x.id || x.nome).toLowerCase() === id; })[0];
+    var idx = rank && rank.indice !== undefined && rank.indice !== null ? rank.indice : (tt && tt.indice);
+    var dir = h('div', 'big', idx === null || idx === undefined ? '—' : numTxt(idx, 1) + '%'); dir.appendChild(h('small', null, 'parcial')); cab.appendChild(dir); box.appendChild(cab);
+    box.appendChild(equipe(c, tt || {}));
+    var k = h('div', 'gx-kpis'), e = cinco(tt || {}, ['eficienciareal', 'eficiencia', 'efreal'], META.ef), pr = cinco(tt || {}, ['minutosparados', 'parado', 'paradas'], META.parado, true), q = cinco(tt || {}, ['primeiraqualidade', 'qualidade1a', 'qualidade'], META.qual), cs = cinco(tt || {}, ['cincos', '5s'], META.cs);
+    [['Eficiência real', e, '%', 'meta ' + META.ef + '% (média das máquinas)'], ['Minutos parados', pr, ' min', 'meta até ' + META.parado + ' min'], ['1ª qualidade', q, '%', 'meta ' + META.qual + '%'], ['5S', cs, '%', 'meta ' + META.cs + '%']].forEach(function (x) {
+      var tl = tile(x[0], x[1][0], x[1][1], x[2]); tl.appendChild(h('small', null, x[3])).style.cssText = 'text-transform:none;letter-spacing:0;font-weight:500;color:#64748b'; k.appendChild(tl); }); box.appendChild(k);
+    var usadas = {}, grid = h('div', 'gm-maqs');
+    mq.forEach(function (m) { var kk = pega(m, ['maquina', 'numero', 'machine', 'id']); if (kk !== undefined) usadas[String(kk)] = 1; grid.appendChild(cartaoMaquina(m, info[String(kk)])); });
+    Object.keys(info).filter(function (kk) { return !usadas[kk]; }).forEach(function (kk) { grid.appendChild(cartaoMaquina(info[kk], null)); });
+    if (grid.children.length) box.appendChild(grid); else box.appendChild(h('div', 'gm-vazio', 'Sem máquinas neste turno ainda.'));
+    var resto = conteudo(tt || {}, 'turno', { turno: 1, indice: 1, detalhe: 1, nome: 1, eficiencia: 1 }); if (resto.querySelector('.gm-sec')) { box.appendChild(resto); }
+    return box;
+  }
+  function tabelaIndicadores(turnos, cels) {
+    var box = h('div', 'gx-ind'); box.appendChild(h('h3', null, 'Indicadores gerais por turno'));
+    var tb = h('table', 'gx-tb'), th = h('tr'); ['Indicador', 'Meta'].concat(turnos.map(function (t, i) { return (t.turno !== undefined ? t.turno : i + 1) + 'º turno'; })).forEach(function (x) { th.appendChild(h('th', null, x)); }); tb.appendChild(th);
+    function linha(rot, meta, fn, ehIdx) { var tr = h('tr'); var td0 = h('td'); td0.appendChild(rot instanceof Node ? rot : document.createTextNode(rot)); if (ehIdx) td0.style.fontWeight = '800'; tr.appendChild(td0); tr.appendChild(h('td', null, meta || '')); turnos.forEach(function (t) { var r = fn(t); var td = h('td', r && r[1] || '', r && r[0] !== null && r[0] !== undefined ? r[0] : '—'); tr.appendChild(td); }); tb.appendChild(tr); }
+    function ind(nomes, suf, meta, menor) { return function (t) { var r = cinco(t, nomes, meta, menor); return r[0] === null ? [null] : [numTxt(r[0], 1) + suf, r[1]]; }; }
+    linha('Eficiência real', META.ef + '%', ind(['eficienciareal', 'eficiencia', 'efreal'], '%', META.ef));
+    linha('Minutos parados', 'até ' + META.parado + ' min', ind(['minutosparados', 'parado', 'paradas'], ' min', META.parado, true));
+    linha('1ª qualidade', META.qual + '%', ind(['primeiraqualidade', 'qualidade1a', 'qualidade'], '%', META.qual));
+    linha('5S', META.cs + '%', ind(['cincos', '5s'], '%', META.cs));
+    linha('Segurança', 'sem ocorrência', function (t) { var v = busca(t, ['seguranca', 'ocorrencias', 'ocorrenciaseguranca'], 2, { celulas: 1 }); return [v === undefined || v === null ? null : fmt(v)]; });
+    cels.forEach(function (c) { var id = String(c.id || c.nome).toLowerCase(); var rot = h('span'); var dot = h('i', 'gx-dot'); dot.style.background = CORCEL[id] || '#64748b'; rot.appendChild(dot); rot.appendChild(document.createTextNode('Célula ' + (ORDEM[id] ? String(ORDEM[id]).padStart(2, '0') + ' · ' : '') + id.charAt(0).toUpperCase() + id.slice(1)));
+      linha(rot, 'índice', function (t) { var x = (t.celulas || []).filter(function (y) { return String(y.id || y.nome).toLowerCase() === id; })[0]; return [x && x.indice !== null && x.indice !== undefined ? numTxt(x.indice, 1) + '%' : null]; }); });
+    linha('Índice do turno', '', function (t) { return [t.indice === null || t.indice === undefined ? null : numTxt(t.indice, 1) + '%']; }, true);
+    var tw = h('div'); tw.style.overflowX = 'auto'; tw.appendChild(tb); box.appendChild(tw);
+    box.appendChild(h('div', 'gm-vazio', 'O ranking geral junta as células de malharia (eficiência, paradas e qualidade de todas as máquinas) + o 5S médio das células e a segurança do turno. Turno só tem posição depois de fechado (fim do horário + lançamento do líder).')); return box;
+  }
   function desenha(d) {
     ROOT.textContent = '';
-    var raiz = d && !Array.isArray(d) ? d : {};
-    var topo = chips(raiz); if (topo) ROOT.appendChild(topo);
-    // 1) celulas no nivel de cima: aqui estao as maquinas (detalhe.maquinas), cliente, OP, manutencoes, divergencias, ontem e gcMetros24
-    var cels = Array.isArray(raiz.celulas) ? raiz.celulas : comoLista(raiz.celulas).filter(function (x) { return !escalar(x); });
-    if (cels.length) {
-      var sec = h('div', 'gm-turno'); sec.appendChild(h('h2', null, 'Células')); var g = h('div', 'gm-cel');
-      cels.forEach(function (c, k) { g.appendChild(celula(c, k)); }); sec.appendChild(g); ROOT.appendChild(sec);
-    }
-    // 2) outros blocos que a API mande (ex.: resumo do dia), sem repetir o que ja foi mostrado
-    var resto = conteudo(raiz, 'raiz', { turnos: 1, celulas: 1 }); var rc = resto.querySelectorAll('.gm-sec'); if (rc.length) ROOT.appendChild(resto);
-    // 3) ranking geral do dia (turnos, no final da resposta)
-    var turnos = Array.isArray(d) ? d : raiz.turnos || [];
-    if (turnos.length) { var rk = h('h2', null, 'Ranking geral do dia'); rk.style.cssText = 'margin:18px 0 8px;font-size:18px'; ROOT.appendChild(rk); turnos.forEach(function (t, i) { ROOT.appendChild(turno(t, i)); }); }
-    if (!cels.length && !turnos.length) ROOT.appendChild(h('div', 'gm-vazio', 'O Acompanhamento ainda não devolveu dados hoje.'));
+    var raiz = d && !Array.isArray(d) ? d : {}, turnos = Array.isArray(d) ? d : (raiz.turnos || []);
+    var cels = (Array.isArray(raiz.celulas) ? raiz.celulas : comoLista(raiz.celulas).filter(function (x) { return !escalar(x); })).slice().sort(function (a, b) { return (ORDEM[String(a.id).toLowerCase()] || 9) - (ORDEM[String(b.id).toLowerCase()] || 9); });
+    // ranking geral dos turnos
+    var rk = h('div', 'gx-rank'); rk.appendChild(h('h2', null, 'Ranking geral dos turnos')); rk.appendChild(h('h1', null, fmt(raiz.dia || busca(raiz, ['dia', 'data'], 1) || '')));
+    var gr = h('div', 'gx-turnos'); turnos.forEach(function (t, i) { gr.appendChild(cartaoTurno(t, i)); }); rk.appendChild(gr); ROOT.appendChild(rk);
+    if (!turnos.length) ROOT.appendChild(h('div', 'gm-vazio', 'O Acompanhamento ainda não devolveu turnos hoje.'));
+    // celulas por turno
+    if (turnoSel === null) { var ativo = turnos.filter(function (t) { return statusT(t)[1] === 'and'; })[0] || turnos[0]; turnoSel = ativo ? String(ativo.turno) : null; }
+    var tabs = h('div', 'gx-tabs'); tabs.appendChild(h('h3', null, 'Células por turno'));
+    turnos.forEach(function (t) { var b = h('button', 'gx-tab' + (String(t.turno) === turnoSel ? ' on' : ''), (t.turno) + 'º turno  ' + (t.indice !== null && t.indice !== undefined ? numTxt(t.indice, 1) + '%' : statusT(t)[0])); b.type = 'button'; b.addEventListener('click', function () { turnoSel = String(t.turno); if (ULT) desenha(ULT); }); tabs.appendChild(b); });
+    ROOT.appendChild(tabs);
+    var tRank = turnos.filter(function (t) { return String(t.turno) === turnoSel; })[0];
+    cels.forEach(function (c) { var tt = (c.turnos || []).filter(function (x) { return String(x.turno) === turnoSel; })[0]; ROOT.appendChild(blocoCelula(c, tt, tRank)); });
+    if (!cels.length && turnos.length) ROOT.appendChild(h('div', 'gm-vazio', 'Sem detalhe de células neste momento.'));
+    if (turnos.length) ROOT.appendChild(tabelaIndicadores(turnos, cels.length ? cels : (turnos[0].celulas || [])));
+    var resto = conteudo(raiz, 'raiz', { turnos: 1, celulas: 1 }); if (resto.querySelector('.gm-sec')) { var ou = h('div', 'gx-ind'); ou.appendChild(h('h3', null, 'Outras informações')); ou.appendChild(resto); ROOT.appendChild(ou); }
   }
   function carregar() {
     $('gmSub').textContent = 'Atualizando…';
     fetch('/gamificacao/dados' + location.search, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (r) {
       var e = $('gmErro');
       if (!r.ok || r.erro) { e.hidden = false; e.textContent = r.erro || 'Não foi possível ler o Acompanhamento.'; } else { e.hidden = true; }
-      if (r.ok && r.dados && (Array.isArray(r.dados) ? r.dados.length : Object.keys(r.dados).length)) { desenha(r.dados); }
+      if (r.ok && r.dados && (Array.isArray(r.dados) ? r.dados.length : Object.keys(r.dados).length)) { ULT = r.dados; desenha(r.dados); }
       if ($('gmRaw')) $('gmRaw').textContent = JSON.stringify(r.dados, null, 1);
       var n = new Date(); $('gmSub').textContent = 'Acompanhamento de Produção · atualizado às ' + String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0');
     }).catch(function () { $('gmSub').textContent = 'Falha ao consultar.'; });
   }
   var timer = null;
-  function iniciarPainel() { carregar(); if (!timer) timer = setInterval(carregar, 60000); }
+  function iniciarPainel() { carregar(); if (!timer) timer = setInterval(carregar, 15000); }
   function pararPainel() { if (timer) { clearInterval(timer); timer = null; } }
   $('gmAtualizar').addEventListener('click', carregar);
+  $('gmTela').addEventListener('click', function () { var e = document.documentElement; if (document.fullscreenElement) document.exitFullscreen(); else if (e.requestFullscreen) e.requestFullscreen(); });
   if ($('gmCopiar')) $('gmCopiar').addEventListener('click', function () { var t = $('gmRaw').textContent; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { alert('Dados copiados. Cole na conversa com o desenvolvedor.'); }, function () { var r = document.createRange(); r.selectNodeContents($('gmRaw')); var se = getSelection(); se.removeAllRanges(); se.addRange(r); alert('Selecionei o texto: aperte Ctrl+C.'); }); });
 
   // ---- Introducao do jogo ----

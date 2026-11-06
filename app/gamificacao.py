@@ -46,7 +46,7 @@ def dados():
         return jsonify(ok=False, erro='ACOMP_TOKEN/SETUPS_TOKEN não configurado no servidor.')
     params = {k: v for k, v in request.args.items()}
     try:
-        r = ac._cached('gamificacao_' + repr(sorted(params.items())), 30, lambda: ac.chamar_gamificacao(params or None))
+        r = ac._cached('gamificacao_' + repr(sorted(params.items())), 10, lambda: ac.chamar_gamificacao(params or None))
     except Exception as e:  # noqa: BLE001
         return jsonify(ok=False, erro=str(e)[:300])
     return jsonify(ok=True, erro=r.get('erro'), dados=r.get('itens'))
