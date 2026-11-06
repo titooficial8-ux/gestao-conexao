@@ -1963,6 +1963,27 @@ def versao():
     return jsonify(pasta=raiz, servidor_iniciou_em=_INICIO_SERVIDOR.strftime('%d/%m/%Y %H:%M:%S'), ultimos_commits=commit, recursos=recursos)
 
 
+@main_bp.route('/aba/pre-programacao/diagnostico-op/<op>')
+@login_required
+def diagnostico_op_fila(op):
+    """Por que uma OP (ex.: 3171 'Aguardando liberacao') nao aparece em Analisar Sequencia: mostra onde o Gestao a enxerga (Programacao e fila)."""
+    if not _pode_dias_sem_producao():
+        abort(403)
+    from app.models import FilaPreProgramacao
+    op = str(op).strip()
+    seqs = [dict(id=x.id, maquina=x.machine.number if x.machine else None, status=x.status, situacao=x.situacao, ordem=x.sequence_order, origem=x.origem_reg, artigo=x.artigo) for x in Sequencia.query.filter_by(op=op).all()]
+    fila = [dict(id=f.id, status=f.status, movida_para=f.moved_to_machine, movida_em=str(f.moved_at or ''), criada_em=str(f.created_at or ''), artigo=f.artigo) for f in FilaPreProgramacao.query.filter_by(op=op).all()]
+    if any(f['status'] == 'WAITING' for f in fila):
+        motivo = 'A OP ja esta em Analisar Sequencia (fila WAITING).'
+    elif seqs:
+        motivo = 'A OP ja existe na Programacao (Sequencia): a leitura automatica nao a traz para a fila.'
+    elif fila:
+        motivo = 'A OP ja passou pela fila (status ' + ', '.join(sorted({f['status'] for f in fila})) + '): a leitura automatica nao a traz de novo. Use "Puxar OP" para devolve-la.'
+    else:
+        motivo = 'Gestao nao tem registro dela: a leitura automatica (a cada ~1 min) deve traze-la; se nao vier, use "Puxar OP".'
+    return jsonify(op=op, sequencias=seqs, fila=fila, motivo=motivo)
+
+
 @main_bp.route('/aba/pre-programacao/puxar-op', methods=['GET', 'POST'])
 @login_required
 def puxar_op_pre_programacao():
