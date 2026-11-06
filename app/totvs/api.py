@@ -980,6 +980,14 @@ def salvar_xlsx_150(df: pd.DataFrame, caminho: Path) -> None:
         formatar_aba_150(xw.sheets["FISCAL_0150"])
 
 
+def sem_devolucoes(df: pd.DataFrame) -> pd.DataFrame:
+    """Relatorio 150 sem as linhas de devolucao (operacao cuja descricao tem DEVOL / DEV.). Usado so nos arquivos de download."""
+    if df.empty or "DESC." not in df.columns:
+        return df
+    desc = df["DESC."].astype(str).str.upper()
+    return df[~desc.str.contains("DEVOL|DEV\\.|\\bDEV\\b", regex=True, na=False)].reset_index(drop=True)
+
+
 def df_150_com_total(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
