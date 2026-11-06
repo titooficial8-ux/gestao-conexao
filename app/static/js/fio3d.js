@@ -5,7 +5,7 @@
   var estado = { triste: false, falando: false };
   function svgTxt(logo) {
     var F = '#f5871f', FT = '#ffab57', FS = '#c9650f', G = '#1fa755', GT = '#4cc983', GS = '#127a3b', K = '#1c1917';
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 300" role="img" aria-label="Robozinho mascote da Gamificação">' +
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-26 0 266 300" role="img" aria-label="Robozinho mascote da Gamificação">' +
     '<defs><filter id="fgBranco" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0"/></filter></defs>' +
     '<ellipse cx="118" cy="252" rx="96" ry="11" fill="#0f172a" opacity=".16"/>' +
     '<g id="fgTudo">' +
@@ -20,13 +20,17 @@
     '<rect x="45" y="158" width="130" height="47" fill="' + G + '"/><polygon points="175,158 197,142 197,189 175,205" fill="' + GS + '"/><rect x="45" y="158" width="130" height="5" fill="' + GT + '"/>' +
     '<polygon points="98,158 122,158 110,172" fill="' + GS + '"/>' +
     '<image href="' + logo + '" x="64" y="177" width="92" height="17.8" filter="url(#fgBranco)" preserveAspectRatio="xMidYMid meet"/>' +
+    // bone verde (bloco) com aba
+    '<polygon points="150,74 172,60 172,84 150,98" fill="' + GS + '"/><polygon points="70,74 92,60 172,60 150,74" fill="' + GT + '"/><rect x="70" y="74" width="80" height="24" fill="' + G + '"/>' +
+    '<polygon points="62,96 86,90 158,90 158,96" fill="' + GS + '"/><rect x="62" y="96" width="96" height="6" fill="' + GS + '"/><rect x="62" y="96" width="96" height="2" fill="' + GT + '" opacity=".5"/>' +
+    '<circle cx="110" cy="86" r="5" fill="#fff"/><path d="M110 82.5L111.1 85L113.8 85.2L111.7 86.9L112.4 89.5L110 88L107.6 89.5L108.3 86.9L106.2 85.2L108.9 85Z" fill="' + G + '"/>' +
     // olhos
     '<g id="fgOlhoE" transform="translate(79 130)"><rect x="-8" y="-17" width="16" height="34" rx="1.5" fill="' + K + '"/><rect x="-4" y="-12" width="3.5" height="6" fill="#fff" opacity=".85"/></g>' +
     '<g id="fgOlhoD" transform="translate(141 130)"><rect x="-8" y="-17" width="16" height="34" rx="1.5" fill="' + K + '"/><rect x="-4" y="-12" width="3.5" height="6" fill="#fff" opacity=".85"/></g>' +
     '<ellipse id="fgLagr" cx="79" cy="150" rx="3" ry="5" fill="#7dd3fc" opacity="0"/>' +
     '<rect id="fgBoca" x="102" y="150" width="16" height="4" fill="' + K + '" opacity="0"/>' +
     // braco que gesticula (esquerda): bloco saindo do lado
-    '<g id="fgBracoE" transform="translate(45 140)"><g id="fgAnt"><polygon points="-24,-12 -2,-12 -2,-18 -24,-18" fill="' + FT + '" transform="translate(0 6) skewX(-30)" opacity="0"/><rect x="-30" y="-12" width="32" height="26" fill="' + F + '"/><polygon points="-30,-12 -23,-18 9,-18 2,-12" fill="' + FT + '"/><rect x="-30" y="-12" width="6" height="26" fill="#000" opacity=".06"/></g></g>' +
+    '<g id="fgBracoE" transform="translate(45 140)"><g id="fgAnt"><polygon points="-24,-12 -2,-12 -2,-18 -24,-18" fill="' + FT + '" transform="translate(0 6) skewX(-30)" opacity="0"/><rect x="-30" y="-12" width="32" height="26" fill="' + F + '"/><polygon points="-30,-12 -23,-18 9,-18 2,-12" fill="' + FT + '"/><rect x="-30" y="-12" width="6" height="26" fill="#000" opacity=".06"/><g transform="translate(-40 3) rotate(-8)"><rect x="-22" y="-9" width="44" height="20" rx="8" fill="#1f2937"/><rect x="-22" y="-9" width="44" height="6" rx="3" fill="#4b5563" opacity=".7"/><rect x="-15" y="-1" width="11" height="3.5" fill="#e5e7eb"/><rect x="-11.2" y="-4.8" width="3.5" height="11" fill="#e5e7eb"/><circle cx="8" cy="1" r="3.2" fill="#ef4444"/><circle cx="15" cy="-2.5" r="3.2" fill="#3b82f6"/><circle cx="14" cy="5" r="2.6" fill="#facc15"/><rect x="-3" y="2" width="4" height="2" rx="1" fill="#9ca3af"/><rect x="2" y="2" width="4" height="2" rx="1" fill="#9ca3af"/></g></g></g>' +
     // braco da prancheta (direita)
     '<g id="fgBracoD"><polygon points="175,128 197,112 217,112 195,128" fill="' + FT + '"/><rect x="175" y="128" width="42" height="26" fill="' + F + '"/><polygon points="217,128 217,154 197,168 197,142" fill="' + FS + '" opacity="0"/>' +
     '<polygon points="195,128 217,112 217,138 195,154" fill="' + FS + '"/>' +
