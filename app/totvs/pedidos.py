@@ -380,6 +380,10 @@ def iniciar_agendador(app) -> None:
             try:
                 if not pausado():
                     atualizar(app)
+                else:                                          # busca pausada: so reaplica a ligacao do relatorio importado (rapido, sem TOTVS)
+                    with app.app_context():
+                        from app.totvs.vinculos import aplicar_agora
+                        aplicar_agora()
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
             time.sleep(max(INTERVALO_MIN, 1) * 60)
