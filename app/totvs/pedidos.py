@@ -346,16 +346,40 @@ def atualizar(app) -> bool:
     return ESTADO['erro'] is None
 
 
+PAUSA_ARQ = ARQUIVO.parent / 'pedidos_pausa.flag'
+
+
+def pausado() -> bool:
+    """Busca automatica do Relatorio Pedidos pausada (botao na tela): o arquivo existe = pausado. Vale tambem depois de reiniciar o servidor."""
+    return PAUSA_ARQ.exists()
+
+
+def definir_pausa(pausar: bool) -> None:
+    PAUSA_ARQ.parent.mkdir(parents=True, exist_ok=True)
+    if pausar:
+        PAUSA_ARQ.write_text(datetime.now().isoformat(timespec='seconds'), encoding='utf-8')
+    elif PAUSA_ARQ.exists():
+        PAUSA_ARQ.unlink()
+
+
 def iniciar_agendador(app) -> None:
-    """Thread: atualiza logo ao subir e depois a cada PEDIDOS_INTERVALO_MIN minutos (padrao 2)."""
+    """Thread: atualiza logo ao subir e depois a cada PEDIDOS_INTERVALO_MIN minutos (padrao 2), a menos que a busca esteja pausada."""
     if not configurado():
         return
+    marca = PAUSA_ARQ.parent / 'pedidos_pausa_inicial.ok'
+    if not marca.exists():                                     # PCP pediu para parar a busca ate haver um meio automatico de ter a ligacao OP <-> pedido: pausa uma unica vez; 'Retomar' na tela volta
+        try:
+            definir_pausa(True)
+            marca.write_text('1', encoding='utf-8')
+        except OSError:
+            pass
 
     def loop():
         time.sleep(15)
         while True:
             try:
-                atualizar(app)
+                if not pausado():
+                    atualizar(app)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
             time.sleep(max(INTERVALO_MIN, 1) * 60)

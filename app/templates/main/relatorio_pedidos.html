@@ -19,12 +19,19 @@
     {% if vinculos %}real do TOTVS · {{ vinculos.linhas }} linhas, {{ vinculos.com_op }} com OP · relatório de {{ (vinculos.em|local).strftime('%d/%m %H:%M') }}{% else %}por dedução (ainda não foi importado o relatório do TOTVS){% endif %}</span>
   <input type="file" id="vincArq" accept=".csv,.CSV" style="display:none">
   <button type="button" class="btn-small" id="vincBtn">Importar relatório do TOTVS (CSV)</button>
+  <button type="button" class="btn-small" id="pausaBtn" data-pausado="{{ '1' if busca_pausada else '' }}">{{ '▶ Retomar busca automática' if busca_pausada else '⏸ Pausar busca automática' }}</button>
+  {% if busca_pausada %}<span style="color:#b45309;font-weight:700">Busca automática do TOTVS PAUSADA</span>{% endif %}
 </div>
 <script>
 (function () {
   var b = document.getElementById('vincBtn'), f = document.getElementById('vincArq');
   if (!b) return;
   b.addEventListener('click', function () { f.click(); });
+  var pb = document.getElementById('pausaBtn');
+  if (pb) pb.addEventListener('click', function () {
+    var pausar = !pb.getAttribute('data-pausado');
+    fetch('{{ url_for("pedidos_totvs.pausa_busca") }}', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pausar: pausar }) }).then(function (r) { return r.json(); }).then(function (d) { if (d.ok) location.reload(); });
+  });
   f.addEventListener('change', function () {
     if (!f.files.length) return;
     var fd = new FormData(); fd.append('arquivo', f.files[0]); b.disabled = true; b.textContent = 'Importando…';

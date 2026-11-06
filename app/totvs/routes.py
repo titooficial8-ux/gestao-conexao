@@ -364,6 +364,19 @@ def _autorizar_pedidos():
         abort(403)
 
 
+@pedidos_bp.route('/pausa', methods=['POST'])
+@login_required
+def pausa_busca():
+    """Pausa ou retoma a busca automatica do Relatorio Pedidos no TOTVS (PCP e administrador). 'Atualizar agora' continua funcionando."""
+    from app.main.routes import _pode_dias_sem_producao
+    if not _pode_dias_sem_producao():
+        abort(403)
+    from app.totvs import pedidos as _ped
+    pausar = bool((request.get_json(silent=True) or {}).get('pausar'))
+    _ped.definir_pausa(pausar)
+    return _json(dict(ok=True, pausado=_ped.pausado()))
+
+
 @pedidos_bp.route('/importar-vinculos', methods=['POST'])
 @login_required
 def importar_vinculos():
