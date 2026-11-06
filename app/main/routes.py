@@ -1311,7 +1311,8 @@ def view_tab(slug):
         return render_template('main/previa_pcp.html', tab=tab)
 
     if slug == 'gamificacao':
-        return render_template('main/gamificacao.html', tab=tab)
+        from app.models import gamificacao_setores
+        return render_template('main/gamificacao.html', tab=tab, gm_setores=gamificacao_setores(current_user))
 
     if slug == 'saved-drawing':
         rows, status_map, seq_info_map, seq_key = _sync_saved_drawings()

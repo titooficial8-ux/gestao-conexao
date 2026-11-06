@@ -664,18 +664,30 @@ class Category(db.Model):
 GAMIFICACAO_PRIMEIROS_NOMES = ('HOMERO', 'LUCIANE', 'EDMAR', 'CHRISTIAN', 'FRANCINARA', 'LUIZ', 'LUCIANO')
 
 
-def gamificacao_liberada(user) -> bool:
-    """Quem entra na aba Gamificacao: lideres e gestao da producao (cargos), o PCP (setor) e as pessoas listadas pelo PCP (primeiro nome)."""
+def gamificacao_setores(user) -> list:
+    """Setores do jogo que a pessoa pode abrir: 'Produção' (cargos Líder Produção e Gestão Produção) e 'PCP' (setor PCP). Administrador, Administrador Geral e as pessoas indicadas pelo PCP abrem os dois."""
     import unicodedata
+    if getattr(user, 'is_admin', False):
+        return ['Produção', 'PCP']
     nome_cargo = (getattr(getattr(user, 'role', None), 'name', '') or '').strip()
-    if nome_cargo in ('Líder Produção', 'Gestão Produção'):
-        return True
-    setores = {x.name for x in (user.sectors or [])} | ({user.setor.name} if getattr(user, 'setor', None) else set())
-    if 'PCP' in setores:
-        return True
+    if nome_cargo.lower().startswith('administrador'):                       # inclui o cargo 'Administrador Geral'
+        return ['Produção', 'PCP']
     primeiro = (user.name or '').strip().split(' ')[0] if (user.name or '').strip() else ''
     primeiro = ''.join(c for c in unicodedata.normalize('NFD', primeiro) if unicodedata.category(c) != 'Mn').upper()
-    return primeiro in GAMIFICACAO_PRIMEIROS_NOMES
+    if primeiro in GAMIFICACAO_PRIMEIROS_NOMES:
+        return ['Produção', 'PCP']
+    setores = {x.name for x in (user.sectors or [])} | ({user.setor.name} if getattr(user, 'setor', None) else set())
+    out = []
+    if nome_cargo in ('Líder Produção', 'Gestão Produção'):
+        out.append('Produção')
+    if 'PCP' in setores:
+        out.append('PCP')
+    return out
+
+
+def gamificacao_liberada(user) -> bool:
+    """Quem entra na aba Gamificacao: quem tem pelo menos um setor do jogo liberado."""
+    return bool(gamificacao_setores(user))
 
 
 class Tab(db.Model):
