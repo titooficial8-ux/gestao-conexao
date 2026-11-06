@@ -463,6 +463,7 @@ COLUNAS_150 = ["Emp", "COD.REP", "REPRE", "COD.CLI", "CLIENTE", "FANTASIA", "OPE
                "Vl. Icms", "Bs calc pis cofins", "Pr. Aliqcofins", "Pr. Aliqpis",
                "Vl. Vlr Cofins", "Vl. Vlr Pis"]
 TOTAIS_150 = ["QUANT", "TOT.LIQUID", "Vl. Icms"]
+COL_COM_FRETE = "TOT.C/FRETE"          # so na planilha Excel do 150: total da NF (mercadoria + frete + seguro)
 COL_PREV = "DT.PREV FATURAMENTO"        # so no relatorio sob demanda (Gerar relatorio): data prevista de faturamento do pedido de venda
 
 # Operações do 150. "financeiro" = só operações que movimentam financeiro
@@ -914,13 +915,13 @@ LARGURAS_150 = {"Emp": 6, "COD.REP": 11, "REPRE": 32, "COD.CLI": 9, "CLIENTE": 4
                 "ESP.": 6, "GRAMATURA": 11, "SEGMENTO": 13, "UNIT.LIQ.": 11, "TOT.LIQUID": 13,
                 "EMISSAO": 11, "UF": 5, "Financeiro": 10, "Vl. Freterat": 11, "Vl. Segurorat": 12,
                 "Vl. Icms": 11, "Bs calc pis cofins": 15, "Pr. Aliqcofins": 12, "Pr. Aliqpis": 10,
-                "Vl. Vlr Cofins": 13, "Vl. Vlr Pis": 11, COL_PREV: 22}
+                "Vl. Vlr Cofins": 13, "Vl. Vlr Pis": 11, COL_PREV: 22, COL_COM_FRETE: 14}
 FORMATOS_150 = {"COD.REP": "0", "COD.CLI": "0", "NFE": "0", "CODIDO": "0", "OPER": "0", "Emp": "0",
                 "GRAMATURA": "0", "DATA": "DD/MM/YYYY", "EMISSAO": "DD/MM/YYYY",
                 "QUANT": "#,##0.###;-#,##0.###;0", "UNIT.LIQ.": "#,##0.00####",
                 "TOT.LIQUID": "#,##0.00", "Vl. Freterat": "#,##0.00", "Vl. Segurorat": "#,##0.00",
                 "Vl. Icms": "#,##0.00", "Bs calc pis cofins": "#,##0.00", "Pr. Aliqcofins": "0.00",
-                "Pr. Aliqpis": "0.00", "Vl. Vlr Cofins": "#,##0.00##", "Vl. Vlr Pis": "#,##0.00##", COL_PREV: "DD/MM/YYYY"}
+                "Pr. Aliqpis": "0.00", "Vl. Vlr Cofins": "#,##0.00##", "Vl. Vlr Pis": "#,##0.00##", COL_PREV: "DD/MM/YYYY", COL_COM_FRETE: "#,##0.00"}
 
 
 def formatar_aba_150(ws, tem_total: bool = True) -> None:
@@ -975,8 +976,16 @@ def limpar_para_excel(df: pd.DataFrame) -> pd.DataFrame:
 
 def salvar_xlsx_150(df: pd.DataFrame, caminho: Path) -> None:
     """Relatório 150 sozinho, formatado (filtro, larguras, números e datas)."""
+    df = df.copy()
+    # TOT.LIQUID = so a mercadoria (igual ao "Total mercadoria" do FISFL076). TOT.C/FRETE = mercadoria + frete + seguro rateados (igual ao "Total nota fiscal" do FISFL076)
+    df[COL_COM_FRETE] = df["TOT.LIQUID"].fillna(0) + df["Vl. Freterat"].fillna(0) + df["Vl. Segurorat"].fillna(0)
+    total = df_150_com_total(df)
+    if not df.empty:
+        total.loc[total.index[-1], COL_COM_FRETE] = float(df[COL_COM_FRETE].sum())
+        for c in ("Vl. Freterat", "Vl. Segurorat"):
+            total.loc[total.index[-1], c] = float(df[c].fillna(0).sum())
     with pd.ExcelWriter(caminho, engine="openpyxl") as xw:
-        limpar_para_excel(df_150_com_total(df)).to_excel(xw, sheet_name="FISCAL_0150", index=False)
+        limpar_para_excel(total).to_excel(xw, sheet_name="FISCAL_0150", index=False)
         formatar_aba_150(xw.sheets["FISCAL_0150"])
 
 
