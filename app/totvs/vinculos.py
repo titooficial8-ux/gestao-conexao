@@ -98,3 +98,45 @@ def resumo() -> dict | None:
     except Exception:  # noqa: BLE001
         db.session.rollback()
         return None
+
+
+def aplicar_agora() -> dict:
+    """Aplica a ligacao importada NA HORA nas linhas do Relatorio Pedidos (sem esperar a busca lenta no TOTVS) e acerta a Dt.Cliente das OPs da Programacao.
+    Pedido com OP no relatorio recebe essa OP; OP que o relatorio deu a um pedido sai de qualquer outro; pedido que o relatorio mostra sem OP fica sem OP."""
+    from collections import defaultdict
+    from app.models import PedidoRelatorio
+    fixos, _corte = carregar_fixos()
+    if not fixos:
+        return dict(ajustadas=0, dt_cliente=0)
+    reservadas = {str(e[1]) for lst in fixos.values() for e in lst}
+    por_chave = defaultdict(list)
+    linhas = PedidoRelatorio.query.all()
+    for r in linhas:
+        por_chave[(str(r.cod_pedido), str(r.cod_produto))].append(r)
+    ajustadas, colunas = 0, [c.name for c in PedidoRelatorio.__table__.columns if c.name != 'id']
+    for chave, lst in fixos.items():
+        rs = por_chave.get(chave)
+        if not rs:
+            continue
+        for i, r in enumerate(rs):
+            novo = lst[i] if i < len(lst) else None
+            op, cic = (str(novo[1]), str(novo[0])) if novo else ('', '')
+            if (r.nr_op or '') != op or (r.nr_cicloop or '') != cic:
+                r.nr_op, r.nr_cicloop, ajustadas = op, cic, ajustadas + 1
+            if novo:
+                r.qt_pendenteop, r.qt_finalizada = novo[4] or r.qt_pendenteop, novo[3] if novo[3] else r.qt_finalizada
+        for novo in lst[len(rs):]:                                            # o relatorio tem mais OPs que linhas: cria a linha da OP
+            base = rs[0]
+            nova = PedidoRelatorio(**{c: getattr(base, c) for c in colunas})
+            nova.nr_op, nova.nr_cicloop, nova.qt_pendenteop, nova.qt_finalizada = str(novo[1]), str(novo[0]), novo[4] or 0, novo[3] or 0
+            db.session.add(nova)
+            ajustadas += 1
+    for chave, rs in por_chave.items():                                       # OP reservada para outro pedido nao pode ficar aqui
+        if chave in fixos:
+            continue
+        for r in rs:
+            if r.nr_op and str(r.nr_op) in reservadas:
+                r.nr_op, r.nr_cicloop, ajustadas = '', '', ajustadas + 1
+    db.session.commit()
+    from app.totvs.pedidos import sincronizar_dt_cliente
+    return dict(ajustadas=ajustadas, dt_cliente=sincronizar_dt_cliente())
