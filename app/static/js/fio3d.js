@@ -1,92 +1,88 @@
-/* Mascote 3D da Gamificação (Three.js) no estilo do mascote do Claude: criatura laranja arredondada, olhos pretos, bracinhos e perninhas,
-   de camisa verde com a logo da Conexão e prancheta anotando. Fio3D.init(canvas, urlLogo) -> true/false (false = sem WebGL: usa o desenho 2D). setTriste(bool), falar(bool). */
+/* Personagem ilustrado da Gamificação: uma colaboradora da Conexão (polo verde com a logo, jeans), desenhada em SVG com sombreado,
+   que gesticula e fala (boca, sobrancelhas, mão aberta), pisca e acompanha o mouse; triste quando o setor é errado.
+   Fio3D.init(canvas, urlLogo) -> true (troca o <canvas> pelo desenho). setTriste(bool), falar(bool). */
 (function () {
-  var T = window.THREE; if (!T) return;
   var estado = { triste: false, falando: false };
-  function mat(cor, r, c) { return new T.MeshPhysicalMaterial({ color: cor, roughness: r === undefined ? 0.55 : r, metalness: 0, clearcoat: c || 0.15, clearcoatRoughness: 0.5 }); }
-  function V(x, y, z) { return new T.Vector3(x, y, z); }
-  function caixa(w, h, d, raio, cor, r) {            // caixa de cantos arredondados (extrusao com chanfro)
-    var rr = Math.min(raio, w / 2 - 0.01, h / 2 - 0.01), sh = new T.Shape(), x = -w / 2, y = -h / 2;
-    sh.moveTo(x + rr, y); sh.lineTo(x + w - rr, y); sh.quadraticCurveTo(x + w, y, x + w, y + rr); sh.lineTo(x + w, y + h - rr); sh.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-    sh.lineTo(x + rr, y + h); sh.quadraticCurveTo(x, y + h, x, y + h - rr); sh.lineTo(x, y + rr); sh.quadraticCurveTo(x, y, x + rr, y);
-    var bv = Math.min(raio * 0.8, d / 2 - 0.01), geo = new T.ExtrudeGeometry(sh, { depth: d - 2 * bv, bevelEnabled: true, bevelThickness: bv, bevelSize: bv * 0.9, bevelSegments: 6, curveSegments: 10 });
-    geo.translate(0, 0, -(d - 2 * bv) / 2); var m = new T.Mesh(geo, mat(cor, r)); return m;
+  function svgTxt(logo) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 300" role="img" aria-label="Colaboradora da Conexão, mascote da Gamificação">' +
+    '<defs>' +
+    '<radialGradient id="fgBg" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#e3f4e8"/><stop offset="1" stop-color="#cfe8f5"/></radialGradient>' +
+    '<linearGradient id="fgPele" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8d3b0"/><stop offset="1" stop-color="#e8b088"/></linearGradient>' +
+    '<linearGradient id="fgPoloG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#27b35e"/><stop offset="1" stop-color="#128443"/></linearGradient>' +
+    '<linearGradient id="fgCabelo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a5582b"/><stop offset="1" stop-color="#5e2a14"/></linearGradient>' +
+    '<linearGradient id="fgJeans" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a78b8"/><stop offset="1" stop-color="#2f5a99"/></linearGradient>' +
+    '</defs>' +
+    '<circle cx="120" cy="150" r="108" fill="url(#fgBg)"/>' +
+    '<ellipse cx="120" cy="296" rx="92" ry="7" fill="#0f172a" opacity=".12"/>' +
+    // cabelo de tras
+    '<path d="M80 92C74 48 98 26 123 26C150 26 168 50 160 98C165 128 165 152 154 176L88 176C77 154 76 124 80 92Z" fill="url(#fgCabelo)"/>' +
+    // pescoco
+    '<path d="M107 118H133V160C133 168 107 168 107 160Z" fill="#e2a982"/>' +
+    // tronco (polo)
+    '<path d="M38 300C36 224 52 176 96 160L144 160C188 176 204 224 202 300Z" fill="url(#fgPoloG)"/>' +
+    '<path d="M64 300C64 240 70 205 92 178" stroke="#0f7a3a" stroke-width="3" fill="none" opacity=".25"/>' +
+    '<path d="M38 282L202 282L202 300L38 300Z" fill="url(#fgJeans)"/><path d="M38 282L202 282" stroke="#1c1410" stroke-width="5"/><rect x="113" y="278" width="14" height="8" rx="2" fill="#d4af37"/>' +
+    // gola
+    '<path d="M104 158L120 186L97 176Z" fill="#0f7a3a"/><path d="M136 158L120 186L143 176Z" fill="#0d6d34"/><path d="M120 184V214" stroke="#0f7a3a" stroke-width="2.5"/><circle cx="120" cy="196" r="1.8" fill="#e9fbe9"/><circle cx="120" cy="207" r="1.8" fill="#e9fbe9"/>' +
+    // logo no peito
+    '<rect x="124" y="192" width="46" height="17" rx="3" fill="#fff"/><image href="' + logo + '" x="126" y="195" width="42" height="8.1" preserveAspectRatio="xMidYMid meet"/>' +
+    // cabeca
+    '<g id="fgCab">' +
+    '<ellipse cx="86" cy="100" rx="6" ry="10" fill="#e8b088"/><ellipse cx="154" cy="100" rx="6" ry="10" fill="#e8b088"/><circle cx="154" cy="110" r="2.6" fill="#d4af37"/><circle cx="86" cy="110" r="2.6" fill="#d4af37"/>' +
+    '<path d="M88 88C88 62 104 50 120 50C136 50 152 62 152 88C152 114 138 136 120 136C102 136 88 114 88 88Z" fill="url(#fgPele)"/>' +
+    '<ellipse cx="102" cy="112" rx="9" ry="5.5" fill="#f08a7a" opacity=".35"/><ellipse cx="138" cy="112" rx="9" ry="5.5" fill="#f08a7a" opacity=".35"/>' +
+    // olhos
+    '<g id="fgOlhoE" transform="translate(105 94)"><ellipse rx="9" ry="6.5" fill="#fff"/><g class="fgIris"><circle r="4.4" fill="#4f7a45"/><circle r="2.3" fill="#10200f"/><circle cx="1.6" cy="-1.6" r="1.1" fill="#fff"/></g><path d="M-10 -1C-6 -8 6 -8 10 -1" stroke="#3a1c10" stroke-width="2.2" fill="none" stroke-linecap="round"/></g>' +
+    '<g id="fgOlhoD" transform="translate(135 94)"><ellipse rx="9" ry="6.5" fill="#fff"/><g class="fgIris"><circle r="4.4" fill="#4f7a45"/><circle r="2.3" fill="#10200f"/><circle cx="1.6" cy="-1.6" r="1.1" fill="#fff"/></g><path d="M-10 -1C-6 -8 6 -8 10 -1" stroke="#3a1c10" stroke-width="2.2" fill="none" stroke-linecap="round"/></g>' +
+    '<path id="fgSobE" d="M95 82Q105 76 115 81" stroke="#6b3418" stroke-width="3" fill="none" stroke-linecap="round"/><path id="fgSobD" d="M125 81Q135 76 145 82" stroke="#6b3418" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+    '<path d="M120 98C118 106 116 110 119 112C121 113 124 112 124 111" stroke="#c98d68" stroke-width="2" fill="none" stroke-linecap="round"/>' +
+    '<path id="fgBoca" d="M106 120Q120 124 134 120Q120 126 106 120Z" fill="#b94a46" stroke="#b94a46" stroke-width="2.2" stroke-linejoin="round"/>' +
+    '<path id="fgDentes" d="M110 121.5Q120 123.5 130 121.5L128 124Q120 126 112 124Z" fill="#fff" opacity="0"/>' +
+    '<ellipse id="fgLagr" cx="100" cy="106" rx="2.4" ry="3.6" fill="#7dd3fc" opacity="0"/>' +
+    // franja
+    '<path d="M85 88C84 56 106 42 126 44C146 46 156 64 155 90C150 72 138 62 120 62C104 63 92 74 85 88Z" fill="url(#fgCabelo)"/>' +
+    '<path d="M100 52C112 46 130 46 142 54" stroke="#c6783d" stroke-width="2.5" fill="none" opacity=".6" stroke-linecap="round"/>' +
+    '</g>' +
+    // madeixas na frente dos ombros
+    '<path d="M82 120C74 146 76 168 90 184C84 160 88 140 94 128Z" fill="url(#fgCabelo)"/><path d="M158 120C166 146 164 168 150 184C156 160 152 140 146 128Z" fill="url(#fgCabelo)"/>' +
+    // braco que gesticula (esquerda da tela)
+    '<g id="fgBracoE"><path d="M62 168C46 178 36 204 38 236L70 240C70 212 76 192 84 172Z" fill="url(#fgPoloG)"/><path d="M38 236L70 240" stroke="#0f7a3a" stroke-width="5" stroke-linecap="round"/>' +
+    '<g id="fgAnt" transform="translate(54 236)"><path d="M0 0L28 -26" stroke="#e8b088" stroke-width="20" stroke-linecap="round"/><path d="M0 -4L28 -30" stroke="#f3c7a2" stroke-width="6" stroke-linecap="round" opacity=".7"/>' +
+    '<g transform="translate(36 -34) rotate(-62) scale(.9)"><ellipse rx="13" ry="9.5" fill="#f0bf98"/><path d="M8 -4L26 -9" stroke="#f0bf98" stroke-width="6.5" stroke-linecap="round"/><path d="M10 0L29 -1" stroke="#f0bf98" stroke-width="6.5" stroke-linecap="round"/><path d="M10 4L28 8" stroke="#f0bf98" stroke-width="6.2" stroke-linecap="round"/><path d="M7 8L22 15" stroke="#f0bf98" stroke-width="5.6" stroke-linecap="round"/><path d="M-6 -6L-14 -15" stroke="#f0bf98" stroke-width="7" stroke-linecap="round"/></g></g></g>' +
+    // braco que segura a prancheta (direita da tela)
+    '<path d="M178 168C196 178 206 204 204 236L172 240C172 212 166 192 158 172Z" fill="url(#fgPoloG)"/><path d="M204 236L172 240" stroke="#0f7a3a" stroke-width="5" stroke-linecap="round"/>' +
+    '<g transform="translate(-8 8)"><g transform="rotate(-7 176 258)"><rect x="150" y="222" width="54" height="68" rx="4" fill="#a4501a"/><rect x="155" y="230" width="44" height="55" rx="2" fill="#fff"/><rect x="167" y="219" width="20" height="8" rx="2" fill="#94a3b8"/><path d="M160 242H190M160 250H186M160 258H192M160 266H180" stroke="#1d4ed8" stroke-width="2.2" stroke-linecap="round"/><path d="M184 276L188 280L196 270" stroke="#16a34a" stroke-width="2.6" fill="none" stroke-linecap="round"/></g>' +
+    '<path d="M190 246L168 266" stroke="#e8b088" stroke-width="19" stroke-linecap="round"/><ellipse cx="164" cy="270" rx="11" ry="8" fill="#f0bf98" transform="rotate(-25 164 270)"/><path d="M156 264L152 252" stroke="#f0bf98" stroke-width="6" stroke-linecap="round"/><path d="M160 262L160 250" stroke="#f0bf98" stroke-width="6" stroke-linecap="round"/></g>' +
+    '</svg>';
   }
   function init(canvas, urlLogo) {
-    var renderer;
-    try { renderer = new T.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true }); } catch (e) { return false; }
-    if (!renderer.getContext()) return false;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    var W = canvas.clientWidth || 240, H = canvas.clientHeight || 300; renderer.setSize(W, H, false);
-    var scene = new T.Scene(), cam = new T.PerspectiveCamera(28, W / H, 0.1, 60); cam.position.set(0.8, 1.6, 12.8); cam.lookAt(0.1, 1.3, 0);
-    scene.add(new T.HemisphereLight(0xffffff, 0xb9c6e4, 0.85));
-    var sol = new T.DirectionalLight(0xffffff, 1.0); sol.position.set(3.5, 6, 6); scene.add(sol);
-    var rim = new T.DirectionalLight(0xbfdbfe, 0.5); rim.position.set(-4, 3, -4); scene.add(rim);
-    var C = { laranja: 0xd97757, laranjaEsc: 0xb85a3c, verde: 0x17984a, verdeEsc: 0x0f7a3a, preto: 0x141010, madeira: 0xa4501a };
-    var g = new T.Group(); scene.add(g);
-    var cs = document.createElement('canvas'); cs.width = cs.height = 128; var cx = cs.getContext('2d'), gr = cx.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(15,23,42,.45)'); gr.addColorStop(1, 'rgba(15,23,42,0)'); cx.fillStyle = gr; cx.fillRect(0, 0, 128, 128);
-    var sombra = new T.Mesh(new T.PlaneGeometry(4.2, 2), new T.MeshBasicMaterial({ map: new T.CanvasTexture(cs), transparent: true, depthWrite: false })); sombra.rotation.x = -Math.PI / 2; sombra.position.y = 0.01; scene.add(sombra);
-    var corpo = new T.Group(); g.add(corpo);
-    // pernas (4, curtas, como o mascote)
-    var pernas = [-0.85, -0.3, 0.3, 0.85].map(function (x, i) { var p = caixa(0.34, 0.62, 0.34, 0.1, C.laranjaEsc, 0.6); p.position.set(x, 0.31, i % 2 ? -0.1 : 0.1); corpo.add(p); return p; });
-    // corpo laranja
-    var tronco = new T.Group(); tronco.position.y = 1.55; corpo.add(tronco);
-    var bloco = caixa(2.7, 1.7, 1.3, 0.38, C.laranja, 0.5); tronco.add(bloco);
-    // camisa verde (faixa de baixo) com gola
-    var camisa = caixa(2.78, 0.7, 1.38, 0.3, C.verde, 0.7); camisa.position.set(0, -0.5, 0); tronco.add(camisa);
-    var gola = caixa(1.0, 0.2, 1.42, 0.08, C.verdeEsc, 0.8); gola.position.set(0, -0.12, 0); tronco.add(gola);
-    // logo da Conexao
-    var logoTex = new T.TextureLoader().load(urlLogo); logoTex.anisotropy = 4;
-    var cracha = caixa(1.34, 0.46, 0.05, 0.05, 0xffffff, 0.5); cracha.position.set(0, -0.46, 0.72); tronco.add(cracha);
-    var logo = new T.Mesh(new T.PlaneGeometry(1.24, 0.24), new T.MeshBasicMaterial({ map: logoTex, transparent: true })); logo.position.set(0, -0.46, 0.76); tronco.add(logo);
-    // olhos (retangulos pretos arredondados) + brilho
-    var olhos = [-0.55, 0.55].map(function (x) { var og = new T.Group(); og.position.set(x, 0.38, 0.67); var e = caixa(0.26, 0.5, 0.1, 0.1, C.preto, 0.2); og.add(e); var b = new T.Mesh(new T.SphereGeometry(0.035, 10, 8), new T.MeshBasicMaterial({ color: 0xffffff })); b.position.set(0.05, 0.14, 0.1); og.add(b); tronco.add(og); return og; });
-    var lagrima = new T.Mesh(new T.SphereGeometry(0.07, 12, 10), mat(0x7dd3fc, 0.1, 1)); lagrima.scale.set(1, 1.5, 0.8); lagrima.visible = false; tronco.add(lagrima);
-    // bracinhos
-    var bracoD = caixa(0.34, 0.34, 0.34, 0.12, C.laranja, 0.5), bracoE = caixa(0.34, 0.34, 0.34, 0.12, C.laranja, 0.5); corpo.add(bracoD, bracoE);
-    var ligD = new T.Mesh(new T.CylinderGeometry(0.15, 0.15, 1, 16), mat(C.laranja, 0.5)), ligE = new T.Mesh(new T.CylinderGeometry(0.15, 0.15, 1, 16), mat(C.laranja, 0.5)); corpo.add(ligD, ligE);
-    var caneta = new T.Group(); var cc = new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.5, 10), mat(0x2563eb, 0.3, 0.6)); caneta.add(cc); var pt = new T.Mesh(new T.ConeGeometry(0.03, 0.09, 10), mat(0x111827)); pt.position.y = -0.29; caneta.add(pt); corpo.add(caneta);
-    // prancheta
-    var pr = new T.Group(); pr.position.set(-1.05, 1.0, 0.95); pr.rotation.set(-0.15, 0.3, 0.06); corpo.add(pr);
-    var tabua = caixa(0.9, 1.15, 0.08, 0.06, C.madeira, 0.6); pr.add(tabua);
-    var papC = document.createElement('canvas'); papC.width = 128; papC.height = 160; var pg = papC.getContext('2d'), papT = new T.CanvasTexture(papC);
-    var papel = new T.Mesh(new T.PlaneGeometry(0.74, 0.94), new T.MeshBasicMaterial({ map: papT })); papel.position.z = 0.07; pr.add(papel);
-    var clipe = caixa(0.34, 0.15, 0.1, 0.04, 0x94a3b8, 0.3); clipe.position.set(0, 0.58, 0.07); pr.add(clipe);
-    function desenhaPapel(t) {
-      pg.fillStyle = '#fff'; pg.fillRect(0, 0, 128, 160); pg.strokeStyle = '#1d4ed8'; pg.lineWidth = 5; pg.lineCap = 'round';
-      var prog = (t * 0.6) % 4;
-      for (var i = 0; i < 4; i++) { var p = Math.max(0, Math.min(prog - i, 1)); if (p <= 0) continue; var y = 30 + i * 28, comp = (i === 3 ? 60 : 92 - i * 8) * p; pg.beginPath(); pg.moveTo(18, y); pg.lineTo(18 + comp, y); pg.stroke(); }
-      if (prog > 3.6) { pg.strokeStyle = '#16a34a'; pg.lineWidth = 7; pg.beginPath(); pg.moveTo(82, 118); pg.lineTo(92, 130); pg.lineTo(112, 106); pg.stroke(); }
-      papT.needsUpdate = true;
-    }
-    function liga(a, b, cil) { var d = new T.Vector3().subVectors(b, a); cil.position.copy(a).addScaledVector(d, 0.5); cil.quaternion.setFromUnitVectors(V(0, 1, 0), d.clone().normalize()); cil.scale.set(1, d.length(), 1); }
-    var alvo = { x: 0, y: 0 }; window.addEventListener('mousemove', function (e) { alvo.y = ((e.clientX / window.innerWidth) - 0.5) * 0.5; alvo.x = ((e.clientY / window.innerHeight) - 0.5) * 0.2; });
-    var t0 = performance.now(), proxPisca = 2.2, piscaAte = 0, rodando = true, acenar = 0;
+    var d = document.createElement('div'); d.innerHTML = svgTxt(urlLogo || ''); var svg = d.firstChild;
+    svg.setAttribute('class', canvas.className); svg.id = canvas.id; canvas.parentNode.replaceChild(svg, canvas);
+    var $ = function (id) { return svg.querySelector('#' + id); };
+    var cab = $('fgCab'), olhoE = $('fgOlhoE'), olhoD = $('fgOlhoD'), sobE = $('fgSobE'), sobD = $('fgSobD'), boca = $('fgBoca'), dentes = $('fgDentes'), lagr = $('fgLagr'), bracoE = $('fgBracoE'), ant = $('fgAnt');
+    var alvo = { x: 0, y: 0 }; window.addEventListener('mousemove', function (e) { alvo.x = ((e.clientX / window.innerWidth) - 0.5) * 2; alvo.y = ((e.clientY / window.innerHeight) - 0.5) * 2; });
+    var t0 = performance.now(), proxPisca = 2.2, piscaAte = 0, fala = 0, cx = 0, cy = 0, rodando = true;
     function quadro() {
       if (!rodando) return; requestAnimationFrame(quadro);
-      if (!document.body.contains(canvas)) { rodando = false; return; }
-      var t = (performance.now() - t0) / 1000, tri = estado.triste;
-      acenar += ((estado.falando && !tri ? 1 : 0) - acenar) * 0.08;
-      var pulo = tri ? 0 : Math.max(0, Math.sin(t * 3.2)) * 0.06 * (estado.falando ? 2 : 0.5);
-      corpo.position.y = pulo; corpo.rotation.y += ((alvo.y) - corpo.rotation.y) * 0.06; corpo.rotation.x += (alvo.x - corpo.rotation.x) * 0.06;
-      tronco.position.y = 1.55 - (tri ? 0.08 : 0) + Math.sin(t * 1.9) * 0.02; tronco.rotation.z = (tri ? 0.05 : 0) + Math.sin(t * 1.1) * 0.015; tronco.scale.set(1, 1 + Math.sin(t * 1.9) * 0.012, 1);
-      pernas.forEach(function (p, i) { p.position.y = 0.31 + (i % 2 ? Math.max(0, Math.sin(t * 3.2)) : 0) * 0.04 * (estado.falando ? 1 : 0); });
-      if (t > proxPisca) { piscaAte = t + 0.12; proxPisca = t + 2.2 + Math.random() * 2.8; }
-      var fechado = t < piscaAte;
-      olhos.forEach(function (o, i) { o.scale.y = fechado ? 0.12 : (tri ? 0.75 : 1); o.rotation.z = tri ? (i ? 0.3 : -0.3) : 0; o.position.y = tri ? 0.32 : 0.38; });
-      lagrima.visible = tri; if (tri) { var q = (t * 0.7) % 1; lagrima.position.set(-0.55, 0.05 - q * 0.45, 0.72); }
-      // braco direito (lado +x): escreve ou acena
-      var ombro = V(1.45, 1.35, 0.1);
-      var escreve = V(-0.35 + Math.sin(t * 3.2) * 0.12, 0.95 + Math.cos(t * 4.1) * 0.06, 1.05), ac = V(2.0 + Math.sin(t * 7) * 0.15, 2.5, 0.2), cai = V(1.75, 0.95, 0.15);
-      var mao = tri ? cai : (acenar > 0.5 ? ac : escreve);
-      liga(ombro, mao, ligD); bracoD.position.copy(mao);
-      caneta.position.set(mao.x + 0.05, mao.y - 0.12, mao.z + 0.15); caneta.rotation.set(0.35, 0, acenar > 0.5 && !tri ? -0.2 : 0.6);
-      // braco esquerdo segura a prancheta
-      var ombroE = V(-1.45, 1.35, 0.1), maoE = V(-1.15, 0.85 + Math.sin(t * 1.9) * 0.015, 1.0);
-      liga(ombroE, maoE, ligE); bracoE.position.copy(maoE);
-      pr.position.y = 1.0 + Math.sin(t * 1.9) * 0.015; desenhaPapel(t);
-      sombra.scale.set(1 - pulo * 2, 1, 1);
-      renderer.render(scene, cam);
+      if (!document.body.contains(svg)) { rodando = false; return; }
+      var t = (performance.now() - t0) / 1000, tri = estado.triste, f = estado.falando && !tri ? 1 : 0;
+      fala += (f - fala) * 0.12; cx += (alvo.x * 3 - cx) * 0.06; cy += (alvo.y * 2 - cy) * 0.06;
+      var bal = Math.sin(t * 1.6) * 1.2, inclina = (tri ? 5 : 0) + Math.sin(t * 1.1) * 1.6 + Math.sin(t * 3.1) * fala * 1.5;
+      cab.setAttribute('transform', 'translate(' + (cx + bal * 0.4).toFixed(2) + ' ' + (cy + (tri ? 4 : 0) + Math.sin(t * 1.9) * 0.8).toFixed(2) + ') rotate(' + (inclina + cx * 0.5).toFixed(2) + ' 120 132)');
+      if (t > proxPisca) { piscaAte = t + 0.13; proxPisca = t + 2 + Math.random() * 3; }
+      var sy = t < piscaAte ? 0.1 : (tri ? 0.8 : 1); [olhoE, olhoD].forEach(function (o, i) { o.setAttribute('transform', 'translate(' + (i ? 135 : 105) + ' 94) scale(1 ' + sy + ')'); });
+      var look = cx * 0.25; Array.prototype.forEach.call(svg.querySelectorAll('.fgIris'), function (g) { g.setAttribute('transform', 'translate(' + look.toFixed(2) + ' ' + (cy * 0.3 + (tri ? 1.2 : 0)).toFixed(2) + ')'); });
+      var up = fala * (1.5 + Math.sin(t * 5) * 1.5);                                  // sobrancelhas sobem ao enfatizar
+      if (tri) { sobE.setAttribute('d', 'M95 83Q105 82 115 76'); sobD.setAttribute('d', 'M125 76Q135 82 145 83'); }
+      else { sobE.setAttribute('d', 'M95 ' + (82 - up) + 'Q105 ' + (76 - up) + ' 115 ' + (81 - up)); sobD.setAttribute('d', 'M125 ' + (81 - up) + 'Q135 ' + (76 - up) + ' 145 ' + (82 - up)); }
+      var o = fala * Math.max(0, 0.25 + Math.sin(t * 13) * 0.45 + Math.sin(t * 7.3) * 0.3);   // abre/fecha a boca ao falar
+      if (tri) { boca.setAttribute('d', 'M108 126Q120 117 132 126Q120 121 108 126Z'); dentes.setAttribute('opacity', 0); }
+      else { boca.setAttribute('d', 'M106 120Q120 ' + (124 - o * 2) + ' 134 120Q120 ' + (127 + o * 12) + ' 106 120Z'); dentes.setAttribute('opacity', o > 0.25 ? 0.95 : 0); }
+      lagr.setAttribute('opacity', tri ? 0.9 : 0); if (tri) lagr.setAttribute('cy', 106 + ((t * 0.7) % 1) * 18);
+      // braco que gesticula: mao aberta oscila ao falar; cai quando triste
+      var gesto = tri ? 14 : (Math.sin(t * 1.4) * 2 + fala * (Math.sin(t * 3.6) * 12 - 6));
+      ant.setAttribute('transform', 'translate(54 236) rotate(' + gesto.toFixed(2) + ')');
+      bracoE.setAttribute('transform', 'translate(' + 0 + ' ' + (fala * Math.sin(t * 3.6) * -3).toFixed(2) + ')');
     }
     quadro();
     return true;

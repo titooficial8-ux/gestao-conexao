@@ -163,7 +163,6 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 {% if current_user.is_admin %}<details class="gm-raw"><summary>Ver dados brutos (administrador)</summary><button type="button" class="btn-small" id="gmCopiar">Copiar dados brutos</button><pre id="gmRaw"></pre></details>{% endif %}
 
 </div>
-<script src="{{ url_for('static', filename='js/vendor/three.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/fio3d.js') }}"></script>
 <script>
 (function () {
