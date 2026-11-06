@@ -685,6 +685,29 @@ def gamificacao_setores(user) -> list:
     return out
 
 
+GAMIFICACAO_SETORES = ('Produção', 'PCP', 'Comercial', 'Financeiro', 'Qualidade', 'Supply Chain', 'Desenvolvimento', 'Sistema', 'RH', 'Diretoria')
+
+
+def gamificacao_meus_setores(user) -> list:
+    """Setores (como aparecem na escolha do jogo) a que a pessoa pertence — a trava de setor: clicar em outro mostra 'você não faz parte deste setor'.
+    Administrador, Administrador Geral e as pessoas indicadas pelo PCP pertencem a todos."""
+    if len(gamificacao_setores(user)) == 2 and (getattr(user, 'is_admin', False) or (getattr(getattr(user, 'role', None), 'name', '') or '').lower().startswith('administrador')
+                                                  or _primeiro_nome(user) in GAMIFICACAO_PRIMEIROS_NOMES):
+        return list(GAMIFICACAO_SETORES)
+    nomes = {x.name for x in (user.sectors or [])} | ({user.setor.name} if getattr(user, 'setor', None) else set())
+    nomes = {'Sistema' if n == 'TI/Sistema' else n for n in nomes}
+    meus = {n for n in nomes if n in GAMIFICACAO_SETORES}
+    if (getattr(getattr(user, 'role', None), 'name', '') or '').strip() in ('Líder Produção', 'Gestão Produção'):
+        meus.add('Produção')
+    return [s for s in GAMIFICACAO_SETORES if s in meus]
+
+
+def _primeiro_nome(user) -> str:
+    import unicodedata
+    nome = (user.name or '').strip().split(' ')[0] if (user.name or '').strip() else ''
+    return ''.join(c for c in unicodedata.normalize('NFD', nome) if unicodedata.category(c) != 'Mn').upper()
+
+
 def gamificacao_liberada(user) -> bool:
     """Quem entra na aba Gamificacao: quem tem pelo menos um setor do jogo liberado."""
     return bool(gamificacao_setores(user))
