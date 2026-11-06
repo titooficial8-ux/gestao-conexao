@@ -28,7 +28,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 
 .gm-intro{max-width:860px;margin:10px auto 30px;text-align:center}
 .gm-palco{display:flex;align-items:flex-end;justify-content:center;gap:18px;flex-wrap:wrap;background:radial-gradient(circle at 50% 120%,#fef3c7 0,#e0f2fe 55%,#eef2ff 100%);border:1px solid #dbeafe;border-radius:22px;padding:22px 18px 18px}
-.gm-fio3d{width:220px;height:270px;flex:none;display:none}.tem3d .gm-fio3d{display:block}.tem3d .gm-fio{display:none}
+.gm-fio3d{width:240px;height:300px;flex:none;display:none}.tem3d .gm-fio3d{display:block}.tem3d .gm-fio{display:none}
 .gm-fio{width:150px;height:auto;flex:none;animation:gmPula 1.6s ease-in-out infinite}
 @keyframes gmPula{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes gmAcena{0%,100%{transform:rotate(0)}50%{transform:rotate(-28deg)}}
@@ -98,7 +98,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 </style>
 <div id="gmIntro" class="gm-intro">
   <div class="gm-palco">
-    <canvas id="gmFio3d" class="gm-fio3d" width="220" height="270" data-logo="{{ url_for('static', filename='img/logo_conexao.png') }}"></canvas>
+    <canvas id="gmFio3d" class="gm-fio3d" width="240" height="300" data-logo="{{ url_for('static', filename='img/logo_conexao.png') }}"></canvas>
     <svg id="gmFio" class="gm-fio" viewBox="0 0 150 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fio, o mascote da Gamificação, com a roupa da Conexão">
       <defs><linearGradient id="gmCorpo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#2563eb"/></linearGradient>
         <linearGradient id="gmJeans" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4b7bc0"/><stop offset="1" stop-color="#2f5a99"/></linearGradient></defs>
