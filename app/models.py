@@ -108,6 +108,7 @@ class Machine(db.Model):
     number = db.Column(db.Integer, unique=True, nullable=False)
     order = db.Column(db.Integer, nullable=True)
     status = db.Column(db.String(20), default=STATUS_ATIVA, nullable=False)
+    eficiencia = db.Column(db.Float, nullable=True)          # eficiencia propria da maquina (0.3-1.0), alterada na tela; vazio = usa a regra padrao (previsao.py)
 
     capacities = db.relationship('MachineCapacity', backref='machine', order_by='MachineCapacity.estrutura')
 

@@ -36,12 +36,34 @@ if os.getenv('EFICIENCIA_MAQUINAS'):
         pass
 
 
+_efic_db = {'t': 0.0, 'v': {}}
+
+
+def invalidar_eficiencias() -> None:
+    _efic_db['t'] = 0.0
+
+
+def _eficiencias_gravadas() -> dict:
+    """{numero: eficiencia} alteradas na tela (botao 'Alterar eficiência'); lidas do banco, com cache curto."""
+    if time.time() - _efic_db['t'] > 20:
+        try:
+            _efic_db['v'] = {m.number: float(m.eficiencia) for m in Machine.query.filter(Machine.eficiencia.isnot(None)).all()}
+            _efic_db['t'] = time.time()
+        except Exception:  # noqa: BLE001
+            pass
+    return _efic_db['v']
+
+
 def eficiencia_da(maquina) -> float:
-    """Eficiencia (0-1) usada nas contas de peças/dia da maquina: a propria dela, se houver, senao a geral."""
+    """Eficiencia (0-1) usada nas contas de peças/dia da maquina: a alterada na tela, senao a propria dela (lista padrao), senao a geral."""
     try:
-        return EFICIENCIA_POR_MAQUINA.get(int(maquina), EFICIENCIA)
+        n = int(maquina)
     except (TypeError, ValueError):
         return EFICIENCIA
+    gravada = _eficiencias_gravadas().get(n)
+    if gravada:
+        return min(max(gravada, 0.3), 1.0)
+    return EFICIENCIA_POR_MAQUINA.get(n, EFICIENCIA)
 TROCA_HORAS = float(os.getenv('TROCA_HORAS', '2'))      # tempo de troca de artigo somado antes de cada OP que ainda nao esta produzindo (padrao 2 h)
 ATIVAS = ('PRODUZINDO', 'EM_SEQUENCIA', 'PCP')
 _trava = threading.Lock()
