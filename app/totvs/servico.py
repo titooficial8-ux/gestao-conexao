@@ -281,8 +281,9 @@ def gerar_dados(inicio: date, fim: date, tag: str) -> dict:
     arquivos['xlsx'] = x_all.name
     if not df150.empty:
         x150, c150 = DIR / f'{tag}_FISCAL_0150_{suf}.xlsx', DIR / f'{tag}_FISCAL_0150_{suf}.csv'
-        api.salvar_xlsx_150(df150, x150)
-        api.salvar_csv_150(df150, c150)
+        df150_dl = api.sem_devolucoes(df150)                       # planilha/CSV baixados: sem as DEVOLUCOES (o painel BI continua usando-as nos numeros)
+        api.salvar_xlsx_150(df150_dl, x150)
+        api.salvar_csv_150(df150_dl, c150)
         arquivos['xlsx150'], arquivos['csv150'] = x150.name, c150.name
 
     # os arquivos novos ja estao salvos: agora apaga os antigos desta fonte (mantem so a ultima geracao)
