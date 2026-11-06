@@ -393,10 +393,17 @@ def importar_vinculos():
         r = importar_csv(arq.read(), getattr(current_user, 'name', None))
     except ValueError as e:
         return _json(dict(ok=False, erro=str(e))), 400
+    from app.totvs.vinculos import aplicar_agora
+    try:
+        ap = aplicar_agora()                                   # aplica ja no Relatorio Pedidos e na Programacao (Dt.Cliente), sem esperar o TOTVS
+    except Exception as e:  # noqa: BLE001
+        from app import db
+        db.session.rollback()
+        return _json(dict(ok=False, erro='Importou, mas falhou ao aplicar: ' + str(e)[:200])), 500
     import threading
     from flask import current_app
     threading.Thread(target=_ped.atualizar, args=(current_app._get_current_object(),), daemon=True).start()      # recalcula o Relatorio Pedidos ja com a ligacao real
-    return _json(dict(ok=True, linhas=r['linhas'], com_op=r['com_op']))
+    return _json(dict(ok=True, linhas=r['linhas'], com_op=r['com_op'], linhas_ajustadas=ap['ajustadas'], dt_cliente=ap['dt_cliente']))
 
 
 @pedidos_bp.route('/mapa-artigo')
