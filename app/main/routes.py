@@ -994,7 +994,7 @@ def view_tab(slug):
         from app.totvs.vinculos import resumo as _resumo_vinculos
         return render_template(
             'main/relatorio_pedidos.html',
-            vinculos=_resumo_vinculos(), pode_importar=_pode_dias_sem_producao(),
+            vinculos=_resumo_vinculos(), pode_importar=_pode_dias_sem_producao(), busca_pausada=__import__('app.totvs.pedidos', fromlist=['x']).pausado(),
             tab=tab,
             ops_sem_pedido=ops_sem_pedido,
             pedidos=pedidos,
