@@ -28,6 +28,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 
 .gm-intro{max-width:860px;margin:10px auto 30px;text-align:center}
 .gm-palco{display:flex;align-items:flex-end;justify-content:center;gap:18px;flex-wrap:wrap;background:radial-gradient(circle at 50% 120%,#fef3c7 0,#e0f2fe 55%,#eef2ff 100%);border:1px solid #dbeafe;border-radius:22px;padding:22px 18px 18px}
+.gm-fio3d{width:220px;height:270px;flex:none;display:none}.tem3d .gm-fio3d{display:block}.tem3d .gm-fio{display:none}
 .gm-fio{width:150px;height:auto;flex:none;animation:gmPula 1.6s ease-in-out infinite}
 @keyframes gmPula{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes gmAcena{0%,100%{transform:rotate(0)}50%{transform:rotate(-28deg)}}
@@ -69,6 +70,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 </style>
 <div id="gmIntro" class="gm-intro">
   <div class="gm-palco">
+    <canvas id="gmFio3d" class="gm-fio3d" width="220" height="270" data-logo="{{ url_for('static', filename='img/logo_conexao.png') }}"></canvas>
     <svg id="gmFio" class="gm-fio" viewBox="0 0 150 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fio, o mascote da Gamificação, com a roupa da Conexão">
       <defs><linearGradient id="gmCorpo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#2563eb"/></linearGradient>
         <linearGradient id="gmJeans" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4b7bc0"/><stop offset="1" stop-color="#2f5a99"/></linearGradient></defs>
@@ -133,6 +135,8 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 {% if current_user.is_admin %}<details class="gm-raw"><summary>Ver dados brutos (administrador)</summary><button type="button" class="btn-small" id="gmCopiar">Copiar dados brutos</button><pre id="gmRaw"></pre></details>{% endif %}
 
 </div>
+<script src="{{ url_for('static', filename='js/vendor/three.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/fio3d.js') }}"></script>
 <script>
 (function () {
   var $ = function (i) { return document.getElementById(i); }, ROOT = $('gmRoot');
@@ -278,32 +282,34 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 
   // ---- Introducao do jogo ----
   var FALA = $('gmFala'), BAL = $('gmBalao'), FIO = $('gmFio'), SET = $('gmSetores'), digitando = 0;
+  try { if (window.Fio3D && Fio3D.init($('gmFio3d'), $('gmFio3d').getAttribute('data-logo'))) document.querySelector('.gm-palco').classList.add('tem3d'); } catch (e) { /* sem WebGL: fica o desenho 2D */ }
+  function humor(triste) { if (window.Fio3D) Fio3D.setTriste(triste); FIO.classList.toggle('triste', triste); BAL.classList.toggle('erro', triste); }
   var SUPORTADOS = ['Produção', 'PCP'], LIBERADOS = {{ gm_setores|tojson }}, MEUS = {{ gm_meus|tojson }}, ATIVO = {{ gm_ativo|tojson }};
   var BOAS_VINDAS = 'Olá, bem-vindo ao Projeto de Gamificação da Conexão Malhas e Desenvolvimento! É um prazer ter você aqui com a gente. Para iniciarmos o game, escolha o seu setor.';
   function digitar(texto, fim) {
-    var id = ++digitando, i = 0; FALA.textContent = ''; FALA.className = 'gm-cursor';
-    (function passo() { if (id !== digitando) return; i++; FALA.textContent = texto.slice(0, i); if (i < texto.length) setTimeout(passo, 24); else { FALA.className = ''; if (fim) fim(); } })();
+    var id = ++digitando, i = 0; FALA.textContent = ''; FALA.className = 'gm-cursor'; if (window.Fio3D) Fio3D.falar(true);
+    (function passo() { if (id !== digitando) return; i++; FALA.textContent = texto.slice(0, i); if (i < texto.length) setTimeout(passo, 24); else { FALA.className = ''; if (window.Fio3D) Fio3D.falar(false); if (fim) fim(); } })();
   }
-  function mostrarIntro() { pararPainel(); $('gmJogo').hidden = true; $('gmIntro').hidden = false; SET.hidden = true; FIO.classList.remove('triste'); BAL.classList.remove('erro'); digitar(BOAS_VINDAS, function () { SET.hidden = false; }); }
+  function mostrarIntro() { pararPainel(); $('gmJogo').hidden = true; $('gmIntro').hidden = false; SET.hidden = true; humor(false); digitar(BOAS_VINDAS, function () { SET.hidden = false; }); }
   Array.prototype.forEach.call(document.querySelectorAll('.gm-setor'), function (b) {
     b.addEventListener('click', function () {
       var setor = b.getAttribute('data-s');
       if (MEUS.indexOf(setor) < 0) {                                  // trava de setor: so abre o setor a que a pessoa pertence
-        FIO.classList.add('triste'); BAL.classList.add('erro');
+        humor(true);
         digitar('Poxa, você não faz parte deste setor, contate seu administrador');
         return;
       }
       if (SUPORTADOS.indexOf(setor) < 0) {
-        FIO.classList.add('triste'); BAL.classList.add('erro');
+        humor(true);
         digitar('POXA, NÃO TEMOS SUPORTE PARA O SEU SETOR AINDA, MAS NÃO FIQUE TRISTE, EM BREVE VOCÊ VAI OBTER TODO NOSSO ACESSO');
         return;
       }
       if (LIBERADOS.indexOf(setor) < 0) {
-        FIO.classList.add('triste'); BAL.classList.add('erro');
+        humor(true);
         digitar('Poxa, você não faz parte deste setor, contate seu administrador');
         return;
       }
-      FIO.classList.remove('triste'); BAL.classList.remove('erro'); SET.hidden = true;
+      humor(false); SET.hidden = true;
       fetch('/gamificacao/entrar', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setor: setor }) });      // lembra o setor ate sair (logout)
       digitar('Boa! Setor ' + setor + ' liberado. Vamos jogar!', function () { setTimeout(function () { $('gmIntro').hidden = true; $('gmJogo').hidden = false; iniciarPainel(); }, 600); });
     });
