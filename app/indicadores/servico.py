@@ -508,7 +508,8 @@ _CAMPOS_INICIO = ('inicio', 'data_inicio', 'dataInicio', 'iniciado_em', 'iniciad
 
 
 def _pin() -> str:
-    return (os.getenv('SETUPS_TOKEN') or os.getenv('SETUPS_PIN') or '').strip()
+    from app.acompanhamento import _token                       # mesmo token do Acompanhamento (o que estiver valendo)
+    return _token() or (os.getenv('SETUPS_TOKEN') or os.getenv('SETUPS_PIN') or '').strip()
 
 
 def _get_setups(caminho: str, params: dict, tentativas: list = None):
