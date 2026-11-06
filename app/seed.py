@@ -333,12 +333,19 @@ def garantir_aba_previa_pcp() -> None:
 
 
 def garantir_aba_gamificacao() -> None:
-    """Aba 'Gamificação' em Gestao Producao (ranking dos turnos e celulas, vindo do Acompanhamento de Producao). A visibilidade e por cargo: Líder Produção e Gestão Produção (Tab.visible_to)."""
-    cat = Category.query.filter_by(slug='producao').first()
-    if not cat or Tab.query.filter_by(slug='gamificacao').first():
-        return
-    ordem = max([t.order or 0 for t in cat.tabs] or [0]) + 1
-    db.session.add(Tab(category_id=cat.id, slug='gamificacao', name_pt='Gamificação', name_es='Gamificación', icon='\U0001F3C6', icon_color='#f59e0b', is_new=True, order=ordem))
+    """Menu proprio 'Gamificação' (fora de Gestão Produção) com a aba Gamificação. Quem ve a aba e decidido em gamificacao_liberada (models.py): lideres, gestao, PCP e as pessoas indicadas.
+    Em bancos que ja tinham a aba dentro de Produção, ela e movida para o menu novo."""
+    cat = Category.query.filter_by(slug='gamificacao').first()
+    if not cat:
+        ordem = max([c.order or 0 for c in Category.query.all()] or [0]) + 1
+        cat = Category(slug='gamificacao', name_pt='Gamificação', name_es='Gamificación', icon='\U0001F3C6', order=ordem)
+        db.session.add(cat)
+        db.session.flush()
+    tab = Tab.query.filter_by(slug='gamificacao').first()
+    if not tab:
+        db.session.add(Tab(category_id=cat.id, slug='gamificacao', name_pt='Gamificação', name_es='Gamificación', icon='\U0001F3C6', icon_color='#f59e0b', is_new=True, order=1))
+    elif tab.category_id != cat.id:
+        tab.category_id = cat.id
     db.session.commit()
 
 
