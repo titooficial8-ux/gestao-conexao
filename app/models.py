@@ -661,6 +661,23 @@ class Category(db.Model):
     tabs = db.relationship('Tab', backref='category', order_by='Tab.order')
 
 
+GAMIFICACAO_PRIMEIROS_NOMES = ('HOMERO', 'LUCIANE', 'EDMAR', 'CHRISTIAN', 'FRANCINARA', 'LUIZ', 'LUCIANO')
+
+
+def gamificacao_liberada(user) -> bool:
+    """Quem entra na aba Gamificacao: lideres e gestao da producao (cargos), o PCP (setor) e as pessoas listadas pelo PCP (primeiro nome)."""
+    import unicodedata
+    nome_cargo = (getattr(getattr(user, 'role', None), 'name', '') or '').strip()
+    if nome_cargo in ('Líder Produção', 'Gestão Produção'):
+        return True
+    setores = {x.name for x in (user.sectors or [])} | ({user.setor.name} if getattr(user, 'setor', None) else set())
+    if 'PCP' in setores:
+        return True
+    primeiro = (user.name or '').strip().split(' ')[0] if (user.name or '').strip() else ''
+    primeiro = ''.join(c for c in unicodedata.normalize('NFD', primeiro) if unicodedata.category(c) != 'Mn').upper()
+    return primeiro in GAMIFICACAO_PRIMEIROS_NOMES
+
+
 class Tab(db.Model):
     __tablename__ = 'tabs'
 
@@ -685,8 +702,7 @@ class Tab(db.Model):
         if self.category.slug == 'sistema':
             return False
         if self.slug == 'gamificacao':                  # Gamificacao: so lideres e gestao da producao (cargos), alem do administrador
-            nome = (getattr(getattr(user, 'role', None), 'name', '') or '').strip()
-            return nome in ('Líder Produção', 'Gestão Produção') and self not in user.hidden_tabs
+            return gamificacao_liberada(user) and self not in user.hidden_tabs
         if self in user.hidden_tabs:  # aba escondida para esta pessoa (tela Usuarios e Acessos)
             return False
         allowed_ids = {s.id for s in self.sectors}
