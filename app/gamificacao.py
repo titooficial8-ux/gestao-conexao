@@ -15,6 +15,28 @@ def _autorizar():
         abort(403)
 
 
+@gamificacao_bp.route('/entrar', methods=['POST'])
+@login_required
+def entrar():
+    """Guarda o setor escolhido na sessao: quem ja escolheu nao ve a abertura de novo ate sair (logout) ou trocar de setor."""
+    _autorizar()
+    from flask import session
+    from app.models import gamificacao_meus_setores
+    setor = (request.get_json(silent=True) or {}).get('setor')
+    if setor in ('Produção', 'PCP') and setor in gamificacao_meus_setores(current_user):
+        session['gm_setor'] = setor
+        return jsonify(ok=True)
+    return jsonify(ok=False), 400
+
+
+@gamificacao_bp.route('/sair', methods=['POST'])
+@login_required
+def sair():
+    from flask import session
+    session.pop('gm_setor', None)
+    return jsonify(ok=True)
+
+
 @gamificacao_bp.route('/dados')
 @login_required
 def dados():

@@ -230,6 +230,7 @@ def trocar_senha():
 def logout():
     logout_user()
     session.pop('acesso_tipo', None)
+    session.pop('gm_setor', None)                              # Gamificação: na próxima entrada o robozinho pergunta o setor de novo
     return redirect(url_for('gateway.tipo'))
 
 

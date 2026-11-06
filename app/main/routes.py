@@ -1312,7 +1312,11 @@ def view_tab(slug):
 
     if slug == 'gamificacao':
         from app.models import gamificacao_meus_setores, gamificacao_setores
-        return render_template('main/gamificacao.html', tab=tab, gm_setores=gamificacao_setores(current_user), gm_meus=gamificacao_meus_setores(current_user))
+        meus = gamificacao_meus_setores(current_user)
+        ativo = session.get('gm_setor')
+        if ativo not in ('Produção', 'PCP') or ativo not in meus:
+            ativo = None
+        return render_template('main/gamificacao.html', tab=tab, gm_setores=gamificacao_setores(current_user), gm_meus=meus, gm_ativo=ativo)
 
     if slug == 'saved-drawing':
         rows, status_map, seq_info_map, seq_key = _sync_saved_drawings()
