@@ -48,6 +48,37 @@ def _num(v):
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
+
+def _clientes_dos_artigos(cods) -> dict:
+    """{codigo do artigo: cliente} pelos pedidos do Relatorio Pedidos (prefere pedidos em aberto, senao o mais recente); vazio se o artigo nao tem pedido. ORTOBOM (qualquer unidade) vira 'ORTOBOM'."""
+    cods = {str(c).strip() for c in cods if c}
+    if not cods:
+        return {}
+    try:
+        from app.main.routes import normalize_client_name
+        from app.models import PedidoRelatorio
+        por = {}
+        for p in PedidoRelatorio.query.filter(PedidoRelatorio.nome_cliente.isnot(None)).all():
+            if (p.tp_situacao or '') == 'CANCELADO' or 'CONEXAO MALHAS' in (p.nome_cliente or '').upper():
+                continue
+            token = (p.ds_produto or '').split(' ')[0].strip()
+            if token in cods:
+                por.setdefault(token, []).append(p)
+        out = {}
+        for cod, lista in por.items():
+            abertos = [p for p in lista if (p.tp_situacao or '') != 'ATENDIDO' and (p.qt_pendente or 0) > 0.5]
+            if abertos:
+                saldo = {}
+                for p in abertos:
+                    n = normalize_client_name(p.nome_cliente)
+                    saldo[n] = saldo.get(n, 0) + (p.qt_pendente or 0)
+                out[cod] = max(saldo, key=saldo.get)
+            else:
+                out[cod] = normalize_client_name(max(lista, key=lambda p: (p.dt_pedido or date.min)).nome_cliente)
+        return out
+    except Exception:  # noqa: BLE001
+        return {}
+
 def ler() -> dict:
     try:
         return json.loads(ARQUIVO.read_text(encoding='utf-8'))
@@ -492,6 +523,7 @@ def painel(dias: int = 0) -> dict:
     insp = dict(cod=d.get('inspecao_cod'), nome=d.get('inspecao_desc'), unidade=UNIDADE_INSPECAO, total=r2(sum(v[0] for v in ins.values())), itens=len(ins), outros=max(0, (d.get('inspecao_total_itens') or 0) - len(ins)),
                 em=d.get('inspecao_em'), lista=[dict(cod=pc, nome=v[1], saldo=v[0], exp_m=r2((est_raw.get(pc) or {}).get('saldo', 0)), exp_pecas=len((est_raw.get(pc) or {}).get('lotes', []))) for pc, v in sorted(ins.items(), key=lambda kv: -kv[1][0])])
     p90 = sum(a['saldo'] for a in datados if a['dias'] > 90)
+    cli_art = _clientes_dos_artigos([a['cod'] for a in arts[:8]] + [a['cod'] for a in parados[:8]])
     return dict(
         ok=True, dias=dias, periodo=periodo, mes=MESES[hoje.month - 1], hoje=hoje.isoformat(), notas_em=d.get('notas_em'), estoque_em=d.get('estoque_em'), mov_em=ler_mov().get('atualizado'),
         atualizado=max([x for x in (d.get('notas_em'), d.get('estoque_em')) if x] or [None]) if (d.get('notas_em') or d.get('estoque_em')) else None,
@@ -514,8 +546,8 @@ def painel(dias: int = 0) -> dict:
                      mov_30_pct=round(sum(a['saldo'] for a in datados if a['dias'] <= 30) / sum(a['saldo'] for a in datados) * 100) if datados and sum(a['saldo'] for a in datados) else None,
                      pecas_90=sum(a['lotes'] for a in datados if a['dias'] > 90),
                      inspecao=insp,
-                     maiores=[dict(a, saldo=r2(a['saldo']), pct=round(a['saldo'] / total * 100, 1) if total else 0) for a in arts[:8]],
-                     parados=[dict(a, saldo=r2(a['saldo'])) for a in parados[:8]],
+                     maiores=[dict(a, cliente=cli_art.get(a['cod'], ''), saldo=r2(a['saldo']), pct=round(a['saldo'] / total * 100, 1) if total else 0) for a in arts[:8]],
+                     parados=[dict(a, cliente=cli_art.get(a['cod'], ''), saldo=r2(a['saldo'])) for a in parados[:8]],
                      faixas=[dict(f, metros=r2(f['metros'])) for f in faixas]))
 
 
