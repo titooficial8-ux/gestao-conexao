@@ -364,6 +364,28 @@ def _autorizar_pedidos():
         abort(403)
 
 
+@pedidos_bp.route('/importar-vinculos', methods=['POST'])
+@login_required
+def importar_vinculos():
+    """Importa o CSV do relatorio de pedidos do TOTVS (Nr. Cicloop / Nr. Op): a ligacao real OP <-> pedido passa a valer no lugar da deducao. So PCP e administrador."""
+    from app.main.routes import _pode_dias_sem_producao
+    if not _pode_dias_sem_producao():
+        abort(403)
+    from app.totvs import pedidos as _ped
+    from app.totvs.vinculos import importar_csv
+    arq = request.files.get('arquivo')
+    if not arq or not arq.filename:
+        return _json(dict(ok=False, erro='Escolha o arquivo CSV do relatório de pedidos.')), 400
+    try:
+        r = importar_csv(arq.read(), getattr(current_user, 'name', None))
+    except ValueError as e:
+        return _json(dict(ok=False, erro=str(e))), 400
+    import threading
+    from flask import current_app
+    threading.Thread(target=_ped.atualizar, args=(current_app._get_current_object(),), daemon=True).start()      # recalcula o Relatorio Pedidos ja com a ligacao real
+    return _json(dict(ok=True, linhas=r['linhas'], com_op=r['com_op']))
+
+
 @pedidos_bp.route('/mapa-artigo')
 @login_required
 def mapa_artigo_pagina():

@@ -115,7 +115,7 @@ def _em_lotes(codigos, n=100):
         yield codigos[i:i + n]
 
 
-def vincular_ops(ordenados: list, ops: list, fixos: dict = None) -> dict:
+def vincular_ops(ordenados: list, ops: list, fixos: dict = None, corte=None) -> dict:
     """{posicao do item em `ordenados`: [OPs]}. `ordenados` = [(pedido, item, solicitada, faturada, pendente)] por data do pedido; `ops` = ordens de producao (expand=items).
     O TOTVS nao devolve na API qual OP nasceu de qual pedido; a ligacao e reconstruida pela ordem de criacao:
     os pedidos recebem as OPs do mesmo cliente+artigo na ordem em que foram feitos (o mais antigo usa a primeira OP, e assim por diante); um pedido grande usa varias OPs.
@@ -152,45 +152,61 @@ def vincular_ops(ordenados: list, ops: list, fixos: dict = None) -> dict:
         return achadas
 
     aloc, idx_op = {}, {(str(o.get('cycleCode')), str(o.get('orderCode'))): o for o in ops}
-    for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):          # 1o: ligacoes reais do TOTVS (reservam a OP antes da regra)
-        real = [idx_op[(str(c), str(n))] for c, n in (fixos or {}).get((str(p.get('orderCode')), str(it.get('productCode'))), []) if (str(c), str(n)) in idx_op]
-        if real and p.get('statusOrder') != 'Canceled':
-            aloc[k] = real
-            for o in real:
-                dono.setdefault(o['orderCode'], p.get('orderCode'))
-            falta = solicitada if pendente > 0.5 else max(solicitada - _num(it.get('canceledQuantity')), 0.0)
-            for o in real:
-                usa = min(max(_num(o.get('quantity')) - usado[o['orderCode']], 0.0), falta)
-                usado[o['orderCode']] += usa
-                falta -= usa
+    vazios = set()                                             # pedidos que o relatorio do TOTVS diz estar SEM OP (so recebem OP criada depois do relatorio)
+    for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):          # 1o: ligacao REAL do relatorio do TOTVS (importado): vale mais que qualquer regra
+        chave = (str(p.get('orderCode')), str(it.get('productCode')))
+        if p.get('statusOrder') == 'Canceled' or chave not in (fixos or {}):
+            continue
+        real = []
+        for e in fixos[chave]:
+            o = idx_op.get((str(e[0]), str(e[1])))
+            if o is None:                                      # OP que a API nao devolveu (ex.: ja finalizada ha muito tempo): monta a partir do relatorio
+                est, fin, pen = (list(e) + [0, 0, 0])[2:5]
+                o = dict(cycleCode=int(e[0]) if str(e[0]).isdigit() else e[0], orderCode=int(e[1]) if str(e[1]).isdigit() else e[1], quantity=est, finishedQuantity=fin, pendingQuantity=pen,
+                         customerCode=p.get('customerCode'), items=[dict(productCode=it.get('productCode'))], orderFinishedQuantitiesTypes=dict(normalFinishedQuantity=fin))
+            real.append(o)
+        if not real:
+            vazios.add(k)
+            continue
+        aloc[k] = real
+        for o in real:
+            dono[o['orderCode']] = p.get('orderCode')
+            usado[o['orderCode']] = _num(o.get('quantity'))
     # OP NOVA (nada produzido ainda) pertence a um pedido que ainda nao foi tocado (nada faturado). Pedido ja faturado em parte/atendido ja tem a OP dele (ou saiu do estoque).
     # Entre os pedidos intocados do mesmo cliente+artigo (feitos ate o dia da OP), a OP vai para o de quantidade mais parecida com a dela (a OP sai ~1 a 10 % maior que o pedido);
     # empate = o mais antigo. Confirmado pelo PCP: 3171->11530, 3165->11661, 3172->11242, 3160->11231, 3004->11623, 3084->11167, 3114->11689.
     coberto = defaultdict(float)
-    pares = []
+    novas = []
     for (cli, prod), lista in por_chave.items():
         for o in lista:
             if o['orderCode'] in dono or _num(o.get('finishedQuantity')) > 0.5 or (o.get('status') in (30, 40)):
                 continue
-            criada = _data(o.get('insertDate')) or date.min
-            qtd = _num(o.get('quantity'))
-            for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
-                if k in aloc or p.get('customerCode') != cli or it.get('productCode') != prod or p.get('statusOrder') in ('Canceled', 'Attended', 'PartiallyAnswered'):
-                    continue
-                if faturada > 0.5 or pendente <= 0.5 or solicitada <= 0 or (_data(p.get('orderDate')) or date.min) > criada:
-                    continue
-                if abs(qtd - solicitada) / solicitada <= 0.35:             # so liga se a quantidade da OP bate com a do pedido (OP vem ~1 a 10 % maior); senao fica sem pedido ate conferir
-                    pares.append((abs(qtd - solicitada) / solicitada, k, o['orderCode'], o))
-    for _diff, k, cod_op, o in sorted(pares, key=lambda t: t[:3]):
-        solicitada = ordenados[k][2]
-        if cod_op in dono or coberto[k] >= solicitada * 0.9:
+            novas.append((str(o.get('insertDate') or ''), o['orderCode'], cli, prod, o))
+    for _ins, cod_op, cli, prod, o in sorted(novas, key=lambda t: t[:2]):           # OPs na ordem em que foram criadas
+        if cod_op in dono:
             continue
+        criada = _data(o.get('insertDate')) or date.min
+        qtd = _num(o.get('quantity'))
+        livres = []
+        for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
+            if k in aloc or p.get('customerCode') != cli or it.get('productCode') != prod or p.get('statusOrder') in ('Canceled', 'Attended', 'PartiallyAnswered'):
+                continue
+            if k in vazios and not (corte and criada > corte):
+                continue
+            if faturada > 0.5 or pendente <= 0.5 or solicitada <= 0 or (_data(p.get('orderDate')) or date.min) > criada or coberto[k] >= solicitada * 0.9:
+                continue
+            if abs(qtd - solicitada) / solicitada <= 0.35:                       # a quantidade da OP tem que bater com a do pedido (OP sai ~1 a 10 % maior)
+                livres.append((abs(qtd - solicitada) / solicitada, k))
+        if not livres:
+            continue
+        melhor = min(d for d, _k in livres)
+        k = min(k for d, k in livres if d - melhor < 0.02)                       # quantidades equivalentes: o pedido MAIS ANTIGO fica com a OP mais antiga (ordem de geracao do PCPFP141)
         aloc.setdefault(k, []).append(o)
         dono[cod_op] = ordenados[k][0].get('orderCode')
-        usado[cod_op] = _num(o.get('quantity'))
-        coberto[k] += _num(o.get('quantity'))
+        usado[cod_op] = qtd
+        coberto[k] += qtd
     for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
-        if k in aloc or p.get('statusOrder') == 'Canceled':
+        if k in aloc or k in vazios or p.get('statusOrder') == 'Canceled':
             continue
         atendido = pendente <= 0.5
         necessidade = max(solicitada - (_num(it.get('canceledQuantity')) if atendido else 0.0), 0.0)
@@ -246,8 +262,9 @@ def buscar() -> list[dict]:
         ESTADO['amostra_pedido'] = {k: v for k, v in itens[0][0].items() if not isinstance(v, (list, dict))}      # campos do item do pedido (para conferir o preco)
     linhas = []
     ordenados = sorted(itens, key=lambda t: (str(t[0].get('orderDate')), str(t[1].get('billingForecastDate') or t[0].get('billingForecastDate') or '9999'), t[0].get('orderCode') or 0))      # mesmo dia: o pedido de entrega mais proxima pega a OP primeiro
-    fixos = {}                                                 # vinculo pedido <-> OP: so pelo TOTVS (regra por ordem de criacao); o PCP Hub nao entra mais aqui
-    aloc = vincular_ops(ordenados, ops, fixos)
+    from app.totvs.vinculos import carregar_fixos
+    fixos, corte = carregar_fixos()                            # ligacao REAL pedido <-> OP do relatorio do TOTVS importado (vazio = so a regra por quantidade/ordem)
+    aloc = vincular_ops(ordenados, ops, fixos, corte)
     for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
         pid = it.get('productCode')
         dt_pedido = _data(p.get('orderDate'))

@@ -991,8 +991,10 @@ def view_tab(slug):
                 ops_sem_pedido.append(dict(op=termo, artigo=ref.artigo, cliente=ref.cliente, qt=int((getattr(ref, 'qt_solicitada', None) or getattr(ref, 'requested_quantity', 0) or 0)),
                                            onde=(f'máquina {sq.machine.number:02d}' if sq and sq.machine else 'Pré-Seleção'),
                                            pedidos_abertos=sorted({x.cod_pedido for x in abertos})))
+        from app.totvs.vinculos import resumo as _resumo_vinculos
         return render_template(
             'main/relatorio_pedidos.html',
+            vinculos=_resumo_vinculos(), pode_importar=_pode_dias_sem_producao(),
             tab=tab,
             ops_sem_pedido=ops_sem_pedido,
             pedidos=pedidos,
