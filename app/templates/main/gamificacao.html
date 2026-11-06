@@ -65,6 +65,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 .gm-m .box b{font-size:17px;color:#0f172a;display:block}
 .gm-m .pill{display:block;border-radius:999px;padding:3px 8px;font-size:11.5px;font-weight:800;margin:4px 0}
 .gm-m .pill.man{background:#fef3c7;border:1px solid #f59e0b;color:#92400e}.gm-m .pill.div{background:#ffedd5;border:1px solid #fb923c;color:#9a3412}
+.gm-ating{margin:0 0 6px;text-align:left}.gm-ating .tr{display:block;height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden}.gm-ating .tr i{display:block;height:100%}
 .gm-m .rod{font-size:11.5px;color:#64748b;margin-top:4px}
 .gm-m .out{text-align:left;font-size:10.5px;color:#94a3b8;margin-top:5px}
 
@@ -228,21 +229,34 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
   function nrm(k) { return String(k).toLowerCase().replace(/[^a-z0-9]/g, ''); }
   function pega(o, nomes, usados) { if (!o) return undefined; var ks = Object.keys(o); for (var a = 0; a < nomes.length; a++) { for (var b = 0; b < ks.length; b++) { if (nrm(ks[b]) === nomes[a]) { if (usados) usados[ks[b]] = 1; return o[ks[b]]; } } } return undefined; }
   function numTxt(v, dec) { if (v === null || v === undefined || v === '') return '—'; var n = Number(v); if (isNaN(n)) return String(v); return n.toLocaleString('pt-BR', { maximumFractionDigits: dec === undefined ? 1 : dec }); }
+  var NUMCH = ['maquina', 'numero', 'machine', 'n', 'num', 'id', 'cod'];
   function cartaoMaquina(m, info) {
     var u = {}, d = Object.assign({}, info || {}, m || {});
-    var num = pega(d, ['maquina', 'numero', 'machine', 'id', 'cod'], u), est = pega(d, ['estrutura', 'tipo', 'tipomaquina'], u);
-    var ef = pega(d, ['eficiencia', 'efreal', 'eficienciareal', 'ef'], u), meta = pega(d, ['metaeficiencia', 'metaef', 'metadeeficiencia'], u);
-    var pc = pega(d, ['pecas', 'pcs', 'pecasproduzidas'], u), mpc = pega(d, ['metapecas', 'pecasmeta'], u), mt = pega(d, ['metros', 'mt', 'metrosproduzidos'], u), mmt = pega(d, ['metametros', 'metrosmeta'], u);
+    var num = pega(d, NUMCH, u), est = pega(d, ['estrutura', 'tipo', 'tipomaquina', 'est'], u);
+    var ef = pega(d, ['eficiencia', 'efreal', 'eficienciareal', 'ef'], u), efMeta = pega(d, ['efmeta', 'metaeficiencia', 'metaef', 'metadeeficiencia'], u);
+    var pc = pega(d, ['pecas', 'pcs', 'pecasproduzidas'], u), mpc = pega(d, ['metapecas', 'pecasmeta', 'meta'], u), mt = pega(d, ['metros', 'mt', 'metrosproduzidos'], u), mmt = pega(d, ['metametros', 'metrosmeta'], u);
     var dev = pega(d, ['gcmetros24'], u), ont = pega(d, ['ontem'], u), cli = pega(d, ['cliente'], u), op = pega(d, ['op'], u), art = pega(d, ['artigo', 'produto'], u);
     var man = pega(d, ['manutencoes', 'manutencao'], u), div = pega(d, ['divergencias', 'divergencia'], u); pega(d, ['metros24'], u);
-    var nef = ef === null || ef === undefined ? null : Number(ef), nmeta = meta === null || meta === undefined ? 75 : Number(meta);
+    var ating = pega(d, ['ating', 'atingimento'], u), cap = pega(d, ['capacidade'], u), ds = pega(d, ['ds24', 'dsmetros', 'ds'], u), pmq = pega(d, ['paradasmq', 'paradasmaquina'], u), pmin = pega(d, ['paradomin', 'minutosparados'], u), p24 = pega(d, ['peca24', 'pecas24'], u), r24 = pega(d, ['ritmo24'], u);
+    var nef = ef === null || ef === undefined ? null : Number(ef), nmeta = efMeta === null || efMeta === undefined ? 75 : Number(efMeta);
     var cls = nef === null || isNaN(nef) ? '' : (nef >= nmeta ? 'ok' : (nef >= nmeta * 0.8 ? 'aten' : 'ruim'));
-    var c = h('div', 'gm-m ' + cls); c.appendChild(h('small', null, 'Máquina')); c.appendChild(h('div', 'n', num === undefined ? '—' : String(num).padStart(2, '0')));
+    var c = h('div', 'gm-m ' + cls); c.appendChild(h('small', null, 'Máquina')); c.appendChild(h('div', 'n', num === undefined || num === null ? '—' : String(num).padStart(2, '0')));
     if (est) c.appendChild(h('span', 'est', String(est)));
     c.appendChild(h('div', 'ef ' + cls, nef === null || isNaN(nef) ? '—' : numTxt(nef) + '%'));
+    if (ating !== undefined && ating !== null && !isNaN(Number(ating))) { var at = Number(ating) * (Number(ating) <= 3 ? 100 : 1); var br = h('div', 'gm-ating'); br.appendChild(h('small', null, 'Atingimento da meta: ' + numTxt(at, 0) + '%')); var tr = h('span', 'tr'), bi = h('i'); bi.style.width = Math.max(0, Math.min(at, 100)) + '%'; bi.style.background = at >= 100 ? '#16a34a' : at >= 80 ? '#f59e0b' : '#dc2626'; tr.appendChild(bi); br.appendChild(tr); c.appendChild(br); }
     var g = h('div', 'g4'); [['Peças', pc], ['Meta peças', mpc], ['Metros', mt], ['Meta metros', mmt]].forEach(function (x) { var t = h('div', 't'); t.appendChild(h('small', null, x[0])); t.appendChild(h('b', null, numTxt(x[1], 1))); g.appendChild(t); }); c.appendChild(g);
-    if (dev !== undefined || ont !== undefined) { var bx = h('div', 'box'); bx.appendChild(h('span', null, 'Deveria entregar em 24 h')); bx.appendChild(h('b', null, dev === undefined ? '—' : numTxt(dev, 0) + ' m'));
-      var o2 = h('span', null, 'Entregou ontem: '); var ob = h('b', null, ont === undefined || ont === null ? '—' : (typeof ont === 'object' ? ((pega(ont, ['metros', 'mt']) !== undefined ? numTxt(pega(ont, ['metros', 'mt']), 0) + ' m' : '') + (pega(ont, ['pecas', 'pcs']) !== undefined ? ' · ' + numTxt(pega(ont, ['pecas', 'pcs']), 0) + ' peças' : '') || fmt(ont)) : numTxt(ont, 0) + ' m')); ob.style.display = 'inline'; ob.style.fontSize = '13px'; o2.appendChild(ob); bx.appendChild(o2); c.appendChild(bx); }
+    var dsN = ds !== undefined && ds !== null ? Number(ds) : null;
+    if (dev !== undefined && dev !== null) {
+      var bx = h('div', 'box'); bx.appendChild(h('span', null, 'Deveria entregar em 24 h' + (efMeta !== undefined && efMeta !== null ? ' · EF. ' + numTxt(efMeta, 0) + '%' : ''))); bx.appendChild(h('b', null, numTxt(dev, 0) + ' m'));
+      if (dsN) bx.appendChild(h('span', null, numTxt(Number(dev) / dsN, 0) + ' peças × ' + numTxt(dsN, 0) + ' m (DS.METROS)' + (cap !== undefined && cap !== null ? ' · Capacidade: ' + numTxt(cap, 1) + ' pç' : ''))); c.appendChild(bx);
+    }
+    if (ont !== undefined && ont !== null && ont !== '') {
+      var ob = h('div', 'box'); var mOnt = typeof ont === 'object' ? pega(ont, ['metros', 'mt']) : ont, pOnt = typeof ont === 'object' ? pega(ont, ['pecas', 'pcs']) : undefined;
+      ob.appendChild(h('span', null, 'Entregou em 24 h' + (DIA_ANT ? ' (dia ' + DIA_ANT + ')' : ''))); ob.appendChild(h('b', null, (mOnt === undefined ? fmt(ont) : numTxt(mOnt, 0) + ' m') + (pOnt !== undefined ? ' · ' + numTxt(pOnt, 0) + ' peças' : ''))); c.appendChild(ob);
+    }
+    var l3 = []; if (p24 !== undefined && p24 !== null) l3.push('Peças 24 h: ' + numTxt(p24, 0)); if (r24 !== undefined && r24 !== null) l3.push('Ritmo 24 h: ' + numTxt(r24, 0) + ' m'); if (pmin !== undefined && pmin !== null) l3.push('Parado: ' + numTxt(pmin, 0) + ' min'); if (pmq !== undefined && pmq !== null) l3.push('Paradas: ' + fmt(pmq));
+    if (l3.length) c.appendChild(h('div', 'rod', l3.join(' · ')));
+    if (efMeta !== undefined && efMeta !== null) c.appendChild(h('div', 'rod', 'meta de eficiência ' + numTxt(efMeta, 0) + '%'));
     if (man && (!Array.isArray(man) || man.length)) c.appendChild(h('span', 'pill man', '🔧 ' + (/manuten/i.test(fmt(man)) ? fmt(man) : 'Manutenção: ' + fmt(man))));
     if (div && (!Array.isArray(div) || div.length)) c.appendChild(h('span', 'pill div', '⚠ Divergência' + (Array.isArray(div) ? ' (' + div.length + ')' : ': ' + fmt(div))));
     if (art || op || cli) c.appendChild(h('div', 'rod', [art, op ? 'OP ' + op : null, cli].filter(Boolean).join(' · ')));
@@ -255,12 +269,12 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
     if (c.posicao || c.rank) t.appendChild(h('span', 'gm-pos', (c.posicao || c.rank) + 'º')); card.appendChild(t);
     var pular = { id: 1, nome: 1, posicao: 1, rank: 1, turnos: 1, maquinasInfo: 1 };
     card.appendChild(conteudo(c, 'celula', pular));
-    var info = {}; comoLista(c.maquinasInfo).forEach(function (m) { var k = pega(m, ['maquina', 'numero', 'machine', 'id']); if (k !== undefined) info[String(k)] = m; });
+    var info = {}; comoLista(c.maquinasInfo).forEach(function (m) { var k = pega(m, NUMCH); if (k !== undefined) info[String(k)] = m; });
     var usadas = {};
     (c.turnos || []).forEach(function (tt) {
       var mq = comoLista(tt.detalhe && tt.detalhe.maquinas); if (!mq.length) return;
       card.appendChild(h('div', 'gm-sec', 'Turno ' + (tt.turno !== undefined ? tt.turno : '') + (tt.indice !== undefined && tt.indice !== null ? ' · índice ' + numTxt(tt.indice) : '')));
-      var grid = h('div', 'gm-maqs'); mq.forEach(function (m) { var k = pega(m, ['maquina', 'numero', 'machine', 'id']); if (k !== undefined) usadas[String(k)] = 1; grid.appendChild(cartaoMaquina(m, info[String(k)])); }); card.appendChild(grid);
+      var grid = h('div', 'gm-maqs'); mq.forEach(function (m) { var k = pega(m, NUMCH); if (k !== undefined) usadas[String(k)] = 1; grid.appendChild(cartaoMaquina(m, info[String(k)])); }); card.appendChild(grid);
     });
     var sobras = Object.keys(info).filter(function (k) { return !usadas[k]; });
     if (sobras.length) { card.appendChild(h('div', 'gm-sec', 'Máquinas da célula')); var g2 = h('div', 'gm-maqs'); sobras.forEach(function (k) { g2.appendChild(cartaoMaquina(info[k], null)); }); card.appendChild(g2); }
@@ -276,7 +290,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
   }
   // ===== Layout no estilo do Acompanhamento: ranking dos turnos, celulas por turno e indicadores =====
   var CORCEL = { azul: '#2563eb', verde: '#16a34a', laranja: '#f97316', acabamento: '#7c6bb0' }, ORDEM = { azul: 1, verde: 2, laranja: 3, acabamento: 4 };
-  var turnoSel = null, ULT = null;
+  var turnoSel = null, ULT = null, DIA_ANT = '';
   function busca(o, nomes, prof, pular) {                    // procura um valor simples pelo nome do campo, em qualquer nivel (ate 'prof')
     if (!o || typeof o !== 'object' || prof < 0) return undefined; var ks = Object.keys(o), a, b;
     for (a = 0; a < nomes.length; a++) for (b = 0; b < ks.length; b++) if (nrm(ks[b]) === nomes[a] && escalar(o[ks[b]])) return o[ks[b]];
@@ -318,7 +332,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
     var id = String(c.id || c.nome || '').toLowerCase(), cor = CORCEL[id] || '#64748b', ord = ORDEM[id] ? String(ORDEM[id]).padStart(2, '0') : '';
     var box = h('div', 'gx-cel'); box.style.borderLeftColor = cor;
     var cab = h('div', 'cab'), esq = h('div'), t = h('h3', null, (ord ? ord + ' · ' : '') + id.toUpperCase()); t.style.color = cor; esq.appendChild(t);
-    var mq = comoLista(tt && tt.detalhe && tt.detalhe.maquinas), info = {}; comoLista(c.maquinasInfo).forEach(function (m) { var k = pega(m, ['maquina', 'numero', 'machine', 'id']); if (k !== undefined) info[String(k)] = m; });
+    var mq = comoLista(tt && tt.detalhe && tt.detalhe.maquinas), info = {}; comoLista(c.maquinasInfo).forEach(function (m) { var k = pega(m, NUMCH); if (k !== undefined) info[String(k)] = m; });
     var totM = 0; mq.forEach(function (m) { var v = Number(pega(m, ['metros', 'mt', 'metrosproduzidos'])); if (!isNaN(v)) totM += v; });
     var compl = busca(tt, ['complexidade', 'nivelcomplexidade'], 3) || busca(c, ['complexidade', 'nivelcomplexidade'], 3);
     esq.appendChild(h('div', 'sub', (mq.length || Object.keys(info).length) + ' máquinas · ' + numTxt(totM, 0) + ' m produzidos no turno' + (compl ? ' · ' + compl : ''))); cab.appendChild(esq);
@@ -330,7 +344,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
     [['Eficiência real', e, '%', 'meta ' + META.ef + '% (média das máquinas)'], ['Minutos parados', pr, ' min', 'meta até ' + META.parado + ' min'], ['1ª qualidade', q, '%', 'meta ' + META.qual + '%'], ['5S', cs, '%', 'meta ' + META.cs + '%']].forEach(function (x) {
       var tl = tile(x[0], x[1][0], x[1][1], x[2]); tl.appendChild(h('small', null, x[3])).style.cssText = 'text-transform:none;letter-spacing:0;font-weight:500;color:#64748b'; k.appendChild(tl); }); box.appendChild(k);
     var usadas = {}, grid = h('div', 'gm-maqs');
-    mq.forEach(function (m) { var kk = pega(m, ['maquina', 'numero', 'machine', 'id']); if (kk !== undefined) usadas[String(kk)] = 1; grid.appendChild(cartaoMaquina(m, info[String(kk)])); });
+    mq.forEach(function (m) { var kk = pega(m, NUMCH); if (kk !== undefined) usadas[String(kk)] = 1; grid.appendChild(cartaoMaquina(m, info[String(kk)])); });
     Object.keys(info).filter(function (kk) { return !usadas[kk]; }).forEach(function (kk) { grid.appendChild(cartaoMaquina(info[kk], null)); });
     if (grid.children.length) box.appendChild(grid); else box.appendChild(h('div', 'gm-vazio', 'Sem máquinas neste turno ainda.'));
     var resto = conteudo(tt || {}, 'turno', { turno: 1, indice: 1, detalhe: 1, nome: 1, eficiencia: 1 }); if (resto.querySelector('.gm-sec')) { box.appendChild(resto); }
@@ -354,7 +368,8 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
   }
   function desenha(d) {
     ROOT.textContent = '';
-    var raiz = d && !Array.isArray(d) ? d : {}, turnos = Array.isArray(d) ? d : (raiz.turnos || []);
+    var raiz = d && !Array.isArray(d) ? d : {}; DIA_ANT = ''; if (/^\d{4}-\d\d-\d\d$/.test(String(raiz.dia || ''))) { var dd = new Date(raiz.dia + 'T12:00:00'); dd.setDate(dd.getDate() - 1); DIA_ANT = String(dd.getDate()).padStart(2, '0') + '/' + String(dd.getMonth() + 1).padStart(2, '0'); }
+    var turnos = Array.isArray(d) ? d : (raiz.turnos || []);
     var cels = (Array.isArray(raiz.celulas) ? raiz.celulas : comoLista(raiz.celulas).filter(function (x) { return !escalar(x); })).slice().sort(function (a, b) { return (ORDEM[String(a.id).toLowerCase()] || 9) - (ORDEM[String(b.id).toLowerCase()] || 9); });
     // ranking geral dos turnos
     var rk = h('div', 'gx-rank'); rk.appendChild(h('h2', null, 'Ranking geral dos turnos')); rk.appendChild(h('h1', null, fmt(raiz.dia || busca(raiz, ['dia', 'data'], 1) || '')));
