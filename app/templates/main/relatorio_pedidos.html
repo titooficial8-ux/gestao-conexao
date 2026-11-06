@@ -17,8 +17,8 @@
 <div class="ped-status" style="margin-top:8px">
   <span>&#128279; <b>Ligação OP ↔ pedido:</b>
     {% if vinculos %}real do TOTVS · {{ vinculos.linhas }} linhas, {{ vinculos.com_op }} com OP · relatório de {{ (vinculos.em|local).strftime('%d/%m %H:%M') }}{% else %}por dedução (ainda não foi importado o relatório do TOTVS){% endif %}</span>
-  <input type="file" id="vincArq" accept=".csv,.CSV" style="display:none">
-  <button type="button" class="btn-small" id="vincBtn">Importar relatório do TOTVS (CSV)</button>
+  <input type="file" id="vincArq" accept=".csv,.CSV,.xlsx,.xlsm" style="display:none">
+  <button type="button" class="btn-small" id="vincBtn">Importar relatório do TOTVS (Excel/CSV)</button>
   <button type="button" class="btn-small" id="pausaBtn" data-pausado="{{ '1' if busca_pausada else '' }}">{{ '▶ Retomar busca automática' if busca_pausada else '⏸ Pausar busca automática' }}</button>
   {% if busca_pausada %}<span style="color:#b45309;font-weight:700">Busca automática do TOTVS PAUSADA</span>{% endif %}
 </div>
@@ -37,8 +37,8 @@
     var fd = new FormData(); fd.append('arquivo', f.files[0]); b.disabled = true; b.textContent = 'Importando…';
     fetch('{{ url_for("pedidos_totvs.importar_vinculos") }}', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       if (d.ok) { alert('Importado: ' + d.linhas + ' linhas (' + d.com_op + ' com OP). O relatório está sendo recalculado; recarregue em alguns minutos.'); location.reload(); }
-      else { alert(d.erro || 'Não foi possível importar.'); b.disabled = false; b.textContent = 'Importar relatório do TOTVS (CSV)'; }
-    }).catch(function () { alert('Falha ao enviar o arquivo.'); b.disabled = false; b.textContent = 'Importar relatório do TOTVS (CSV)'; });
+      else { alert(d.erro || 'Não foi possível importar.'); b.disabled = false; b.textContent = 'Importar relatório do TOTVS (Excel/CSV)'; }
+    }).catch(function () { alert('Falha ao enviar o arquivo.'); b.disabled = false; b.textContent = 'Importar relatório do TOTVS (Excel/CSV)'; });
   });
 })();
 </script>
