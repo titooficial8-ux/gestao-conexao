@@ -163,6 +163,26 @@ def vincular_ops(ordenados: list, ops: list, fixos: dict = None) -> dict:
                 usa = min(max(_num(o.get('quantity')) - usado[o['orderCode']], 0.0), falta)
                 usado[o['orderCode']] += usa
                 falta -= usa
+    # OP NOVA (nada produzido ainda) pertence a um pedido que ainda nao foi tocado (nada faturado): o mais antigo desses. Pedido ja faturado em parte/atendido
+    # ja tem a OP dele (ou saiu do estoque); a OP que acabou de ser gerada pelo PCPFP141 nao e dele. (Confirmado pelo PCP: OP 3171 -> pedido 11530, 3165 -> 11661, 3172 -> 11242, 3160 -> 11231.)
+    coberto = defaultdict(float)
+    for (cli, prod), lista in por_chave.items():
+        for o in lista:
+            if o['orderCode'] in dono or _num(o.get('finishedQuantity')) > 0.5 or (o.get('status') in (30, 40)):
+                continue
+            criada = _data(o.get('insertDate')) or date.min
+            for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
+                if k in aloc and not any(x is o for x in aloc[k]) and coberto[k] >= solicitada * 0.9:
+                    continue
+                if p.get('customerCode') != cli or it.get('productCode') != prod or p.get('statusOrder') in ('Canceled', 'Attended', 'PartiallyAnswered'):
+                    continue
+                if faturada > 0.5 or pendente <= 0.5 or (_data(p.get('orderDate')) or date.min) > criada or coberto[k] >= solicitada * 0.9:
+                    continue
+                aloc.setdefault(k, []).append(o)
+                dono[o['orderCode']] = p.get('orderCode')
+                usado[o['orderCode']] = _num(o.get('quantity'))
+                coberto[k] += _num(o.get('quantity'))
+                break
     for k, (p, it, solicitada, faturada, pendente) in enumerate(ordenados):
         if k in aloc or p.get('statusOrder') == 'Canceled':
             continue
