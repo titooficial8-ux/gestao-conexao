@@ -684,6 +684,9 @@ class Tab(db.Model):
         # Gestao Sistema e exclusiva do Desenvolvedor (is_admin), nao importa o setor
         if self.category.slug == 'sistema':
             return False
+        if self.slug == 'gamificacao':                  # Gamificacao: so lideres e gestao da producao (cargos), alem do administrador
+            nome = (getattr(getattr(user, 'role', None), 'name', '') or '').strip()
+            return nome in ('Líder Produção', 'Gestão Produção') and self not in user.hidden_tabs
         if self in user.hidden_tabs:  # aba escondida para esta pessoa (tela Usuarios e Acessos)
             return False
         allowed_ids = {s.id for s in self.sectors}
