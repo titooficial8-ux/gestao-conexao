@@ -92,7 +92,22 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
 .gx-ind{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:16px 18px;margin-bottom:16px;overflow-x:auto}.gx-ind h3{margin:0 0 8px}
 .gx-tb{width:100%;border-collapse:collapse;font-size:14px}.gx-tb th{text-align:left;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:#475569;padding:8px;border-bottom:2px solid #e2e8f0}.gx-tb td{padding:9px 8px;border-bottom:1px solid #eef2f6}
 .gx-tb .ok{color:#15803d;font-weight:800}.gx-tb .ruim{color:#b91c1c;font-weight:800}.gx-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}
+.gm-load{position:relative;background:#0b1020;border:4px solid #0f172a;border-radius:22px;min-height:440px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;color:#fff;font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden;padding:24px;animation:gmLigaTela .9s steps(1) 1}
+.gm-load[hidden]{display:none}
+.gm-load:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.045) 0 2px,transparent 2px 4px);pointer-events:none}
+.gm-load .gm-ltit{font-size:46px;font-weight:900;letter-spacing:.22em;text-shadow:0 0 14px #38bdf8,4px 4px 0 #1d4ed8;margin:0}
+.gm-load .gm-lsub{font-size:13px;letter-spacing:.3em;color:#93c5fd;text-transform:uppercase}
+.gm-load .gm-lbarra{display:grid;grid-template-columns:repeat(20,1fr);gap:4px;width:min(520px,86%);border:3px solid #fff;padding:5px;background:#020617}
+.gm-load .gm-lbarra i{display:block;height:20px;background:#0f172a}.gm-load .gm-lbarra i.on{background:linear-gradient(180deg,#4ade80,#16a34a);box-shadow:0 0 8px #22c55e}
+.gm-load .gm-lpct{font-size:20px;font-weight:900;color:#fde047}
+.gm-load .gm-ldica{font-size:14px;color:#cbd5e1;min-height:20px;letter-spacing:.06em}
+.gm-load .gm-lpisca{animation:gmLPisca 1s steps(1) infinite}
+.gm-load .gm-lpix{display:flex;gap:6px}.gm-load .gm-lpix b{width:14px;height:14px;background:#f5871f;animation:gmLPulo .9s infinite}.gm-load .gm-lpix b:nth-child(2){background:#1fa755;animation-delay:.15s}.gm-load .gm-lpix b:nth-child(3){background:#38bdf8;animation-delay:.3s}.gm-load .gm-lpix b:nth-child(4){background:#facc15;animation-delay:.45s}
+@keyframes gmLPisca{50%{opacity:0}}@keyframes gmLPulo{50%{transform:translateY(-10px)}}
+@keyframes gmLigaTela{0%{opacity:0}15%{opacity:1;background:#fff}30%{opacity:0}45%{opacity:1;background:#fff}60%{opacity:.2}75%{opacity:1;background:#0b1020}100%{opacity:1}}
+.gm-flash{position:fixed;inset:0;background:#fff;z-index:9999;pointer-events:none;animation:gmFlash .6s ease-out forwards}@keyframes gmFlash{0%{opacity:.95}100%{opacity:0}}
 </style>
+<div id="gmLoad" class="gm-load" hidden><div class="gm-lpix"><b></b><b></b><b></b><b></b></div><h1 class="gm-ltit">LOADING<span id="gmLPts">...</span></h1><div class="gm-lsub gm-lpisca">Gamificação Conexão</div><div class="gm-lbarra" id="gmLBarra"></div><div class="gm-lpct" id="gmLPct">0%</div><div class="gm-ldica" id="gmLDica"></div></div>
 <div id="gmIntro" class="gm-intro">
   <div class="gm-palco">
     <canvas id="gmFio3d" class="gm-fio3d" width="240" height="300" data-logo="{{ url_for('static', filename='img/logo_conexao.png') }}"></canvas>
@@ -403,6 +418,18 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
     var id = ++digitando, i = 0; FALA.textContent = ''; FALA.className = 'gm-cursor'; if (window.Fio3D) Fio3D.falar(true);
     (function passo() { if (id !== digitando) return; i++; FALA.textContent = texto.slice(0, i); if (i < texto.length) setTimeout(passo, 24); else { FALA.className = ''; if (window.Fio3D) Fio3D.falar(false); if (fim) fim(); } })();
   }
+  var LOAD_MS = 5000, DICAS = ['Ligando as máquinas...', 'Afinando os teares...', 'Conferindo as metas do turno...', 'Chamando o mascote...', 'Quase lá, jogador!'];
+  function carregando(fim) {
+    var L = $('gmLoad'), B = $('gmLBarra'), P = $('gmLPct'), D = $('gmLDica'), PT = $('gmLPts'); $('gmIntro').hidden = true; $('gmJogo').hidden = true; L.hidden = false;
+    B.innerHTML = ''; for (var i = 0; i < 20; i++) B.appendChild(document.createElement('i'));
+    var ini = Date.now(), blocos = B.children, ult = -1;
+    var tim = setInterval(function () {
+      var f = Math.min((Date.now() - ini) / LOAD_MS, 1), pct = Math.round(f * 100), n = Math.floor(f * 20);
+      for (var i = 0; i < 20; i++) blocos[i].className = i < n ? 'on' : ''; P.textContent = pct + '%'; PT.textContent = '...'.slice(0, 1 + Math.floor(Date.now() / 350) % 3);
+      var di = Math.min(DICAS.length - 1, Math.floor(f * DICAS.length)); if (di !== ult) { ult = di; D.textContent = DICAS[di]; }
+      if (f >= 1) { clearInterval(tim); var fl = document.createElement('div'); fl.className = 'gm-flash'; document.body.appendChild(fl); setTimeout(function () { fl.remove(); }, 700); L.hidden = true; fim(); }
+    }, 60);
+  }
   function mostrarIntro() { pararPainel(); $('gmJogo').hidden = true; $('gmIntro').hidden = false; SET.hidden = true; humor(false); digitar(BOAS_VINDAS, function () { SET.hidden = false; }); }
   Array.prototype.forEach.call(document.querySelectorAll('.gm-setor'), function (b) {
     b.addEventListener('click', function () {
@@ -428,7 +455,7 @@ details.gm-raw pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:1
     });
   });
   $('gmTrocar').addEventListener('click', function () { fetch('/gamificacao/sair', { method: 'POST', credentials: 'same-origin' }); mostrarIntro(); });
-  if (ATIVO) { $('gmIntro').hidden = true; $('gmJogo').hidden = false; iniciarPainel(); } else { mostrarIntro(); }
+  if (ATIVO) { $('gmIntro').hidden = true; $('gmJogo').hidden = false; iniciarPainel(); } else { carregando(mostrarIntro); }
 })();
 </script>
 {% endblock %}
