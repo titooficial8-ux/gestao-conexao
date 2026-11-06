@@ -11,7 +11,7 @@
     '<linearGradient id="fgPoloG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#27b35e"/><stop offset="1" stop-color="#128443"/></linearGradient>' +
     '<linearGradient id="fgCabelo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a5582b"/><stop offset="1" stop-color="#5e2a14"/></linearGradient>' +
     '<linearGradient id="fgJeans" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a78b8"/><stop offset="1" stop-color="#2f5a99"/></linearGradient>' +
-    '</defs>' +
+    '<filter id="fgBranco" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0"/></filter></defs>' +
     '<circle cx="120" cy="150" r="108" fill="url(#fgBg)"/>' +
     '<ellipse cx="120" cy="296" rx="92" ry="7" fill="#0f172a" opacity=".12"/>' +
     // cabelo de tras
@@ -19,13 +19,13 @@
     // pescoco
     '<path d="M107 118H133V160C133 168 107 168 107 160Z" fill="#e2a982"/>' +
     // tronco (polo)
-    '<path d="M38 300C36 224 52 176 96 160L144 160C188 176 204 224 202 300Z" fill="url(#fgPoloG)"/>' +
-    '<path d="M64 300C64 240 70 205 92 178" stroke="#0f7a3a" stroke-width="3" fill="none" opacity=".25"/>' +
-    '<path d="M38 282L202 282L202 300L38 300Z" fill="url(#fgJeans)"/><path d="M38 282L202 282" stroke="#1c1410" stroke-width="5"/><rect x="113" y="278" width="14" height="8" rx="2" fill="#d4af37"/>' +
+    '<path d="M62 300C60 232 66 184 98 162L142 162C174 184 180 232 178 300Z" fill="url(#fgPoloG)"/>' +
+    '' +
+    '<path d="M66 176C76 164 92 162 100 162L140 162C150 162 164 164 174 176L170 200L70 200Z" fill="#1fa755"/><path d="M61 282L179 282L179 300L61 300Z" fill="url(#fgJeans)"/><path d="M61 282L179 282" stroke="#1c1410" stroke-width="5"/><rect x="113" y="278" width="14" height="8" rx="2" fill="#d4af37"/>' +
     // gola
     '<path d="M104 158L120 186L97 176Z" fill="#0f7a3a"/><path d="M136 158L120 186L143 176Z" fill="#0d6d34"/><path d="M120 184V214" stroke="#0f7a3a" stroke-width="2.5"/><circle cx="120" cy="196" r="1.8" fill="#e9fbe9"/><circle cx="120" cy="207" r="1.8" fill="#e9fbe9"/>' +
     // logo no peito
-    '<rect x="124" y="192" width="46" height="17" rx="3" fill="#fff"/><image href="' + logo + '" x="126" y="195" width="42" height="8.1" preserveAspectRatio="xMidYMid meet"/>' +
+    '<image href="' + logo + '" x="106" y="208" width="42" height="8.1" filter="url(#fgBranco)" preserveAspectRatio="xMidYMid meet"/>' +
     // cabeca
     '<g id="fgCab">' +
     '<ellipse cx="86" cy="100" rx="6" ry="10" fill="#e8b088"/><ellipse cx="154" cy="100" rx="6" ry="10" fill="#e8b088"/><circle cx="154" cy="110" r="2.6" fill="#d4af37"/><circle cx="86" cy="110" r="2.6" fill="#d4af37"/>' +
@@ -45,14 +45,14 @@
     '</g>' +
     // madeixas na frente dos ombros
     '<path d="M82 120C74 146 76 168 90 184C84 160 88 140 94 128Z" fill="url(#fgCabelo)"/><path d="M158 120C166 146 164 168 150 184C156 160 152 140 146 128Z" fill="url(#fgCabelo)"/>' +
-    // braco que gesticula (esquerda da tela)
-    '<g id="fgBracoE"><path d="M62 168C46 178 36 204 38 236L70 240C70 212 76 192 84 172Z" fill="url(#fgPoloG)"/><path d="M38 236L70 240" stroke="#0f7a3a" stroke-width="5" stroke-linecap="round"/>' +
-    '<g id="fgAnt" transform="translate(54 236)"><path d="M0 0L28 -26" stroke="#e8b088" stroke-width="20" stroke-linecap="round"/><path d="M0 -4L28 -30" stroke="#f3c7a2" stroke-width="6" stroke-linecap="round" opacity=".7"/>' +
-    '<g transform="translate(36 -34) rotate(-62) scale(.9)"><ellipse rx="13" ry="9.5" fill="#f0bf98"/><path d="M8 -4L26 -9" stroke="#f0bf98" stroke-width="6.5" stroke-linecap="round"/><path d="M10 0L29 -1" stroke="#f0bf98" stroke-width="6.5" stroke-linecap="round"/><path d="M10 4L28 8" stroke="#f0bf98" stroke-width="6.2" stroke-linecap="round"/><path d="M7 8L22 15" stroke="#f0bf98" stroke-width="5.6" stroke-linecap="round"/><path d="M-6 -6L-14 -15" stroke="#f0bf98" stroke-width="7" stroke-linecap="round"/></g></g></g>' +
-    // braco que segura a prancheta (direita da tela)
-    '<path d="M178 168C196 178 206 204 204 236L172 240C172 212 166 192 158 172Z" fill="url(#fgPoloG)"/><path d="M204 236L172 240" stroke="#0f7a3a" stroke-width="5" stroke-linecap="round"/>' +
-    '<g transform="translate(-8 8)"><g transform="rotate(-7 176 258)"><rect x="150" y="222" width="54" height="68" rx="4" fill="#a4501a"/><rect x="155" y="230" width="44" height="55" rx="2" fill="#fff"/><rect x="167" y="219" width="20" height="8" rx="2" fill="#94a3b8"/><path d="M160 242H190M160 250H186M160 258H192M160 266H180" stroke="#1d4ed8" stroke-width="2.2" stroke-linecap="round"/><path d="M184 276L188 280L196 270" stroke="#16a34a" stroke-width="2.6" fill="none" stroke-linecap="round"/></g>' +
-    '<path d="M190 246L168 266" stroke="#e8b088" stroke-width="19" stroke-linecap="round"/><ellipse cx="164" cy="270" rx="11" ry="8" fill="#f0bf98" transform="rotate(-25 164 270)"/><path d="M156 264L152 252" stroke="#f0bf98" stroke-width="6" stroke-linecap="round"/><path d="M160 262L160 250" stroke="#f0bf98" stroke-width="6" stroke-linecap="round"/></g>' +
+    // braco que gesticula (esquerda da tela): antebraco e mao atras, manga por cima
+    '<g id="fgBracoE"><path d="M64 196L48 236" stroke="#e8b088" stroke-width="17" stroke-linecap="round"/><g id="fgAnt" transform="translate(50 236)"><path d="M0 0L30 -28" stroke="#e8b088" stroke-width="17" stroke-linecap="round"/><path d="M-2 -4L28 -32" stroke="#f6d2b2" stroke-width="5" stroke-linecap="round" opacity=".7"/>' +
+    '<g transform="translate(38 -37) rotate(-52)"><ellipse rx="12" ry="9" fill="#f0bf98"/><path d="M8 -4L25 -9" stroke="#f0bf98" stroke-width="6" stroke-linecap="round"/><path d="M10 0L28 -1" stroke="#f0bf98" stroke-width="6" stroke-linecap="round"/><path d="M10 4L27 8" stroke="#f0bf98" stroke-width="5.8" stroke-linecap="round"/><path d="M7 8L21 15" stroke="#f0bf98" stroke-width="5.2" stroke-linecap="round"/><path d="M-5 -6L-13 -14" stroke="#f0bf98" stroke-width="6.5" stroke-linecap="round"/></g></g>' +
+    '<path d="M78 174L68 200" stroke="#0e7a3b" stroke-width="32" stroke-linecap="round"/><path d="M78 174L68 200" stroke="#1fa755" stroke-width="26" stroke-linecap="round"/></g>' +
+    // braco da prancheta (direita da tela)
+    '<path d="M176 196L190 234" stroke="#e8b088" stroke-width="17" stroke-linecap="round"/><g transform="translate(0 6)"><g transform="rotate(-6 146 262)"><rect x="118" y="226" width="54" height="68" rx="4" fill="#a4501a"/><rect x="123" y="234" width="44" height="55" rx="2" fill="#fff"/><rect x="135" y="223" width="20" height="8" rx="2" fill="#94a3b8"/><path d="M128 246H158M128 254H154M128 262H160M128 270H148" stroke="#1d4ed8" stroke-width="2.2" stroke-linecap="round"/><path d="M152 280L156 284L164 274" stroke="#16a34a" stroke-width="2.6" fill="none" stroke-linecap="round"/></g>' +
+    '<path d="M190 234L170 262" stroke="#e8b088" stroke-width="16" stroke-linecap="round"/><ellipse cx="168" cy="266" rx="10" ry="8" fill="#f0bf98" transform="rotate(-30 168 266)"/><path d="M162 262L158 250" stroke="#f0bf98" stroke-width="5.5" stroke-linecap="round"/><path d="M167 260L166 248" stroke="#f0bf98" stroke-width="5.5" stroke-linecap="round"/></g>' +
+    '<path d="M162 174L172 200" stroke="#0e7a3b" stroke-width="32" stroke-linecap="round"/><path d="M162 174L172 200" stroke="#1fa755" stroke-width="26" stroke-linecap="round"/>' +
     '</svg>';
   }
   function init(canvas, urlLogo) {
@@ -81,7 +81,7 @@
       lagr.setAttribute('opacity', tri ? 0.9 : 0); if (tri) lagr.setAttribute('cy', 106 + ((t * 0.7) % 1) * 18);
       // braco que gesticula: mao aberta oscila ao falar; cai quando triste
       var gesto = tri ? 14 : (Math.sin(t * 1.4) * 2 + fala * (Math.sin(t * 3.6) * 12 - 6));
-      ant.setAttribute('transform', 'translate(54 236) rotate(' + gesto.toFixed(2) + ')');
+      ant.setAttribute('transform', 'translate(50 236) rotate(' + gesto.toFixed(2) + ')');
       bracoE.setAttribute('transform', 'translate(' + 0 + ' ' + (fala * Math.sin(t * 3.6) * -3).toFixed(2) + ')');
     }
     quadro();
